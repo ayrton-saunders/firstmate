@@ -163,8 +163,11 @@ test_canonical_source_beats_fork_origin_and_converges_secondmate() {
   add_sm "$w" sm1
   base=$(git -C "$w/main" rev-parse HEAD)
   git clone -q --bare "$w/origin.git" "$w/fork.git"
-  git -C "$w/fork.git" symbolic-ref HEAD refs/heads/main
+  git --git-dir="$w/fork.git" update-ref refs/heads/develop "$base"
+  git -C "$w/fork.git" symbolic-ref HEAD refs/heads/develop
   git -C "$w/main" remote set-url origin "$w/fork.git"
+  git -C "$w/main" fetch -q origin develop
+  git -C "$w/main" remote set-head origin develop
   git -C "$w/main" remote add upstream "$w/fork.git"
   git -C "$w/main" fetch -q upstream
   [ ! -e "$w/home/config/update-source" ] \

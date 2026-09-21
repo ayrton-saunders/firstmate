@@ -6,8 +6,7 @@
 # clean fast-forward, never forcing, merging, or stashing" used by every sync
 # path:
 #   - /updatefirstmate (bin/fm-update.sh) pulls from its resolved canonical
-#     source: base_mode "origin" for the compatibility default or
-#     "update-source" for an explicit URL.
+#     source: base_mode "update-source".
 #   - the local-HEAD secondmate sync (bin/fm-spawn.sh on launch, bin/fm-bootstrap.sh
 #     on startup) follows the PRIMARY checkout's current default-branch commit:
 #     base_mode is that local commit, with NO fetch and no origin dependency.
@@ -49,13 +48,8 @@ first_line() {
   printf '%s\n' "$1" | sed -n '1s/[[:space:]]\{1,\}/ /g;1p'
 }
 
-default_branch() {
-  local dir=$1 ref branch
-  ref=$(git -C "$dir" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)
-  if [ -n "$ref" ]; then
-    echo "${ref#origin/}"
-    return 0
-  fi
+local_default_branch() {
+  local dir=$1 branch
   for branch in main master; do
     if git -C "$dir" show-ref --verify --quiet "refs/heads/$branch"; then
       echo "$branch"
@@ -63,6 +57,16 @@ default_branch() {
     fi
   done
   return 1
+}
+
+default_branch() {
+  local dir=$1 ref
+  ref=$(git -C "$dir" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)
+  if [ -n "$ref" ]; then
+    echo "${ref#origin/}"
+    return 0
+  fi
+  local_default_branch "$dir"
 }
 
 # Resolve the PRIMARY checkout's current default-branch commit - the local-HEAD
@@ -406,7 +410,11 @@ ff_target() {
   fi
 
   local default base base_name cur instr local_rev base_rev before after out
-  default=$(default_branch "$dir") || {
+  if [ "$base_mode" = update-source ]; then
+    default=$(local_default_branch "$dir")
+  else
+    default=$(default_branch "$dir")
+  fi || {
     echo "$label: skipped: cannot determine default branch"
     return 0
   }

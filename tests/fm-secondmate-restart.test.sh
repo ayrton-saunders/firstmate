@@ -194,6 +194,8 @@ add_repo_backed_mate() {  # <case-dir> <id> [harness] [backend]
     git -C "$dir/seed" push -q origin main
     git clone -q "$dir/origin.git" "$repo"
     git -C "$repo" remote set-head origin main >/dev/null 2>&1 || true
+    mkdir -p "$home/config"
+    printf '%s\n' "$dir/origin.git" > "$home/config/update-source"
     touch "$home/state/.last-watcher-beat"
   fi
   git -C "$repo" worktree add -q --detach "$smhome" main
