@@ -213,6 +213,7 @@ validate_secondmate_home() {
 # each distinct git-common-dir at most once. Used by the network-backed origin
 # and explicit update-source modes; the local-HEAD sync never fetches.
 FETCHED=""
+FM_UPDATE_SOURCE_BRANCH=""
 fetch_once() {
   local dir=$1 common
   common=$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
@@ -229,7 +230,11 @@ fetch_once() {
 }
 
 fetch_update_source_once() { # <dir> <url>
-  local dir=$1 url=$2 common key ref=refs/remotes/fm-update-source/HEAD
+  local dir=$1 url=$2 common key ref=refs/remotes/fm-update-source/HEAD symrefs branch
+  symrefs=$(git -C "$dir" ls-remote --symref -- "$url" HEAD 2>/dev/null) || return 1
+  branch=$(printf '%s\n' "$symrefs" | awk '$1 == "ref:" && $2 ~ /^refs\/heads\// && $3 == "HEAD" { sub(/^refs\/heads\//, "", $2); print $2 }')
+  [ -n "$branch" ] && git check-ref-format --branch "$branch" >/dev/null 2>&1 || return 1
+  FM_UPDATE_SOURCE_BRANCH=$branch
   common=$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
   key="$common|$url"
   if [ -n "$common" ]; then
@@ -410,14 +415,12 @@ ff_target() {
   fi
 
   local default base base_name cur instr local_rev base_rev before after out
-  if [ "$base_mode" = update-source ]; then
-    default=$(local_default_branch "$dir")
-  else
-    default=$(default_branch "$dir")
-  fi || {
-    echo "$label: skipped: cannot determine default branch"
-    return 0
-  }
+  if [ "$base_mode" != update-source ]; then
+    default=$(default_branch "$dir") || {
+      echo "$label: skipped: cannot determine default branch"
+      return 0
+    }
+  fi
 
   # Resolve the fast-forward base from base_mode (see header).
   if [ "$base_mode" = origin ]; then
@@ -442,6 +445,7 @@ ff_target() {
       echo "$label: skipped: configured update source fetch failed"
       return 0
     fi
+    default=$FM_UPDATE_SOURCE_BRANCH
     base=refs/remotes/fm-update-source/HEAD
     base_name="configured update source"
   else

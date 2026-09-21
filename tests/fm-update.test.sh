@@ -185,6 +185,37 @@ test_canonical_source_beats_fork_origin_and_converges_secondmate() {
   pass "default canonical source advances past a fork origin and converges a secondmate"
 }
 
+test_canonical_source_uses_its_advertised_master_branch() {
+  local w out stale_main canonical_tip
+  w=$(new_world canonical-master)
+  stale_main=$(git -C "$w/main" rev-parse main)
+  git -C "$w/seed" branch -m master
+  git -C "$w/seed" push -q origin master
+  git -C "$w/origin.git" symbolic-ref HEAD refs/heads/master
+  git -C "$w/seed" push -q origin --delete main
+  git -C "$w/main" fetch -q --prune origin
+  git -C "$w/main" checkout -qb master origin/master
+  configure_update_source "$w" "$w/origin.git"
+
+  printf 'master update\n' >> "$w/seed/README.md"
+  git -C "$w/seed" add README.md
+  git -C "$w/seed" commit -qm master-update
+  git -C "$w/seed" push -q origin master
+  canonical_tip=$(git -C "$w/seed" rev-parse HEAD)
+
+  out=$(run_update "$w")
+
+  assert_contains "$out" "firstmate: updated " \
+    "the canonical source's advertised master branch did not advance firstmate"
+  [ "$(git -C "$w/main" symbolic-ref --short HEAD)" = master ] \
+    || fail "the canonical update moved the checkout off master"
+  [ "$(git -C "$w/main" rev-parse HEAD)" = "$canonical_tip" ] \
+    || fail "the master checkout did not reach the canonical tip"
+  [ "$(git -C "$w/main" rev-parse main)" = "$stale_main" ] \
+    || fail "the stale local main branch was unexpectedly moved"
+  pass "canonical source metadata selects master despite stale local main"
+}
+
 test_configured_source_failures_do_not_fall_back() {
   local w out before
   w=$(new_world missing-source)
@@ -650,6 +681,7 @@ test_primary_update_rebinds_local_watch() {
 }
 
 test_canonical_source_beats_fork_origin_and_converges_secondmate
+test_canonical_source_uses_its_advertised_master_branch
 test_configured_source_failures_do_not_fall_back
 test_updates_main_and_secondmate
 test_reread_gate_is_instruction_only
