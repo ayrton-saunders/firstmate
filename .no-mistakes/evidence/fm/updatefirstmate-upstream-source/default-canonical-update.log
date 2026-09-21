@@ -1,0 +1,13 @@
+SCENARIO: No config: canonical kunchenguid source beats a behind publication fork
+COMMAND: FM_ROOT_OVERRIDE=<isolated firstmate> FM_HOME=<isolated home> ./bin/fm-update.sh
+config/update-source: absent
+checkout before: a543b10f19ae939b0b062e67dfe3179e462c6975
+fork origin tip:  a543b10f19ae939b0b062e67dfe3179e462c6975
+canonical tip:    7b38628acfddb7996f29168a800f634d0207b67e
+firstmate: updated a543b10..7b38628
+no watches registered
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+checkout after:  7b38628acfddb7996f29168a800f634d0207b67e
+RESULT: PASS — checkout reached canonical tip while origin remained behind.

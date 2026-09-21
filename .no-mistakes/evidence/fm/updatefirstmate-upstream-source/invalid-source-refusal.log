@@ -1,0 +1,10 @@
+SCENARIO: Malformed explicit source refuses fallback and mutation
+COMMAND: FM_ROOT_OVERRIDE=<isolated firstmate> FM_HOME=<isolated home> ./bin/fm-update.sh
+checkout before: 03ff7cb6c1370955505f9a1b54018900b5b5b50e
+origin ahead at:  e404fa577354d8ce561c37f1f783994013beecf0
+firstmate: skipped: config/update-source must contain one URL followed by one newline
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+checkout after:  03ff7cb6c1370955505f9a1b54018900b5b5b50e
+RESULT: PASS — invalid override was reported and checkout stayed unchanged.
