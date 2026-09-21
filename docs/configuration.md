@@ -287,7 +287,25 @@ Each seed writes an `.fm-secondmate-home` identity marker at the home root, alon
 The tracked root `.gitignore` ignores both markers, so validation can read them without making a freshly seeded home appear dirty to porcelain-based safety checks.
 This does not relax protection for any other untracked file.
 An existing linked-worktree home that predates this rule advances through its marker-only state during its next bootstrap or spawn local sync, after which Git ignores the marker normally.
-A local standalone-clone home cannot receive a primary-local commit through that no-fetch sync, so it receives the rule through `/updatefirstmate`'s origin refresh instead.
+A local standalone-clone home cannot receive a primary-local commit through that no-fetch sync, so it receives the rule through `/updatefirstmate`'s canonical-source refresh instead.
+
+## Canonical self-update source (config/update-source)
+
+`config/update-source` selects the canonical Git repository that `/updatefirstmate` follows without changing any publication remote.
+Write exactly one accepted absolute Git clone URL followed by one newline, for example:
+
+```sh
+mkdir -p config
+printf '%s\n' 'https://github.com/kunchenguid/firstmate.git' > config/update-source
+```
+
+When the file is absent, `origin` remains the backward-compatible update source for installations with a single remote.
+When the file is present, the updater fetches that URL directly and does not infer trust from a remote named `upstream`, repoint `origin`, or alter any fetch or push remote.
+A malformed, unsafe, missing, or unreachable configured source stops the update rather than silently falling back to `origin`.
+The file must be a regular non-symlink file with one hard link; accepted URL forms and safety restrictions are owned by [`fm-project-origin-lib.sh`](../bin/fm-project-origin-lib.sh).
+The primary value is inherited into secondmate homes through the declared local-material contract.
+For a remote route, the parent also sends the resolved URL to the remote code root for that update, where it is validated again, so the entire route converges on the same source without depending on matching remote names.
+Fast-forward-only, dirty-tree, wrong-branch, and divergence protections are unchanged and remain owned by [`fm-ff-lib.sh`](../bin/fm-ff-lib.sh).
 
 ## FM_HOME
 

@@ -3,9 +3,11 @@
 # firstmate repo and every registered secondmate home.
 #
 # The guarantees under test mirror fm-fleet-sync.sh and prime directive #3:
-#   - The running firstmate repo (on its default branch) fast-forwards from
-#     origin; a leased secondmate home (detached HEAD on the default branch)
-#     fast-forwards the same way.
+#   - The running firstmate repo and leased secondmate homes fast-forward from
+#     the explicit canonical URL in config/update-source when present, while an
+#     origin-only installation keeps the backward-compatible behavior.
+#   - A fork used as origin cannot mask a canonical source that is ahead, and an
+#     arbitrary remote named upstream is never selected implicitly.
 #   - A dirty, offline, wrong-branch, or genuinely unique diverged target is
 #     skipped and reported, never forced or stashed, so unlanded work survives.
 #     Divergence leaves a durable reconciliation record, while a clean local
@@ -133,11 +135,76 @@ bump_origin() {
   git -C "$w/seed" push -q origin main
 }
 
+configure_update_source() { # <world> <url>
+  local w=$1 url=$2
+  mkdir -p "$w/home/config"
+  printf '%s\n' "$url" > "$w/home/config/update-source"
+}
+
 run_update() {
   local w=$1
   PATH="$w/fakebin:$PATH" FM_FAKE_DIR="$w/fake" \
     FM_SSH_BIN="${FM_TEST_SSH_BIN:-ssh}" \
     FM_ROOT_OVERRIDE="$w/main" FM_HOME="$w/home" "$UPDATE" 2>/dev/null
+}
+
+test_canonical_source_beats_fork_origin_and_converges_secondmate() {
+  local w out base canonical_tip
+  w=$(new_world canonical-fork)
+  add_sm "$w" sm1
+  base=$(git -C "$w/main" rev-parse HEAD)
+  git clone -q --bare "$w/origin.git" "$w/fork.git"
+  git -C "$w/fork.git" symbolic-ref HEAD refs/heads/main
+  git -C "$w/main" remote set-url origin "$w/fork.git"
+  git -C "$w/main" remote add upstream "$w/fork.git"
+  git -C "$w/main" fetch -q upstream
+  configure_update_source "$w" "$w/origin.git"
+  bump_origin "$w" instr
+  canonical_tip=$(git -C "$w/seed" rev-parse HEAD)
+
+  out=$(run_update "$w")
+
+  assert_contains "$out" "firstmate: updated " "the configured canonical source did not advance firstmate"
+  assert_contains "$out" "secondmate sm1: updated " "the configured canonical source did not advance the secondmate"
+  [ "$(git -C "$w/main" rev-parse HEAD)" = "$canonical_tip" ] \
+    || fail "firstmate did not reach the canonical tip"
+  [ "$(git -C "$w/sm1" rev-parse HEAD)" = "$canonical_tip" ] \
+    || fail "secondmate did not converge to the canonical tip"
+  [ "$(git -C "$w/main" rev-parse origin/main)" = "$base" ] \
+    || fail "the fork publication remote unexpectedly advanced"
+  [ "$(git -C "$w/main" rev-parse upstream/main)" = "$base" ] \
+    || fail "an arbitrary remote named upstream influenced the update"
+  assert_contains "$out" "restart-secondmates: fm-sm1" \
+    "the canonically converged live secondmate was not selected for restart"
+  pass "configured canonical source advances past a fork origin and converges a secondmate"
+}
+
+test_configured_source_failures_do_not_fall_back() {
+  local w out before
+  w=$(new_world missing-source)
+  add_sm "$w" sm1
+  before=$(git -C "$w/main" rev-parse HEAD)
+  configure_update_source "$w" "$w/does-not-exist.git"
+  bump_origin "$w" instr
+  out=$(run_update "$w")
+  assert_contains "$out" "firstmate: skipped: configured update source fetch failed" \
+    "an unreachable configured source was not reported"
+  [ "$(git -C "$w/main" rev-parse HEAD)" = "$before" ] \
+    || fail "an unreachable configured source fell back and moved firstmate"
+  [ "$(git -C "$w/sm1" rev-parse HEAD)" = "$before" ] \
+    || fail "an unreachable configured source moved a secondmate"
+  assert_contains "$out" "restart-secondmates: none" \
+    "an unreachable configured source scheduled a secondmate restart"
+
+  printf '%s\n%s\n' "$w/origin.git" "$w/fork.git" > "$w/home/config/update-source"
+  out=$(run_update "$w")
+  assert_contains "$out" "firstmate: skipped: config/update-source must contain one URL followed by one newline" \
+    "a malformed configured source was not rejected"
+  [ "$(git -C "$w/main" rev-parse HEAD)" = "$before" ] \
+    || fail "an invalid configured source fell back and moved firstmate"
+  [ "$(git -C "$w/sm1" rev-parse HEAD)" = "$before" ] \
+    || fail "an invalid configured source moved a secondmate"
+  pass "missing and invalid configured sources refuse fallback"
 }
 
 # --- T1: main + secondmate behind, instruction change; FF, not a merge ------
@@ -265,7 +332,10 @@ decode() { printf '%s' "$1" | base64 --decode 2>/dev/null || printf '%s' "$1" | 
 rargs=()
 while IFS= read -r -d '' a; do rargs+=("$a"); done < <(decode "$argv_b64")
 case "${rargs[1]:-}" in
-  update) printf 'synced: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n' ;;
+  update)
+    [ "${rargs[3]:-}" = "$(cat "$FM_FAKE_DIR/expected-source")" ] || exit 92
+    printf 'synced: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n'
+    ;;
   state) printf 'alive\n' ;;
   *) exit 91 ;;
 esac
@@ -284,6 +354,8 @@ remote_backend=herdr
 EOF
   printf -- '- sm1 - remote domain (host: remote-mac; root: /srv/fm; home: /srv/sm1; scope: things; projects: p; added 2026-09-03)\n' \
     > "$w/home/data/secondmates.md"
+  configure_update_source "$w" "$w/origin.git"
+  printf '%s\n' "$w/origin.git" > "$w/fake/expected-source"
 
   out=$(FM_TEST_SSH_BIN="$fake_ssh" run_update "$w")
 
@@ -341,6 +413,26 @@ test_diverged_secondmate_skipped() {
   assert_contains "$second_out" "reconciliation required (record: $marker)" \
     "a later update did not surface the durable divergence"
   pass "T5 diverged secondmate is preserved and durably actionable"
+}
+
+test_configured_source_divergence_is_preserved() {
+  local w out before
+  w=$(new_world configured-divergence)
+  configure_update_source "$w" "$w/origin.git"
+  printf 'local-only result\n' > "$w/main/local.txt"
+  git -C "$w/main" add local.txt
+  git -C "$w/main" commit -qm local-result
+  before=$(git -C "$w/main" rev-parse HEAD)
+  bump_origin "$w" instr
+
+  out=$(run_update "$w")
+
+  assert_contains "$out" "firstmate: skipped: diverged from configured update source" \
+    "configured-source divergence was not reported"
+  [ "$(git -C "$w/main" rev-parse HEAD)" = "$before" ] \
+    || fail "configured-source divergence moved the protected local commit"
+  [ -f "$w/main/local.txt" ] || fail "configured-source divergence discarded local content"
+  pass "configured-source divergence remains untouched"
 }
 
 test_squash_merged_divergence_reconciles() {
@@ -556,6 +648,8 @@ test_primary_update_rebinds_local_watch() {
   pass "T12 a self-update rebinds a locally armed watch on the primary"
 }
 
+test_canonical_source_beats_fork_origin_and_converges_secondmate
+test_configured_source_failures_do_not_fall_back
 test_updates_main_and_secondmate
 test_reread_gate_is_instruction_only
 test_bin_only_advance_restarts
@@ -564,6 +658,7 @@ test_dead_secondmate_gets_no_action
 test_legacy_remote_advance_restarts
 test_dirty_secondmate_skipped
 test_diverged_secondmate_skipped
+test_configured_source_divergence_is_preserved
 test_squash_merged_divergence_reconciles
 test_already_current_secondmate_still_restarts
 test_already_current_unprovable_mate_is_nudged

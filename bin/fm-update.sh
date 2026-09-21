@@ -1,9 +1,11 @@
 #!/usr/bin/env bash
-# Self-update a running firstmate and its secondmates to the latest origin.
+# Self-update a running firstmate and its secondmates from the canonical source.
 #
 # Mechanical half of the /updatefirstmate skill. Fast-forwards the running
-# firstmate repo's default branch from origin, then fast-forwards every
-# registered secondmate home. Local homes are treehouse worktrees or standalone
+# firstmate repo's default branch from config/update-source when configured,
+# falling back to origin for backward compatibility, then fast-forwards every
+# registered secondmate home from that same source. Local homes are treehouse
+# worktrees or standalone
 # clones; remote routes update their configured code root on that host and then
 # fast-forward the persistent home to that root. FAST-FORWARD ONLY, exactly like
 # fm-fleet-sync.sh: never force, never create a merge commit, never stash.
@@ -18,7 +20,8 @@
 # default branch, so a fast-forward there advances HEAD only and never touches
 # any other worktree's checkout or the shared `main` branch.
 #
-# The fast-forward mechanics live in bin/fm-ff-lib.sh (base_mode "origin" here);
+# The fast-forward mechanics live in bin/fm-ff-lib.sh (base_mode "origin" or
+# "update-source" here);
 # the same library drives local and remote parent-targeted secondmate sync, so
 # there is one ff implementation, not several.
 #
@@ -69,7 +72,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
+CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
 SECONDMATES_MD="$FM_HOME/data/secondmates.md"
+# shellcheck source=bin/fm-update-source-lib.sh
+. "$SCRIPT_DIR/fm-update-source-lib.sh"
 # shellcheck source=bin/fm-ff-lib.sh
 . "$SCRIPT_DIR/fm-ff-lib.sh"
 # shellcheck source=bin/fm-secondmate-restart-lib.sh
@@ -88,7 +94,20 @@ fi
 # --- main firstmate repo ---------------------------------------------------
 
 reread_firstmate="no"
-ff_target "$FM_ROOT" "firstmate" origin no no
+update_base=origin
+update_source_ready=yes
+if fm_update_source_resolve "$CONFIG"; then
+  [ "$FM_UPDATE_SOURCE_MODE" != url ] || update_base=update-source
+else
+  echo "firstmate: skipped: $FM_UPDATE_SOURCE_ERROR"
+  FF_STATUS=skipped
+  FF_INSTR=
+  update_source_ready=no
+fi
+if [ "$update_source_ready" = yes ]; then
+  ff_target "$FM_ROOT" "firstmate" "$update_base" no no
+  [ "$FF_SOURCE_FETCH_FAILED" != yes ] || update_source_ready=no
+fi
 if [ "$FF_STATUS" = "updated" ]; then
   if [ -n "$FF_INSTR" ]; then
     reread_firstmate="yes"
@@ -173,7 +192,9 @@ fm_ff_after_secondmate_settled() {  # <id> <home> <window> <status> <instr>
 
 # Live direct reports first: state/<id>.meta with kind=secondmate carries the
 # authoritative home= path.
-sweep_live_secondmate_metas "$STATE" origin yes
+if [ "$update_source_ready" = yes ]; then
+  sweep_live_secondmate_metas "$STATE" "$update_base" yes
+fi
 
 # Registry backstop: a secondmate registered in data/secondmates.md but without
 # a live meta (e.g. between restarts) is still its persistent on-disk home.
@@ -190,7 +211,10 @@ if [ -f "$SECONDMATES_MD" ]; then
     id=$SECONDMATE_REGISTRY_ID
     home=$SECONDMATE_REGISTRY_HOME
     if [ "$SECONDMATE_REGISTRY_REMOTE" -eq 1 ]; then
-      if remote_out=$("$SCRIPT_DIR/fm-on.sh" "$id" fm-remote-secondmate-control.sh update "$id" < /dev/null 2>&1); then
+      [ "$update_source_ready" = yes ] || continue
+      remote_update_args=(fm-remote-secondmate-control.sh update "$id")
+      [ "$update_base" != update-source ] || remote_update_args+=("$FM_UPDATE_SOURCE_URL")
+      if remote_out=$("$SCRIPT_DIR/fm-on.sh" "$id" "${remote_update_args[@]}" < /dev/null 2>&1); then
         remote_result=$(printf '%s\n' "$remote_out" | tail -1)
         case "$remote_result" in
           synced:*)
@@ -230,7 +254,8 @@ if [ -f "$SECONDMATES_MD" ]; then
         echo "remote secondmate $id: skipped on $SECONDMATE_REGISTRY_HOST: ${remote_out%%$'\n'*}" >&2
       fi
     else
-      process_secondmate "$id" "$home" "" origin yes
+      [ "$update_source_ready" = yes ] || continue
+      process_secondmate "$id" "$home" "" "$update_base" yes
     fi
   done < "$SECONDMATES_MD"
 fi

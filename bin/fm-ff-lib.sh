@@ -5,7 +5,9 @@
 # This is the one implementation of "advance a firstmate checkout to a base by a
 # clean fast-forward, never forcing, merging, or stashing" used by every sync
 # path:
-#   - /updatefirstmate (bin/fm-update.sh) pulls from origin: base_mode "origin".
+#   - /updatefirstmate (bin/fm-update.sh) pulls from its resolved canonical
+#     source: base_mode "origin" for the compatibility default or
+#     "update-source" for an explicit URL.
 #   - the local-HEAD secondmate sync (bin/fm-spawn.sh on launch, bin/fm-bootstrap.sh
 #     on startup) follows the PRIMARY checkout's current default-branch commit:
 #     base_mode is that local commit, with NO fetch and no origin dependency.
@@ -204,8 +206,8 @@ validate_secondmate_home() {
 }
 
 # A single fetch refreshes every worktree that shares an object store, so fetch
-# each distinct git-common-dir at most once. Used ONLY by the origin base mode;
-# the local-HEAD sync never fetches.
+# each distinct git-common-dir at most once. Used by the network-backed origin
+# and explicit update-source modes; the local-HEAD sync never fetches.
 FETCHED=""
 fetch_once() {
   local dir=$1 common
@@ -217,6 +219,22 @@ fetch_once() {
   fi
   if git -C "$dir" fetch origin --prune --quiet 2>/dev/null; then
     [ -n "$common" ] && FETCHED="$FETCHED $common"
+    return 0
+  fi
+  return 1
+}
+
+fetch_update_source_once() { # <dir> <url>
+  local dir=$1 url=$2 common key ref=refs/remotes/fm-update-source/HEAD
+  common=$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
+  key="$common|$url"
+  if [ -n "$common" ]; then
+    case " $FETCHED " in
+      *" $key "*) return 0 ;;
+    esac
+  fi
+  if git -C "$dir" fetch --quiet --no-tags -- "$url" "+HEAD:$ref" 2>/dev/null; then
+    [ -n "$common" ] && FETCHED="$FETCHED $key"
     return 0
   fi
   return 1
@@ -350,11 +368,16 @@ live_secondmate_meta_records() {
 # caller:
 #   FF_STATUS = updated|current|skipped
 #   FF_INSTR  = comma list of changed instruction paths (only when updated)
+#   FF_SOURCE_FETCH_FAILED = yes only when an explicit update source was absent
+#                            or could not be fetched
 #
 # base_mode selects where the fast-forward base comes from:
-#   origin       - fetch origin and advance to origin/<default> (the /updatefirstmate
-#                  path); requires an origin remote and network reachability.
-#   <commit-ish> - advance to that LOCAL commit with NO fetch and no origin
+#   origin        - fetch origin and advance to origin/<default> (the
+#                   backward-compatible /updatefirstmate path); requires an
+#                   origin remote and network reachability.
+#   update-source - fetch FM_UPDATE_SOURCE_URL directly and advance to its HEAD;
+#                   no configured remote name is consulted.
+#   <commit-ish>  - advance to that LOCAL commit with NO fetch and no origin
 #                  dependency (the local-HEAD secondmate sync). The commit must
 #                  already exist in the target's object store, which it always does
 #                  for a worktree of this same repo; a standalone clone that lacks
@@ -365,11 +388,13 @@ live_secondmate_meta_records() {
 # in this file's header.
 FF_STATUS=""
 FF_INSTR=""
+FF_SOURCE_FETCH_FAILED=no
 ff_target() {
   local dir=$1 label=$2 base_mode=$3 allow_detached=${4:-no} ignore_seed_marker=${5:-no}
   local secondmate_id=${6:-} reconciliation_state=${7:-}
   FF_STATUS="skipped"
   FF_INSTR=""
+  FF_SOURCE_FETCH_FAILED=no
 
   if [ ! -d "$dir" ]; then
     echo "$label: skipped: not a directory"
@@ -380,7 +405,7 @@ ff_target() {
     return 0
   fi
 
-  local default base cur instr local_rev base_rev before after out
+  local default base base_name cur instr local_rev base_rev before after out
   default=$(default_branch "$dir") || {
     echo "$label: skipped: cannot determine default branch"
     return 0
@@ -397,8 +422,23 @@ ff_target() {
       return 0
     fi
     base="origin/$default"
+    base_name=$base
+  elif [ "$base_mode" = update-source ]; then
+    if [ -z "${FM_UPDATE_SOURCE_URL:-}" ]; then
+      FF_SOURCE_FETCH_FAILED=yes
+      echo "$label: skipped: configured update source is missing"
+      return 0
+    fi
+    if ! fetch_update_source_once "$dir" "$FM_UPDATE_SOURCE_URL"; then
+      FF_SOURCE_FETCH_FAILED=yes
+      echo "$label: skipped: configured update source fetch failed"
+      return 0
+    fi
+    base=refs/remotes/fm-update-source/HEAD
+    base_name="configured update source"
   else
     base="$base_mode"
+    base_name=$base
   fi
 
   if ! git -C "$dir" rev-parse --verify --quiet "$base^{commit}" >/dev/null; then
@@ -458,12 +498,12 @@ ff_target() {
     if [ -n "$secondmate_id" ] && [ -n "$reconciliation_state" ]; then
       local marker
       if marker=$(secondmate_update_reconcile_record "$reconciliation_state" "$secondmate_id" "$local_rev" "$base_rev" "$base"); then
-        echo "$label: skipped: diverged from $base; reconciliation required (record: $marker)"
+        echo "$label: skipped: diverged from $base_name; reconciliation required (record: $marker)"
       else
-        echo "$label: skipped: diverged from $base; reconciliation required, but its durable record could not be written"
+        echo "$label: skipped: diverged from $base_name; reconciliation required, but its durable record could not be written"
       fi
     else
-      echo "$label: skipped: diverged from $base"
+      echo "$label: skipped: diverged from $base_name"
     fi
     return 0
   fi
