@@ -325,11 +325,10 @@ test_dead_secondmate_gets_no_action() {
   pass "T3d an already-stopped secondmate is left to startup recovery"
 }
 
-# --- T3e: the one-argument remote update protocol rolls out safely ---------
-test_legacy_remote_update_rollout() {
-  local w out fake_ssh old_tip canonical_tip
+# --- T3e: remote source preflight gates the one-argument update ------------
+test_remote_update_source_preflight() {
+  local w out fake_ssh canonical_tip
   w=$(new_world t3e)
-  old_tip=$(git -C "$w/main" rev-parse HEAD)
   fake_ssh="$w/fakebin/fake-ssh"
   cat > "$fake_ssh" <<'SH'
 #!/usr/bin/env bash
@@ -344,13 +343,19 @@ decode() { printf '%s' "$1" | base64 --decode 2>/dev/null || printf '%s' "$1" | 
 rargs=()
 while IFS= read -r -d '' a; do rargs+=("$a"); done < <(decode "$argv_b64")
 case "${rargs[1]:-}" in
+  update-preflight)
+    [ -z "${rargs[3]:-}" ] || exit 92
+    [ ! -f "$FM_FAKE_DIR/old-remote" ] || exit 2
+    if [ -f "$FM_FAKE_DIR/mismatched-source" ]; then
+      printf 'update-source: /different/source.git\n'
+    else
+      printf 'update-source: %s\n' "$(cat "$FM_FAKE_DIR/expected-source")"
+    fi
+    ;;
   update)
     [ -z "${rargs[3]:-}" ] || exit 92
-    if [ -f "$FM_FAKE_DIR/behind" ]; then
-      printf 'current: %s\n' "$(cat "$FM_FAKE_DIR/behind")"
-    else
-      printf 'synced: %s\n' "$(cat "$FM_FAKE_DIR/expected-target")"
-    fi
+    touch "$FM_FAKE_DIR/update-called"
+    printf 'synced: %s\n' "$(cat "$FM_FAKE_DIR/expected-target")"
     ;;
   state) printf 'alive\n' ;;
   *) exit 91 ;;
@@ -374,24 +379,38 @@ EOF
   bump_origin "$w" instr
   canonical_tip=$(git -C "$w/seed" rev-parse HEAD)
   printf '%s\n' "$canonical_tip" > "$w/fake/expected-target"
+  printf '%s\n' "$w/origin.git" > "$w/fake/expected-source"
 
   out=$(FM_TEST_SSH_BIN="$fake_ssh" run_update "$w")
 
   assert_contains "$out" "remote secondmate sm1: updated on remote-mac ($canonical_tip)" \
-    "an old remote with a canonical origin did not complete the one-argument rollout"
+    "a matching preflight did not permit the one-argument remote update"
+  assert_present "$w/fake/update-called" \
+    "a matching remote source did not reach the mutating update command"
   assert_contains "$out" "restart-secondmates: fm-sm1" \
     "a live remote mate on the new tip must restart even when the host reports no instruction diff"
   assert_contains "$out" "nudge-secondmates: none" \
     "a restarted remote mate must not also be steered"
-  printf '%s\n' "$old_tip" > "$w/fake/behind"
+  rm -f "$w/fake/update-called"
+  : > "$w/fake/old-remote"
   out=$(FM_TEST_SSH_BIN="$fake_ssh" run_update_diagnostics "$w")
-  assert_contains "$out" "remote code root reached $old_tip instead of required canonical commit $canonical_tip" \
-    "an old remote with a behind origin was not refused"
-  assert_contains "$out" "update that host's Firstmate code root from $w/origin.git and retry" \
-    "the behind old remote did not receive manual recovery guidance"
+  assert_contains "$out" "remote updater must be upgraded manually once before canonical updates" \
+    "an old remote was not refused with one-time upgrade guidance"
+  assert_absent "$w/fake/update-called" \
+    "an old remote was mutated before capability verification"
   assert_contains "$out" "restart-secondmates: none" \
-    "a behind old remote was incorrectly scheduled for restart"
-  pass "T3e one-argument old-remote rollout succeeds or refuses safely"
+    "an old remote was incorrectly scheduled for restart"
+
+  rm -f "$w/fake/old-remote"
+  : > "$w/fake/mismatched-source"
+  out=$(FM_TEST_SSH_BIN="$fake_ssh" run_update_diagnostics "$w")
+  assert_contains "$out" "remote canonical source does not match this home" \
+    "a mismatched remote source was not refused"
+  assert_absent "$w/fake/update-called" \
+    "a source-mismatched remote was mutated after preflight refusal"
+  assert_contains "$out" "restart-secondmates: none" \
+    "a source-mismatched remote was incorrectly scheduled for restart"
+  pass "T3e remote preflight permits exact sources and refuses others unchanged"
 }
 
 # --- T4: dirty secondmate is skipped, its edit preserved -------------------
@@ -681,7 +700,7 @@ test_reread_gate_is_instruction_only
 test_bin_only_advance_restarts
 test_unprovable_runtime_gets_fallback_nudge
 test_dead_secondmate_gets_no_action
-test_legacy_remote_update_rollout
+test_remote_update_source_preflight
 test_dirty_secondmate_skipped
 test_diverged_secondmate_skipped
 test_configured_source_divergence_is_preserved

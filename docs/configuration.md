@@ -304,7 +304,7 @@ When the file is present, the updater fetches that URL directly and does not inf
 A malformed, unsafe, missing, or unreachable configured source stops the update rather than silently falling back to another source.
 The file must be a regular non-symlink file; accepted URL forms and safety restrictions are owned by [`fm-project-origin-lib.sh`](../bin/fm-project-origin-lib.sh).
 The primary value is inherited into secondmate homes through the declared local-material contract.
-For a remote route, the code root resolves the inherited configuration on its own host. The parent keeps the one-argument update protocol used by older hosts, then verifies that the reported commit matches the required canonical commit; a host whose old updater followed a behind `origin` is left unchanged with manual recovery guidance.
+For a remote route, the code root first reports its resolved inherited source through a read-only capability preflight. The parent invokes the one-argument update only after an exact source match, then verifies the reported commit; an older updater or a source mismatch is left unchanged with one-time manual-upgrade guidance.
 Fast-forward-only, dirty-tree, wrong-branch, and divergence protections are unchanged and remain owned by [`fm-ff-lib.sh`](../bin/fm-ff-lib.sh).
 
 ## FM_HOME

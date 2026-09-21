@@ -29,7 +29,7 @@ The only live mates that do not restart are the ones whose home the update pass 
 
 The primary update is fast-forward only, while each secondmate uses the same guarded convergence path plus one narrow recovery for squash-merged local history.
 [`docs/configuration.md`](../../../docs/configuration.md#canonical-self-update-source-configupdate-source) owns how `config/update-source` selects an explicit canonical URL, with `kunchenguid/firstmate` as the unconfigured default and fork remotes preserved for publication.
-For a remote route, the configured Firstmate code root resolves the inherited source on that host, the parent verifies that it reached the required canonical commit, and only then is the persistent home accepted as converged.
+For a remote route, a read-only capability preflight must report the exact inherited source before the configured Firstmate code root or persistent home may move; the parent then verifies the required canonical commit before accepting convergence.
 It never forces, never creates a merge commit, and never stashes.
 A clean secondmate divergence advances with `reset --keep` only when a three-way tree proof shows its complete local result is already present at the target, which recognizes squash-merged contributions without discarding unique content.
 Every other dirty, diverged, offline, or wrong-branch target is skipped and reported, and a genuine divergence leaves a durable `state/.secondmate-update-reconcile/<id>.pending` record that future bootstrap and update passes surface until convergence clears it.

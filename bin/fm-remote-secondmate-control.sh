@@ -11,6 +11,7 @@
 #   fm-remote-secondmate-control.sh capture <id> [lines]
 #   fm-remote-secondmate-control.sh observe <id>
 #   fm-remote-secondmate-control.sh sync <id> [<parent-commit>]
+#   fm-remote-secondmate-control.sh update-preflight <id>
 #   fm-remote-secondmate-control.sh update <id>
 #   fm-remote-secondmate-control.sh retire <id> [--force]
 #
@@ -61,6 +62,8 @@ REMOTE_HERDR_SESSION=fm-remote
 . "$SCRIPT_DIR/fm-backend.sh"
 # shellcheck source=bin/fm-ff-lib.sh
 . "$SCRIPT_DIR/fm-ff-lib.sh"
+# shellcheck source=bin/fm-update-source-lib.sh
+. "$SCRIPT_DIR/fm-update-source-lib.sh"
 # shellcheck source=bin/fm-pending-reply-lib.sh
 . "$SCRIPT_DIR/fm-pending-reply-lib.sh"
 # shellcheck source=bin/fm-task-inbox-lib.sh
@@ -374,6 +377,16 @@ cmd_sync() {
   esac
 }
 
+cmd_update_preflight() {
+  local id=$1
+  validate_id "$id"
+  validate_home "$id"
+  if ! fm_update_source_resolve "$TARGET_HOME/config"; then
+    die "$FM_UPDATE_SOURCE_ERROR"
+  fi
+  printf 'update-source: %s\n' "$FM_UPDATE_SOURCE_URL"
+}
+
 cmd_update() {
   local id=$1 update_out root_status
   validate_id "$id"
@@ -429,6 +442,7 @@ case "${1:-}" in
   capture) shift; [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage; cmd_capture "$@" ;;
   observe) shift; [ "$#" -eq 1 ] || usage; cmd_observe "$@" ;;
   sync) shift; [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage; cmd_sync "$@" ;;
+  update-preflight) shift; [ "$#" -eq 1 ] || usage; cmd_update_preflight "$@" ;;
   update) shift; [ "$#" -eq 1 ] || usage; cmd_update "$@" ;;
   retire) shift; [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage; cmd_retire "$@" ;;
   ''|-h|--help|help) usage ;;

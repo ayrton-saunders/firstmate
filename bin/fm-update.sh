@@ -212,6 +212,22 @@ if [ -f "$SECONDMATES_MD" ]; then
     home=$SECONDMATE_REGISTRY_HOME
     if [ "$SECONDMATE_REGISTRY_REMOTE" -eq 1 ]; then
       [ "$update_source_ready" = yes ] || continue
+      if ! remote_preflight_out=$("$SCRIPT_DIR/fm-on.sh" "$id" fm-remote-secondmate-control.sh update-preflight "$id" < /dev/null 2>&1); then
+        echo "remote secondmate $id: skipped on $SECONDMATE_REGISTRY_HOST: remote updater must be upgraded manually once before canonical updates; update that host's Firstmate code root and retry" >&2
+        continue
+      fi
+      remote_preflight_result=$(printf '%s\n' "$remote_preflight_out" | tail -1)
+      case "$remote_preflight_result" in
+        'update-source: '*) remote_update_source=${remote_preflight_result#update-source: } ;;
+        *)
+          echo "remote secondmate $id: skipped on $SECONDMATE_REGISTRY_HOST: remote update preflight returned a malformed result; update that host's Firstmate code root manually and retry" >&2
+          continue
+          ;;
+      esac
+      if [ "$remote_update_source" != "$FM_UPDATE_SOURCE_URL" ]; then
+        echo "remote secondmate $id: skipped on $SECONDMATE_REGISTRY_HOST: remote canonical source does not match this home; align config/update-source manually and retry" >&2
+        continue
+      fi
       expected_update_commit=$(git -C "$FM_ROOT" rev-parse refs/remotes/fm-update-source/HEAD)
       if remote_out=$("$SCRIPT_DIR/fm-on.sh" "$id" fm-remote-secondmate-control.sh update "$id" < /dev/null 2>&1); then
         remote_result=$(printf '%s\n' "$remote_out" | tail -1)
