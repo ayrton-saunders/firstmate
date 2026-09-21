@@ -204,17 +204,24 @@ test_canonical_source_uses_its_advertised_master_branch() {
   canonical_tip=$(git -C "$w/seed" rev-parse HEAD)
   printf '%s\n' "$(command -v git)" > "$w/fake/real-git"
   printf '%s\n' "$w/origin.git" > "$w/fake/flip-head-repo"
+  printf '%s\n' "$w/main" > "$w/fake/shared-repo"
+  printf '%s\n' "$stale_main" > "$w/fake/stale-main"
   cat > "$w/fakebin/git" <<'SH'
 #!/usr/bin/env bash
 real=$(cat "$FM_FAKE_DIR/real-git")
 "$real" "$@"
 rc=$?
 for arg in "$@"; do
-  if [ "$arg" = ls-remote ]; then
-    printf 'probe\n' >> "$FM_FAKE_DIR/ls-remote-calls"
-    "$real" -C "$(cat "$FM_FAKE_DIR/flip-head-repo")" symbolic-ref HEAD refs/heads/main
-    break
-  fi
+  case "$arg" in
+    ls-remote)
+      printf 'probe\n' >> "$FM_FAKE_DIR/ls-remote-calls"
+      "$real" -C "$(cat "$FM_FAKE_DIR/flip-head-repo")" symbolic-ref HEAD refs/heads/main
+      ;;
+    fetch)
+      "$real" -C "$(cat "$FM_FAKE_DIR/shared-repo")" update-ref \
+        refs/remotes/fm-update-source/HEAD "$(cat "$FM_FAKE_DIR/stale-main")"
+      ;;
+  esac
 done
 exit "$rc"
 SH

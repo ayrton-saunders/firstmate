@@ -215,6 +215,7 @@ validate_secondmate_home() {
 FETCHED=""
 FM_UPDATE_SOURCE_BRANCH_URL=""
 FM_UPDATE_SOURCE_BRANCH=""
+FM_UPDATE_SOURCE_COMMIT=""
 fetch_once() {
   local dir=$1 common
   common=$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
@@ -231,23 +232,29 @@ fetch_once() {
 }
 
 fetch_update_source_once() { # <dir> <url>
-  local dir=$1 url=$2 common key ref=refs/remotes/fm-update-source/HEAD symrefs branch
+  local dir=$1 url=$2 common key symrefs branch commit
   if [ "$FM_UPDATE_SOURCE_BRANCH_URL" != "$url" ]; then
     symrefs=$(git -C "$dir" ls-remote --symref -- "$url" HEAD 2>/dev/null) || return 1
     branch=$(printf '%s\n' "$symrefs" | awk '$1 == "ref:" && $2 ~ /^refs\/heads\// && $3 == "HEAD" { sub(/^refs\/heads\//, "", $2); print $2 }')
+    commit=$(printf '%s\n' "$symrefs" | awk '$2 == "HEAD" && $1 ~ /^[0-9a-f]+$/ { print $1 }')
     [ -n "$branch" ] && git check-ref-format --branch "$branch" >/dev/null 2>&1 || return 1
+    case "$commit" in ''|*[!0-9a-f]*) return 1 ;; esac
+    [ "${#commit}" -eq 40 ] || [ "${#commit}" -eq 64 ] || return 1
     FM_UPDATE_SOURCE_BRANCH_URL=$url
     FM_UPDATE_SOURCE_BRANCH=$branch
+    FM_UPDATE_SOURCE_COMMIT=$commit
   fi
   branch=$FM_UPDATE_SOURCE_BRANCH
+  commit=$FM_UPDATE_SOURCE_COMMIT
   common=$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
-  key="$common|$url|$branch"
+  key="$common|$url|$commit"
   if [ -n "$common" ]; then
     case " $FETCHED " in
       *" $key "*) return 0 ;;
     esac
   fi
-  if git -C "$dir" fetch --quiet --no-tags -- "$url" "+refs/heads/$branch:$ref" 2>/dev/null; then
+  if git -C "$dir" fetch --quiet --no-tags --no-write-fetch-head -- "$url" "refs/heads/$branch" 2>/dev/null \
+    && git -C "$dir" rev-parse --verify --quiet "$commit^{commit}" >/dev/null; then
     [ -n "$common" ] && FETCHED="$FETCHED $key"
     return 0
   fi
@@ -451,7 +458,7 @@ ff_target() {
       return 0
     fi
     default=$FM_UPDATE_SOURCE_BRANCH
-    base=refs/remotes/fm-update-source/HEAD
+    base=$FM_UPDATE_SOURCE_COMMIT
     base_name="configured update source"
   else
     base="$base_mode"
