@@ -389,8 +389,8 @@ live_secondmate_meta_records() {
 # caller:
 #   FF_STATUS = updated|current|skipped
 #   FF_INSTR  = comma list of changed instruction paths (only when updated)
-#   FF_SOURCE_FETCH_FAILED = yes only when an explicit update source was absent
-#                            or could not be fetched
+#   FF_SOURCE_FETCH_FAILED = yes only when the resolved update-source URL was
+#                            missing or could not be fetched
 #
 # base_mode selects where the fast-forward base comes from:
 #   origin        - fetch origin and advance to origin/<default> (the

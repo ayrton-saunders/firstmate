@@ -367,9 +367,10 @@ secondmate_sync() {
   # primary checkout's current default-branch commit. The local path is purely
   # LOCAL - no fetch, no origin dependency: a linked-worktree home already holds
   # the primary's commit (fm-ff-lib.sh), while a standalone clone without it is
-  # skipped until /updatefirstmate refreshes it from origin. A remote home is on
-  # another machine, so its host is handed that same commit and imports it there
-  # (bin/fm-remote-secondmate-control.sh); this side still fetches nothing.
+  # skipped until /updatefirstmate refreshes it from the canonical source. A
+  # remote home is on another machine, so its host is handed that same commit
+  # and imports it there (bin/fm-remote-secondmate-control.sh); this side still
+  # fetches nothing.
   # Startup sends reread nudges only for RUNNING secondmates whose instruction
   # surface (AGENTS.md, bin/, or .agents/skills/) actually changed, so a secondmate already on the primary's
   # version is never disturbed (AGENTS.md bootstrap + supervision). Unlike

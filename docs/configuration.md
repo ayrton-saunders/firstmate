@@ -301,7 +301,7 @@ printf '%s\n' 'https://github.com/kunchenguid/firstmate.git' > config/update-sou
 
 When the file is absent, the updater follows `https://github.com/kunchenguid/firstmate.git`, regardless of where `origin` points.
 When the file is present, the updater fetches that URL directly and does not infer trust from a remote named `upstream`, repoint `origin`, or alter any fetch or push remote.
-A malformed, unsafe, missing, or unreachable configured source stops the update rather than silently falling back to another source.
+A malformed, unsafe, or unreachable configured source stops the update rather than silently falling back to another source.
 The file must be a regular non-symlink file; accepted URL forms and safety restrictions are owned by [`fm-project-origin-lib.sh`](../bin/fm-project-origin-lib.sh).
 The file is local to each home and is not inherited. Remote routes retain their existing host-local `origin` update behavior.
 Fast-forward-only, dirty-tree, wrong-branch, and divergence protections are unchanged and remain owned by [`fm-ff-lib.sh`](../bin/fm-ff-lib.sh).
