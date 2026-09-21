@@ -4,8 +4,8 @@
 #
 # The guarantees under test mirror fm-fleet-sync.sh and prime directive #3:
 #   - The running firstmate repo and leased secondmate homes fast-forward from
-#     the explicit canonical URL in config/update-source when present, while an
-#     origin-only installation keeps the backward-compatible behavior.
+#     the explicit canonical URL in config/update-source when present, or from
+#     kunchenguid/firstmate when the file is absent.
 #   - A fork used as origin cannot mask a canonical source that is ahead, and an
 #     arbitrary remote named upstream is never selected implicitly.
 #   - A dirty, offline, wrong-branch, or genuinely unique diverged target is
@@ -18,7 +18,7 @@
 #   - The caller-action summary is correct: reread-firstmate flips to yes only
 #     when the instruction surface (AGENTS.md / bin / .agents/skills) changed, and
 #     the two secondmate action sets are disjoint and correctly gated -
-#     restart-secondmates carries EVERY live mate this pass left on origin's tip
+#     restart-secondmates carries EVERY live mate this pass left on the canonical tip
 #     whose recorded runtime can prove a restart, INCLUDING one that was already
 #     there and one whose advance touched no instruction surface, because a
 #     restart is also what re-resolves launch-time harness wiring; a live mate
@@ -88,6 +88,8 @@ SH
 
   git clone -q "$w/origin.git" "$w/main"
   git -C "$w/main" remote set-head origin main >/dev/null 2>&1 || true
+  git -C "$w/main" config url."$w/origin.git".insteadOf \
+    https://github.com/kunchenguid/firstmate.git
 
   printf '%s\n' "$w"
 }
@@ -158,7 +160,8 @@ test_canonical_source_beats_fork_origin_and_converges_secondmate() {
   git -C "$w/main" remote set-url origin "$w/fork.git"
   git -C "$w/main" remote add upstream "$w/fork.git"
   git -C "$w/main" fetch -q upstream
-  configure_update_source "$w" "$w/origin.git"
+  [ ! -e "$w/home/config/update-source" ] \
+    || fail "canonical default regression requires absent config/update-source"
   bump_origin "$w" instr
   canonical_tip=$(git -C "$w/seed" rev-parse HEAD)
 
@@ -176,7 +179,7 @@ test_canonical_source_beats_fork_origin_and_converges_secondmate() {
     || fail "an arbitrary remote named upstream influenced the update"
   assert_contains "$out" "restart-secondmates: fm-sm1" \
     "the canonically converged live secondmate was not selected for restart"
-  pass "configured canonical source advances past a fork origin and converges a secondmate"
+  pass "default canonical source advances past a fork origin and converges a secondmate"
 }
 
 test_configured_source_failures_do_not_fall_back() {
@@ -225,11 +228,11 @@ test_updates_main_and_secondmate() {
   assert_contains "$out" "restart-secondmates: fm-sm1" "a changed AGENTS.md must move the secondmate into the restart set"
   assert_contains "$out" "nudge-secondmates: none" "a restarted secondmate must not also be nudged"
 
-  # Fast-forward landed: HEAD == origin/main on both targets.
-  [ "$(git -C "$w/main" rev-parse HEAD)" = "$(git -C "$w/main" rev-parse origin/main)" ] \
-    || fail "firstmate HEAD not at origin/main"
-  [ "$(git -C "$w/sm1" rev-parse HEAD)" = "$(git -C "$w/sm1" rev-parse origin/main)" ] \
-    || fail "secondmate HEAD not at origin/main"
+  # Fast-forward landed: both targets reached the canonical repository's tip.
+  [ "$(git -C "$w/main" rev-parse HEAD)" = "$(git -C "$w/seed" rev-parse HEAD)" ] \
+    || fail "firstmate HEAD not at the canonical tip"
+  [ "$(git -C "$w/sm1" rev-parse HEAD)" = "$(git -C "$w/seed" rev-parse HEAD)" ] \
+    || fail "secondmate HEAD not at the canonical tip"
   # Firstmate stays on its default branch; secondmate stays detached.
   [ "$(git -C "$w/main" symbolic-ref --short HEAD 2>/dev/null)" = "main" ] \
     || fail "firstmate left its default branch"
@@ -390,7 +393,7 @@ test_diverged_secondmate_skipped() {
   local w out before marker second_out
   w=$(new_world t5)
   add_sm "$w" sm1
-  # Local commit on the secondmate's detached HEAD makes it diverge from origin.
+  # Local commit on the secondmate's detached HEAD makes it diverge from the source.
   printf 'fork work\n' > "$w/sm1/AGENTS.md"
   git -C "$w/sm1" add -A
   git -C "$w/sm1" commit -qm local-work
@@ -399,7 +402,7 @@ test_diverged_secondmate_skipped() {
 
   out=$(run_update "$w")
 
-  assert_contains "$out" "secondmate sm1: skipped: diverged from origin/main" "diverged home skipped"
+  assert_contains "$out" "secondmate sm1: skipped: diverged from configured update source" "diverged home skipped"
   assert_contains "$out" "reconciliation required (record:" "diverged skip is actionable"
   assert_not_contains "$out" "fm-sm1" "diverged secondmate is not nudged"
   [ "$(git -C "$w/sm1" rev-parse HEAD)" = "$before" ] \
@@ -452,7 +455,7 @@ test_squash_merged_divergence_reconciles() {
   bump_origin "$w" readme
   out=$(run_update "$w")
   marker="$w/home/state/.secondmate-update-reconcile/sm1.pending"
-  assert_contains "$out" "secondmate sm1: skipped: diverged from origin/main" \
+  assert_contains "$out" "secondmate sm1: skipped: diverged from configured update source" \
     "unique local work was not initially protected"
   assert_present "$marker" "initial divergence did not leave its durable record"
 
@@ -465,8 +468,8 @@ test_squash_merged_divergence_reconciles() {
 
   assert_contains "$out" "secondmate sm1: reconciled redundant divergence" \
     "the squash-merged local result did not heal"
-  [ "$(git -C "$w/sm1" rev-parse HEAD)" = "$(git -C "$w/sm1" rev-parse origin/main)" ] \
-    || fail "reconciled secondmate did not reach origin/main"
+  [ "$(git -C "$w/sm1" rev-parse HEAD)" = "$(git -C "$w/seed" rev-parse HEAD)" ] \
+    || fail "reconciled secondmate did not reach the canonical tip"
   assert_absent "$marker" "successful reconciliation left the divergence marker behind"
   assert_contains "$out" "restart-secondmates: fm-sm1" \
     "the reconciled live secondmate was excluded from restart"

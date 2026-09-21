@@ -3,9 +3,9 @@
 #
 # The optional gitignored config/update-source file contains exactly one Git
 # clone URL and one trailing newline. When present, that URL is fetched directly;
-# no remote name is trusted as an alias for it. When absent, origin remains the
-# backward-compatible source. A configured source that is malformed, unsafe, or
-# unreachable is a hard update skip, never a reason to fall back to origin.
+# no remote name is trusted as an alias for it. When absent, updates follow the
+# canonical kunchenguid repository. A configured source that is malformed,
+# unsafe, or unreachable is a hard update skip, never a reason to fall back.
 #
 # FM_UPDATE_SOURCE_URL_OVERRIDE carries an already-resolved source to a remote
 # secondmate host. It is validated again there and takes precedence over the
@@ -14,13 +14,14 @@
 #
 # Usage: . bin/fm-update-source-lib.sh; fm_update_source_resolve <config-dir>
 # Sets:
-#   FM_UPDATE_SOURCE_MODE=origin|url|invalid
-#   FM_UPDATE_SOURCE_URL=<configured URL, empty for origin/invalid>
+#   FM_UPDATE_SOURCE_MODE=url|invalid
+#   FM_UPDATE_SOURCE_URL=<resolved URL, empty when invalid>
 #   FM_UPDATE_SOURCE_ERROR=<diagnostic, empty on success>
 
 # shellcheck source=bin/fm-project-origin-lib.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-project-origin-lib.sh"
 
+FM_DEFAULT_UPDATE_SOURCE_URL=https://github.com/kunchenguid/firstmate.git
 FM_UPDATE_SOURCE_MODE=
 FM_UPDATE_SOURCE_URL=
 FM_UPDATE_SOURCE_ERROR=
@@ -44,7 +45,8 @@ fm_update_source_resolve() { # <config-dir>
   fi
 
   if [ ! -e "$path" ] && [ ! -L "$path" ]; then
-    FM_UPDATE_SOURCE_MODE=origin
+    FM_UPDATE_SOURCE_MODE=url
+    FM_UPDATE_SOURCE_URL=$FM_DEFAULT_UPDATE_SOURCE_URL
     return 0
   fi
   if [ ! -f "$path" ] || [ -L "$path" ]; then

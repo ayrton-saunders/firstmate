@@ -28,7 +28,7 @@ The only live mates that do not restart are the ones whose home the update pass 
 **One-time rollout note:** the update that carries this change is still executed by the previous release, which restarts only the mates whose `AGENTS.md` or `.agents/skills/` moved on that pass. After it completes, run `bin/fm-secondmate-restart.sh <fm-id>...` once with every live second mate ID, not only the ones that release named; later updates follow the normal flow below.
 
 The primary update is fast-forward only, while each secondmate uses the same guarded convergence path plus one narrow recovery for squash-merged local history.
-[`docs/configuration.md`](../../../docs/configuration.md#canonical-self-update-source-configupdate-source) owns how `config/update-source` selects an explicit canonical URL while preserving `origin` compatibility and fork remotes used for publication.
+[`docs/configuration.md`](../../../docs/configuration.md#canonical-self-update-source-configupdate-source) owns how `config/update-source` selects an explicit canonical URL, with `kunchenguid/firstmate` as the unconfigured default and fork remotes preserved for publication.
 For a remote route, the parent sends that resolved source to the configured Firstmate code root on the host, then guardedly fast-forwards the persistent home to that code-root commit.
 It never forces, never creates a merge commit, and never stashes.
 A clean secondmate divergence advances with `reset --keep` only when a three-way tree proof shows its complete local result is already present at the target, which recognizes squash-merged contributions without discarding unique content.

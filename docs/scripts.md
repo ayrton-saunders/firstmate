@@ -100,7 +100,7 @@ The shared no-mistakes gate refusal for fleet lifecycle entrypoints is summarize
 | `fm-timing-lib.sh`       | Single owner of the deferred network stage's per-step elapsed-time records, inert unless a run asks for them |
 | `fm-supervision-lib.sh`  | Shared in-flight-work-without-fresh-watcher-beacon predicate                         |
 | `fm-ff-lib.sh`           | Shared guarded fast-forward/reconcile helper for canonical-source pulls and secondmate syncs, with durable divergence markers |
-| `fm-update-source-lib.sh` | Validated `config/update-source` resolver with origin-only compatibility and remote-route override support |
+| `fm-update-source-lib.sh` | Validated `config/update-source` resolver with a `kunchenguid/firstmate` default and remote-route override support |
 | `fm-lock-lib.sh`         | Shared "is this git lock provably abandoned?" proof used by teardown and fleet-sync   |
 | `fm-config-inherit-lib.sh` | Shared primary-to-secondmate inherited local-material propagation and config-reread delivery |
 | `fm-tasks-axi.sh`        | Run `tasks-axi` against this home's backlog from any working directory               |

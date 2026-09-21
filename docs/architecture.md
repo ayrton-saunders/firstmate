@@ -435,7 +435,7 @@ The refresh also prunes local branches whose remote is gone and that no worktree
 
 ## Self-updates stay safe
 
-`/updatefirstmate` fast-forwards the running firstmate repo and registered secondmate homes from the canonical source selected by [`config/update-source`](configuration.md#canonical-self-update-source-configupdate-source), with `origin` retained as the compatibility default, without touching project clones or publication remotes.
+`/updatefirstmate` fast-forwards the running firstmate repo and registered secondmate homes from the canonical source selected by [`config/update-source`](configuration.md#canonical-self-update-source-configupdate-source), defaulting to `kunchenguid/firstmate` without consulting `origin`, and without touching project clones or publication remotes.
 It restarts every live second mate whose home the pass left on the target commit through a persist-gated replacement, including a home that needed no advance, because a restart is also the only thing that re-resolves launch-time harness wiring; the re-read nudge is retained only as the fallback for live agents whose runtime cannot prove a restart.
 For a remote route, the configured code root updates from the same parent-resolved source on that host before the persistent home fast-forwards to the code-root commit.
 The primary update is fast-forward only, while a clean secondmate divergence may reconcile with `reset --keep` only when a three-way temporary-index proof shows its complete local tree result is already present at the target, including after a squash merge.

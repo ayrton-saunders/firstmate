@@ -3,7 +3,7 @@
 #
 # Mechanical half of the /updatefirstmate skill. Fast-forwards the running
 # firstmate repo's default branch from config/update-source when configured,
-# falling back to origin for backward compatibility, then fast-forwards every
+# or from kunchenguid/firstmate by default, then fast-forwards every
 # registered secondmate home from that same source. Local homes are treehouse
 # worktrees or standalone
 # clones; remote routes update their configured code root on that host and then
@@ -20,7 +20,7 @@
 # default branch, so a fast-forward there advances HEAD only and never touches
 # any other worktree's checkout or the shared `main` branch.
 #
-# The fast-forward mechanics live in bin/fm-ff-lib.sh (base_mode "origin" or
+# The fast-forward mechanics live in bin/fm-ff-lib.sh (base_mode
 # "update-source" here);
 # the same library drives local and remote parent-targeted secondmate sync, so
 # there is one ff implementation, not several.
@@ -31,7 +31,7 @@
 #   - one status line per target (updated/already current/skipped)
 #   - reread-firstmate: yes|no    (did the running firstmate's instructions change)
 #   - restart-secondmates: fm-<id>...|none (every live secondmate this pass left
-#     on origin's tip - advanced OR already there - whose recorded runtime can
+#     on the canonical tip - advanced OR already there - whose recorded runtime can
 #     prove a restart)
 #   - nudge-secondmates: fm-<id>...|none   (the residual: live secondmates on
 #     that same tip whose runtime CANNOT prove a restart, so the older re-read
@@ -94,10 +94,10 @@ fi
 # --- main firstmate repo ---------------------------------------------------
 
 reread_firstmate="no"
-update_base=origin
+update_base=update-source
 update_source_ready=yes
 if fm_update_source_resolve "$CONFIG"; then
-  [ "$FM_UPDATE_SOURCE_MODE" != url ] || update_base=update-source
+  :
 else
   echo "firstmate: skipped: $FM_UPDATE_SOURCE_ERROR"
   FF_STATUS=skipped
@@ -124,7 +124,7 @@ if [ "$FF_STATUS" = "updated" ]; then
 fi
 
 # --- secondmates -----------------------------------------------------------
-# Every live secondmate this pass leaves on origin's tip is restarted, whether it
+# Every live secondmate this pass leaves on the canonical tip is restarted, whether it
 # advanced or was already there. The header above owns why the git diff does not
 # gate that, and which two conditions - a skipped home, an unprovable runtime -
 # are the only ways a live mate stays out of the restart set.
