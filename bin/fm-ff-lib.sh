@@ -20,8 +20,8 @@
 # A linked-worktree secondmate home already holds the primary's commit in the
 # shared object store, so its local-HEAD sync is a purely local fast-forward that
 # never touches the network. A local standalone clone moves through that path
-# only when it already has the target; otherwise it is skipped until the origin
-# path updates it.
+# only when it already has the target; otherwise it is skipped until the
+# canonical-source update path refreshes it.
 # A tracked-files fast-forward never touches the gitignored operational dirs
 # (data/, state/, config/, projects/, .no-mistakes/), so it cannot disturb a
 # secondmate's backlog, projects, or in-flight work.
@@ -213,6 +213,7 @@ validate_secondmate_home() {
 # each distinct git-common-dir at most once. Used by the network-backed origin
 # and explicit update-source modes; the local-HEAD sync never fetches.
 FETCHED=""
+FM_UPDATE_SOURCE_BRANCH_URL=""
 FM_UPDATE_SOURCE_BRANCH=""
 fetch_once() {
   local dir=$1 common
@@ -231,18 +232,22 @@ fetch_once() {
 
 fetch_update_source_once() { # <dir> <url>
   local dir=$1 url=$2 common key ref=refs/remotes/fm-update-source/HEAD symrefs branch
-  symrefs=$(git -C "$dir" ls-remote --symref -- "$url" HEAD 2>/dev/null) || return 1
-  branch=$(printf '%s\n' "$symrefs" | awk '$1 == "ref:" && $2 ~ /^refs\/heads\// && $3 == "HEAD" { sub(/^refs\/heads\//, "", $2); print $2 }')
-  [ -n "$branch" ] && git check-ref-format --branch "$branch" >/dev/null 2>&1 || return 1
-  FM_UPDATE_SOURCE_BRANCH=$branch
+  if [ "$FM_UPDATE_SOURCE_BRANCH_URL" != "$url" ]; then
+    symrefs=$(git -C "$dir" ls-remote --symref -- "$url" HEAD 2>/dev/null) || return 1
+    branch=$(printf '%s\n' "$symrefs" | awk '$1 == "ref:" && $2 ~ /^refs\/heads\// && $3 == "HEAD" { sub(/^refs\/heads\//, "", $2); print $2 }')
+    [ -n "$branch" ] && git check-ref-format --branch "$branch" >/dev/null 2>&1 || return 1
+    FM_UPDATE_SOURCE_BRANCH_URL=$url
+    FM_UPDATE_SOURCE_BRANCH=$branch
+  fi
+  branch=$FM_UPDATE_SOURCE_BRANCH
   common=$(git -C "$dir" rev-parse --path-format=absolute --git-common-dir 2>/dev/null || true)
-  key="$common|$url"
+  key="$common|$url|$branch"
   if [ -n "$common" ]; then
     case " $FETCHED " in
       *" $key "*) return 0 ;;
     esac
   fi
-  if git -C "$dir" fetch --quiet --no-tags -- "$url" "+HEAD:$ref" 2>/dev/null; then
+  if git -C "$dir" fetch --quiet --no-tags -- "$url" "+refs/heads/$branch:$ref" 2>/dev/null; then
     [ -n "$common" ] && FETCHED="$FETCHED $key"
     return 0
   fi

@@ -188,12 +188,12 @@ test_canonical_source_beats_fork_origin_and_converges_secondmate() {
 test_canonical_source_uses_its_advertised_master_branch() {
   local w out stale_main canonical_tip
   w=$(new_world canonical-master)
+  add_sm "$w" sm1
   stale_main=$(git -C "$w/main" rev-parse main)
   git -C "$w/seed" branch -m master
   git -C "$w/seed" push -q origin master
   git -C "$w/origin.git" symbolic-ref HEAD refs/heads/master
-  git -C "$w/seed" push -q origin --delete main
-  git -C "$w/main" fetch -q --prune origin
+  git -C "$w/main" fetch -q origin master
   git -C "$w/main" checkout -qb master origin/master
   configure_update_source "$w" "$w/origin.git"
 
@@ -202,6 +202,23 @@ test_canonical_source_uses_its_advertised_master_branch() {
   git -C "$w/seed" commit -qm master-update
   git -C "$w/seed" push -q origin master
   canonical_tip=$(git -C "$w/seed" rev-parse HEAD)
+  printf '%s\n' "$(command -v git)" > "$w/fake/real-git"
+  printf '%s\n' "$w/origin.git" > "$w/fake/flip-head-repo"
+  cat > "$w/fakebin/git" <<'SH'
+#!/usr/bin/env bash
+real=$(cat "$FM_FAKE_DIR/real-git")
+"$real" "$@"
+rc=$?
+for arg in "$@"; do
+  if [ "$arg" = ls-remote ]; then
+    printf 'probe\n' >> "$FM_FAKE_DIR/ls-remote-calls"
+    "$real" -C "$(cat "$FM_FAKE_DIR/flip-head-repo")" symbolic-ref HEAD refs/heads/main
+    break
+  fi
+done
+exit "$rc"
+SH
+  chmod +x "$w/fakebin/git"
 
   out=$(run_update "$w")
 
@@ -211,9 +228,13 @@ test_canonical_source_uses_its_advertised_master_branch() {
     || fail "the canonical update moved the checkout off master"
   [ "$(git -C "$w/main" rev-parse HEAD)" = "$canonical_tip" ] \
     || fail "the master checkout did not reach the canonical tip"
+  [ "$(git -C "$w/sm1" rev-parse HEAD)" = "$canonical_tip" ] \
+    || fail "the linked secondmate did not reuse the canonical master branch"
   [ "$(git -C "$w/main" rev-parse main)" = "$stale_main" ] \
     || fail "the stale local main branch was unexpectedly moved"
-  pass "canonical source metadata selects master despite stale local main"
+  [ "$(wc -l < "$w/fake/ls-remote-calls" | tr -d ' ')" = 1 ] \
+    || fail "the canonical branch was probed more than once for one source URL"
+  pass "canonical branch is cached and fetched explicitly"
 }
 
 test_configured_source_failures_do_not_fall_back() {
