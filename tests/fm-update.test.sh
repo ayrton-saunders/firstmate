@@ -150,6 +150,13 @@ run_update() {
     FM_ROOT_OVERRIDE="$w/main" FM_HOME="$w/home" "$UPDATE" 2>/dev/null
 }
 
+run_update_diagnostics() {
+  local w=$1
+  PATH="$w/fakebin:$PATH" FM_FAKE_DIR="$w/fake" \
+    FM_SSH_BIN="${FM_TEST_SSH_BIN:-ssh}" \
+    FM_ROOT_OVERRIDE="$w/main" FM_HOME="$w/home" "$UPDATE" 2>&1
+}
+
 test_canonical_source_beats_fork_origin_and_converges_secondmate() {
   local w out base canonical_tip
   w=$(new_world canonical-fork)
@@ -315,12 +322,11 @@ test_dead_secondmate_gets_no_action() {
   pass "T3d an already-stopped secondmate is left to startup recovery"
 }
 
-# --- T3e: a legacy remote advance still restarts ---------------------------
-# The host's instr= suffix is reporting detail; the parent no longer routes on it,
-# so an older host that cannot report a diff can no longer suppress the restart.
-test_legacy_remote_advance_restarts() {
-  local w out fake_ssh
+# --- T3e: the one-argument remote update protocol rolls out safely ---------
+test_legacy_remote_update_rollout() {
+  local w out fake_ssh old_tip canonical_tip
   w=$(new_world t3e)
+  old_tip=$(git -C "$w/main" rev-parse HEAD)
   fake_ssh="$w/fakebin/fake-ssh"
   cat > "$fake_ssh" <<'SH'
 #!/usr/bin/env bash
@@ -336,8 +342,12 @@ rargs=()
 while IFS= read -r -d '' a; do rargs+=("$a"); done < <(decode "$argv_b64")
 case "${rargs[1]:-}" in
   update)
-    [ "${rargs[3]:-}" = "$(cat "$FM_FAKE_DIR/expected-source")" ] || exit 92
-    printf 'synced: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n'
+    [ -z "${rargs[3]:-}" ] || exit 92
+    if [ -f "$FM_FAKE_DIR/behind" ]; then
+      printf 'current: %s\n' "$(cat "$FM_FAKE_DIR/behind")"
+    else
+      printf 'synced: %s\n' "$(cat "$FM_FAKE_DIR/expected-target")"
+    fi
     ;;
   state) printf 'alive\n' ;;
   *) exit 91 ;;
@@ -358,17 +368,27 @@ EOF
   printf -- '- sm1 - remote domain (host: remote-mac; root: /srv/fm; home: /srv/sm1; scope: things; projects: p; added 2026-09-03)\n' \
     > "$w/home/data/secondmates.md"
   configure_update_source "$w" "$w/origin.git"
-  printf '%s\n' "$w/origin.git" > "$w/fake/expected-source"
+  bump_origin "$w" instr
+  canonical_tip=$(git -C "$w/seed" rev-parse HEAD)
+  printf '%s\n' "$canonical_tip" > "$w/fake/expected-target"
 
   out=$(FM_TEST_SSH_BIN="$fake_ssh" run_update "$w")
 
-  assert_contains "$out" "remote secondmate sm1: updated on remote-mac" \
-    "the legacy remote advance was not accepted"
+  assert_contains "$out" "remote secondmate sm1: updated on remote-mac ($canonical_tip)" \
+    "an old remote with a canonical origin did not complete the one-argument rollout"
   assert_contains "$out" "restart-secondmates: fm-sm1" \
     "a live remote mate on the new tip must restart even when the host reports no instruction diff"
   assert_contains "$out" "nudge-secondmates: none" \
     "a restarted remote mate must not also be steered"
-  pass "T3e a legacy remote advance still restarts the live remote mate"
+  printf '%s\n' "$old_tip" > "$w/fake/behind"
+  out=$(FM_TEST_SSH_BIN="$fake_ssh" run_update_diagnostics "$w")
+  assert_contains "$out" "remote code root reached $old_tip instead of required canonical commit $canonical_tip" \
+    "an old remote with a behind origin was not refused"
+  assert_contains "$out" "update that host's Firstmate code root from $w/origin.git and retry" \
+    "the behind old remote did not receive manual recovery guidance"
+  assert_contains "$out" "restart-secondmates: none" \
+    "a behind old remote was incorrectly scheduled for restart"
+  pass "T3e one-argument old-remote rollout succeeds or refuses safely"
 }
 
 # --- T4: dirty secondmate is skipped, its edit preserved -------------------
@@ -658,7 +678,7 @@ test_reread_gate_is_instruction_only
 test_bin_only_advance_restarts
 test_unprovable_runtime_gets_fallback_nudge
 test_dead_secondmate_gets_no_action
-test_legacy_remote_advance_restarts
+test_legacy_remote_update_rollout
 test_dirty_secondmate_skipped
 test_diverged_secondmate_skipped
 test_configured_source_divergence_is_preserved

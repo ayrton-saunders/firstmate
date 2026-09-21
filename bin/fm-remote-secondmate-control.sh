@@ -11,7 +11,7 @@
 #   fm-remote-secondmate-control.sh capture <id> [lines]
 #   fm-remote-secondmate-control.sh observe <id>
 #   fm-remote-secondmate-control.sh sync <id> [<parent-commit>]
-#   fm-remote-secondmate-control.sh update <id> [<canonical-source-url>]
+#   fm-remote-secondmate-control.sh update <id>
 #   fm-remote-secondmate-control.sh retire <id> [--force]
 #
 # Remote placement ends here, but the second-mate agent always runs on the
@@ -28,10 +28,8 @@
 # tracks the primary exactly like a local one instead of stopping at whatever
 # this host's Firstmate copy happens to hold. Omitting <parent-commit> targets
 # this host's own code-root HEAD instead, which is what /updatefirstmate wants
-# after it has refreshed that code root from the canonical source selected by
-# the parent. The optional URL is revalidated by fm-update.sh on this host and
-# avoids trusting a remote merely because it has a conventional name. Because
-# this home is a standalone clone, the target
+# after it has refreshed that code root from the canonical source resolved on
+# this host. Because this home is a standalone clone, the target
 # commit is imported here first and the fast-forward itself is the shared one in
 # bin/fm-ff-lib.sh, so the clean, ancestry, and branch guards have a single owner.
 # A private parent-route state directory stores only the remote secondmate
@@ -377,11 +375,11 @@ cmd_sync() {
 }
 
 cmd_update() {
-  local id=$1 source_url=${2:-} update_out root_status
+  local id=$1 update_out root_status
   validate_id "$id"
   validate_home "$id"
   if ! update_out=$(FM_HOME="$FM_ROOT" FM_ROOT_OVERRIDE="$FM_ROOT" \
-    FM_UPDATE_SOURCE_URL_OVERRIDE="$source_url" "$SCRIPT_DIR/fm-update.sh" 2>&1); then
+    FM_CONFIG_OVERRIDE="$TARGET_HOME/config" "$SCRIPT_DIR/fm-update.sh" 2>&1); then
     [ -z "$update_out" ] || printf '%s\n' "$update_out" >&2
     die "remote code root update failed"
   fi
@@ -390,7 +388,7 @@ cmd_update() {
     'firstmate: updated '*|'firstmate: already current'*) ;;
     *)
       [ -z "$update_out" ] || printf '%s\n' "$update_out" >&2
-      die "remote code root did not complete a safe origin update"
+      die "remote code root did not complete a safe canonical update"
       ;;
   esac
   cmd_sync "$id"
@@ -431,7 +429,7 @@ case "${1:-}" in
   capture) shift; [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage; cmd_capture "$@" ;;
   observe) shift; [ "$#" -eq 1 ] || usage; cmd_observe "$@" ;;
   sync) shift; [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage; cmd_sync "$@" ;;
-  update) shift; [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage; cmd_update "$@" ;;
+  update) shift; [ "$#" -eq 1 ] || usage; cmd_update "$@" ;;
   retire) shift; [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage; cmd_retire "$@" ;;
   ''|-h|--help|help) usage ;;
   *) die "unknown command: $1" ;;

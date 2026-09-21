@@ -212,9 +212,8 @@ if [ -f "$SECONDMATES_MD" ]; then
     home=$SECONDMATE_REGISTRY_HOME
     if [ "$SECONDMATE_REGISTRY_REMOTE" -eq 1 ]; then
       [ "$update_source_ready" = yes ] || continue
-      remote_update_args=(fm-remote-secondmate-control.sh update "$id")
-      [ "$update_base" != update-source ] || remote_update_args+=("$FM_UPDATE_SOURCE_URL")
-      if remote_out=$("$SCRIPT_DIR/fm-on.sh" "$id" "${remote_update_args[@]}" < /dev/null 2>&1); then
+      expected_update_commit=$(git -C "$FM_ROOT" rev-parse refs/remotes/fm-update-source/HEAD)
+      if remote_out=$("$SCRIPT_DIR/fm-on.sh" "$id" fm-remote-secondmate-control.sh update "$id" < /dev/null 2>&1); then
         remote_result=$(printf '%s\n' "$remote_out" | tail -1)
         case "$remote_result" in
           synced:*)
@@ -231,6 +230,10 @@ if [ -f "$SECONDMATES_MD" ]; then
                 ;;
               *) remote_instr=""; remote_commit=$remote_detail ;;
             esac
+            if [ "$remote_commit" != "$expected_update_commit" ]; then
+              echo "remote secondmate $id: skipped on $SECONDMATE_REGISTRY_HOST: remote code root reached $remote_commit instead of required canonical commit $expected_update_commit; update that host's Firstmate code root from $FM_UPDATE_SOURCE_URL and retry" >&2
+              continue
+            fi
             if [ -n "$remote_instr" ]; then
               echo "remote secondmate $id: updated on $SECONDMATE_REGISTRY_HOST ($remote_commit, instructions changed: $remote_instr)"
             else
@@ -241,7 +244,12 @@ if [ -f "$SECONDMATES_MD" ]; then
             fi
             ;;
           current:*)
-            echo "remote secondmate $id: already current on $SECONDMATE_REGISTRY_HOST (${remote_result#current: })"
+            remote_commit=${remote_result#current: }
+            if [ "$remote_commit" != "$expected_update_commit" ]; then
+              echo "remote secondmate $id: skipped on $SECONDMATE_REGISTRY_HOST: remote code root reached $remote_commit instead of required canonical commit $expected_update_commit; update that host's Firstmate code root from $FM_UPDATE_SOURCE_URL and retry" >&2
+              continue
+            fi
+            echo "remote secondmate $id: already current on $SECONDMATE_REGISTRY_HOST ($remote_commit)"
             # Already on the target commit is a SUCCESSFUL update of that home,
             # so it earns the same restart as one that had to advance.
             if [ -f "$STATE/$id.meta" ] && grep -qx 'kind=secondmate' "$STATE/$id.meta"; then
