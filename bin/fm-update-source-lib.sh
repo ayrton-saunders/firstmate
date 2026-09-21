@@ -25,16 +25,8 @@ FM_UPDATE_SOURCE_MODE=
 FM_UPDATE_SOURCE_URL=
 FM_UPDATE_SOURCE_ERROR=
 
-fm_update_source_link_count() { # <path>
-  if [ "$(uname)" = Darwin ]; then
-    /usr/bin/stat -f %l "$1" 2>/dev/null
-  else
-    stat -c %h "$1" 2>/dev/null
-  fi
-}
-
 fm_update_source_resolve() { # <config-dir>
-  local config_dir=$1 path value links
+  local config_dir=$1 path value
   path="$config_dir/update-source"
   FM_UPDATE_SOURCE_MODE=invalid
   FM_UPDATE_SOURCE_URL=
@@ -57,11 +49,6 @@ fm_update_source_resolve() { # <config-dir>
   fi
   if [ ! -f "$path" ] || [ -L "$path" ]; then
     FM_UPDATE_SOURCE_ERROR="config/update-source must be a regular non-symlink file"
-    return 1
-  fi
-  links=$(fm_update_source_link_count "$path" || true)
-  if [ "$links" != 1 ]; then
-    FM_UPDATE_SOURCE_ERROR="config/update-source must have exactly one hard link"
     return 1
   fi
   if ! value=$(perl -0777 -ne 'if (/\A([^\r\n]+)\n\z/) { print $1; exit 0 } exit 1' -- "$path"); then
