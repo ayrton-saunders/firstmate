@@ -291,7 +291,7 @@ A local standalone-clone home cannot receive a primary-local commit through that
 
 ## Canonical self-update source (config/update-source)
 
-`config/update-source` selects the canonical Git repository that `/updatefirstmate` follows without changing any publication remote.
+`config/update-source` selects the canonical Git repository that the local `/updatefirstmate` path follows without changing any publication remote.
 Write exactly one accepted absolute Git clone URL followed by one newline, for example:
 
 ```sh
@@ -303,8 +303,7 @@ When the file is absent, the updater follows `https://github.com/kunchenguid/fir
 When the file is present, the updater fetches that URL directly and does not infer trust from a remote named `upstream`, repoint `origin`, or alter any fetch or push remote.
 A malformed, unsafe, missing, or unreachable configured source stops the update rather than silently falling back to another source.
 The file must be a regular non-symlink file; accepted URL forms and safety restrictions are owned by [`fm-project-origin-lib.sh`](../bin/fm-project-origin-lib.sh).
-The primary value is inherited into secondmate homes through the declared local-material contract.
-For a remote route, the code root first reports its resolved inherited source through a read-only capability preflight. The parent invokes the one-argument update only after an exact source match, then verifies the reported commit; an older updater or a source mismatch is left unchanged with one-time manual-upgrade guidance.
+The file is local to each home and is not inherited. Remote routes retain their existing host-local `origin` update behavior.
 Fast-forward-only, dirty-tree, wrong-branch, and divergence protections are unchanged and remain owned by [`fm-ff-lib.sh`](../bin/fm-ff-lib.sh).
 
 ## FM_HOME

@@ -150,13 +150,6 @@ run_update() {
     FM_ROOT_OVERRIDE="$w/main" FM_HOME="$w/home" "$UPDATE" 2>/dev/null
 }
 
-run_update_diagnostics() {
-  local w=$1
-  PATH="$w/fakebin:$PATH" FM_FAKE_DIR="$w/fake" \
-    FM_SSH_BIN="${FM_TEST_SSH_BIN:-ssh}" \
-    FM_ROOT_OVERRIDE="$w/main" FM_HOME="$w/home" "$UPDATE" 2>&1
-}
-
 test_canonical_source_beats_fork_origin_and_converges_secondmate() {
   local w out base canonical_tip
   w=$(new_world canonical-fork)
@@ -325,9 +318,11 @@ test_dead_secondmate_gets_no_action() {
   pass "T3d an already-stopped secondmate is left to startup recovery"
 }
 
-# --- T3e: remote source preflight gates the one-argument update ------------
-test_remote_update_source_preflight() {
-  local w out fake_ssh canonical_tip
+# --- T3e: a legacy remote advance still restarts ---------------------------
+# The host's instr= suffix is reporting detail; the parent no longer routes on it,
+# so an older host that cannot report a diff can no longer suppress the restart.
+test_legacy_remote_advance_restarts() {
+  local w out fake_ssh
   w=$(new_world t3e)
   fake_ssh="$w/fakebin/fake-ssh"
   cat > "$fake_ssh" <<'SH'
@@ -343,20 +338,7 @@ decode() { printf '%s' "$1" | base64 --decode 2>/dev/null || printf '%s' "$1" | 
 rargs=()
 while IFS= read -r -d '' a; do rargs+=("$a"); done < <(decode "$argv_b64")
 case "${rargs[1]:-}" in
-  update-preflight)
-    [ -z "${rargs[3]:-}" ] || exit 92
-    [ ! -f "$FM_FAKE_DIR/old-remote" ] || exit 2
-    if [ -f "$FM_FAKE_DIR/mismatched-source" ]; then
-      printf 'update-source: /different/source.git\n'
-    else
-      printf 'update-source: %s\n' "$(cat "$FM_FAKE_DIR/expected-source")"
-    fi
-    ;;
-  update)
-    [ -z "${rargs[3]:-}" ] || exit 92
-    touch "$FM_FAKE_DIR/update-called"
-    printf 'synced: %s\n' "$(cat "$FM_FAKE_DIR/expected-target")"
-    ;;
+  update) printf 'synced: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n' ;;
   state) printf 'alive\n' ;;
   *) exit 91 ;;
 esac
@@ -375,42 +357,16 @@ remote_backend=herdr
 EOF
   printf -- '- sm1 - remote domain (host: remote-mac; root: /srv/fm; home: /srv/sm1; scope: things; projects: p; added 2026-09-03)\n' \
     > "$w/home/data/secondmates.md"
-  configure_update_source "$w" "$w/origin.git"
-  bump_origin "$w" instr
-  canonical_tip=$(git -C "$w/seed" rev-parse HEAD)
-  printf '%s\n' "$canonical_tip" > "$w/fake/expected-target"
-  printf '%s\n' "$w/origin.git" > "$w/fake/expected-source"
 
   out=$(FM_TEST_SSH_BIN="$fake_ssh" run_update "$w")
 
-  assert_contains "$out" "remote secondmate sm1: updated on remote-mac ($canonical_tip)" \
-    "a matching preflight did not permit the one-argument remote update"
-  assert_present "$w/fake/update-called" \
-    "a matching remote source did not reach the mutating update command"
+  assert_contains "$out" "remote secondmate sm1: updated on remote-mac" \
+    "the legacy remote advance was not accepted"
   assert_contains "$out" "restart-secondmates: fm-sm1" \
     "a live remote mate on the new tip must restart even when the host reports no instruction diff"
   assert_contains "$out" "nudge-secondmates: none" \
     "a restarted remote mate must not also be steered"
-  rm -f "$w/fake/update-called"
-  : > "$w/fake/old-remote"
-  out=$(FM_TEST_SSH_BIN="$fake_ssh" run_update_diagnostics "$w")
-  assert_contains "$out" "remote updater must be upgraded manually once before canonical updates" \
-    "an old remote was not refused with one-time upgrade guidance"
-  assert_absent "$w/fake/update-called" \
-    "an old remote was mutated before capability verification"
-  assert_contains "$out" "restart-secondmates: none" \
-    "an old remote was incorrectly scheduled for restart"
-
-  rm -f "$w/fake/old-remote"
-  : > "$w/fake/mismatched-source"
-  out=$(FM_TEST_SSH_BIN="$fake_ssh" run_update_diagnostics "$w")
-  assert_contains "$out" "remote canonical source does not match this home" \
-    "a mismatched remote source was not refused"
-  assert_absent "$w/fake/update-called" \
-    "a source-mismatched remote was mutated after preflight refusal"
-  assert_contains "$out" "restart-secondmates: none" \
-    "a source-mismatched remote was incorrectly scheduled for restart"
-  pass "T3e remote preflight permits exact sources and refuses others unchanged"
+  pass "T3e a legacy remote advance still restarts the live remote mate"
 }
 
 # --- T4: dirty secondmate is skipped, its edit preserved -------------------
@@ -700,7 +656,7 @@ test_reread_gate_is_instruction_only
 test_bin_only_advance_restarts
 test_unprovable_runtime_gets_fallback_nudge
 test_dead_secondmate_gets_no_action
-test_remote_update_source_preflight
+test_legacy_remote_advance_restarts
 test_dirty_secondmate_skipped
 test_diverged_secondmate_skipped
 test_configured_source_divergence_is_preserved

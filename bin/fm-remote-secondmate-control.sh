@@ -11,7 +11,6 @@
 #   fm-remote-secondmate-control.sh capture <id> [lines]
 #   fm-remote-secondmate-control.sh observe <id>
 #   fm-remote-secondmate-control.sh sync <id> [<parent-commit>]
-#   fm-remote-secondmate-control.sh update-preflight <id>
 #   fm-remote-secondmate-control.sh update <id>
 #   fm-remote-secondmate-control.sh retire <id> [--force]
 #
@@ -29,8 +28,8 @@
 # tracks the primary exactly like a local one instead of stopping at whatever
 # this host's Firstmate copy happens to hold. Omitting <parent-commit> targets
 # this host's own code-root HEAD instead, which is what /updatefirstmate wants
-# after it has refreshed that code root from the canonical source resolved on
-# this host. Because this home is a standalone clone, the target
+# after it has refreshed that
+# code root from origin. Because this home is a standalone clone, the target
 # commit is imported here first and the fast-forward itself is the shared one in
 # bin/fm-ff-lib.sh, so the clean, ancestry, and branch guards have a single owner.
 # A private parent-route state directory stores only the remote secondmate
@@ -62,8 +61,6 @@ REMOTE_HERDR_SESSION=fm-remote
 . "$SCRIPT_DIR/fm-backend.sh"
 # shellcheck source=bin/fm-ff-lib.sh
 . "$SCRIPT_DIR/fm-ff-lib.sh"
-# shellcheck source=bin/fm-update-source-lib.sh
-. "$SCRIPT_DIR/fm-update-source-lib.sh"
 # shellcheck source=bin/fm-pending-reply-lib.sh
 . "$SCRIPT_DIR/fm-pending-reply-lib.sh"
 # shellcheck source=bin/fm-task-inbox-lib.sh
@@ -377,22 +374,12 @@ cmd_sync() {
   esac
 }
 
-cmd_update_preflight() {
-  local id=$1
-  validate_id "$id"
-  validate_home "$id"
-  if ! fm_update_source_resolve "$TARGET_HOME/config"; then
-    die "$FM_UPDATE_SOURCE_ERROR"
-  fi
-  printf 'update-source: %s\n' "$FM_UPDATE_SOURCE_URL"
-}
-
 cmd_update() {
   local id=$1 update_out root_status
   validate_id "$id"
   validate_home "$id"
   if ! update_out=$(FM_HOME="$FM_ROOT" FM_ROOT_OVERRIDE="$FM_ROOT" \
-    FM_CONFIG_OVERRIDE="$TARGET_HOME/config" "$SCRIPT_DIR/fm-update.sh" 2>&1); then
+    FM_UPDATE_ORIGIN_ONLY=1 "$SCRIPT_DIR/fm-update.sh" 2>&1); then
     [ -z "$update_out" ] || printf '%s\n' "$update_out" >&2
     die "remote code root update failed"
   fi
@@ -401,7 +388,7 @@ cmd_update() {
     'firstmate: updated '*|'firstmate: already current'*) ;;
     *)
       [ -z "$update_out" ] || printf '%s\n' "$update_out" >&2
-      die "remote code root did not complete a safe canonical update"
+      die "remote code root did not complete a safe origin update"
       ;;
   esac
   cmd_sync "$id"
@@ -442,7 +429,6 @@ case "${1:-}" in
   capture) shift; [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage; cmd_capture "$@" ;;
   observe) shift; [ "$#" -eq 1 ] || usage; cmd_observe "$@" ;;
   sync) shift; [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage; cmd_sync "$@" ;;
-  update-preflight) shift; [ "$#" -eq 1 ] || usage; cmd_update_preflight "$@" ;;
   update) shift; [ "$#" -eq 1 ] || usage; cmd_update "$@" ;;
   retire) shift; [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage; cmd_retire "$@" ;;
   ''|-h|--help|help) usage ;;

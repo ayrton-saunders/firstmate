@@ -3,10 +3,10 @@
 #
 # Mechanical half of the /updatefirstmate skill. Fast-forwards the running
 # firstmate repo's default branch from config/update-source when configured,
-# or from kunchenguid/firstmate by default, then fast-forwards every
+# or from kunchenguid/firstmate by default, then fast-forwards every local
 # registered secondmate home from that same source. Local homes are treehouse
-# worktrees or standalone
-# clones; remote routes update their configured code root on that host and then
+# worktrees or standalone clones; remote routes retain their existing behavior:
+# update their configured code root on that host and then
 # fast-forward the persistent home to that root. FAST-FORWARD ONLY, exactly like
 # fm-fleet-sync.sh: never force, never create a merge commit, never stash.
 # A secondmate divergence whose complete local tree result is already present at
@@ -31,7 +31,7 @@
 #   - one status line per target (updated/already current/skipped)
 #   - reread-firstmate: yes|no    (did the running firstmate's instructions change)
 #   - restart-secondmates: fm-<id>...|none (every live secondmate this pass left
-#     on the canonical tip - advanced OR already there - whose recorded runtime can
+#     on its update target - advanced OR already there - whose recorded runtime can
 #     prove a restart)
 #   - nudge-secondmates: fm-<id>...|none   (the residual: live secondmates on
 #     that same tip whose runtime CANNOT prove a restart, so the older re-read
@@ -94,15 +94,16 @@ fi
 # --- main firstmate repo ---------------------------------------------------
 
 reread_firstmate="no"
-update_base=update-source
+update_base=origin
 update_source_ready=yes
-if fm_update_source_resolve "$CONFIG"; then
-  :
-else
-  echo "firstmate: skipped: $FM_UPDATE_SOURCE_ERROR"
-  FF_STATUS=skipped
-  FF_INSTR=
-  update_source_ready=no
+if [ "${FM_UPDATE_ORIGIN_ONLY:-0}" != 1 ]; then
+  update_base=update-source
+  if ! fm_update_source_resolve "$CONFIG"; then
+    echo "firstmate: skipped: $FM_UPDATE_SOURCE_ERROR"
+    FF_STATUS=skipped
+    FF_INSTR=
+    update_source_ready=no
+  fi
 fi
 if [ "$update_source_ready" = yes ]; then
   ff_target "$FM_ROOT" "firstmate" "$update_base" no no
@@ -124,7 +125,7 @@ if [ "$FF_STATUS" = "updated" ]; then
 fi
 
 # --- secondmates -----------------------------------------------------------
-# Every live secondmate this pass leaves on the canonical tip is restarted, whether it
+# Every live secondmate this pass leaves on its update target is restarted, whether it
 # advanced or was already there. The header above owns why the git diff does not
 # gate that, and which two conditions - a skipped home, an unprovable runtime -
 # are the only ways a live mate stays out of the restart set.
@@ -211,24 +212,6 @@ if [ -f "$SECONDMATES_MD" ]; then
     id=$SECONDMATE_REGISTRY_ID
     home=$SECONDMATE_REGISTRY_HOME
     if [ "$SECONDMATE_REGISTRY_REMOTE" -eq 1 ]; then
-      [ "$update_source_ready" = yes ] || continue
-      if ! remote_preflight_out=$("$SCRIPT_DIR/fm-on.sh" "$id" fm-remote-secondmate-control.sh update-preflight "$id" < /dev/null 2>&1); then
-        echo "remote secondmate $id: skipped on $SECONDMATE_REGISTRY_HOST: remote updater must be upgraded manually once before canonical updates; update that host's Firstmate code root and retry" >&2
-        continue
-      fi
-      remote_preflight_result=$(printf '%s\n' "$remote_preflight_out" | tail -1)
-      case "$remote_preflight_result" in
-        'update-source: '*) remote_update_source=${remote_preflight_result#update-source: } ;;
-        *)
-          echo "remote secondmate $id: skipped on $SECONDMATE_REGISTRY_HOST: remote update preflight returned a malformed result; update that host's Firstmate code root manually and retry" >&2
-          continue
-          ;;
-      esac
-      if [ "$remote_update_source" != "$FM_UPDATE_SOURCE_URL" ]; then
-        echo "remote secondmate $id: skipped on $SECONDMATE_REGISTRY_HOST: remote canonical source does not match this home; align config/update-source manually and retry" >&2
-        continue
-      fi
-      expected_update_commit=$(git -C "$FM_ROOT" rev-parse refs/remotes/fm-update-source/HEAD)
       if remote_out=$("$SCRIPT_DIR/fm-on.sh" "$id" fm-remote-secondmate-control.sh update "$id" < /dev/null 2>&1); then
         remote_result=$(printf '%s\n' "$remote_out" | tail -1)
         case "$remote_result" in
@@ -246,10 +229,6 @@ if [ -f "$SECONDMATES_MD" ]; then
                 ;;
               *) remote_instr=""; remote_commit=$remote_detail ;;
             esac
-            if [ "$remote_commit" != "$expected_update_commit" ]; then
-              echo "remote secondmate $id: skipped on $SECONDMATE_REGISTRY_HOST: remote code root reached $remote_commit instead of required canonical commit $expected_update_commit; update that host's Firstmate code root from $FM_UPDATE_SOURCE_URL and retry" >&2
-              continue
-            fi
             if [ -n "$remote_instr" ]; then
               echo "remote secondmate $id: updated on $SECONDMATE_REGISTRY_HOST ($remote_commit, instructions changed: $remote_instr)"
             else
@@ -260,12 +239,7 @@ if [ -f "$SECONDMATES_MD" ]; then
             fi
             ;;
           current:*)
-            remote_commit=${remote_result#current: }
-            if [ "$remote_commit" != "$expected_update_commit" ]; then
-              echo "remote secondmate $id: skipped on $SECONDMATE_REGISTRY_HOST: remote code root reached $remote_commit instead of required canonical commit $expected_update_commit; update that host's Firstmate code root from $FM_UPDATE_SOURCE_URL and retry" >&2
-              continue
-            fi
-            echo "remote secondmate $id: already current on $SECONDMATE_REGISTRY_HOST ($remote_commit)"
+            echo "remote secondmate $id: already current on $SECONDMATE_REGISTRY_HOST (${remote_result#current: })"
             # Already on the target commit is a SUCCESSFUL update of that home,
             # so it earns the same restart as one that had to advance.
             if [ -f "$STATE/$id.meta" ] && grep -qx 'kind=secondmate' "$STATE/$id.meta"; then

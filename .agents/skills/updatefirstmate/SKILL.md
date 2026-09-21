@@ -1,7 +1,7 @@
 ---
 name: updatefirstmate
 description: >-
-  Self-update a running firstmate and its secondmates from the configured canonical source.
+  Self-update a running firstmate and local secondmates from the configured canonical source, while retaining remote host behavior.
   Use when the captain invokes /updatefirstmate (e.g. "/updatefirstmate", "update firstmate", "pull the latest firstmate").
   Updates this firstmate repo's default branch and every local or remote secondmate through its guarded convergence path (never forced, never disruptive), then re-reads AGENTS.md and restarts every live second mate through the persist-gated restart, with a fallback re-read nudge only where a restart cannot be proven.
 user-invocable: true
@@ -28,8 +28,8 @@ The only live mates that do not restart are the ones whose home the update pass 
 **One-time rollout note:** the update that carries this change is still executed by the previous release, which restarts only the mates whose `AGENTS.md` or `.agents/skills/` moved on that pass. After it completes, run `bin/fm-secondmate-restart.sh <fm-id>...` once with every live second mate ID, not only the ones that release named; later updates follow the normal flow below.
 
 The primary update is fast-forward only, while each secondmate uses the same guarded convergence path plus one narrow recovery for squash-merged local history.
-[`docs/configuration.md`](../../../docs/configuration.md#canonical-self-update-source-configupdate-source) owns how `config/update-source` selects an explicit canonical URL, with `kunchenguid/firstmate` as the unconfigured default and fork remotes preserved for publication.
-For a remote route, a read-only capability preflight must report the exact inherited source before the configured Firstmate code root or persistent home may move; the parent then verifies the required canonical commit before accepting convergence.
+[`docs/configuration.md`](../../../docs/configuration.md#canonical-self-update-source-configupdate-source) owns how local `config/update-source` selects an explicit canonical URL, with `kunchenguid/firstmate` as the unconfigured default and fork remotes preserved for publication.
+For a remote route, the configured Firstmate code root retains its existing host-local `origin` update, then guardedly fast-forwards the persistent home to that code-root commit.
 It never forces, never creates a merge commit, and never stashes.
 A clean secondmate divergence advances with `reset --keep` only when a three-way tree proof shows its complete local result is already present at the target, which recognizes squash-merged contributions without discarding unique content.
 Every other dirty, diverged, offline, or wrong-branch target is skipped and reported, and a genuine divergence leaves a durable `state/.secondmate-update-reconcile/<id>.pending` record that future bootstrap and update passes surface until convergence clears it.
@@ -42,8 +42,8 @@ This touches only the firstmate repo and its own worktrees, never anything under
    ```sh
    bin/fm-update.sh
    ```
-   It fast-forwards this firstmate repo's default branch from the configured canonical source, then updates every registered local or remote secondmate home through its placement-specific guarded path.
-   If source configuration is invalid or unreachable, it leaves every target unchanged and reports the concrete source error instead of falling back to another remote.
+   It fast-forwards this firstmate repo's default branch and local secondmate homes from the configured canonical source, then updates remote secondmate homes through their existing host-local `origin` path.
+   If local source configuration is invalid or unreachable, it leaves the primary and local secondmate homes unchanged and reports the concrete source error instead of falling back to another remote.
    It prints one status line per target (`updated <old>..<new>` / `reconciled redundant divergence <old>..<new>` / `already current` / `skipped: <reason>`), followed by three action lines that tell you exactly what to do next:
    - `reread-firstmate: yes|no`
    - `restart-secondmates: fm-<id>...|none`
