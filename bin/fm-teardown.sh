@@ -85,6 +85,15 @@
 # A ship teardown without --force does not run that clean: it refuses untracked
 # entries, except those under the .claude/ allowance, so a nested repository
 # there can still survive the return.
+# Because ignored files remain, retiring a Firstmate home that lives in a
+# Treehouse pool slot would otherwise leave its gitignored data/, state/,
+# config/, projects/, and .no-mistakes/ in the slot for the next lease to
+# inherit (observed 2026-10-11: a retired home's stale state/.lock and partial
+# data/ surfaced in later leases). Before the home's Treehouse return,
+# teardown_scrub_firstmate_private_dirs removes exactly those recognized
+# private entries - never tracked content or other untracked paths - so the
+# scratch copies' ignored-file behavior is unchanged and unlanded work is
+# never discarded by this step.
 # After a return that succeeds, teardown reads `git status --porcelain --untracked-files=all`.
 # Any remaining output, a status read that fails, or a copy that is missing or
 # no longer a readable worktree is reported at once with the lost pool slot and
@@ -1944,6 +1953,59 @@ teardown_scrub_scratch_copy() {
   }
 }
 
+# The private operational dirs every Firstmate home owns. All are gitignored, so
+# Treehouse's `git clean -fd` leaves them in the slot. data/, state/, and
+# config/ are the ones the home-removal path already validates (see
+# validate_firstmate_operational_dirs_for_removal); projects/ holds the home's
+# clones and .no-mistakes/ its pipeline scratch, which the non-Treehouse
+# removal path also discards with the whole home.
+FM_TEARDOWN_PRIVATE_DIRS=(data state config projects .no-mistakes)
+
+# Remove a retired Firstmate home's private operational dirs before its
+# Treehouse pool slot is returned. Treehouse's return runs `git clean -fd`,
+# which never removes gitignored files, so without this the next task leased
+# into the slot inherits the retired home's data/, state/ (including a stale
+# state/.lock that makes a freshly seeded home refuse its own lock), config/,
+# projects/, and .no-mistakes/ (observed 2026-10-11: a retired FPL home and a
+# dead-pid state/.lock surfaced in later leases). Only those recognized private
+# entries are removed; tracked content and every other untracked path are left
+# untouched, so this step never discards unlanded work. Each entry is resolved
+# in-home first, exactly like the home-removal validation, so a path that
+# escapes the home is refused rather than followed.
+teardown_scrub_firstmate_private_dirs() {
+  local home=$1 label=$2 name dir abs_home abs_dir
+  abs_home=$(removal_target_abs_path "$home") || {
+    echo "error: cannot resolve $label $home to scrub its private dirs before the treehouse return" >&2
+    return 1
+  }
+  for name in "${FM_TEARDOWN_PRIVATE_DIRS[@]}"; do
+    dir="$home/$name"
+    [ -e "$dir" ] || [ -L "$dir" ] || continue
+    if [ -L "$dir" ] && [ ! -e "$dir" ]; then
+      echo "REFUSED: unsafe $label $name path $dir is a broken symlink; not removing it" >&2
+      return 1
+    fi
+    if [ -d "$dir" ]; then
+      abs_dir=$(cd "$dir" && pwd -P) || {
+        echo "REFUSED: unsafe $label $name directory $dir cannot be resolved; not removing it" >&2
+        return 1
+      }
+    elif [ -e "$dir" ]; then
+      echo "REFUSED: unsafe $label $name path $dir is not a directory; not removing it" >&2
+      return 1
+    fi
+    if [ -n "$abs_dir" ] && ! path_is_ancestor_of "$abs_home" "$abs_dir"; then
+      echo "REFUSED: unsafe $label $name directory $dir resolves outside the home; not removing it" >&2
+      return 1
+    fi
+    rm -rf -- "$dir" || {
+      echo "error: could not remove $label $name directory $dir before the treehouse return; teardown aborted" >&2
+      return 1
+    }
+  done
+  return 0
+}
+
 # Callers run this only for a copy that was a Treehouse pool slot before the
 # return; a return removes any other copy, and the pool cannot lose it.
 teardown_note_dirty_return() {
@@ -2730,6 +2792,11 @@ remove_firstmate_home() {
   if firstmate_home_has_treehouse_slot "$abs_home_path"; then
     command -v treehouse >/dev/null 2>&1 || {
       echo "error: treehouse command not found; cannot return $label $abs_home_path" >&2
+      restore_firstmate_home_process_events "$abs_home_path" "$label" "$process_event_backup" || return $?
+      return 1
+    }
+    teardown_scrub_firstmate_private_dirs "$abs_home_path" "$label" || {
+      echo "error: could not scrub $label private dirs before its treehouse return; lease may still be held" >&2
       restore_firstmate_home_process_events "$abs_home_path" "$label" "$process_event_backup" || return $?
       return 1
     }
