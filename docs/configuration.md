@@ -715,6 +715,16 @@ A remote route adds `host:` and `root:` before the existing fields and places th
 Use `fm-home-seed.sh validate` to check the complete operational registry contract documented by the command itself.
 The main first mate routes by reading those scopes with judgment; the project list is provisioning data, not exclusive ownership.
 
+### Fork-backed local updates
+
+A personal primary may use its fork as `origin` and canonical upstream as `upstream`, while running homes continue to land only by guarded fast-forward.
+The optional publication approvals, executable validation interface, retained attempts, and integration transaction are owned by [`bin/fm-fork-sync-lib.sh`](../bin/fm-fork-sync-lib.sh).
+Publication is disabled until the operator explicitly approves it and selects a validator that enforces the intended review and test policy; neither remote presence nor a clean Git merge grants that authority.
+[`bin/fm-update.sh`](../bin/fm-update.sh) stops propagation when integration or primary landing fails, and unchanged no-upstream setups keep their existing update behavior.
+Local linked homes share their primary's remotes; new standalone homes receive the fork origin through [`bin/fm-home-seed.sh`](../bin/fm-home-seed.sh), without upstream publication authority.
+Existing standalone origins are checked rather than silently migrated.
+These local settings do not migrate another fleet or a remote code root; [remote setup boundaries](remote-secondmates.md#fork-backed-code-roots) still apply.
+
 ### Provision a local home
 
 Use `fm-home-seed.sh <id> - {<project>...|--no-projects}` to lease a fresh local firstmate worktree for the secondmate home.

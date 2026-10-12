@@ -5,8 +5,9 @@
 # firstmate repo's default branch from origin, then fast-forwards every
 # registered secondmate home. Local homes are treehouse worktrees or standalone
 # clones; remote routes update their configured code root on that host and then
-# fast-forward the persistent home to that root. FAST-FORWARD ONLY, exactly like
-# fm-fleet-sync.sh: never force, never create a merge commit, never stash.
+# fast-forward the persistent home to that root. Running homes remain
+# fast-forward only. Optional upstream integration/publication is owned by
+# fm-fork-sync-lib.sh and happens only in a retained isolated clone.
 # A secondmate divergence whose complete local tree result is already present at
 # the target is reconciled with reset --keep; every other unsafe target is
 # skipped and reported, with divergence recorded durably by fm-ff-lib.sh.
@@ -72,6 +73,8 @@ STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 SECONDMATES_MD="$FM_HOME/data/secondmates.md"
 # shellcheck source=bin/fm-ff-lib.sh
 . "$SCRIPT_DIR/fm-ff-lib.sh"
+# shellcheck source=bin/fm-fork-sync-lib.sh
+. "$SCRIPT_DIR/fm-fork-sync-lib.sh"
 # shellcheck source=bin/fm-secondmate-restart-lib.sh
 . "$SCRIPT_DIR/fm-secondmate-restart-lib.sh"
 
@@ -88,7 +91,29 @@ fi
 # --- main firstmate repo ---------------------------------------------------
 
 reread_firstmate="no"
+if fm_fork_sync_prepare "$FM_ROOT" "$FM_HOME"; then
+  fork_mode=yes
+else
+  fork_result=$?
+  if [ "$fork_result" -ne 2 ]; then
+    echo 'reread-firstmate: no'
+    echo 'restart-secondmates: none'
+    echo 'nudge-secondmates: none'
+    exit 1
+  fi
+  fork_mode=no
+fi
 ff_target "$FM_ROOT" "firstmate" origin no no
+if [ "$fork_mode" = yes ]; then
+  if { [ "$FF_STATUS" != updated ] && [ "$FF_STATUS" != current ]; } ||
+    ! git -C "$FM_ROOT" merge-base --is-ancestor "$FM_FORK_UPSTREAM" HEAD; then
+    fm_fork_sync_error 'primary landing did not include fetched upstream' || true
+    echo 'reread-firstmate: no'
+    echo 'restart-secondmates: none'
+    echo 'nudge-secondmates: none'
+    exit 1
+  fi
+fi
 if [ "$FF_STATUS" = "updated" ]; then
   if [ -n "$FF_INSTR" ]; then
     reread_firstmate="yes"

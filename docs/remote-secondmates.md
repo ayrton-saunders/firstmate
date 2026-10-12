@@ -59,6 +59,14 @@ ln -s /absolute/path/to/firstmate/bin/fm-remote-entrypoint.sh ~/.local/bin/fm-re
 The entrypoint accepts encoded argv for genuine executable `bin/fm-*.sh` files only.
 It never accepts a shell command string.
 
+### Fork-backed code roots
+
+[Local fork updates](configuration.md#fork-backed-local-updates) do not automatically align remote code roots or remote seeded origins.
+A dedicated remote consumer must already fetch from the intended fork with no `upstream` publication configuration, and its standalone home origin needs separately approved alignment.
+The remote seeder currently clones the remote code-root path; it does not transport the primary's fork-origin expectation.
+Do not repoint a work-shared root or introduce multiple roots into one account: the remote-job worker and LaunchAgent are account-scoped and currently bind to one code root.
+Use a separately approved account or host, or obtain separate architecture approval for multi-root transport; populated-home relocation is an operator migration, not an update side effect.
+
 ### Doctor bootstrap over plain SSH
 
 The readiness-owning doctor runs over this plain SSH bootstrap.
