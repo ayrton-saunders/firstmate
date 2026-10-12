@@ -92,6 +92,27 @@ fm_parent_channel_home_id() {  # <home>
   printf '%s\n' "$id"
 }
 
+# Print the parent-channel status path for an explicit route shape, without
+# reading any home's binding: <route> <mate-state-dir> <parent-state-dir> <id>.
+# fm_parent_channel_destination is the binding-driven caller and uses this too,
+# so a charter renderer that knows the route but has no seeded home yet
+# (bin/fm-brief.sh --secondmate) cannot drift from the runtime resolver.
+# Returns 3 for an unknown route or a missing directory for that route.
+fm_parent_channel_path_for_route() {  # <route> <mate-state> <parent-state> <id>
+  local route=$1 mate_state=$2 parent_state=$3 id=$4
+  case "$route" in
+    local)
+      [ -n "$parent_state" ] || return 3
+      printf '%s/%s.status\n' "$parent_state" "$id"
+      ;;
+    remote)
+      [ -n "$mate_state" ] || return 3
+      printf '%s/parent-replies.status\n' "$mate_state"
+      ;;
+    *) return 3 ;;
+  esac
+}
+
 # Resolve the channel destination for <home> whose state dir is <state>.
 # Prints the destination path and sets FM_PARENT_CHANNEL_ID and
 # FM_PARENT_CHANNEL_ROUTE. Returns 1 for a main home, 2 for an unusable
@@ -110,14 +131,14 @@ fm_parent_channel_destination() {  # <home> <state>
       FM_PARENT_CHANNEL_ID=$id
       # shellcheck disable=SC2034 # Output globals read by sourcing callers.
       FM_PARENT_CHANNEL_ROUTE=local
-      printf '%s/state/%s.status\n' "$FM_SECONDMATE_PARENT_HOME" "$id"
+      fm_parent_channel_path_for_route local "" "$FM_SECONDMATE_PARENT_HOME/state" "$id"
       ;;
     remote)
       # shellcheck disable=SC2034 # Output globals read by sourcing callers.
       FM_PARENT_CHANNEL_ID=$id
       # shellcheck disable=SC2034 # Output globals read by sourcing callers.
       FM_PARENT_CHANNEL_ROUTE=remote
-      printf '%s/parent-replies.status\n' "$state"
+      fm_parent_channel_path_for_route remote "$state" "" "$id"
       ;;
     *) return 3 ;;
   esac

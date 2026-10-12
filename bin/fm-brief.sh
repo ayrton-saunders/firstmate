@@ -152,6 +152,8 @@ esac
 . "$SCRIPT_DIR/fm-classify-lib.sh"
 # shellcheck source=bin/fm-dod-lib.sh
 . "$SCRIPT_DIR/fm-dod-lib.sh"
+# shellcheck source=bin/fm-parent-channel-lib.sh
+. "$SCRIPT_DIR/fm-parent-channel-lib.sh"
 PAUSED_VERB=${FM_CLASSIFY_PAUSED_VERB:-$FM_CLASSIFY_PAUSED_VERB_DEFAULT}
 IFS= read -r -d '' CREWMATE_PAUSE_INSTRUCTIONS <<EOF || true
    Use \`$PAUSED_VERB: {why}\` - distinct from \`blocked:\` - when deliberately waiting for work or an external condition expected to clear on its own, including your own validation round.
@@ -203,6 +205,10 @@ FORGE=none
 FORGE_SET=0
 SHAPE=
 SHAPE_SET=0
+PARENT_ROUTE=local
+PARENT_ROUTE_SET=0
+REMOTE_HOME=
+REMOTE_HOME_SET=0
 POS=()
 want_value=
 for a in "$@"; do
@@ -216,6 +222,8 @@ for a in "$@"; do
       base-branch) BASE_BRANCH=$a; BASE_BRANCH_SET=1 ;;
       forge) FORGE=$a; FORGE_SET=1 ;;
       shape) SHAPE=$a; SHAPE_SET=1 ;;
+      parent-route) PARENT_ROUTE=$a; PARENT_ROUTE_SET=1 ;;
+      remote-home) REMOTE_HOME=$a; REMOTE_HOME_SET=1 ;;
       *) echo "error: internal parser state for --$want_value" >&2; exit 1 ;;
     esac
     want_value=
@@ -236,6 +244,10 @@ for a in "$@"; do
     --forge=*) FORGE=${a#--forge=}; FORGE_SET=1 ;;
     --shape) want_value=shape ;;
     --shape=*) SHAPE=${a#--shape=}; SHAPE_SET=1 ;;
+    --parent-route) want_value="parent-route" ;;
+    --parent-route=*) PARENT_ROUTE=${a#--parent-route=}; PARENT_ROUTE_SET=1 ;;
+    --remote-home) want_value="remote-home" ;;
+    --remote-home=*) REMOTE_HOME=${a#--remote-home=}; REMOTE_HOME_SET=1 ;;
     # yolo never reaches the worker: it is firstmate's merge authority, not a
     # brief input. Refuse it loudly so it is never silently dropped here and then
     # believed to have been recorded.
@@ -244,6 +256,35 @@ for a in "$@"; do
   esac
 done
 [ -z "$want_value" ] || { echo "error: --$want_value requires a value" >&2; exit 1; }
+
+# --parent-route and --remote-home shape a secondmate charter's parent-channel
+# paths to the route that delivers it: the default local route names the parent
+# home's own state paths, while a remote route names the seeded home's
+# host-local reply log and steering inbox. They are refused anywhere else,
+# because only a persistent secondmate charter carries those paths.
+if [ "$PARENT_ROUTE_SET" -eq 1 ] || [ "$REMOTE_HOME_SET" -eq 1 ]; then
+  [ "$KIND" = secondmate ] || {
+    echo "error: --parent-route and --remote-home apply only to --secondmate charters" >&2
+    exit 1
+  }
+fi
+case "$PARENT_ROUTE" in
+  local|remote) ;;
+  *) echo "error: --parent-route must be local or remote (got '$PARENT_ROUTE')" >&2; exit 1 ;;
+esac
+if [ "$PARENT_ROUTE" = remote ]; then
+  [ "$REMOTE_HOME_SET" -eq 1 ] || {
+    echo "error: --parent-route remote requires --remote-home <path>, the secondmate home on its own host" >&2
+    exit 1
+  }
+  case "$REMOTE_HOME" in
+    /*) ;;
+    *) echo "error: --remote-home must be an absolute path (got '$REMOTE_HOME')" >&2; exit 1 ;;
+  esac
+elif [ "$REMOTE_HOME_SET" -eq 1 ]; then
+  echo "error: --remote-home requires --parent-route remote" >&2
+  exit 1
+fi
 
 # Ship delivery mode is an explicit per-task decision (AGENTS.md section 7). A
 # missing or invalid value stops the scaffold rather than silently defaulting.
@@ -368,12 +409,31 @@ shell_quote() {
 }
 
 STATUS_FILE=$(shell_quote "$STATE/$ID.status")
+INBOX_DIR=$(shell_quote "$STATE/$ID.inbox")
+# A secondmate charter is the only scaffold that carries the parent channel. Its
+# default local route names the parent home's own state paths. A remote route
+# delivers the charter to a home on another host, where those paths do not
+# exist, so the paths are rendered host-local through the same channel resolver
+# the durable publishers use (bin/fm-parent-channel-lib.sh), which makes the
+# charter's instruction the route's resolved channel rather than a parent-home
+# path the remote host cannot write. The local route is left byte-for-byte
+# unchanged.
+APPEND_ROOT="$FM_ROOT"
+APPEND_CONFIG="$CONFIG"
+if [ "$KIND" = secondmate ] && [ "$PARENT_ROUTE" = remote ]; then
+  remote_state="$REMOTE_HOME/state"
+  remote_config="$REMOTE_HOME/config"
+  remote_status=$(fm_parent_channel_path_for_route remote "$remote_state" "" "$ID")
+  STATUS_FILE=$(shell_quote "$remote_status")
+  INBOX_DIR=$(shell_quote "$remote_state/parent-route/$ID.inbox")
+  APPEND_ROOT="$REMOTE_HOME"
+  APPEND_CONFIG="$remote_config"
+fi
 # The worker's status command: the plain append always carries the line, then
 # the opt-in fleet ledger (docs/fleet-ledger.md) records it at once, costing one
 # file test when the flag is absent. A host without that flag, such as a remote
 # second mate's, runs only the append; the watcher capture is the backstop.
-STATUS_APPEND="echo \"{state} [at=<epoch>]: {one short line}\" >> $STATUS_FILE && { [ ! -e $(shell_quote "$CONFIG/fleet-ledger") ] || $(shell_quote "$FM_ROOT/bin/fm-fleet-ledger.sh") appended $(shell_quote "$CONFIG") $STATUS_FILE >/dev/null 2>&1 || true; }"
-INBOX_DIR=$(shell_quote "$STATE/$ID.inbox")
+STATUS_APPEND="echo \"{state} [at=<epoch>]: {one short line}\" >> $STATUS_FILE && { [ ! -e $(shell_quote "$APPEND_CONFIG/fleet-ledger") ] || $(shell_quote "$APPEND_ROOT/bin/fm-fleet-ledger.sh") appended $(shell_quote "$APPEND_CONFIG") $STATUS_FILE >/dev/null 2>&1 || true; }"
 
 # The receive-and-ack half of the steering-inbox contract, included in every
 # scaffold kind. The record format, doorbell line, and re-ring ladder are

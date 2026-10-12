@@ -891,6 +891,70 @@ test_secondmate_directory_paths_are_absolute_and_output_is_stable() {
   pass "fm-brief.sh: relative directory inputs ignore CDPATH, render stable absolute charter paths, or fail loudly"
 }
 
+# A remote secondmate's charter must name the channel its own host can actually
+# write, not the parent home's local path, while a local charter stays on the
+# parent home's paths. Both must match bin/fm-parent-channel-lib.sh's resolver.
+test_secondmate_charter_channel_follows_the_route() {
+  local home remote brief resolved status
+  home="$TMP_ROOT/parent-route-home"
+  remote="$TMP_ROOT/remote-mate-home"
+  mkdir -p "$home/data"
+
+  # The default local route keeps the parent home's own state paths and never
+  # mentions a remote home.
+  FM_HOME="$home" FM_SECONDMATE_CHARTER='Own the alpha domain.' \
+    FM_SECONDMATE_SCOPE='alpha' \
+    "$ROOT/bin/fm-brief.sh" local-route --secondmate --no-projects >/dev/null 2>&1
+  brief="$home/data/local-route/brief.md"
+  assert_grep ">> '$home/state/local-route.status'" "$brief" \
+    "local charter lost the parent home's channel path"
+  assert_grep "'$home/state/local-route.inbox'" "$brief" \
+    "local charter lost the parent home's steering-inbox path"
+  assert_no_grep "$remote" "$brief" \
+    "local charter referenced a remote home it does not have"
+
+  # The remote route renders the seeded home's host-local reply log and inbox.
+  FM_HOME="$home" FM_SECONDMATE_CHARTER='Own the alpha domain.' \
+    FM_SECONDMATE_SCOPE='alpha' \
+    "$ROOT/bin/fm-brief.sh" remote-route --secondmate --no-projects \
+    --parent-route remote --remote-home "$remote" >/dev/null 2>&1
+  brief="$home/data/remote-route/brief.md"
+  assert_grep "'$remote/state/parent-replies.status'" "$brief" \
+    "remote charter did not name the resolved remote channel"
+  assert_grep "'$remote/state/parent-route/remote-route.inbox'" "$brief" \
+    "remote charter did not name the host-local steering inbox"
+  assert_no_grep "$home/state/remote-route.status" "$brief" \
+    "remote charter retained the parent home's local channel path"
+  assert_no_grep "$home/state/remote-route.inbox" "$brief" \
+    "remote charter retained the parent home's local inbox path"
+
+  # The rendered path must equal the channel the runtime resolver produces for
+  # the same seeded remote home, so render and delivery cannot drift.
+  mkdir -p "$remote"
+  printf 'alpha\n' > "$remote/.fm-secondmate-home"
+  printf 'schema=fm-secondmate-parent.v1\nroute=remote\n' > "$remote/.fm-secondmate-parent"
+  resolved=$(bash -c '. "$1"; fm_parent_channel_destination "$2" "$2/state"' _ \
+    "$ROOT/bin/fm-parent-channel-lib.sh" "$remote")
+  [ -n "$resolved" ] || fail "the channel resolver produced no path for the remote home fixture"
+  assert_grep "$resolved" "$brief" \
+    "remote charter channel did not match bin/fm-parent-channel-lib.sh's resolver"
+
+  # The route flags are refused where a route cannot apply and when incomplete.
+  FM_HOME="$home" "$ROOT/bin/fm-brief.sh" route-on-ship some-proj --mode direct-PR \
+    --parent-route remote --remote-home "$remote" >/dev/null 2>&1; status=$?
+  expect_code 1 "$status" "--parent-route on a ship brief must be refused"
+  FM_HOME="$home" FM_SECONDMATE_CHARTER='x' \
+    "$ROOT/bin/fm-brief.sh" route-without-home --secondmate --no-projects \
+    --parent-route remote >/dev/null 2>&1; status=$?
+  expect_code 1 "$status" "--parent-route remote without --remote-home must be refused"
+  FM_HOME="$home" FM_SECONDMATE_CHARTER='x' \
+    "$ROOT/bin/fm-brief.sh" home-without-route --secondmate --no-projects \
+    --remote-home "$remote" >/dev/null 2>&1; status=$?
+  expect_code 1 "$status" "--remote-home without --parent-route remote must be refused"
+
+  pass "fm-brief.sh: secondmate charter names the resolved channel for the route shape"
+}
+
 test_herdr_lab_contract_applies_to_scouts_but_not_secondmates() {
   local home brief status=0
   home="$TMP_ROOT/herdr-kind-home"
@@ -1564,6 +1628,7 @@ test_herdr_lab_contract_applies_to_scouts_but_not_secondmates
 test_secondmate_no_projects_charter
 test_secondmate_marked_request_reporting_contract
 test_secondmate_directory_paths_are_absolute_and_output_is_stable
+test_secondmate_charter_channel_follows_the_route
 test_pause_verb_override_renders_all_brief_scaffolds
 test_ship_and_scout_teach_validation_round_pause
 test_scout_and_secondmate_load_decision_hold_policy
