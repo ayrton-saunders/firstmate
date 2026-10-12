@@ -1696,6 +1696,89 @@ test_return_that_removes_copy_warns_cannot_verify() {
   pass "a return that leaves no readable copy reports the slot as unverified, not clean"
 }
 
+# Move a Firstmate home onto a Treehouse pool slot: make it a worktree of the
+# case project so firstmate_home_has_treehouse_slot recognizes it, then point
+# the fake pool state at it. Echoes the absolute slot path.
+make_pool_home_worktree() {
+  local case_dir=$1 slot=$2 dest
+  dest="$case_dir/pool/$slot/repo"
+  mkdir -p "$case_dir/pool/$slot"
+  git -C "$case_dir/project" worktree add -q -b "fm/pool-home-$slot" "$dest" main
+  printf '{"worktrees":[{"name":"%s","path":"%s"}]}\n' "$slot" "$dest" \
+    > "$case_dir/pool/treehouse-state.json"
+  printf '%s\n' "$dest"
+}
+
+# Retiring a secondmate home that lives in a Treehouse pool slot must hand the
+# slot back without the retired home's gitignored private dirs. The fake return
+# succeeds without cleaning anything, so only the pre-return scrub can leave
+# the slot clean. Tracked content must survive: the scrub removes private
+# state, never the worktree's tracked files.
+test_retired_pool_home_scrubs_private_dirs() {
+  local case_dir home rc
+  case_dir=$(make_case pool-home-scrub)
+  write_meta "$case_dir" local-only secondmate
+  home=$(make_pool_home_worktree "$case_dir" 5)
+  printf '%s\n' task-x1 > "$home/.fm-secondmate-home"
+  printf 'home=%s\n' "$home" >> "$case_dir/state/task-x1.meta"
+  mkdir -p "$home/data/task-x1" "$home/state/procevent" "$home/config" \
+    "$home/projects/alpha" "$home/.no-mistakes/repos"
+  printf 'brief\n' > "$home/data/task-x1/brief.md"
+  # A stale lock holding a dead pid was the dangerous observed leak.
+  printf '999999\n' > "$home/state/.lock"
+  printf 'local\n' > "$home/config/secondmate-harness"
+  git -C "$home" rev-parse HEAD > "$home/.no-mistakes/repos/head"
+  printf 'tracked\n' > "$home/tracked.txt"
+  git -C "$home" add tracked.txt
+  git -C "$home" -c user.email=t@t -c user.name=t commit -q -m "tracked home content"
+  cat > "$case_dir/fakebin/treehouse" <<'SH'
+#!/usr/bin/env bash
+# Return succeeds and leaves the slot on disk untouched, so any remaining
+# private state would have leaked into the pool.
+exit 0
+SH
+  chmod +x "$case_dir/fakebin/treehouse"
+
+  rc=0
+  FM_HOME="$case_dir/fm-home" FM_ROOT_OVERRIDE="$case_dir/project" \
+    FM_STATE_OVERRIDE="$case_dir/state" FM_DATA_OVERRIDE="$case_dir/data" \
+    FM_CONFIG_OVERRIDE="$case_dir/config" PATH="$case_dir/fakebin:$PATH" \
+    "$TEARDOWN" task-x1 --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 0 "$rc" "pool-home-scrub: forced secondmate teardown should succeed: $(cat "$case_dir/stderr")"
+  assert_absent "$home/data" "pool-home-scrub: retired home data/ leaked into the pool slot"
+  assert_absent "$home/state" "pool-home-scrub: retired home state/ (stale .lock) leaked into the pool slot"
+  assert_absent "$home/config" "pool-home-scrub: retired home config/ leaked into the pool slot"
+  assert_absent "$home/projects" "pool-home-scrub: retired home projects/ leaked into the pool slot"
+  assert_absent "$home/.no-mistakes" "pool-home-scrub: retired home .no-mistakes/ leaked into the pool slot"
+  assert_present "$home/tracked.txt" "pool-home-scrub: the scrub discarded tracked worktree content"
+  assert_present "$home/.fm-secondmate-home" "pool-home-scrub: the home marker was removed before a retry could still validate"
+  pass "retiring a pooled Firstmate home scrubs its private dirs and keeps tracked content"
+}
+
+# The private-dir scrub is gated behind the home return, so a task worktree
+# that has not landed must still be refused and left byte-for-byte intact
+test_pool_unlanded_work_still_blocks_return() {
+  local case_dir wt rc head
+  case_dir=$(make_case pool-unlanded-guard)
+  wt=$(move_case_to_pool_slot "$case_dir" 4)
+  write_meta "$case_dir" no-mistakes ship "$wt"
+  mkdir -p "$wt/data"
+  printf 'parked\n' > "$wt/data/scratch"
+  git -C "$wt" -c user.email=t@t -c user.name=t commit -q --allow-empty -m "unlanded work"
+  head=$(git -C "$wt" rev-parse HEAD)
+
+  rc=0
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+
+  expect_code 1 "$rc" "pool-unlanded-guard: unlanded work should still block the return"
+  assert_grep "REFUSED" "$case_dir/stderr" "pool-unlanded-guard: no REFUSED line"
+  [ "$(git -C "$wt" rev-parse HEAD)" = "$head" ] \
+    || fail "pool-unlanded-guard: the refusal moved the unlanded commit"
+  assert_present "$wt/data/scratch" "pool-unlanded-guard: the refusal discarded private state"
+  pass "unlanded work in a pool slot still blocks return and is preserved"
+}
+
 test_scout_ignored_files_survive_scratch_clean() {
   local case_dir wt rc
   case_dir=$(make_case scout-ignored-survives)
@@ -5089,6 +5172,8 @@ test_dirty_return_warns_even_when_a_later_step_refuses
 test_forced_secondmate_child_scout_nested_clone_returns_clean
 test_forced_secondmate_dirty_child_return_warns_and_completes
 test_return_that_removes_copy_warns_cannot_verify
+test_retired_pool_home_scrubs_private_dirs
+test_pool_unlanded_work_still_blocks_return
 test_scout_ignored_files_survive_scratch_clean
 test_gh_error_and_content_absent_refuses
 test_legacy_record_without_the_flag_refuses
