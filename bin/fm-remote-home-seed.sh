@@ -149,25 +149,45 @@ TMP=$(mktemp -d "${TMPDIR:-/tmp}/fm-remote-home-seed.XXXXXX") || die "cannot cre
 REG_EXISTED=0
 [ -f "$REG" ] && { cp "$REG" "$TMP/registry.before"; REG_EXISTED=1; }
 
-# The scaffold renders a freshly created charter with the remote route's
-# host-local status and inbox paths (bin/fm-brief.sh --parent-route remote), so
-# this rewrite is a compatibility net for a charter that predates route-aware
-# rendering or was created by a local seed before the home moved hosts. It maps
-# the parent-home status path to the remote append-only relay log and the
-# parent-home steering inbox to the host-local parent-route inbox the remote
-# control plane writes to. The two parents differ only by suffix, so the two
-# whole-string rewrites are order-independent and every mention - bare path,
-# /*.msg listing, and handled/ acknowledgement - lands host-local. Each rewrite
-# stays its own plain assignment: on stock macOS bash a quoted substitution
-# nested inside a double-quoted argument leaks literal quotes into the
-# replacement text.
 PARENT_STATUS="$STATE/$ID.status"
 REMOTE_STATUS="$REMOTE_HOME/state/parent-replies.status"
 PARENT_INBOX="$STATE/$ID.inbox"
 REMOTE_INBOX="$REMOTE_HOME/state/parent-route/$ID.inbox"
+shell_quote() {
+  printf "'"
+  printf '%s' "$1" | sed "s/'/'\\\\''/g"
+  printf "'"
+}
+REMOTE_PREFIX=
 while IFS= read -r line || [ -n "$line" ]; do
-  line=${line//"$PARENT_STATUS"/"$REMOTE_STATUS"}
-  line=${line//"$PARENT_INBOX"/"$REMOTE_INBOX"}
+  case "$line" in
+    'Nobody reads this chat: '*'/state/parent-replies.status'*)
+      old_status=${line#*'see only what is appended to '}
+      old_status=${old_status%%', and a captain-facing sentence'*}
+      case "$old_status" in
+        "'"*"/state/parent-replies.status'")
+          REMOTE_PREFIX=${old_status%"state/parent-replies.status'"}
+          break
+          ;;
+      esac
+      ;;
+  esac
+done < "$BRIEF"
+OLD_PATHS=("$PARENT_STATUS" "$PARENT_INBOX")
+NEW_PATHS=("$REMOTE_STATUS" "$REMOTE_INBOX")
+PARENT_CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
+OLD_PATHS+=("$(shell_quote "$FM_ROOT/bin/fm-fleet-ledger.sh")" "$(shell_quote "$PARENT_CONFIG/fleet-ledger")" "$(shell_quote "$PARENT_CONFIG")")
+NEW_PATHS+=("$(shell_quote "$REMOTE_HOME/bin/fm-fleet-ledger.sh")" "$(shell_quote "$REMOTE_HOME/config/fleet-ledger")" "$(shell_quote "$REMOTE_HOME/config")")
+if [ -n "$REMOTE_PREFIX" ]; then
+  OLD_PATHS+=("${REMOTE_PREFIX}state/parent-replies.status'" "${REMOTE_PREFIX}state/parent-route/$ID.inbox'" "${REMOTE_PREFIX}bin/fm-fleet-ledger.sh'" "${REMOTE_PREFIX}config/fleet-ledger'" "${REMOTE_PREFIX}config'")
+  NEW_PATHS+=("$(shell_quote "$REMOTE_STATUS")" "$(shell_quote "$REMOTE_INBOX")" "$(shell_quote "$REMOTE_HOME/bin/fm-fleet-ledger.sh")" "$(shell_quote "$REMOTE_HOME/config/fleet-ledger")" "$(shell_quote "$REMOTE_HOME/config")")
+fi
+while IFS= read -r line || [ -n "$line" ]; do
+  for ((i=0; i<${#OLD_PATHS[@]}; i++)); do
+    old_path=${OLD_PATHS[$i]}
+    new_path=${NEW_PATHS[$i]}
+    line=${line//"$old_path"/"$new_path"}
+  done
   printf '%s\n' "$line"
 done < "$BRIEF" > "$TMP/charter.remote"
 
