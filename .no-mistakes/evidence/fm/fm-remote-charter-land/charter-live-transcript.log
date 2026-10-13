@@ -1,0 +1,456 @@
+$ git clone --quiet --no-hardlinks /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root
+Note: switching to '2425080a2463568d3fc251a319b1c3f299d46236'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+exit=0
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-lab-home.sh create /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent
+exit=0
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-brief.sh mate --secondmate --no-projects --parent-route remote --remote-home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'one
+scaffolded: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/data/mate/brief.md (secondmate charter)
+exit=0
+
+$ bash -c . "$1"; fm_secondmate_charter_for_route "$2" remote "$3" "$4" "$5" "$6" "$7" _ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-secondmate-charter-lib.sh /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/data/mate/brief.md mate /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/config /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'one
+You are a persistent second mate managed by the main firstmate. Work on your own; do not wait for a human.
+
+# Charter
+Own domain. Keep '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/config' unchanged.
+
+# Routing scope
+domain
+
+# Project clones
+None. This is a project-less domain: its subject is the firstmate repo this home lives in, so it needs no separate clones under `projects/`; its crews take pooled worktrees of that firstmate repo.
+
+# Operating model
+You are in an isolated firstmate home. The local `AGENTS.md` is your job description, and your local `data/`, `state/`, `config/`, and `projects/` dirs are yours to operate.
+This domain has no separate project clones: its subject is the firstmate repo this home lives in, and its crews take pooled worktrees of that repo.
+Delegate project work to your own crewmates with the normal firstmate lifecycle: brief, spawn, status, watcher, steer, teardown, and recovery.
+Do not invent a second delegation system.
+You do not generate your own work.
+Act only on tasks the main firstmate routes to you.
+Never start a survey, audit, or "find improvements" sweep on your own initiative; that is not your job and it is unwanted.
+
+# The captain and the parent channel
+Nobody reads this chat: the captain and the main firstmate see only what is appended to '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/state/parent-replies.status', and a captain-facing sentence that is not appended there has not been sent.
+That file is your parent channel, and in this home it IS the captain: every sentence you would say to the captain, and every outcome the local AGENTS.md tells a firstmate to bring to the captain, is one appended line there, never chat.
+Your own machinery publishes the durable facts about your crew's work for you (`bin/fm-parent-channel-lib.sh`): a child's terminal done or failed line with its note and PR on every supervision poll, a PR-ready line when you register a PR, a task you hold for the captain and its answer, a merge, and a child's final line at cleanup all reach the parent channel from the scripts that record them, whether or not you append anything.
+What only you can append is judgement: the answer to a marked request below, a recommendation or caveat on a delivered outcome, a blocker or failure of your own, and anything else you would otherwise say to the captain.
+
+# Requests from the main firstmate
+You are a firstmate in your own home, so an incoming message reaches you in your own chat.
+You must distinguish who it is from, because the answer goes to a different place.
+A request relayed to you by the main firstmate is tagged with a leading `[fm-from-firstmate]` marker followed by an invisible system separator; this marker is untypable, so a human never produces it.
+When a message carries that marker, do the work, then respond via the STATUS/ESCALATION path below, never only in this chat: the main firstmate does not read your chat, so a chat-only reply is lost.
+Marked requests also carry a privacy-safe `corr=<id>` token after the marker; include that exact token in your parent status reply (or in the status pointer to a detailed doc) so the parent can correlate the answer.
+Optional helper: `bin/fm-secondmate-report.sh <verb> <corr_id> <note>` appends that correlated line to the parent channel itself - do not pass a status path, and do not write a hand path under this home.
+A plain `echo` that includes the same `corr=<id>` on this parent channel is equally valid; do not depend on the helper being present.
+For a terse result, a status line is the whole answer.
+For a detailed answer (an investigation, a plan, an audit), write it to a doc under your home's `data/` and append a status line that points to that doc - the scout-report pattern - so the main firstmate is woken and can read it.
+Before treating an investigation or visual review as complete, load `captain-hold-lifecycle` from this home's `.agents/skills/` and pass its shared completion gate.
+A message with NO marker is the captain typing directly into your pane: treat it as authoritative captain intervention and stay conversational exactly as you would for any captain message; do not force it onto the status path.
+A request arriving through the instruction inbox below follows the same marker and reply rules.
+
+# Firstmate instruction inbox
+Firstmate steers you through durable message files in '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/state/parent-route/mate.inbox'.
+When a terminal message says an instruction is waiting there - and at any natural checkpoint when you are unsure - list '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/state/parent-route/mate.inbox'/*.msg, read and act on each message in numeric order, then acknowledge each handled message by moving it: `mv '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/state/parent-route/mate.inbox'/NNN.msg '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/state/parent-route/mate.inbox'/handled/`.
+The move IS the acknowledgement: without it firstmate rings again and eventually treats you as stuck. An empty or absent inbox needs no action.
+
+# Escalation to main firstmate
+Handle routine work yourself.
+Report only true captain-relevant outcomes or a declared external wait by appending one line:
+   `echo "{state} [at=<epoch>]: {one short line}" >> '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/state/parent-replies.status' && { [ ! -e '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/config/fleet-ledger' ] || '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/bin/fm-fleet-ledger.sh' appended '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/config' '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/state/parent-replies.status' >/dev/null 2>&1 || true; }`
+States: working, needs-decision, blocked, paused, done, failed.
+Substitute `<epoch>` with the current Unix time in seconds - run `date +%s` and write the number it printed; a stamp that is not plain digits records no time at all.
+Use `paused: {why}` (distinct from `blocked:`) only when your domain is deliberately idling on a known external wait you expect to clear on its own, naming when it clears with `until <YYYY-MM-DDTHH:MMZ>` (UTC) when you know; use `blocked:` when you are stuck and need firstmate to act.
+Use this only for material phase changes, a captain decision, a real blocker, a failure, work ready for review, or work you landed.
+Work you landed includes a merge you performed yourself under standing merge authority and one the captain merged on the forge: under that authority nothing is ever \"ready for review\", so a landed merge that goes unreported reaches the captain as silence.
+This is also how you return the answer to a marked from-firstmate request above.
+A marked request requires one correlated answer after the work; it does not require a separate receipt or start acknowledgement.
+Never append `working:` merely to acknowledge receipt or announce that a marked request has started.
+When a routed-work phase has a supervisor-actionable material change worth reporting under the rule above, give that reported phase a stable key.
+If its first reportable event is `working [key=<work-slug>]: {material phase}`, use the same key on its later `paused`, `done`, `failed`, `needs-decision`, or `blocked` event so the earlier working phase is superseded.
+When a keyed phase ends without another reportable state, append `resolved [key=<work-slug>] [at=<epoch>]: {why it is no longer active}`.
+`resolved` separately closes an escalated decision or blocker, and only a `resolved` line carrying that decision's exact key closes it: a later `done` or `working` event never does, even when the answer is what started that work.
+The main firstmate's answer normally writes that closing line at answer time; when a blocker or wait clears WITHOUT an answer from the main firstmate, append `resolved [at=<epoch>]: {how it cleared}` yourself (keyed with `[key=<slug>]` if you opened it with one) as your domain resumes.
+Routine internal supervision, heartbeats, retries, and crewmate churn stay inside your own home and must not touch that status file.
+
+# Definition of done
+You are persistent by default. Do not exit just because your queue is empty.
+On startup and restart, run normal firstmate bootstrap and recovery through `bin/fm-session-start.sh` for your own home, but only to RECONCILE work that is already yours: in-flight crewmates, tracked backlog items, and durable watches recorded in this home.
+When you have no assigned or in-flight work after that reconciliation, go idle and wait silently for the main firstmate to route you a task.
+An empty queue is a healthy resting state, not a cue to invent work: never spawn a survey, audit, or any self-directed "find work" task on your own initiative.
+If this charter cannot be carried out, append `blocked [at=<epoch>]: {why}` or `failed [at=<epoch>]: {why}` to the main status file and stop.
+exit=0
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-remote-home-provision.sh
+Note: switching to '2425080a2463568d3fc251a319b1c3f299d46236'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+provisioned: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'one projects=0
+exit=0
+
+$ bash -c echo "done [at=123]: live judgement" >> '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/state/parent-replies.status' && { [ ! -e '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/config/fleet-ledger' ] || '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/bin/fm-fleet-ledger.sh' appended '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/config' '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/state/parent-replies.status' >/dev/null 2>&1 || true; }
+exit=0
+
+$ bash -c mv '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/state/parent-route/mate.inbox'/NNN.msg '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'\''one/state/parent-route/mate.inbox'/handled/
+exit=0
+
+persisted status: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'one/state/parent-replies.status
+done [at=123]: live judgement
+acknowledged: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'one/state/parent-route/mate.inbox/handled/NNN.msg
+
+$ bash -c . "$1"; fm_secondmate_charter_for_route "$2" remote "$3" "$4" "$5" "$6" "$7" _ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-secondmate-charter-lib.sh /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/data/mate/brief.md mate /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/config /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two
+You are a persistent second mate managed by the main firstmate. Work on your own; do not wait for a human.
+
+# Charter
+Own domain. Keep '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/config' unchanged.
+
+# Routing scope
+domain
+
+# Project clones
+None. This is a project-less domain: its subject is the firstmate repo this home lives in, so it needs no separate clones under `projects/`; its crews take pooled worktrees of that firstmate repo.
+
+# Operating model
+You are in an isolated firstmate home. The local `AGENTS.md` is your job description, and your local `data/`, `state/`, `config/`, and `projects/` dirs are yours to operate.
+This domain has no separate project clones: its subject is the firstmate repo this home lives in, and its crews take pooled worktrees of that repo.
+Delegate project work to your own crewmates with the normal firstmate lifecycle: brief, spawn, status, watcher, steer, teardown, and recovery.
+Do not invent a second delegation system.
+You do not generate your own work.
+Act only on tasks the main firstmate routes to you.
+Never start a survey, audit, or "find improvements" sweep on your own initiative; that is not your job and it is unwanted.
+
+# The captain and the parent channel
+Nobody reads this chat: the captain and the main firstmate see only what is appended to '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/state/parent-replies.status', and a captain-facing sentence that is not appended there has not been sent.
+That file is your parent channel, and in this home it IS the captain: every sentence you would say to the captain, and every outcome the local AGENTS.md tells a firstmate to bring to the captain, is one appended line there, never chat.
+Your own machinery publishes the durable facts about your crew's work for you (`bin/fm-parent-channel-lib.sh`): a child's terminal done or failed line with its note and PR on every supervision poll, a PR-ready line when you register a PR, a task you hold for the captain and its answer, a merge, and a child's final line at cleanup all reach the parent channel from the scripts that record them, whether or not you append anything.
+What only you can append is judgement: the answer to a marked request below, a recommendation or caveat on a delivered outcome, a blocker or failure of your own, and anything else you would otherwise say to the captain.
+
+# Requests from the main firstmate
+You are a firstmate in your own home, so an incoming message reaches you in your own chat.
+You must distinguish who it is from, because the answer goes to a different place.
+A request relayed to you by the main firstmate is tagged with a leading `[fm-from-firstmate]` marker followed by an invisible system separator; this marker is untypable, so a human never produces it.
+When a message carries that marker, do the work, then respond via the STATUS/ESCALATION path below, never only in this chat: the main firstmate does not read your chat, so a chat-only reply is lost.
+Marked requests also carry a privacy-safe `corr=<id>` token after the marker; include that exact token in your parent status reply (or in the status pointer to a detailed doc) so the parent can correlate the answer.
+Optional helper: `bin/fm-secondmate-report.sh <verb> <corr_id> <note>` appends that correlated line to the parent channel itself - do not pass a status path, and do not write a hand path under this home.
+A plain `echo` that includes the same `corr=<id>` on this parent channel is equally valid; do not depend on the helper being present.
+For a terse result, a status line is the whole answer.
+For a detailed answer (an investigation, a plan, an audit), write it to a doc under your home's `data/` and append a status line that points to that doc - the scout-report pattern - so the main firstmate is woken and can read it.
+Before treating an investigation or visual review as complete, load `captain-hold-lifecycle` from this home's `.agents/skills/` and pass its shared completion gate.
+A message with NO marker is the captain typing directly into your pane: treat it as authoritative captain intervention and stay conversational exactly as you would for any captain message; do not force it onto the status path.
+A request arriving through the instruction inbox below follows the same marker and reply rules.
+
+# Firstmate instruction inbox
+Firstmate steers you through durable message files in '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/state/parent-route/mate.inbox'.
+When a terminal message says an instruction is waiting there - and at any natural checkpoint when you are unsure - list '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/state/parent-route/mate.inbox'/*.msg, read and act on each message in numeric order, then acknowledge each handled message by moving it: `mv '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/state/parent-route/mate.inbox'/NNN.msg '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/state/parent-route/mate.inbox'/handled/`.
+The move IS the acknowledgement: without it firstmate rings again and eventually treats you as stuck. An empty or absent inbox needs no action.
+
+# Escalation to main firstmate
+Handle routine work yourself.
+Report only true captain-relevant outcomes or a declared external wait by appending one line:
+   `echo "{state} [at=<epoch>]: {one short line}" >> '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/state/parent-replies.status' && { [ ! -e '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/config/fleet-ledger' ] || '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/bin/fm-fleet-ledger.sh' appended '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/config' '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/state/parent-replies.status' >/dev/null 2>&1 || true; }`
+States: working, needs-decision, blocked, paused, done, failed.
+Substitute `<epoch>` with the current Unix time in seconds - run `date +%s` and write the number it printed; a stamp that is not plain digits records no time at all.
+Use `paused: {why}` (distinct from `blocked:`) only when your domain is deliberately idling on a known external wait you expect to clear on its own, naming when it clears with `until <YYYY-MM-DDTHH:MMZ>` (UTC) when you know; use `blocked:` when you are stuck and need firstmate to act.
+Use this only for material phase changes, a captain decision, a real blocker, a failure, work ready for review, or work you landed.
+Work you landed includes a merge you performed yourself under standing merge authority and one the captain merged on the forge: under that authority nothing is ever \"ready for review\", so a landed merge that goes unreported reaches the captain as silence.
+This is also how you return the answer to a marked from-firstmate request above.
+A marked request requires one correlated answer after the work; it does not require a separate receipt or start acknowledgement.
+Never append `working:` merely to acknowledge receipt or announce that a marked request has started.
+When a routed-work phase has a supervisor-actionable material change worth reporting under the rule above, give that reported phase a stable key.
+If its first reportable event is `working [key=<work-slug>]: {material phase}`, use the same key on its later `paused`, `done`, `failed`, `needs-decision`, or `blocked` event so the earlier working phase is superseded.
+When a keyed phase ends without another reportable state, append `resolved [key=<work-slug>] [at=<epoch>]: {why it is no longer active}`.
+`resolved` separately closes an escalated decision or blocker, and only a `resolved` line carrying that decision's exact key closes it: a later `done` or `working` event never does, even when the answer is what started that work.
+The main firstmate's answer normally writes that closing line at answer time; when a blocker or wait clears WITHOUT an answer from the main firstmate, append `resolved [at=<epoch>]: {how it cleared}` yourself (keyed with `[key=<slug>]` if you opened it with one) as your domain resumes.
+Routine internal supervision, heartbeats, retries, and crewmate churn stay inside your own home and must not touch that status file.
+
+# Definition of done
+You are persistent by default. Do not exit just because your queue is empty.
+On startup and restart, run normal firstmate bootstrap and recovery through `bin/fm-session-start.sh` for your own home, but only to RECONCILE work that is already yours: in-flight crewmates, tracked backlog items, and durable watches recorded in this home.
+When you have no assigned or in-flight work after that reconciliation, go idle and wait silently for the main firstmate to route you a task.
+An empty queue is a healthy resting state, not a cue to invent work: never spawn a survey, audit, or any self-directed "find work" task on your own initiative.
+If this charter cannot be carried out, append `blocked [at=<epoch>]: {why}` or `failed [at=<epoch>]: {why}` to the main status file and stop.
+exit=0
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-remote-home-provision.sh
+Note: switching to '2425080a2463568d3fc251a319b1c3f299d46236'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+provisioned: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two projects=0
+exit=0
+
+$ bash -c echo "done [at=123]: live judgement" >> '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/state/parent-replies.status' && { [ ! -e '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/config/fleet-ledger' ] || '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/bin/fm-fleet-ledger.sh' appended '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/config' '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/state/parent-replies.status' >/dev/null 2>&1 || true; }
+exit=0
+
+$ bash -c mv '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/state/parent-route/mate.inbox'/NNN.msg '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/state/parent-route/mate.inbox'/handled/
+exit=0
+
+persisted status: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/state/parent-replies.status
+done [at=123]: live judgement
+acknowledged: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home two/state/parent-route/mate.inbox/handled/NNN.msg
+
+ledger: {"v":1,"ts":1791859889,"event":"task.status","task":"parent-replies","state":"done","key":null,"text":" live judgement"}
+
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-home-seed.sh mate /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/local-child --no-projects
+Note: switching to '2425080a2463568d3fc251a319b1c3f299d46236'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/local-child
+exit=0
+
+$ bash -c echo "done [at=123]: live judgement" >> '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/state/mate.status' && { [ ! -e '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/config/fleet-ledger' ] || '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-fleet-ledger.sh' appended '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/config' '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/state/mate.status' >/dev/null 2>&1 || true; }
+exit=0
+
+$ bash -c mv '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/state/mate.inbox'/NNN.msg '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/state/mate.inbox'/handled/
+exit=0
+
+persisted status: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/state/mate.status
+done [at=123]: live judgement
+acknowledged: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/state/mate.inbox/handled/NNN.msg
+
+ledger: {"v":1,"ts":1791859889,"event":"task.status","task":"mate","state":"done","key":null,"text":" live judgement"}
+
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-lab-home.sh create /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/relative-parent
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/relative-parent
+exit=0
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-home-seed.sh relative /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/relative-child --no-projects
+Note: switching to '2425080a2463568d3fc251a319b1c3f299d46236'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+scaffolded: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/relative-parent/data/relative/brief.md (secondmate charter)
+home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/relative-child
+exit=0
+
+$ bash -c echo "done [at=123]: live judgement" >> '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/relative-parent/state/relative.status' && { [ ! -e '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/relative-parent/config/fleet-ledger' ] || '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-fleet-ledger.sh' appended '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/relative-parent/config' '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/relative-parent/state/relative.status' >/dev/null 2>&1 || true; }
+exit=0
+
+$ bash -c mv '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/relative-parent/state/relative.inbox'/NNN.msg '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/relative-parent/state/relative.inbox'/handled/
+exit=0
+
+persisted status: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/relative-parent/state/relative.status
+done [at=123]: live judgement
+acknowledged: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/relative-parent/state/relative.inbox/handled/NNN.msg
+
+ledger: {"v":1,"ts":1791859890,"event":"task.status","task":"relative","state":"done","key":null,"text":" live judgement"}
+
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-lab-home.sh create /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-state
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-state
+exit=0
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-home-seed.sh state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/child-state --no-projects
+Note: switching to '2425080a2463568d3fc251a319b1c3f299d46236'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+scaffolded: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-state/data/state/brief.md (secondmate charter)
+home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/child-state
+exit=0
+
+$ bash -c echo "done [at=123]: live judgement" >> '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-state/state/state.status' && { [ ! -e '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-state/config/fleet-ledger' ] || '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-fleet-ledger.sh' appended '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-state/config' '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-state/state/state.status' >/dev/null 2>&1 || true; }
+exit=0
+
+$ bash -c mv '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-state/state/state.inbox'/NNN.msg '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-state/state/state.inbox'/handled/
+exit=0
+
+persisted status: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-state/state/state.status
+done [at=123]: live judgement
+acknowledged: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-state/state/state.inbox/handled/NNN.msg
+
+ledger: {"v":1,"ts":1791859890,"event":"task.status","task":"state","state":"done","key":null,"text":" live judgement"}
+
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-lab-home.sh create /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-config
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-config
+exit=0
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-home-seed.sh config /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/child-config --no-projects
+Note: switching to '2425080a2463568d3fc251a319b1c3f299d46236'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+scaffolded: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-config/data/config/brief.md (secondmate charter)
+home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/child-config
+exit=0
+
+$ bash -c echo "done [at=123]: live judgement" >> '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-config/state/config.status' && { [ ! -e '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-config/config/fleet-ledger' ] || '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-fleet-ledger.sh' appended '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-config/config' '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-config/state/config.status' >/dev/null 2>&1 || true; }
+exit=0
+
+$ bash -c mv '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-config/state/config.inbox'/NNN.msg '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-config/state/config.inbox'/handled/
+exit=0
+
+persisted status: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-config/state/config.status
+done [at=123]: live judgement
+acknowledged: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-config/state/config.inbox/handled/NNN.msg
+
+ledger: {"v":1,"ts":1791859891,"event":"task.status","task":"config","state":"done","key":null,"text":" live judgement"}
+
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-lab-home.sh create /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-absolute
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-absolute
+exit=0
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-home-seed.sh absolute /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/child-absolute --no-projects
+Note: switching to '2425080a2463568d3fc251a319b1c3f299d46236'.
+
+You are in 'detached HEAD' state. You can look around, make experimental
+changes and commit them, and you can discard any commits you make in this
+state without impacting any branches by switching back to a branch.
+
+If you want to create a new branch to retain commits you create, you may
+do so (now or later) by using -c with the switch command. Example:
+
+  git switch -c <new-branch-name>
+
+Or undo this operation with:
+
+  git switch -
+
+Turn off this advice by setting config variable advice.detachedHead to false
+
+scaffolded: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-absolute/data/absolute/brief.md (secondmate charter)
+home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/child-absolute
+exit=0
+
+$ bash -c echo "done [at=123]: live judgement" >> '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-absolute/./state/absolute.status' && { [ ! -e '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-absolute/./config/fleet-ledger' ] || '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-fleet-ledger.sh' appended '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-absolute/./config' '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-absolute/./state/absolute.status' >/dev/null 2>&1 || true; }
+exit=0
+
+$ bash -c mv '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-absolute/./state/absolute.inbox'/NNN.msg '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-absolute/./state/absolute.inbox'/handled/
+exit=0
+
+persisted status: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-absolute/state/absolute.status
+done [at=123]: live judgement
+acknowledged: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent-absolute/state/absolute.inbox/handled/NNN.msg
+
+ledger: {"v":1,"ts":1791859891,"event":"task.status","task":"absolute","state":"done","key":null,"text":" live judgement"}
+
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-brief.sh bad1 --secondmate --no-projects --parent-route remote
+error: --parent-route remote requires --remote-home <path>, the secondmate home on its own host
+exit=1
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-brief.sh bad2 --secondmate --no-projects --parent-route remote --remote-home relative
+error: --remote-home must be an absolute path (got 'relative')
+exit=1
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-brief.sh bad3 --secondmate --no-projects --parent-route wrong
+error: --parent-route must be local or remote (got 'wrong')
+exit=1
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-brief.sh bad4 --secondmate --no-projects --remote-home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'one
+error: --remote-home requires --parent-route remote
+exit=1
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-brief.sh bad5 --scout alpha --parent-route remote --remote-home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/remote home'one
+error: --parent-route and --remote-home apply only to --secondmate charters
+exit=1
+
+$ bash /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/.charter-baseline-brief.sh stable --secondmate --no-projects
+scaffolded: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/data/stable/brief.md (secondmate charter)
+exit=0
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/code-root/bin/fm-brief.sh stable --secondmate --no-projects
+scaffolded: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M4SFXET0QC3GJDBTB4T7V0KB/.charter-live-y868t9g3/parent/data/stable/brief.md (secondmate charter)
+exit=0

@@ -1,0 +1,11 @@
+[
+  "Fresh remote charter: judgement and steering acknowledgement use host-local paths, including spaces and apostrophes.",
+  "Remote relocation: reused persisted brief publishes new host-local routes and ledger, preserving authored config instruction.",
+  "Remote-to-local publication: retained remote brief appends and acknowledges on the parent, preserving authored content.",
+  "Relative FM_HOME: published commands run from the child and reach absolute parent state/config paths.",
+  "state publication: append, ledger, and steering acknowledgement work from the child; accepted absolute spelling retained.",
+  "config publication: append, ledger, and steering acknowledgement work from the child; accepted absolute spelling retained.",
+  "absolute publication: append, ledger, and steering acknowledgement work from the child; accepted absolute spelling retained.",
+  "Invalid route combinations: rejected without emitting briefs.",
+  "Default local scaffold: byte-for-byte identical to base-commit output."
+]
