@@ -3,6 +3,12 @@
 # Source only. FM_SECONDMATE_CHARTER and FM_SECONDMATE_SCOPE remain explicit
 # caller overrides; otherwise the named sections in the filled brief are used.
 
+# Publish a filled brief for its current route without modifying the source.
+# Rebind only recognized generated channel, inbox, and append instructions:
+# retained briefs may describe retired routes, but authored Charter and Routing
+# scope text must keep its meaning, even when it mentions old config/helper paths.
+# Local relative inputs resolve against the seeding caller's working directory;
+# absolute spellings remain intact so instructions work from the child home.
 fm_secondmate_charter_for_route() {
   local brief=$1 route=$2 id=$3 root=$4 state=$5 config=$6 remote_home=${7:-}
   local status inbox line section= old_status= old_inbox= append

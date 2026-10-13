@@ -16,7 +16,7 @@
 # PR instead of shipping a new one).
 # Usage: fm-brief.sh <task-id> <repo-name> --mode <no-mistakes|direct-PR|local-only> [--branch-prefix <prefix>] [--base-branch <branch>] [--forge <none|gerrit|forgejo> [--shape squash]] [--herdr-lab]
 #        fm-brief.sh <task-id> <repo-name> --scout [--base-branch <branch>] [--herdr-lab]
-#        fm-brief.sh <task-id> --secondmate {<project>...|--no-projects}
+#        fm-brief.sh <task-id> --secondmate {<project>...|--no-projects} [--parent-route local|remote [--remote-home <absolute-path>]]
 #   --scout writes the scout contract instead: the deliverable is a report at
 #   data/<task-id>/report.md (no branch, no push, no PR) and the worktree is scratch.
 #   It offers the Lavish review loop only when `fm-bootstrap.sh lavish-compatible`
@@ -24,8 +24,12 @@
 #   --secondmate writes a persistent secondmate charter. The project list
 #   is cloned into the secondmate home, while the natural-language scope
 #   tells the main firstmate when to route work there; routine churn stays in its own home;
-#   captain-relevant escalations and marked from-firstmate replies append to this
-#   home's status file.
+#   captain-relevant escalations and marked from-firstmate replies append to the
+#   route's parent channel (bin/fm-parent-channel-lib.sh owns its path shapes).
+#   --parent-route defaults to local. Remote requires --remote-home, the absolute
+#   secondmate home on its host, and renders host-local channel, steering-inbox,
+#   and fleet-ledger paths. --remote-home is refused with the local route; both
+#   route flags are refused outside --secondmate.
 #   --no-projects writes a project-less charter for a domain whose subject is the
 #   firstmate repo itself (its home is a firstmate worktree, its crews take pooled
 #   worktrees of the same repo). It is mutually exclusive with a project list, and
@@ -107,7 +111,7 @@
 # placeholder the worker replaces with a numeric Unix time as it appends, so a
 # scaffold never emits a substitution a file-write tool would copy through.
 # Every scaffold also carries the steering-inbox receive-and-ack section:
-# process state/<id>.inbox/*.msg in order and acknowledge each by moving it to
+# process the rendered route's inbox/*.msg in order and acknowledge each by moving it to
 # handled/ (record, doorbell, and ladder owned by bin/fm-task-inbox-lib.sh).
 # Ship tasks include a project-memory section bounding crewmate edits to a
 # project's AGENTS.md/CLAUDE.md: only corrections of factually wrong

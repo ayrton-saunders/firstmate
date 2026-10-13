@@ -19,7 +19,9 @@ The design goal is therefore: the parent channel must not depend on the model re
 
 The delivery rule has one sentence: the scripts report facts, the mate reports judgement.
 Every captain-facing outcome that leaves durable evidence in the mate home is published on the channel by the script that records that evidence, at record time or on the next supervision poll, and the charter reserves the mate's own appends for judgement.
-The charter's own channel instruction names the channel the resolver produces for the home's route: `bin/fm-brief.sh --secondmate` renders the parent home's `state/<id>.status` for a local route and the remote home's own `state/parent-replies.status` for a remote route, so a remote charter never embeds a parent-home path the remote host cannot write.
+The charter renderer and runtime resolver share `fm_parent_channel_path_for_route` in `bin/fm-parent-channel-lib.sh`, so generated judgement instructions name the route's writable channel rather than an unreachable parent-home path.
+Both seeders publish retained briefs through [`fm-secondmate-charter-lib.sh`](../bin/fm-secondmate-charter-lib.sh), which owns generated-instruction rebinding; the remote seeder also retains its parent status/inbox whole-string rewrite for compatibility with older charters.
+The [`fm-brief.sh` header](../bin/fm-brief.sh) owns the route-rendering flags.
 
 | Outcome | Durable evidence in the mate home | Published by |
 |---|---|---|
@@ -56,7 +58,9 @@ A missed-reply escalation includes the complete first sighting path and line num
 `tests/fm-captain-hold-lifecycle.test.sh` covers a mate home publishing a hold, its answer, and a distinct occurrence on re-hold, and a main home publishing nothing.
 `tests/fm-pr-merge.test.sh` covers the PR-ready line at registration and the merge outcome's upward report.
 `tests/fm-teardown.test.sh` covers teardown delivering a child's final line and refusing when the channel cannot be written.
-`tests/fm-brief.test.sh` pins the charter's channel rule, including that a remote-route charter names the resolver's host-local channel and no parent-home path while a local-route charter keeps the parent-home paths.
+`tests/fm-brief.test.sh` pins the charter's channel rule against the route resolver.
+`tests/fm-remote-secondmate-lifecycle-e2e.test.sh` covers remote reseeding and remote-to-local publication, executing judgement, ledger, and steering commands while preserving authored Charter and Routing scope text.
+`tests/fm-secondmate-lifecycle-e2e.test.sh` covers local publication with relative home, state, and config inputs and preserved absolute spellings.
 `tests/fm-pending-reply.test.sh` covers helper-selected local routing, remote-channel classification, same-basename restatement before false escalation, readable wrong-home diagnostics, and the rule that arbitrary mate-home sightings never acknowledge a reply.
 `tests/fm-parent-channel-scan-exclusion.test.sh` covers the home-shape-aware scan exclusion against real remote, main-home, and local-mate fixtures: the watcher signal scan, both heartbeat backstops, the fleet-wide folds, and the real `fm-wake-drain.sh` end to end.
 
