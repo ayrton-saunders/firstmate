@@ -1656,6 +1656,7 @@ for attempt in first rerun; do
   done
   mkdir -p "$REPLACEMENT_HOME/config" "$REPLACEMENT_HOME/state/parent-route/ios.inbox/handled"
   touch "$REPLACEMENT_HOME/config/fleet-ledger"
+  # shellcheck disable=SC2016 # Expand variables when the generated helper runs.
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" > "$FM_LEDGER_CAPTURE"\n' \
     > "$REPLACEMENT_HOME/bin/fm-fleet-ledger.sh"
   chmod +x "$REPLACEMENT_HOME/bin/fm-fleet-ledger.sh"
@@ -1697,6 +1698,7 @@ append_command=$(awk -F '\140' '/^   `echo / { print $2; exit }' "$RETURNED_LOCA
 [ -n "$append_command" ] || fail "local charter omitted the judgement append command"
 mkdir -p "$LOCAL_RESEED_PARENT/config" "$LOCAL_RESEED_PARENT/state/ios.inbox/handled"
 touch "$LOCAL_RESEED_PARENT/config/fleet-ledger"
+# shellcheck disable=SC2016 # Expand variables when the generated helper runs.
 printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" > "$FM_LEDGER_CAPTURE"\n' \
   > "$REMOTE_ROOT/bin/fm-fleet-ledger.sh"
 chmod +x "$REMOTE_ROOT/bin/fm-fleet-ledger.sh"

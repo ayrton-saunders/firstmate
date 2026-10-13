@@ -11,7 +11,7 @@
 # absolute spellings remain intact so instructions work from the child home.
 fm_secondmate_charter_for_route() {
   local brief=$1 route=$2 id=$3 root=$4 state=$5 config=$6 remote_home=${7:-}
-  local status inbox line section= old_status= old_inbox= append
+  local status inbox line section='' old_status='' old_inbox='' append
   . "${BASH_SOURCE[0]%/*}/fm-parent-channel-lib.sh"
   if [ "$route" = remote ]; then
     root=$remote_home
