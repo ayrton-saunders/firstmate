@@ -3,6 +3,52 @@
 # Source only. FM_SECONDMATE_CHARTER and FM_SECONDMATE_SCOPE remain explicit
 # caller overrides; otherwise the named sections in the filled brief are used.
 
+fm_secondmate_charter_for_route() {
+  local brief=$1 route=$2 id=$3 root=$4 state=$5 config=$6 remote_home=${7:-}
+  local status inbox line section= old_status= old_inbox= append
+  . "${BASH_SOURCE[0]%/*}/fm-parent-channel-lib.sh"
+  if [ "$route" = remote ]; then
+    root=$remote_home
+    state="$remote_home/state"
+    config="$remote_home/config"
+    inbox="$state/parent-route/$id.inbox"
+  else
+    inbox="$state/$id.inbox"
+  fi
+  status=$(fm_parent_channel_path_for_route "$route" "$state" "$state" "$id") || return
+  status=$(fm_secondmate_charter_quote "$status")
+  inbox=$(fm_secondmate_charter_quote "$inbox")
+  append="echo \"{state} [at=<epoch>]: {one short line}\" >> $status && { [ ! -e $(fm_secondmate_charter_quote "$config/fleet-ledger") ] || $(fm_secondmate_charter_quote "$root/bin/fm-fleet-ledger.sh") appended $(fm_secondmate_charter_quote "$config") $status >/dev/null 2>&1 || true; }"
+  while IFS= read -r line || [ -n "$line" ]; do
+    case "$line" in '# '*) section=$line ;; esac
+    case "$section:$line" in
+      '# The captain and the parent channel:Nobody reads this chat: '*)
+        old_status=${line#*'see only what is appended to '}
+        old_status=${old_status%%', and a captain-facing sentence'*}
+        line=${line//"$old_status"/"$status"}
+        ;;
+      '# Firstmate instruction inbox:Firstmate steers you through durable message files in '*)
+        old_inbox=${line#'Firstmate steers you through durable message files in '}
+        old_inbox=${old_inbox%.}
+        line=${line//"$old_inbox"/"$inbox"}
+        ;;
+      '# Firstmate instruction inbox:When a terminal message says an instruction is waiting there '*)
+        [ -z "$old_inbox" ] || line=${line//"$old_inbox"/"$inbox"}
+        ;;
+      '# Escalation to main firstmate:   `echo "{state} [at=<epoch>]: {one short line}" >> '*)
+        line='   `'$append'`'
+        ;;
+    esac
+    printf '%s\n' "$line"
+  done < "$brief"
+}
+
+fm_secondmate_charter_quote() {
+  printf "'"
+  printf '%s' "$1" | sed "s/'/'\\\\''/g"
+  printf "'"
+}
+
 normalize_registry_text() {
   awk '
     {

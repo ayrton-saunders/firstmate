@@ -1004,7 +1004,8 @@ seed_home() {
     fi
   done
 
-  cp "$SEED_PARENT_BRIEF" "$home/data/charter.md"
+  fm_secondmate_charter_for_route "$SEED_PARENT_BRIEF" local "$id" "$FM_ROOT" "$STATE" \
+    "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}" > "$home/data/charter.md"
 
   projects_csv=$(join_projects "$@")
   # Durable record of this home's route to its parent, written once here next

@@ -153,43 +153,13 @@ PARENT_STATUS="$STATE/$ID.status"
 REMOTE_STATUS="$REMOTE_HOME/state/parent-replies.status"
 PARENT_INBOX="$STATE/$ID.inbox"
 REMOTE_INBOX="$REMOTE_HOME/state/parent-route/$ID.inbox"
-shell_quote() {
-  printf "'"
-  printf '%s' "$1" | sed "s/'/'\\\\''/g"
-  printf "'"
-}
-REMOTE_PREFIX=
+fm_secondmate_charter_for_route "$BRIEF" remote "$ID" "$FM_ROOT" "$STATE" \
+  "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}" "$REMOTE_HOME" > "$TMP/charter.routed"
 while IFS= read -r line || [ -n "$line" ]; do
-  case "$line" in
-    'Nobody reads this chat: '*'/state/parent-replies.status'*)
-      old_status=${line#*'see only what is appended to '}
-      old_status=${old_status%%', and a captain-facing sentence'*}
-      case "$old_status" in
-        "'"*"/state/parent-replies.status'")
-          REMOTE_PREFIX=${old_status%"state/parent-replies.status'"}
-          break
-          ;;
-      esac
-      ;;
-  esac
-done < "$BRIEF"
-OLD_PATHS=("$PARENT_STATUS" "$PARENT_INBOX")
-NEW_PATHS=("$REMOTE_STATUS" "$REMOTE_INBOX")
-PARENT_CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
-OLD_PATHS+=("$(shell_quote "$FM_ROOT/bin/fm-fleet-ledger.sh")" "$(shell_quote "$PARENT_CONFIG/fleet-ledger")" "$(shell_quote "$PARENT_CONFIG")")
-NEW_PATHS+=("$(shell_quote "$REMOTE_HOME/bin/fm-fleet-ledger.sh")" "$(shell_quote "$REMOTE_HOME/config/fleet-ledger")" "$(shell_quote "$REMOTE_HOME/config")")
-if [ -n "$REMOTE_PREFIX" ]; then
-  OLD_PATHS+=("${REMOTE_PREFIX}state/parent-replies.status'" "${REMOTE_PREFIX}state/parent-route/$ID.inbox'" "${REMOTE_PREFIX}bin/fm-fleet-ledger.sh'" "${REMOTE_PREFIX}config/fleet-ledger'" "${REMOTE_PREFIX}config'")
-  NEW_PATHS+=("$(shell_quote "$REMOTE_STATUS")" "$(shell_quote "$REMOTE_INBOX")" "$(shell_quote "$REMOTE_HOME/bin/fm-fleet-ledger.sh")" "$(shell_quote "$REMOTE_HOME/config/fleet-ledger")" "$(shell_quote "$REMOTE_HOME/config")")
-fi
-while IFS= read -r line || [ -n "$line" ]; do
-  for ((i=0; i<${#OLD_PATHS[@]}; i++)); do
-    old_path=${OLD_PATHS[$i]}
-    new_path=${NEW_PATHS[$i]}
-    line=${line//"$old_path"/"$new_path"}
-  done
+  line=${line//"$PARENT_STATUS"/"$REMOTE_STATUS"}
+  line=${line//"$PARENT_INBOX"/"$REMOTE_INBOX"}
   printf '%s\n' "$line"
-done < "$BRIEF" > "$TMP/charter.remote"
+done < "$TMP/charter.routed" > "$TMP/charter.remote"
 
 PROJECTS_CSV=
 : > "$TMP/project.records"
