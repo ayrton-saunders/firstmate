@@ -13,6 +13,9 @@ fm_secondmate_charter_for_route() {
     config="$remote_home/config"
     inbox="$state/parent-route/$id.inbox"
   else
+    case "$root" in /*) ;; *) root="$PWD/$root" ;; esac
+    case "$state" in /*) ;; *) state="$PWD/$state" ;; esac
+    case "$config" in /*) ;; *) config="$PWD/$config" ;; esac
     inbox="$state/$id.inbox"
   fi
   status=$(fm_parent_channel_path_for_route "$route" "$state" "$state" "$id") || return
