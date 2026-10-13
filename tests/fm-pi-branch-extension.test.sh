@@ -1059,6 +1059,11 @@ const operational = spawnSync(
   { encoding: "utf8", input: "operational watcher injection" },
 );
 if (operational.status !== 0) throw new Error(`could not create operational input: ${operational.stderr}`);
+// Custom-triggered runs have a message, not a captain prompt to mirror.
+await fire("before_agent_start", {
+  messageType: "custom",
+  message: { role: "custom", customType: "test-note", content: explicitRequest, display: false },
+}, mainCtx);
 await fire("before_agent_start", { prompt: operational.stdout }, mainCtx);
 entries.push({ type: "message", message: { role: "user", content: operational.stdout } });
 const unsolicitedPrompt = "Please keep responses concise while monitoring the fleet.";

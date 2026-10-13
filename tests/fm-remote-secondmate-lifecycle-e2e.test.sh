@@ -1626,4 +1626,95 @@ assert_no_grep 'session stop' "$HERDR_LOG" "remote retirement stopped the shared
 assert_no_grep 'server stop' "$HERDR_LOG" "remote retirement stopped the shared fm-remote server"
 pass "remote retirement refuses child work, then removes only its own endpoint while a shared-session sibling survives"
 
+printf "Keep '%s/config' and '%s/config' unchanged.\nKeep '%s/bin/fm-fleet-ledger.sh' unchanged.\n" \
+  "$PARENT" "$REMOTE_HOME" "$REMOTE_HOME" > "$TMP_ROOT/authored-paths"
+awk -v notes="$TMP_ROOT/authored-paths" '
+  { print }
+  $0 == "# Charter" || $0 == "# Routing scope" {
+    while ((getline note < notes) > 0) print note
+    close(notes)
+  }
+' "$PARENT/data/ios/brief.md" > "$TMP_ROOT/charter-with-notes"
+mv "$TMP_ROOT/charter-with-notes" "$PARENT/data/ios/brief.md"
+printf '\nAuthored domain note: retain historical home %s for context.\n' "$REMOTE_HOME" >> "$PARENT/data/ios/brief.md"
+cp "$PARENT/data/ios/brief.md" "$TMP_ROOT/retained-charter"
+. "$ROOT/bin/fm-secondmate-charter-lib.sh"
+REPLACEMENT_HOME="$TMP_ROOT/replacement mate's home"
+for attempt in first rerun; do
+  remote_env "$ROOT/bin/fm-remote-home-seed.sh" ios remote-mac "$REMOTE_ROOT" "$REPLACEMENT_HOME" alpha \
+    > "$TMP_ROOT/reseed-$attempt.out" 2>&1 \
+    || fail "remote reseeding failed on $attempt attempt"
+  cmp -s "$TMP_ROOT/retained-charter" "$PARENT/data/ios/brief.md" \
+    || fail "remote reseeding changed the retained authored charter"
+  assert_grep "Authored domain note: retain historical home $REMOTE_HOME for context." \
+    "$REPLACEMENT_HOME/data/charter.md" "remote reseeding lost authored content"
+  for section in Charter 'Routing scope'; do
+    brief_section_text "$TMP_ROOT/retained-charter" "$section" > "$TMP_ROOT/authored.expected"
+    brief_section_text "$REPLACEMENT_HOME/data/charter.md" "$section" > "$TMP_ROOT/authored.actual"
+    cmp -s "$TMP_ROOT/authored.expected" "$TMP_ROOT/authored.actual" \
+      || fail "remote reseeding modified authored $section paths"
+  done
+  mkdir -p "$REPLACEMENT_HOME/config" "$REPLACEMENT_HOME/state/parent-route/ios.inbox/handled"
+  touch "$REPLACEMENT_HOME/config/fleet-ledger"
+  # shellcheck disable=SC2016 # Expand variables when the generated helper runs.
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" > "$FM_LEDGER_CAPTURE"\n' \
+    > "$REPLACEMENT_HOME/bin/fm-fleet-ledger.sh"
+  chmod +x "$REPLACEMENT_HOME/bin/fm-fleet-ledger.sh"
+  append_command=$(awk -F '\140' '/^   `echo / { print $2; exit }' "$REPLACEMENT_HOME/data/charter.md")
+  [ -n "$append_command" ] || fail "replacement charter omitted the judgement append command"
+  FM_LEDGER_CAPTURE="$TMP_ROOT/ledger-$attempt" bash -c "$append_command" \
+    || fail "replacement charter judgement append failed"
+  assert_grep '{state} [at=<epoch>]: {one short line}' "$REPLACEMENT_HOME/state/parent-replies.status" \
+    "replacement charter judgement did not reach the new home's channel"
+  printf 'appended\n%s\n%s\n' "$REPLACEMENT_HOME/config" "$REPLACEMENT_HOME/state/parent-replies.status" \
+    > "$TMP_ROOT/ledger.expected"
+  cmp -s "$TMP_ROOT/ledger.expected" "$TMP_ROOT/ledger-$attempt" \
+    || fail "replacement charter ledger command used stale helper or config paths"
+  ack_command=$(awk -F '\140' '/moving it:/ { print $2; exit }' "$REPLACEMENT_HOME/data/charter.md")
+  [ -n "$ack_command" ] || fail "replacement charter omitted the steering acknowledgement command"
+  printf 'steer\n' > "$REPLACEMENT_HOME/state/parent-route/ios.inbox/NNN.msg"
+  bash -c "$ack_command" || fail "replacement charter steering acknowledgement failed"
+  assert_present "$REPLACEMENT_HOME/state/parent-route/ios.inbox/handled/NNN.msg" \
+    "replacement charter did not acknowledge the new home's steering message"
+  assert_absent "$REMOTE_HOME" "replacement charter recreated the retired home"
+done
+pass "remote reseeding rebinds judgement, steering, and ledger paths without changing authored content"
+
+LOCAL_RESEED_PARENT="$TMP_ROOT/local-reseed-parent"
+mkdir -p "$LOCAL_RESEED_PARENT/data/ios"
+cp "$TMP_ROOT/retained-charter" "$LOCAL_RESEED_PARENT/data/ios/brief.md"
+cp "$PARENT/data/projects.md" "$LOCAL_RESEED_PARENT/data/projects.md"
+RETURNED_LOCAL_HOME="$TMP_ROOT/returned-local-home"
+FM_HOME="$LOCAL_RESEED_PARENT" FM_ROOT_OVERRIDE="$REMOTE_ROOT" FM_PROJECTS_OVERRIDE="$PARENT/projects" \
+  "$ROOT/bin/fm-home-seed.sh" ios "$RETURNED_LOCAL_HOME" alpha \
+  > "$TMP_ROOT/local-reseed.out" 2>&1 || fail "remote-to-local reseeding failed"
+for section in Charter 'Routing scope'; do
+  brief_section_text "$TMP_ROOT/retained-charter" "$section" > "$TMP_ROOT/authored.expected"
+  brief_section_text "$RETURNED_LOCAL_HOME/data/charter.md" "$section" > "$TMP_ROOT/authored.actual"
+  cmp -s "$TMP_ROOT/authored.expected" "$TMP_ROOT/authored.actual" \
+    || fail "local reseeding modified authored $section paths"
+done
+append_command=$(awk -F '\140' '/^   `echo / { print $2; exit }' "$RETURNED_LOCAL_HOME/data/charter.md")
+[ -n "$append_command" ] || fail "local charter omitted the judgement append command"
+mkdir -p "$LOCAL_RESEED_PARENT/config" "$LOCAL_RESEED_PARENT/state/ios.inbox/handled"
+touch "$LOCAL_RESEED_PARENT/config/fleet-ledger"
+# shellcheck disable=SC2016 # Expand variables when the generated helper runs.
+printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$@" > "$FM_LEDGER_CAPTURE"\n' \
+  > "$REMOTE_ROOT/bin/fm-fleet-ledger.sh"
+chmod +x "$REMOTE_ROOT/bin/fm-fleet-ledger.sh"
+FM_LEDGER_CAPTURE="$TMP_ROOT/ledger-local" bash -c "$append_command" \
+  || fail "local charter judgement append failed"
+assert_grep '{state} [at=<epoch>]: {one short line}' "$LOCAL_RESEED_PARENT/state/ios.status" \
+  "local charter judgement did not reach the parent's channel"
+printf 'appended\n%s\n%s\n' "$LOCAL_RESEED_PARENT/config" "$LOCAL_RESEED_PARENT/state/ios.status" > "$TMP_ROOT/ledger.expected"
+cmp -s "$TMP_ROOT/ledger.expected" "$TMP_ROOT/ledger-local" \
+  || fail "local charter ledger command used stale helper or config paths"
+ack_command=$(awk -F '\140' '/moving it:/ { print $2; exit }' "$RETURNED_LOCAL_HOME/data/charter.md")
+[ -n "$ack_command" ] || fail "local charter omitted the steering acknowledgement command"
+printf 'steer\n' > "$LOCAL_RESEED_PARENT/state/ios.inbox/NNN.msg"
+bash -c "$ack_command" || fail "local charter steering acknowledgement failed"
+assert_present "$LOCAL_RESEED_PARENT/state/ios.inbox/handled/NNN.msg" "local charter did not acknowledge local steering"
+assert_absent "$REMOTE_HOME" "local charter recreated the original remote home"
+pass "remote-to-local reseeding rebinds generated commands and preserves authored paths"
+
 echo "ALL TESTS PASSED"

@@ -129,9 +129,11 @@ BRIEF_CREATED=0
 if [ ! -f "$BRIEF" ]; then
   [ -n "${FM_SECONDMATE_CHARTER:-}" ] || die "no filled charter at $BRIEF; set FM_SECONDMATE_CHARTER or scaffold one first"
   if [ "$NO_PROJECTS" -eq 1 ]; then
-    "$SCRIPT_DIR/fm-brief.sh" "$ID" --secondmate --no-projects >/dev/null
+    "$SCRIPT_DIR/fm-brief.sh" "$ID" --secondmate --no-projects \
+      --parent-route remote --remote-home "$REMOTE_HOME" >/dev/null
   else
-    "$SCRIPT_DIR/fm-brief.sh" "$ID" --secondmate "${PROJECT_NAMES[@]}" >/dev/null
+    "$SCRIPT_DIR/fm-brief.sh" "$ID" --secondmate "${PROJECT_NAMES[@]}" \
+      --parent-route remote --remote-home "$REMOTE_HOME" >/dev/null
   fi
   BRIEF_CREATED=1
 fi
@@ -147,24 +149,17 @@ TMP=$(mktemp -d "${TMPDIR:-/tmp}/fm-remote-home-seed.XXXXXX") || die "cannot cre
 REG_EXISTED=0
 [ -f "$REG" ] && { cp "$REG" "$TMP/registry.before"; REG_EXISTED=1; }
 
-# Keep the parent charter as its durable source, but publish a remote copy whose
-# status path is the remote append-only relay log and whose steering-inbox path
-# is the host-local parent-route inbox the remote control plane writes to,
-# rather than local Mac paths. The two parents differ only by suffix, so the
-# two whole-string rewrites are order-independent and every mention - bare
-# path, /*.msg listing, and handled/ acknowledgement - lands host-local.
-# Each rewrite stays its own plain assignment: on stock macOS bash a quoted
-# substitution nested inside a double-quoted argument leaks literal quotes
-# into the replacement text.
 PARENT_STATUS="$STATE/$ID.status"
 REMOTE_STATUS="$REMOTE_HOME/state/parent-replies.status"
 PARENT_INBOX="$STATE/$ID.inbox"
 REMOTE_INBOX="$REMOTE_HOME/state/parent-route/$ID.inbox"
+fm_secondmate_charter_for_route "$BRIEF" remote "$ID" "$FM_ROOT" "$STATE" \
+  "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}" "$REMOTE_HOME" > "$TMP/charter.routed"
 while IFS= read -r line || [ -n "$line" ]; do
   line=${line//"$PARENT_STATUS"/"$REMOTE_STATUS"}
   line=${line//"$PARENT_INBOX"/"$REMOTE_INBOX"}
   printf '%s\n' "$line"
-done < "$BRIEF" > "$TMP/charter.remote"
+done < "$TMP/charter.routed" > "$TMP/charter.remote"
 
 PROJECTS_CSV=
 : > "$TMP/project.records"

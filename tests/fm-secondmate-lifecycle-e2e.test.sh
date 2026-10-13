@@ -329,7 +329,64 @@ phase_teardown() {
   pass "teardown: removes the home, then clears meta and the registry route"
 }
 
+phase_relative_publication() {
+  local axis world parent child home_input state_input config_input brief append_command ack_command
+  for axis in home state config absolute; do
+    world="$TMP_ROOT/publication-$axis"
+    mkdir -p "$world/parent/data" "$world/parent/state" "$world/parent/config"
+    world=$(cd "$world" && pwd -P)
+    parent="$world/parent"
+    child="$world/child"
+    home_input=$parent
+    state_input="$parent/state"
+    config_input="$parent/config"
+    case "$axis" in
+      home) home_input=parent ;;
+      state) state_input=parent/state ;;
+      config) config_input=parent/config ;;
+      absolute) state_input="$parent/./state"; config_input="$parent/./config" ;;
+    esac
+    (
+      cd "$world" || exit 1
+      PATH="$FAKEBIN:$PATH" FM_HOME="$home_input" FM_STATE_OVERRIDE="$state_input" \
+        FM_CONFIG_OVERRIDE="$config_input" FM_SECONDMATE_CHARTER='Own the domain.' \
+        "$ROOT/bin/fm-home-seed.sh" paths "$child" --no-projects
+    ) > "$world/seed.out" 2>&1 || fail "$axis publication seed failed"
+    brief="$child/data/charter.md"
+    append_command=$(awk -F '\140' '/^   `echo / { print $2; exit }' "$brief")
+    [ -n "$append_command" ] || fail "$axis publication omitted the append command"
+    append_command=${append_command//'{state}'/done}
+    append_command=${append_command//'<epoch>'/1}
+    append_command=${append_command//'{one short line}'/publication-result}
+    touch "$parent/config/fleet-ledger"
+    (
+      cd "$child" || exit 1
+      bash -c "$append_command"
+    ) || fail "$axis publication append failed from the child home"
+    assert_grep 'done [at=1]: publication-result' "$parent/state/paths.status" \
+      "$axis publication did not append to the parent channel"
+    assert_present "$parent/state/fleet-ledger.jsonl" \
+      "$axis publication did not resolve the ledger helper and config from the child home"
+    mkdir -p "$parent/state/paths.inbox/handled"
+    printf 'steer\n' > "$parent/state/paths.inbox/NNN.msg"
+    ack_command=$(awk -F '\140' '/moving it:/ { print $2; exit }' "$brief")
+    [ -n "$ack_command" ] || fail "$axis publication omitted the acknowledgement command"
+    (
+      cd "$child" || exit 1
+      bash -c "$ack_command"
+    ) || fail "$axis publication acknowledgement failed from the child home"
+    assert_present "$parent/state/paths.inbox/handled/NNN.msg" \
+      "$axis publication did not acknowledge the parent's steering message"
+    if [ "$axis" = absolute ]; then
+      assert_grep "'$state_input/paths.status'" "$brief" "publication changed an absolute state spelling"
+      assert_grep "'$config_input'" "$brief" "publication changed an absolute config spelling"
+    fi
+  done
+  pass "publication: relative home, state, and config resolve from the caller; absolute spellings survive"
+}
+
 setup_world
+phase_relative_publication
 phase_seed
 phase_spawn
 phase_send
