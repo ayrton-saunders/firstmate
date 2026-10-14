@@ -23,6 +23,8 @@ Collect successful per-script measurements for every member before calculating a
 
 `tests/fm-supervision-host.test.sh` uses 789123 ms from run 36669175457, after the merged [host runtime fix](https://github.com/kunchenguid/firstmate/pull/6179), rather than its pre-fix maximum of 1065298 ms.
 That post-fix value has only one sample in this baseline, so further green runs must establish its variance.
+Later successful supervision-host samples in [run 38398653622](https://github.com/ayrton-saunders/firstmate/actions/runs/38398653622), attempts 3 and 4, measured 1755751-1793146 ms; the stored hint baseline therefore no longer establishes headroom for that script.
+These completed samples support the shared tripwire headroom rationale in [Timeouts](#timeouts), not a whole-shard completion guarantee.
 The native-Windows-only `tests/fm-pi-windows-shell-invocation.test.sh` retains its separate 5121 ms measurement from 2026-09-06T21:02Z instead of a portable capability skip.
 The session-start hint retains its pre-optimization maximum until CI measures the shorter fixture-only home-summary bound; do not discount a local speedup from CI packing weights.
 
@@ -67,7 +69,7 @@ Refresh the hints whenever a serial member grows materially or the lane gains sc
 `bin/fm-test-run.sh` owns the per-shard packing, so its `--check-coverage` output is the current account of lane size and coverage rather than a copied inventory.
 Its header and `--help` own the modeled-budget check and output fields; read the current estimates from `--check-coverage` instead of retaining copied lane sums here.
 [`tests/fm-test-run.test.sh`](../tests/fm-test-run.test.sh), in `test_portable_serial_packing_budget_boundary`, verifies acceptance exactly at the budget and refusal one millisecond above it through the executable runner.
-The longest script, `tests/fm-watch-triage.test.sh`, is the indivisible floor for this layout.
+The largest stored hint, `tests/fm-watch-triage.test.sh`, is the indivisible floor for the modeled layout, not necessarily the slowest current script.
 The estimates use per-file maxima from different runs, not measured rebalanced jobs or an end-to-end latency guarantee.
 The baseline watch-triage samples range from 944375 to 1074843 ms, while each observed completed portable job adds at most 30 seconds beyond its summed scripts in these runs.
 Even so, maxima from five runs do not establish a P95 or guarantee future headroom.
@@ -127,14 +129,13 @@ The workflow retains per-PR supersession without cancelling main pushes or chang
 CI job timeouts follow one three-tier policy, so the workflow reads as a policy rather than as a collection of per-job numbers.
 Every tier is a hang tripwire with headroom above the healthy duration, never a packing estimate or a runtime target.
 A lane that reaches its tier bound needs investigation and a distribution or runtime fix rather than a per-lane cap, but when measured healthy durations and runner variance outgrow a shared bound, the tier bound itself is re-derived from that evidence and moved for every job in the tier.
-On PR 7's CI reruns ([run 38398653622](https://github.com/ayrton-saunders/firstmate/actions/runs/38398653622) attempts 3 and 4), `tests/fm-supervision-host.test.sh` alone measured 1755751-1793146 ms against the then 30-minute normal tripwire while the last green run of the same shard finished the whole shard in 1410259 ms, so the shared normal bound moved to 45 minutes.
 
 | Tier | Jobs | Bound | Rationale |
 |---|---|---|---|
 | Fast | coverage guard, repo invariants, timing aggregate | 5 minutes | Seconds-long local work, so the tripwire only catches a hung runner. |
-| Normal | lint partitions, portable parallel shards, portable serial shards, macOS stock Bash | 45 minutes, one value shared by every job in the tier | One shared hang tripwire keeps every ordinary test and lint lane on the same policy instead of allowing per-lane packing estimates or one-off caps to set the bound. The bound rose from 30 minutes because the portable serial shards' slowest measured member plus runner variance outgrew 30 minutes while the shard still needs its whole set to reach a verdict. |
+| Normal | lint partitions, portable parallel shards, portable serial shards, macOS stock Bash | 45 minutes, one value shared by every job in the tier | Headroom must cover the healthy supervision-host duration plus the rest of its shard and runner variance, not just its slowest member; [Verification inputs](#verification-inputs) owns the measurements. |
 | Heavy | Herdr | family-run step 20 minutes under a 75-minute job-level last-resort backstop | Healthy runs finish in about 7-10 minutes, so the step tripwire fails a wedged suite while the `always()` cleanup and timing upload still run, and the job cap only catches a hang outside that step. |
 
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) holds the executable values and names each job's tier beside its `timeout-minutes`.
-[`tests/fm-ci-workflow.test.sh`](../tests/fm-ci-workflow.test.sh) holds the policy against the parsed workflow: every job belongs to exactly one tier, the workflow carries exactly three distinct job-level values, the fast tier stays within 5-10 minutes, the normal jobs share one 45-minute budget, and the Herdr family-run step is the 20-minute tripwire below its job backstop with an `always()` teardown after it.
+[`tests/fm-ci-workflow.test.sh`](../tests/fm-ci-workflow.test.sh) guards this policy against the parsed workflow, including exact tier membership and the Herdr step tripwire followed by an `always()` teardown.
 A passing coverage guard does not establish a healthy job duration; refresh the healthy figures above from the lanes' uploaded timing artifacts.

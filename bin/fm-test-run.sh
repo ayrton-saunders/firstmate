@@ -186,15 +186,13 @@ JOBS_MAX=8
 MAX_WALL_MS=
 PER_SCRIPT_TIMEOUT_SECS=0
 # Bound applied automatically on the automatic --changed path, derived from
-# measured healthy runtimes with margin rather than picked: the slowest measured
-# script is tests/fm-watch-triage.test.sh at about 1075s under CI load (the hint
-# table below records that loaded figure). 1500s keeps every measured script
-# under the bound with roughly 1.4x headroom over the slowest loaded measurement,
-# and it stays under the 45-minute normal CI tier so a wedged script fails here,
-# with its output, before the job cap
-# cancels the lane. It is a guard, not a speed control: a HUNG script becomes a
-# bounded failure instead of an unbounded suite, which is the shape that
-# silently outruns a caller's invocation budget.
+# the stored CI hint baseline: its largest hint is tests/fm-watch-triage.test.sh
+# at about 1075s. 1500s gives roughly 1.4x margin over that hint, not over every
+# subsequently measured healthy runtime; docs/fm-test-portable-shards.md records
+# newer supervision-host measurements above this bound. Exceeding it becomes a
+# bounded failure with output, not proof of a hang. Portable CI lanes do not
+# select --changed and retain their separate job tripwires under that document's
+# timeout policy. This guard bounds a script, not the whole invocation.
 CHANGED_DEFAULT_TIMEOUT_SECS=1500
 
 # How many separate-runner shards the portable serial remainder splits into.
