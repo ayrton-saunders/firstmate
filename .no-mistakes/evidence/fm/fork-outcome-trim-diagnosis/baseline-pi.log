@@ -1,0 +1,27 @@
+{"piVersion":"1.2.0","head":"ca2d908df6d2d81b0531f3d0696d2999e250020b"}
+{"extensionErrors":[],"extensions":["/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M50K7SE4MS0GHWT0V3S3525X/.live-validation/repo/.pi/extensions/fm-branch-supervision.ts","/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M50K7SE4MS0GHWT0V3S3525X/.live-validation/repo/.pi/extensions/fm-primary-pi-watch.ts","<inline:observe-live-contract>"]}
+{"type":"before_agent_start","messageType":"user","hasPrompt":true}
+{"httpRequest":1,"path":"/v1/chat/completions","messageRoles":["system","user"]}
+USER_PROMPT: completed with OK
+{"extensionError":{"extensionPath":"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M50K7SE4MS0GHWT0V3S3525X/.live-validation/repo/.pi/extensions/fm-branch-supervision.ts","event":"before_agent_start","error":"Cannot read properties of undefined (reading 'trim')","stack":"TypeError: Cannot read properties of undefined (reading 'trim')\n    at /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M50K7SE4MS0GHWT0V3S3525X/.live-validation/repo/.pi/extensions/fm-branch-supervision.ts:1686:28\n    at process.processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at async ExtensionRunner.emitBeforeAgentStart (file:///Users/ayrton/.local/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/extensions/runner.js:1141:43)\n    at async AgentSession._prepareRun (file:///Users/ayrton/.local/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1456:24)\n    at async AgentSession._startRun (file:///Users/ayrton/.local/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1396:24)\n    at async AgentSession.sendCustomMessage (file:///Users/ayrton/.local/lib/node_modules/@earendil-works/pi-coding-agent/dist/core/agent-session.js:1840:13)\n    at async file:///Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M50K7SE4MS0GHWT0V3S3525X/.live-validation/drive.mjs:46:2"}}
+{"type":"before_agent_start","messageType":"custom","hasPrompt":false,"customType":"unrelated-outcome-probe"}
+{"httpRequest":2,"path":"/v1/chat/completions","messageRoles":["system","user","assistant","user"]}
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+1 !== 0
+
+    at file:///Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M50K7SE4MS0GHWT0V3S3525X/.live-validation/drive.mjs:49:9
+    at process.processTicksAndRejections (node:internal/process/task_queues:104:5) {
+  generatedMessage: true,
+  code: 'ERR_ASSERTION',
+  actual: 1,
+  expected: 0,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.21.0

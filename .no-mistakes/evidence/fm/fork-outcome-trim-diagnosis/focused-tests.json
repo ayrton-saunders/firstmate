@@ -1,0 +1,70 @@
+{
+  "families": [
+    {
+      "count": 2,
+      "duration_ms": 41369,
+      "failed": 0,
+      "name": "session-bootstrap"
+    },
+    {
+      "count": 1,
+      "duration_ms": 99624,
+      "failed": 0,
+      "name": "standalone"
+    },
+    {
+      "count": 1,
+      "duration_ms": 66287,
+      "failed": 0,
+      "name": "watcher-wake-lock"
+    }
+  ],
+  "finished_at": "2026-10-15T20:20:58Z",
+  "run_id": "fm-test-run-1792095467313-33178",
+  "scripts": [
+    {
+      "duration_ms": 66287,
+      "exit": 0,
+      "expected_gate_skip": "none",
+      "family": "watcher-wake-lock",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-pi-watch-extension.test.sh"
+    },
+    {
+      "duration_ms": 16375,
+      "exit": 0,
+      "expected_gate_skip": "none",
+      "family": "session-bootstrap",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-fork-sync.test.sh"
+    },
+    {
+      "duration_ms": 24994,
+      "exit": 0,
+      "expected_gate_skip": "none",
+      "family": "session-bootstrap",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-update.test.sh"
+    },
+    {
+      "duration_ms": 99624,
+      "exit": 0,
+      "expected_gate_skip": "none",
+      "family": "standalone",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-pi-branch-extension.test.sh"
+    }
+  ],
+  "selection": "scripts;jobs=4",
+  "started_at": "2026-10-15T20:17:47Z",
+  "summary": {
+    "duration_ms": 191476,
+    "failed": 0,
+    "skipped_gate": 0,
+    "total": 4
+  }
+}

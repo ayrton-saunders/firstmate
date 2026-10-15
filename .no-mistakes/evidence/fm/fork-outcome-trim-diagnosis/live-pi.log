@@ -1,0 +1,24 @@
+{"piVersion":"1.2.0","head":"ca2d908df6d2d81b0531f3d0696d2999e250020b"}
+{"extensionErrors":[],"extensions":["/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M50K7SE4MS0GHWT0V3S3525X/.live-validation/repo/.pi/extensions/fm-branch-supervision.ts","/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M50K7SE4MS0GHWT0V3S3525X/.live-validation/repo/.pi/extensions/fm-primary-pi-watch.ts","<inline:observe-live-contract>"]}
+{"type":"before_agent_start","messageType":"user","hasPrompt":true}
+{"httpRequest":1,"path":"/v1/chat/completions","messageRoles":["system","user"]}
+USER_PROMPT: completed with OK
+{"type":"before_agent_start","messageType":"custom","hasPrompt":false,"customType":"unrelated-outcome-probe"}
+{"httpRequest":2,"path":"/v1/chat/completions","messageRoles":["system","user","assistant","user"]}
+CUSTOM_NO_PROMPT: completed with OK and no extension error
+OUTCOME_APPEND: 1
+{"type":"before_agent_start","messageType":"user","hasPrompt":true}
+{"httpRequest":3,"path":"/v1/chat/completions","messageRoles":["system","user","assistant","user","assistant","user"]}
+{"type":"before_agent_start","messageType":"custom","hasPrompt":false,"customType":"fm-branch-process"}
+{"httpRequest":4,"path":"/v1/chat/completions","messageRoles":["system","user","assistant","user","assistant","user","assistant","user"]}
+{"httpRequest":5,"path":"/v1/chat/completions","messageRoles":["system","user","assistant","user","assistant","user","assistant","user","assistant","tool"]}
+{"outcomeVisible":{"type":"custom","customType":"fm-branch-visible-outcome","data":{"version":1,"seq":1,"task":"probe-task","verdict":"captain","summary":"Isolated outcome ready for review","silent":false},"id":"117afc6f","parentId":"3ed84a81","timestamp":"2026-10-15T20:26:33.494Z"},"processedThrough":1,"requests":5,"errors":[]}
+DURABLE_OUTCOME: displayed once and acknowledged through 1
+{"type":"before_agent_start","messageType":"user","hasPrompt":true}
+{"httpRequest":6,"path":"/v1/chat/completions","messageRoles":["system","user","assistant","user","assistant","user","assistant","user","assistant","tool","assistant","user"]}
+{"type":"before_agent_start","messageType":"custom","hasPrompt":false,"customType":"fm-branch-process"}
+{"awayProcessingAbortedBeforeProvider":true,"processedThrough":1,"requests":6,"errors":[]}
+{"type":"before_agent_start","messageType":"user","hasPrompt":true}
+{"httpRequest":7,"path":"/v1/chat/completions","messageRoles":["system","user","assistant","user","assistant","user","assistant","assistant","tool","assistant","user","assistant","user"]}
+AWAY_BOUNDARY: custom processing aborted without losing pending outcome; genuine user turn completed
+{"sessionFile":"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M50K7SE4MS0GHWT0V3S3525X/.live-validation/sessions/2026-10-15T20-26-32-770Z_01a1413e-bbc1-734d-bd45-109a71d7c8b4.jsonl","events":[{"type":"before_agent_start","messageType":"user","hasPrompt":true},{"type":"before_agent_start","messageType":"custom","hasPrompt":false,"customType":"unrelated-outcome-probe"},{"type":"before_agent_start","messageType":"user","hasPrompt":true},{"type":"before_agent_start","messageType":"custom","hasPrompt":false,"customType":"fm-branch-process"},{"type":"before_agent_start","messageType":"user","hasPrompt":true},{"type":"before_agent_start","messageType":"custom","hasPrompt":false,"customType":"fm-branch-process"},{"type":"before_agent_start","messageType":"user","hasPrompt":true}]}
