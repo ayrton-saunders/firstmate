@@ -1,0 +1,82 @@
+REAL CLI / REAL GIT / LOCAL DISPOSABLE REMOTES; no command stubs or fleet endpoints
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/bin/fm-update.sh
+firstmate: updated 0b5c2c6..3198b63
+no watches registered
+secondmate solo: updated 0b5c2c6..3198b63
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+exit: 0
+OBSERVED origin-only convergence with unavailable upstream and poisonous legacy validator: {"primary": "3198b6328ae133395f425e4f9cb82af39e1d07d4", "mate": "3198b6328ae133395f425e4f9cb82af39e1d07d4", "origin.git": "3198b6328ae133395f425e4f9cb82af39e1d07d4", "upstream.git": "2e0e0dafe755318af22654afea4cdba0879931d6"}
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/bin/fm-update.sh --prepare-integration
+integration-repo: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/.live-validation/product/separation/home/data/fork-sync/attempt.2tC4JMJP/repo
+integration-candidate: 4a35606c78af5d6563d6a4792e2bee725c165e35
+integration-origin: 3198b6328ae133395f425e4f9cb82af39e1d07d4
+integration-upstream: 2e0e0dafe755318af22654afea4cdba0879931d6
+exit: 0
+OBSERVED unpublished candidate retains both parents; all homes/remotes unchanged: {"primary": "3198b6328ae133395f425e4f9cb82af39e1d07d4", "mate": "3198b6328ae133395f425e4f9cb82af39e1d07d4", "origin.git": "3198b6328ae133395f425e4f9cb82af39e1d07d4", "upstream.git": "2e0e0dafe755318af22654afea4cdba0879931d6"}
+Candidate graph:
+*   4a35606 Merge commit '2e0e0dafe755318af22654afea4cdba0879931d6' into fork-integration
+|\  
+| * 2e0e0da upstream
+* | 3198b63 personal
+|/  
+* 0b5c2c6 base
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/bin/fm-update.sh
+firstmate: updated 3198b63..4a35606 (instructions changed: AGENTS.md)
+no watches registered
+secondmate solo: updated 3198b63..4a35606 (instructions changed: AGENTS.md)
+reread-firstmate: yes
+restart-secondmates: none
+nudge-secondmates: none
+exit: 0
+OBSERVED exact landed merge consumed without private CI or publication: {"primary": "4a35606c78af5d6563d6a4792e2bee725c165e35", "mate": "4a35606c78af5d6563d6a4792e2bee725c165e35", "origin.git": "4a35606c78af5d6563d6a4792e2bee725c165e35", "upstream.git": "2e0e0dafe755318af22654afea4cdba0879931d6"}
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/bin/fm-update.sh
+firstmate: already current
+secondmate solo: already current
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/bin/fm-update.sh --prepare-integration
+fork upstream included: 2e0e0dafe755318af22654afea4cdba0879931d6
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/bin/fm-update.sh
+firstmate: skipped: dirty working tree
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+exit: 1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/bin/fm-update.sh --prepare-integration
+firstmate: skipped: fork integration dirty primary (O=unknown U0=unknown P=4a35606c78af5d6563d6a4792e2bee725c165e35 attempt=none)
+exit: 1
+OBSERVED dirty primary blocked consumption and preparation; protected edit and mate preserved: {"primary": "4a35606c78af5d6563d6a4792e2bee725c165e35", "mate": "4a35606c78af5d6563d6a4792e2bee725c165e35", "origin.git": "9db9a14bbe100d8b933d2eb6eb1ebd2a901c63bc", "upstream.git": "2e0e0dafe755318af22654afea4cdba0879931d6"}
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/bin/fm-update.sh --prepare-integration
+firstmate: skipped: fork integration private operational paths in candidate/history (O=5d04b1a69102c708948c2749558283e2bdf42e97 U0=ba5ed52019e08b6597e177db13f3a37c5d42db74 P=5d04b1a69102c708948c2749558283e2bdf42e97 attempt=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/.live-validation/product/private-history/home/data/fork-sync/attempt.dw0O4RKG)
+exit: 1
+OBSERVED removed private path rejected from outgoing history; no live home changed
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/bin/fm-update.sh --prepare-integration
+firstmate: skipped: fork integration merge failed; unresolved paths in attempt/conflicts (O=aa3510a2335e60fca29a09fc6c5842087dceb8c5 U0=01a0d2076160b40c0d70dc4b672fd41679007919 P=2d5e9af337d9a2b9dea0f49c3f336344dafbbacc attempt=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/.live-validation/product/conflict/home/data/fork-sync/attempt.Wc2htHCI)
+exit: 1
+RETAINED conflict paths: shared
+
+RETAINED merge diagnostic:
+Auto-merging shared
+CONFLICT (content): Merge conflict in shared
+Automatic merge failed; fix conflicts and then commit the result.
+
+OBSERVED conflict retained only in isolated clone; primary/mate/remotes unchanged
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/bin/fm-update.sh --prepare-integration
+firstmate: skipped: fork integration primary has unpublished or diverged work (O=e60f97b218b9d8ae1f71587c99bee9525d909676 U0=e60f97b218b9d8ae1f71587c99bee9525d909676 P=2fee6990455e47af386194a9f7e0fb8691e44421 attempt=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/.live-validation/product/unpublished/home/data/fork-sync/attempt.CRVTE2eR)
+exit: 1
+OBSERVED unpublished primary work refused and preserved
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/bin/fm-update.sh --prepare-integration
+firstmate: skipped: fork integration preparation requires a primary with upstream configured (O=unknown U0=unknown P=unknown attempt=none)
+exit: 1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M502GK3AQHC5X16WKS62VD7X/bin/fm-update.sh --prepare-integration extra
+usage: fm-update.sh [--prepare-integration | --help]
+  default: guarded origin consumption only (never integrate or publish)
+  --prepare-integration: retain an unpublished candidate for a separate no-mistakes PR task
+exit: 1
+OBSERVED absent upstream and extra arguments refused without home convergence or restart actions
+All disposable product scenarios completed successfully.
