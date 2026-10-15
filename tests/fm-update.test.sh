@@ -10,9 +10,10 @@
 #     skipped and reported, never forced or stashed, so unlanded work survives.
 #     Divergence leaves a durable reconciliation record, while a clean local
 #     result already present upstream after a squash merge heals automatically.
-#   - The update is a single-parent fast-forward (never a merge commit) and a
-#     fast-forward of one worktree never disturbs another worktree's checkout
-#     or the shared default branch.
+#   - The update only fast-forwards; it never creates a merge commit, but may
+#     consume an ancestry-preserving integration already landed in origin.
+#     Advancing one worktree never disturbs another worktree's checkout or the
+#     shared default branch.
 #   - The caller-action summary is correct: reread-firstmate flips to yes only
 #     when the instruction surface (AGENTS.md / bin / .agents/skills) changed, and
 #     the two secondmate action sets are disjoint and correctly gated -
@@ -135,9 +136,10 @@ bump_origin() {
 
 run_update() {
   local w=$1
+  shift
   PATH="$w/fakebin:$PATH" FM_FAKE_DIR="$w/fake" \
     FM_SSH_BIN="${FM_TEST_SSH_BIN:-ssh}" \
-    FM_ROOT_OVERRIDE="$w/main" FM_HOME="$w/home" "$UPDATE" 2>/dev/null
+    FM_ROOT_OVERRIDE="$w/main" FM_HOME="$w/home" "$UPDATE" "$@" 2>/dev/null
 }
 
 # --- T1: main + secondmate behind, instruction change; FF, not a merge ------
@@ -557,8 +559,8 @@ test_primary_update_rebinds_local_watch() {
   pass "T12 a self-update rebinds a locally armed watch on the primary"
 }
 
-test_fork_integration_and_propagation() {
-  local w out fork_tip upstream_tip primary_tip
+test_fork_consumption_and_explicit_preparation() {
+  local w out fork_tip upstream_tip repo candidate real_git target
   w=$(new_world fork)
   add_sm "$w" linked
   git clone -q "$w/origin.git" "$w/standalone"
@@ -573,46 +575,90 @@ test_fork_integration_and_propagation() {
   git -C "$w/upstream" commit -qam upstream
   git -C "$w/upstream" push -q origin main
   upstream_tip=$(git -C "$w/upstream" rev-parse HEAD)
-  primary_tip=$(git -C "$w/main" rev-parse HEAD)
-  # No approval: primary and mates must remain on their previous bytes, with
-  # no restart candidates even though origin alone could be fast-forwarded.
-  if out=$(run_update "$w"); then fail 'unapproved fork publication accepted'; fi
-  assert_equals "$primary_tip" "$(git -C "$w/main" rev-parse HEAD)" 'failure moved primary'
-  assert_equals "$primary_tip" "$(git -C "$w/linked" rev-parse HEAD)" 'failure moved linked mate'
-  assert_equals "$fork_tip" "$(git -C "$w/origin.git" rev-parse main)" 'failure moved fork'
-  assert_contains "$out" 'restart-secondmates: none' 'failure restart set'
+  [ "$fork_tip" != "$upstream_tip" ] || fail 'fixture did not separate origin and upstream'
   mkdir -p "$w/home/config"
   printf 'enabled\n' > "$w/home/config/fork-publication"
-  printf '#!/usr/bin/env bash\nexit 0\n' > "$w/validator"
+  printf '#!/usr/bin/env bash\ntouch "%s/validator-called"\nexit 1\n' "$w" > "$w/validator"
   chmod +x "$w/validator"
   printf '%s\n' "$w/validator" > "$w/home/config/fork-validation"
-  out=$(run_update "$w") || fail 'fork update failed'
-  assert_contains "$out" 'fork published:' 'publication output missing'
-  assert_contains "$out" 'firstmate: updated' 'primary did not land'
+  # Watch the real executable seam, not implementation bytes. No updater path
+  # may publish, even with the previous operator approvals still present.
+  real_git=$(command -v git)
+  cat > "$w/fakebin/git" <<SH
+#!/usr/bin/env bash
+for arg in "\$@"; do
+  if [ "\$arg" = push ]; then touch "$w/push-called"; exit 97; fi
+done
+exec "$real_git" "\$@"
+SH
+  chmod +x "$w/fakebin/git"
+  out=$(run_update "$w") || fail 'origin consumption attempted upstream validation'
+  assert_absent "$w/validator-called" 'consumption invoked the old validator'
+  assert_absent "$w/push-called" 'consumption tried publication'
+  assert_absent "$w/home/data/fork-sync" 'consumption staged upstream'
   assert_contains "$out" 'secondmate solo: updated' 'standalone did not converge'
   assert_contains "$out" 'restart-secondmates: fm-linked' 'settled mate not restarted'
+  assert_contains "$out" 'reread-firstmate: no' 'README-only fork update changed reread policy'
+  assert_contains "$out" 'nudge-secondmates: none' 'restart/nudge sets overlapped'
   for target in main linked standalone; do
-    git -C "$w/$target" merge-base --is-ancestor "$fork_tip" HEAD || fail "$target lost fork history"
-    git -C "$w/$target" merge-base --is-ancestor "$upstream_tip" HEAD || fail "$target missing upstream snapshot"
+    assert_equals "$fork_tip" "$(git -C "$w/$target" rev-parse HEAD)" "$target missed approved origin tip"
   done
-  fork_tip=$(git -C "$w/origin.git" rev-parse main)
-  out=$(run_update "$w") || fail 'repeated fork update failed'
-  assert_contains "$out" 'firstmate: already current' 'repeat not current'
-  assert_equals "$fork_tip" "$(git -C "$w/origin.git" rev-parse main)" 'repeat published new commit'
-  # Primary dirt arriving after preflight must stop mate propagation even when
-  # the integrated fork was successfully published.
-  printf 'another upstream instruction\n' >> "$w/upstream/AGENTS.md"
-  git -C "$w/upstream" commit -qam another-upstream
-  git -C "$w/upstream" push -q origin main
-  printf '#!/usr/bin/env bash\ntouch "%s/late-dirt"\n' "$w/main" > "$w/validator"
-  if out=$(run_update "$w"); then fail 'primary landing race reported success'; fi
-  assert_equals "$fork_tip" "$(git -C "$w/main" rev-parse HEAD)" 'dirty primary moved'
-  assert_equals "$fork_tip" "$(git -C "$w/linked" rev-parse HEAD)" 'landing failure moved mate'
-  assert_contains "$out" 'restart-secondmates: none' 'landing failure restarted mate'
-  pass 'fork preparation and landing failures stop propagation; verified merge reaches primary and local mates'
+  out=$(run_update "$w" --prepare-integration) || fail 'explicit integration preparation failed'
+  repo=$(printf '%s\n' "$out" | awk '/^integration-repo: / {sub(/^integration-repo: /, ""); print}')
+  candidate=$(printf '%s\n' "$out" | awk '/^integration-candidate: / {print $2}')
+  assert_equals "$candidate" "$(git -C "$repo" rev-parse HEAD)" 'reported candidate identity differs'
+  git -C "$repo" merge-base --is-ancestor "$fork_tip" "$candidate" || fail 'candidate lost fork ancestry'
+  git -C "$repo" merge-base --is-ancestor "$upstream_tip" "$candidate" || fail 'candidate lost upstream ancestry'
+  assert_absent "$w/validator-called" 'preparation invoked local CI'
+  assert_absent "$w/push-called" 'preparation tried publication'
+  assert_not_contains "$out" 'restart-secondmates:' 'preparation emitted update actions'
+  for target in main linked standalone; do
+    assert_equals "$fork_tip" "$(git -C "$w/$target" rev-parse HEAD)" 'preparation moved a running home'
+  done
+  assert_equals "$fork_tip" "$(git -C "$w/origin.git" rev-parse main)" 'preparation moved origin'
+  # A separate approved PR landing is simulated only on this disposable origin.
+  # The updater must consume that exact candidate without preparing it again.
+  git -C "$w/seed" fetch -q "$repo" "$candidate"
+  git -C "$w/seed" merge -q --ff-only "$candidate"
+  git -C "$w/seed" push -q origin main
+  fork_tip=$candidate
+  out=$(run_update "$w") || fail 'landed integration was not consumed'
+  assert_contains "$out" 'reread-firstmate: yes' 'landed instruction update missed reread'
+  assert_contains "$out" 'restart-secondmates: fm-linked' 'landed update missed restart'
+  assert_contains "$out" 'nudge-secondmates: none' 'landed update overlapped actions'
+  for target in main linked standalone; do
+    assert_equals "$candidate" "$(git -C "$w/$target" rev-parse HEAD)" "$target missed exact landed candidate"
+    git -C "$w/$target" merge-base --is-ancestor "$upstream_tip" HEAD || fail "$target lost landed upstream ancestry"
+  done
+  assert_absent "$w/validator-called" 'landed consumption invoked local CI'
+  assert_absent "$w/push-called" 'landed consumption tried publication'
+  # An unsafe primary must not advance any mate or suggest a restart.
+  bump_origin "$w" instr
+  printf 'protected edit\n' >> "$w/main/AGENTS.md"
+  if out=$(run_update "$w"); then fail 'dirty primary reported a successful update'; fi
+  assert_contains "$out" 'firstmate: skipped: dirty working tree' 'primary skip reason lost'
+  assert_contains "$out" 'restart-secondmates: none' 'primary skip restarted a mate'
+  assert_contains "$out" 'nudge-secondmates: none' 'primary skip nudged a mate'
+  assert_equals "$fork_tip" "$(git -C "$w/linked" rev-parse HEAD)" 'primary failure propagated'
+  assert_grep 'protected edit' "$w/main/AGENTS.md" 'primary edit discarded'
+  pass 'origin consumption is independent of upstream; explicit preparation retains an unpublished candidate'
 }
 
-test_fork_integration_and_propagation
+test_preparation_without_upstream_refused() {
+  local w out before
+  w=$(new_world prepare-absent)
+  before=$(git -C "$w/main" rev-parse HEAD)
+  if out=$(run_update "$w" --prepare-integration); then fail 'preparation accepted absent upstream'; fi
+  assert_equals "$before" "$(git -C "$w/main" rev-parse HEAD)" 'failed preparation moved primary'
+  assert_absent "$w/home/data/fork-sync" 'absent upstream created an attempt'
+  assert_not_contains "$out" 'restart-secondmates:' 'failed preparation emitted update actions'
+  if out=$(run_update "$w" --prepare-integration extra); then fail 'preparation accepted extra arguments'; fi
+  assert_absent "$w/home/data/fork-sync" 'invalid arguments staged integration'
+  pass 'explicit preparation requires upstream and rejects extra arguments without update actions'
+}
+
+test_fork_consumption_and_explicit_preparation
+test_preparation_without_upstream_refused
 test_updates_main_and_secondmate
 test_reread_gate_is_instruction_only
 test_bin_only_advance_restarts

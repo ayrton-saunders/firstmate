@@ -29,7 +29,8 @@ The only live mates that do not restart are the ones whose home the update pass 
 
 The primary update is fast-forward only, while each secondmate uses the same guarded convergence path plus one narrow recovery for squash-merged local history.
 For a remote route, it updates the configured Firstmate code root on that host from its own origin, then guardedly fast-forwards the persistent home to that code-root commit.
-Optional primary upstream integration and publication happen only in an isolated clone under the approval and validation contract owned by [`bin/fm-fork-sync-lib.sh`](../../../bin/fm-fork-sync-lib.sh).
+Routine updates consume already-landed origin revisions, never integrate upstream or publish, and never invoke the old private fork validator.
+Upstream integration is separate explicitly requested ship work, as described below; [`bin/fm-fork-sync-lib.sh`](../../../bin/fm-fork-sync-lib.sh) owns candidate preparation, not landing authority.
 No live home merges upstream, forces history, or stashes.
 A clean secondmate divergence advances with `reset --keep` only when a three-way tree proof shows its complete local result is already present at the target, which recognizes squash-merged contributions without discarding unique content.
 Every other dirty, diverged, offline, or wrong-branch target is skipped and reported, and a genuine divergence leaves a durable `state/.secondmate-update-reconcile/<id>.pending` record that future bootstrap and update passes surface until convergence clears it.
@@ -42,9 +43,10 @@ This touches only the firstmate repo and its own worktrees, never anything under
    ```sh
    bin/fm-update.sh
    ```
-   It prepares any configured primary fork integration, fast-forwards this firstmate repo's default branch from origin, then updates every registered local or remote secondmate home through its placement-specific guarded path.
-   An integration or fork landing error stops propagation; surface the concrete failure and retained attempt rather than treating the fork as already current.
-   Enabling publication and choosing its validator require explicit operator approval; never enable them just to unblock an update.
+   It fast-forwards this firstmate repo's default branch from origin, then updates every registered local or remote secondmate home through its placement-specific guarded path.
+   A skipped primary stops propagation; surface its concrete reason rather than treating the fleet as updated.
+   An upstream remote or legacy publication/validator configuration does not turn this command into an integration task.
+   When consuming a specifically approved integration, verify the fetched origin revision is that landed result before updating; if origin moved again, reconcile that new revision rather than assuming the earlier approval covers it.
    It prints one status line per target (`updated <old>..<new>` / `reconciled redundant divergence <old>..<new>` / `already current` / `skipped: <reason>`), followed by three action lines that tell you exactly what to do next:
    - `reread-firstmate: yes|no`
    - `restart-secondmates: fm-<id>...|none`
@@ -94,6 +96,28 @@ This touches only the firstmate repo and its own worktrees, never anything under
    For example: "Captain, firstmate and both second mates are now on the latest."
    Say plainly when a mate got the message rather than a clean reload, and why - never let a partial reload read as a full one.
    Surface any skipped target whose reason needs the captain's attention - for instance a home with its own un-landed changes (diverged) or local edits (dirty), which were left untouched on purpose.
+
+## Separately requested upstream integration
+
+An ordinary update request does not authorize upstream integration.
+When the captain explicitly requests integration, dispatch a ship through the existing no-mistakes PR path, not through a private full-local-CI validator or a new PR controller.
+The candidate-preparation interface is owned by [`bin/fm-update.sh --help`](../../../bin/fm-update.sh) and [`bin/fm-fork-sync-lib.sh`](../../../bin/fm-fork-sync-lib.sh):
+
+```sh
+bin/fm-update.sh --prepare-integration
+```
+
+Preparation retains evidence but does not update running homes or emit restart actions.
+A retained candidate is not a validated release and must never be reported as one.
+Use its reported origin, upstream and candidate commits as the integration task's starting evidence, importing the candidate into the worker's own isolated ship branch rather than running project work in a live home.
+Verify the candidate contains both histories and excludes private operational paths; if origin or upstream changed since preparation, explicitly identify the new candidate instead of silently substituting it.
+Use targeted local reproduction and the existing no-mistakes review/test/lint/PR process, with the existing hosted checks owning full regression coverage.
+Any pipeline fix changes the candidate identity, so passing checks must cover the current PR head and current base, not an earlier candidate or unrelated green run.
+Obtain the captain's explicit approval before landing the integration and never waive red or missing required checks.
+Integration landing must preserve both histories: request the supported `--merge` method through `bin/fm-pr-merge.sh`, not its default squash, and escalate if the repository disallows it.
+After an approved merge, fetch and prove the landed revision contains the validated candidate and upstream commit, with the validated tree corresponding to the actual merge result.
+An unreadable landing proof is an unknown outcome, not permission to update.
+Only then use the routine update flow above, including its unchanged restart/nudge actions.
 
 ## Safety
 

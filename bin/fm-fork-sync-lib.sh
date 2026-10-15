@@ -1,22 +1,23 @@
 #!/usr/bin/env bash
-# Optional primary-only upstream integration, sourced by fm-update.sh.
-# fm_fork_sync_prepare <root> <home> returns 0 settled, 2 absent/consumer,
-# or 1 error. FM_FORK_STATUS, FM_FORK_UPSTREAM and FM_FORK_ATTEMPT are outputs.
+# Primary-only upstream candidate preparation for fm-update.sh --prepare-integration.
+# fm_fork_sync_prepare <root> <home> returns 0 prepared/already included,
+# 2 absent/consumer, or 1 error. FM_FORK_STATUS, FM_FORK_ORIGIN, FM_FORK_UPSTREAM,
+# FM_FORK_PRIMARY, FM_FORK_CANDIDATE and FM_FORK_ATTEMPT are outputs.
 # No upstream means no staging or network calls. Linked secondmate homes are
 # consumers even though their common Git config contains upstream.
-# Publication requires <home>/config/fork-publication containing exactly enabled
-# and <home>/config/fork-validation containing an absolute executable path.
-# These are operator approvals, not defaults. The validator runs in the isolated
-# clone with arguments <O> <U0> <P>; it must review/test the integrated tree and
-# return zero only when the configured publication policy permits publication.
-# A validator must not publish, rewrite history, or resolve conflicts. Review
-# requiring a human must return nonzero, retaining the attempt for that review.
+# Only the retained isolated clone merges. Preparation never validates, pushes,
+# advances a running home or authorizes landing. Legacy config/fork-publication
+# and config/fork-validation files are ignored, not changed.
+# An upstream already included in origin returns status settled and no candidate;
+# otherwise status prepared reports integration-repo, integration-candidate,
+# integration-origin and integration-upstream lines for the separate ship task.
+# The update skill owns the separate ship task's no-mistakes PR/CI path,
+# explicit merge approval and ancestry-preserving landing.
 # Attempts live in <home>/data/fork-sync/attempt.XXXXXXXX and are never deleted.
 # origin and upstream defaults come from fresh remote HEAD advertisements.
-# Only the isolated clone merges/pushes; ordinary non-forcing publication names
-# origin explicitly. All errors retain evidence and stop before home convergence.
-# Failure diagnostics include O/U0/P and attempt location without remote URLs.
-# A failed post-push read is unknown publication, never confirmed success.
+# All errors retain evidence; failure diagnostics include O/U0/P and attempt
+# location without remote URLs. Private operational paths are rejected in both
+# the candidate tree and outgoing history, even if later removed.
 
 fm_fork_sync_error() {
   FM_FORK_STATUS=error
@@ -40,11 +41,11 @@ fm_fork_remote_default() { # <clone> <remote>; no guesses or cached refs
 
 fm_fork_sync_prepare() {
   local root=$1 home=$2 upstream_config origin upstream pushes branch upstream_branch
-  local candidate observed validator common primary_branch operation primary_status
+  local candidate common primary_branch operation primary_status
   # Public result consumed by callers sourcing this library.
   # shellcheck disable=SC2034
   FM_FORK_STATUS=absent
-  FM_FORK_UPSTREAM='' FM_FORK_ORIGIN='' FM_FORK_PRIMARY='' FM_FORK_ATTEMPT=''
+  FM_FORK_UPSTREAM='' FM_FORK_ORIGIN='' FM_FORK_PRIMARY='' FM_FORK_ATTEMPT='' FM_FORK_CANDIDATE=''
   upstream_config=$(git -C "$root" config --get-regexp '^remote\.upstream\.' 2>/dev/null) || {
     [ "$?" -eq 1 ] || { fm_fork_sync_error 'cannot read upstream configuration'; return 1; }
   }
@@ -106,10 +107,6 @@ fm_fork_sync_prepare() {
     printf 'fork upstream included: %s\n' "$FM_FORK_UPSTREAM"
     return 0
   fi
-  [ "$(cat "$home/config/fork-publication" 2>/dev/null)" = enabled ] || { fm_fork_sync_error 'publication approval missing'; return 1; }
-  validator=$(cat "$home/config/fork-validation" 2>/dev/null) || { fm_fork_sync_error 'validation policy missing'; return 1; }
-  case "$validator" in /*) ;; *) fm_fork_sync_error 'validator must be an absolute executable path'; return 1 ;; esac
-  [ -f "$validator" ] && [ -x "$validator" ] || { fm_fork_sync_error 'validator unavailable'; return 1; }
   git -C "$repo" checkout --quiet -b fork-integration "$FM_FORK_ORIGIN" || { fm_fork_sync_error 'integration checkout failed'; return 1; }
   if ! git -C "$repo" -c core.hooksPath=/dev/null merge --ff --no-edit "$FM_FORK_UPSTREAM" >"$FM_FORK_ATTEMPT/merge.log" 2>&1; then
     git -C "$repo" diff --name-only --diff-filter=U >"$FM_FORK_ATTEMPT/conflicts"
@@ -122,27 +119,15 @@ fm_fork_sync_prepare() {
     [ -n "$(git -C "$repo" log --full-history --format=%H "$FM_FORK_ORIGIN..$candidate" -- data state config projects .env .no-mistakes)" ]; then
     fm_fork_sync_error 'private operational paths in candidate/history'; return 1
   fi
-  if ! (cd "$repo" && FM_ROOT_OVERRIDE="$repo" FM_HOME="$repo" "$validator" "$FM_FORK_ORIGIN" "$FM_FORK_UPSTREAM" "$FM_FORK_PRIMARY") >"$FM_FORK_ATTEMPT/validation.log" 2>&1; then
-    fm_fork_sync_error 'validation/review refused publication'; return 1
-  fi
-  if [ "$(git -C "$repo" remote get-url --all origin)" != "$origin" ] ||
-    [ "$(git -C "$repo" remote get-url --push --all origin)" != "$origin" ] ||
-    [ "$(git -C "$repo" rev-parse HEAD)" != "$candidate" ] || [ -n "$(git -C "$repo" status --porcelain --untracked-files=all)" ] ||
+  if [ -n "$(git -C "$repo" status --porcelain --untracked-files=all)" ] ||
     ! git -C "$repo" merge-base --is-ancestor "$FM_FORK_ORIGIN" "$candidate" ||
     ! git -C "$repo" merge-base --is-ancestor "$FM_FORK_UPSTREAM" "$candidate"; then
-    fm_fork_sync_error 'candidate changed or ancestry proof failed'; return 1
+    fm_fork_sync_error 'candidate cleanliness or ancestry proof failed'; return 1
   fi
-  if ! git -C "$repo" -c core.hooksPath=/dev/null push origin "HEAD:refs/heads/$branch" >"$FM_FORK_ATTEMPT/push.log" 2>&1; then
-    fm_fork_sync_error 'publication failed or unknown; reconcile retained candidate'; return 1
-  fi
-  git -C "$repo" fetch --quiet origin 2>"$FM_FORK_ATTEMPT/transport.log" || { fm_fork_sync_error 'publication outcome unknown; verification fetch failed'; return 1; }
-  [ "$(fm_fork_remote_default "$repo" origin)" = "$branch" ] || { fm_fork_sync_error 'publication outcome unknown; default changed'; return 1; }
-  observed=$(git -C "$repo" rev-parse "refs/remotes/origin/$branch")
-  if ! git -C "$repo" merge-base --is-ancestor "$candidate" "$observed" ||
-    ! git -C "$repo" merge-base --is-ancestor "$FM_FORK_UPSTREAM" "$observed"; then
-    fm_fork_sync_error 'publication inclusion not proven'; return 1
-  fi
-  # shellcheck disable=SC2034 # Public result for sourcing callers.
-  FM_FORK_STATUS=settled
-  printf 'fork published: %s includes upstream %s (attempt=%s)\n' "$observed" "$FM_FORK_UPSTREAM" "$FM_FORK_ATTEMPT"
+  # shellcheck disable=SC2034 # Public results for sourcing callers.
+  FM_FORK_STATUS=prepared FM_FORK_CANDIDATE=$candidate
+  printf 'integration-repo: %s\n' "$repo"
+  printf 'integration-candidate: %s\n' "$candidate"
+  printf 'integration-origin: %s\n' "$FM_FORK_ORIGIN"
+  printf 'integration-upstream: %s\n' "$FM_FORK_UPSTREAM"
 }

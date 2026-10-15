@@ -718,9 +718,10 @@ The main first mate routes by reading those scopes with judgment; the project li
 ### Fork-backed local updates
 
 A personal primary may use its fork as `origin` and canonical upstream as `upstream`, while running homes continue to land only by guarded fast-forward.
-The optional publication approvals, executable validation interface, retained attempts, and integration transaction are owned by [`bin/fm-fork-sync-lib.sh`](../bin/fm-fork-sync-lib.sh).
-Publication is disabled until the operator explicitly approves it and selects a validator that enforces the intended review and test policy; neither remote presence nor a clean Git merge grants that authority.
-[`bin/fm-update.sh`](../bin/fm-update.sh) stops propagation when integration or primary landing fails, and unchanged no-upstream setups keep their existing update behavior.
+Routine [`bin/fm-update.sh`](../bin/fm-update.sh) consumes origin without integrating upstream, publishing or running a private fork validator, and stops propagation if the primary cannot safely advance or remain current.
+The separately selected candidate-preparation interface, retained attempts and ancestry proof are owned by [`bin/fm-fork-sync-lib.sh`](../bin/fm-fork-sync-lib.sh) and the updater's help.
+Legacy `config/fork-publication` and `config/fork-validation` files are ignored and left untouched; their presence no longer authorizes direct default-branch publication.
+Explicitly requested integration uses the existing no-mistakes PR and hosted CI path with the normal merge approval, as owned by [the update skill](../.agents/skills/updatefirstmate/SKILL.md#separately-requested-upstream-integration).
 Local linked homes share their primary's remotes; new standalone homes receive the fork origin through [`bin/fm-home-seed.sh`](../bin/fm-home-seed.sh), without upstream publication authority.
 Existing standalone origins are checked rather than silently migrated.
 These local settings do not migrate another fleet or a remote code root; [remote setup boundaries](remote-secondmates.md#fork-backed-code-roots) still apply.

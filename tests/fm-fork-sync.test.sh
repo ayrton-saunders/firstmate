@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Executable Git integration/publication tests; all remotes are disposable.
+# Candidate preparation is tested against real disposable Git remotes.
 set -eu
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -34,15 +34,6 @@ world() {
   git -C "$w/u" push -q origin trunk
   O=$(git -C "$w/fork" rev-parse main)
   U=$(git -C "$w/upstream" rev-parse trunk)
-  printf 'enabled\n' > "$w/home/config/fork-publication"
-  cat > "$w/validate" <<'SH'
-#!/usr/bin/env bash
-set -eu
-git merge-base --is-ancestor "$1" HEAD
-git merge-base --is-ancestor "$2" HEAD
-SH
-  chmod +x "$w/validate"
-  printf '%s\n' "$w/validate" > "$w/home/config/fork-validation"
 }
 refused() {
   if fm_fork_sync_prepare "$w/p" "$w/home" >"$w/result" 2>&1; then fail "$1 accepted"; fi
@@ -50,16 +41,40 @@ refused() {
   assert_equals "$O" "$(git -C "$w/p" rev-parse HEAD)" "$1 changed primary"
   assert_grep "$2" "$w/result" "$1 diagnostic"
 }
+
 world merge
-fm_fork_sync_prepare "$w/p" "$w/home" || fail 'merge publication failed'
-M=$(git -C "$w/fork" rev-parse main)
-assert_equals 2 "$(git -C "$w/fork" rev-list --parents -n1 "$M" | awk '{print NF-1}')" 'merge must retain both parents'
-git -C "$w/fork" merge-base --is-ancestor "$O" "$M" || fail 'personal history lost'
-git -C "$w/fork" merge-base --is-ancestor "$U" "$M" || fail 'upstream history lost'
-assert_equals "$O" "$(git -C "$w/p" rev-parse HEAD)" 'prepare moved primary'
-fm_fork_sync_prepare "$w/p" "$w/home" || fail 'repeat failed'
-assert_equals "$M" "$(git -C "$w/fork" rev-parse main)" 'repeat minted another merge'
-pass 'isolated merge preserves fork/upstream, independent defaults and idempotence'
+# Old private approvals must never turn preparation into validation/publication.
+printf 'enabled\n' > "$w/home/config/fork-publication"
+printf '#!/usr/bin/env bash\ntouch "%s/validator-called"\nexit 1\n' "$w" > "$w/validate"
+chmod +x "$w/validate"
+printf '%s\n' "$w/validate" > "$w/home/config/fork-validation"
+fm_fork_sync_prepare "$w/p" "$w/home" >"$w/result" || fail 'merge preparation failed'
+repo="$FM_FORK_ATTEMPT/repo"
+C=$(git -C "$repo" rev-parse HEAD)
+assert_equals prepared "$FM_FORK_STATUS" 'preparation status'
+assert_equals "$C" "$FM_FORK_CANDIDATE" 'candidate output'
+assert_equals 2 "$(git -C "$repo" rev-list --parents -n1 "$C" | awk '{print NF-1}')" 'merge must retain both parents'
+git -C "$repo" merge-base --is-ancestor "$O" "$C" || fail 'personal history lost'
+git -C "$repo" merge-base --is-ancestor "$U" "$C" || fail 'upstream history lost'
+assert_grep "integration-candidate: $C" "$w/result" 'candidate identity not reported'
+assert_grep "integration-origin: $O" "$w/result" 'origin identity not reported'
+assert_grep "integration-upstream: $U" "$w/result" 'upstream identity not reported'
+assert_grep "integration-repo: $repo" "$w/result" 'retained repository not reported'
+assert_equals "$O" "$(git -C "$w/fork" rev-parse main)" 'preparation published'
+assert_equals "$O" "$(git -C "$w/p" rev-parse HEAD)" 'preparation moved primary'
+assert_absent "$w/validator-called" 'preparation ran the private validator'
+assert_absent "$FM_FORK_ATTEMPT/push.log" 'preparation attempted publication'
+assert_absent "$FM_FORK_ATTEMPT/validation.log" 'preparation attempted local CI'
+pass 'preparation preserves and identifies both histories without validating, publishing, or landing'
+
+# Simulate the separate, approved ancestry-preserving PR landing in this fixture.
+git -C "$repo" push -q origin HEAD:refs/heads/main
+fm_fork_sync_prepare "$w/p" "$w/home" >"$w/result" || fail 'already integrated retry failed'
+assert_equals settled "$FM_FORK_STATUS" 'already integrated status'
+assert_equals '' "$FM_FORK_CANDIDATE" 'settled retry reported stale candidate'
+assert_grep 'fork upstream included:' "$w/result" 'already integrated outcome'
+assert_equals "$C" "$(git -C "$w/fork" rev-parse main)" 'settled retry moved origin'
+pass 'an ancestry-preserving landing makes later preparation a no-op'
 
 world absent
 git -C "$w/p" remote remove upstream
@@ -73,18 +88,6 @@ world malformed
 git -C "$w/p" remote remove upstream
 git -C "$w/p" config remote.upstream.fetch '+refs/heads/*:refs/remotes/upstream/*'
 refused malformed 'invalid upstream'
-world approval
-rm "$w/home/config/fork-publication"
-refused approval 'publication approval missing'
-world validator
-rm "$w/home/config/fork-validation"
-refused validator 'validation policy missing'
-world validation
-printf '#!/usr/bin/env bash\nexit 1\n' > "$w/validate"
-refused validation 'validation/review refused'
-assert_present "$FM_FORK_ATTEMPT/repo/personal" 'failed candidate not retained'
-pass 'malformed upstream and unapproved or failing validation refuse publication'
-
 world dirty
 printf 'dirty\n' > "$w/p/untracked"
 refused dirty 'dirty primary'
@@ -105,7 +108,7 @@ refused extra_pushurl 'unexpected remote destinations'
 world shallow
 printf '%s\n' "$O" > "$w/p/.git/shallow"
 refused shallow 'shallow primary'
-pass 'unsafe primary, changed defaults and extra push destinations refuse publication'
+pass 'unsafe primary and ambiguous remote destinations remain refused'
 
 world ahead
 printf 'ahead\n' > "$w/p/ahead"
@@ -120,83 +123,39 @@ pass 'unpublished primary work stays intact'
 
 world conflict
 printf 'personal shared\n' > "$w/p/shared"
-git -C "$w/p" add shared
-git -C "$w/p" commit -qm personal-shared
+git -C "$w/p" commit -qam personal-shared
 git -C "$w/p" push -q origin main
 O=$(git -C "$w/p" rev-parse HEAD)
 printf 'upstream shared\n' > "$w/u/shared"
-git -C "$w/u" add shared
-git -C "$w/u" commit -qm upstream-shared
+git -C "$w/u" commit -qam upstream-shared
 git -C "$w/u" push -q origin trunk
 refused conflict 'unresolved paths'
 assert_grep shared "$FM_FORK_ATTEMPT/conflicts" 'conflict paths retained'
 assert_present "$FM_FORK_ATTEMPT/repo/.git/MERGE_HEAD" 'conflict was aborted'
 assert_absent "$w/p/.git/MERGE_HEAD" 'primary conflict created'
-pass 'conflicts remain unresolved only in integration clone'
-
-world rejected
-printf '#!/usr/bin/env bash\nexit 1\n' > "$w/fork/hooks/pre-receive"
-chmod +x "$w/fork/hooks/pre-receive"
-refused rejected 'publication failed or unknown'
-pass 'server push rejection preserves fork and candidate'
-
-world race
-# A validator simulates a concurrent publisher, independently of the candidate.
-cat >> "$w/validate" <<SH
-printf 'concurrent\\n' > '$w/p/race'
-git -C '$w/p' add race
-git -C '$w/p' commit -qm concurrent
-git -C '$w/p' push -q origin main
-SH
-if fm_fork_sync_prepare "$w/p" "$w/home" >"$w/result" 2>&1; then fail 'race accepted'; fi
-assert_equals "$(git -C "$w/p" rev-parse HEAD)" "$(git -C "$w/fork" rev-parse main)" 'concurrent publisher overwritten'
-assert_grep 'publication failed or unknown' "$w/result" 'race diagnostic'
-pass 'concurrent fork advance is never overwritten'
-
-world unknown
-# Validation arms a Git wrapper that fails only the verification fetch.
-mkdir "$w/fakebin"
-real_git=$(command -v git)
-cat > "$w/fakebin/git" <<SH
-#!/usr/bin/env bash
-if [[ "\$*" == *' fetch --quiet origin'* ]] && [ -e '$w/pushed' ]; then exit 1; fi
-'$real_git' "\$@"
-rc=\$?
-if [[ "\$*" == *' push origin '* ]] && [ "\$rc" -eq 0 ]; then touch '$w/pushed'; fi
-exit "\$rc"
-SH
-chmod +x "$w/fakebin/git"
-if PATH="$w/fakebin:$PATH" fm_fork_sync_prepare "$w/p" "$w/home" >"$w/result" 2>&1; then fail 'unknown publication accepted'; fi
-assert_grep 'publication outcome unknown' "$w/result" 'unknown publication diagnostic'
-fm_fork_sync_prepare "$w/p" "$w/home" || fail 'published retry did not recover'
-pass 'lost post-push verification is unknown; fresh retry proves inclusion'
+pass 'conflicts remain unresolved only in the retained integration clone'
 
 world fast_forward
-# A fresh fork seeded at the shared base has no personal commit to merge.
+# With no fork contribution the exact upstream tip is the candidate, not a merge.
 git init -q --bare "$w/ff-fork"
 git -C "$w/ff-fork" symbolic-ref HEAD refs/heads/main
 git -C "$w/u" push -q "$w/ff-fork" 'HEAD^:refs/heads/main'
 git clone -q "$w/ff-fork" "$w/consumer"
 git -C "$w/consumer" remote add upstream "$w/upstream"
-fm_fork_sync_prepare "$w/consumer" "$w/home" || fail 'upstream fast-forward failed'
-assert_equals "$U" "$(git -C "$w/ff-fork" rev-parse main)" 'fast-forward created unnecessary merge'
-pass 'integration fast-forward publishes exact upstream tip'
+fm_fork_sync_prepare "$w/consumer" "$w/home" >"$w/result" || fail 'fast-forward preparation failed'
+assert_equals "$U" "$FM_FORK_CANDIDATE" 'fast-forward minted an unnecessary merge'
+assert_equals "$(git -C "$w/u" rev-parse HEAD^)" "$(git -C "$w/ff-fork" rev-parse main)" 'fast-forward published candidate'
+pass 'fast-forward preparation retains the exact upstream candidate'
 
 world private_paths
 mkdir -p "$w/u/data"
 printf 'private\n' > "$w/u/data/private"
 git -C "$w/u" add data/private
 git -C "$w/u" commit -qm private-path
-# Even removed private material must not be published in intermediate history.
 git -C "$w/u" rm -q data/private
 git -C "$w/u" commit -qm remove-private-path
 git -C "$w/u" push -q origin trunk
 refused private_paths 'private operational paths'
-pass 'private operational material in outgoing history refuses publication'
-
-world candidate_mutation
-printf '#!/usr/bin/env bash\nprintf changed >> personal\n' > "$w/validate"
-refused candidate_mutation 'candidate changed'
-pass 'validation cannot silently alter the candidate'
+pass 'private operational material in outgoing history refuses preparation'
 
 echo '# all fm-fork-sync tests passed'

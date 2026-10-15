@@ -6,8 +6,11 @@
 # registered secondmate home. Local homes are treehouse worktrees or standalone
 # clones; remote routes update their configured code root on that host and then
 # fast-forward the persistent home to that root. Running homes remain
-# fast-forward only. Optional upstream integration/publication is owned by
-# fm-fork-sync-lib.sh and happens only in a retained isolated clone.
+# fast-forward only. Routine updates consume origin only, regardless of upstream
+# or legacy fork-publication/fork-validation configuration. Nothing here pushes.
+# Explicit --prepare-integration stages an unpublished upstream candidate through
+# fm-fork-sync-lib.sh, then exits without updating any home or emitting actions.
+# The separate ship task owns no-mistakes, PR/CI and approved merge landing.
 # A secondmate divergence whose complete local tree result is already present at
 # the target is reconciled with reset --keep; every other unsafe target is
 # skipped and reported, with divergence recorded durably by fm-ff-lib.sh.
@@ -63,7 +66,13 @@
 # fm-procevent-when.sh rebind-all to republish those bindings against the new
 # bytes; a failure there is swallowed rather than failing the update.
 #
-# Usage: fm-update.sh [--help]
+# Usage: fm-update.sh [--prepare-integration | --help]
+#   no arguments          consume origin through guarded convergence
+#   --prepare-integration retain an isolated candidate for a separate PR task;
+#                         no local validator, publication, propagation or restart
+# Preparation requires upstream on a clean primary with no unpublished work.
+# bin/fm-fork-sync-lib.sh owns its result fields, ancestry and retained evidence.
+# A primary that cannot safely consume origin stops before secondmate propagation.
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -80,39 +89,38 @@ SECONDMATES_MD="$FM_HOME/data/secondmates.md"
 
 "$SCRIPT_DIR/fm-guard.sh" || true
 
-usage() { echo "usage: fm-update.sh [--help]" >&2; }
+usage() {
+  echo 'usage: fm-update.sh [--prepare-integration | --help]'
+  echo '  default: guarded origin consumption only (never integrate or publish)'
+  echo '  --prepare-integration: retain an unpublished candidate for a separate no-mistakes PR task'
+}
 
 if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
   usage
   exit 0
 fi
-[ $# -eq 0 ] || { usage; exit 1; }
+if [ $# -eq 1 ] && [ "$1" = --prepare-integration ]; then
+  if fm_fork_sync_prepare "$FM_ROOT" "$FM_HOME"; then
+    exit 0
+  else
+    result=$?
+    if [ "$result" -eq 2 ]; then
+      fm_fork_sync_error 'preparation requires a primary with upstream configured' || true
+    fi
+    exit 1
+  fi
+fi
+[ $# -eq 0 ] || { usage >&2; exit 1; }
 
 # --- main firstmate repo ---------------------------------------------------
 
 reread_firstmate="no"
-if fm_fork_sync_prepare "$FM_ROOT" "$FM_HOME"; then
-  fork_mode=yes
-else
-  fork_result=$?
-  if [ "$fork_result" -ne 2 ]; then
-    echo 'reread-firstmate: no'
-    echo 'restart-secondmates: none'
-    echo 'nudge-secondmates: none'
-    exit 1
-  fi
-  fork_mode=no
-fi
 ff_target "$FM_ROOT" "firstmate" origin no no
-if [ "$fork_mode" = yes ]; then
-  if { [ "$FF_STATUS" != updated ] && [ "$FF_STATUS" != current ]; } ||
-    ! git -C "$FM_ROOT" merge-base --is-ancestor "$FM_FORK_UPSTREAM" HEAD; then
-    fm_fork_sync_error 'primary landing did not include fetched upstream' || true
-    echo 'reread-firstmate: no'
-    echo 'restart-secondmates: none'
-    echo 'nudge-secondmates: none'
-    exit 1
-  fi
+if [ "$FF_STATUS" != updated ] && [ "$FF_STATUS" != current ]; then
+  echo 'reread-firstmate: no'
+  echo 'restart-secondmates: none'
+  echo 'nudge-secondmates: none'
+  exit 1
 fi
 if [ "$FF_STATUS" = "updated" ]; then
   if [ -n "$FF_INSTR" ]; then
