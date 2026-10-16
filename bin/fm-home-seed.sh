@@ -9,6 +9,11 @@
 #       no live process and is never recycled until the lease is released with
 #       "treehouse return". Projects are cloned
 #       from the active home into the secondmate home's projects/ directory.
+#       With upstream configured on the primary, a new standalone Firstmate
+#       clone receives the parent's effective origin URL (normalized when local)
+#       before seed publication; upstream is not inherited. Existing standalone
+#       origins must match and have no upstream; mismatches require explicit
+#       migration. Linked homes share config and are not repointed separately.
 #       That project list is non-exclusive provisioning data. Pass --no-projects
 #       instead of a project list to seed a project-less home for a domain whose
 #       subject is the firstmate repo itself; it is mutually exclusive with a
@@ -402,7 +407,7 @@ acquire_treehouse_home() {
 }
 
 ensure_home() {
-  local id=$1 requested=$2 home
+  local id=$1 requested=$2 home expected_origin='' actual_origin common
   if [ "$requested" = "-" ]; then
     home=$(acquire_treehouse_home "$id")
     verify_firstmate_home "$home"
@@ -411,11 +416,28 @@ ensure_home() {
 
   home=$(abs_path_for_new "$requested")
   refuse_active_home_path "$home" || return 1
+  # Standalone fork consumers fetch from the parent's hosted origin, not its
+  # local clone path. Existing homes are checked, never silently migrated.
+  if git -C "$FM_ROOT" config --get-regexp '^remote\.upstream\.' >/dev/null 2>&1; then
+    expected_origin=$(git -C "$FM_ROOT" remote get-url origin) || return 1
+    expected_origin=$(normalize_origin_url "$FM_ROOT" "$expected_origin") || return 1
+  fi
   if [ -e "$home" ]; then
     [ -d "$home" ] || { echo "error: $home exists and is not a directory" >&2; return 1; }
+    if [ -n "$expected_origin" ]; then
+      common=$(git -C "$home" rev-parse --git-common-dir) || return 1
+      if [ "$common" = "$(git -C "$home" rev-parse --git-dir)" ]; then
+        actual_origin=$(seeded_origin_url firstmate "$home" "$expected_origin") || return 1
+        [ "$actual_origin" = "$expected_origin" ] || { echo 'error: existing Firstmate home origin differs from parent fork; explicit migration required' >&2; return 1; }
+        ! git -C "$home" config --get-regexp '^remote\.upstream\.' >/dev/null 2>&1 || { echo 'error: standalone Firstmate consumer must not configure upstream' >&2; return 1; }
+      fi
+    fi
   else
     mkdir -p "$(dirname "$home")"
     git clone --quiet "$FM_ROOT" "$home"
+    if [ -n "$expected_origin" ]; then
+      git -C "$home" remote set-url origin "$expected_origin" || return 1
+    fi
   fi
   verify_firstmate_home "$home"
 }

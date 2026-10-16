@@ -173,6 +173,7 @@ test_updates_main_and_secondmate() {
     || fail "firstmate tip is not a single-parent fast-forward"
   [ "$(git -C "$w/sm1" rev-list --parents -n1 HEAD | wc -w | tr -d ' ')" -eq 2 ] \
     || fail "secondmate tip is not a single-parent fast-forward"
+  assert_absent "$w/home/data/fork-sync" "legacy update must not stage integration"
   pass "T1 main + secondmate fast-forward (single-parent), reread + restart signalled"
 }
 
@@ -556,6 +557,62 @@ test_primary_update_rebinds_local_watch() {
   pass "T12 a self-update rebinds a locally armed watch on the primary"
 }
 
+test_fork_integration_and_propagation() {
+  local w out fork_tip upstream_tip primary_tip
+  w=$(new_world fork)
+  add_sm "$w" linked
+  git clone -q "$w/origin.git" "$w/standalone"
+  printf 'solo\n' > "$w/standalone/.fm-secondmate-home"
+  printf -- '- solo - test consumer (home: %s; scope: test; projects: ; added 2026-10-12)\n' "$w/standalone" > "$w/home/data/secondmates.md"
+  git clone -q --bare "$w/origin.git" "$w/upstream.git"
+  git clone -q "$w/upstream.git" "$w/upstream"
+  git -C "$w/main" remote add upstream "$w/upstream.git"
+  bump_origin "$w" neutral
+  fork_tip=$(git -C "$w/origin.git" rev-parse main)
+  printf 'upstream instructions\n' > "$w/upstream/AGENTS.md"
+  git -C "$w/upstream" commit -qam upstream
+  git -C "$w/upstream" push -q origin main
+  upstream_tip=$(git -C "$w/upstream" rev-parse HEAD)
+  primary_tip=$(git -C "$w/main" rev-parse HEAD)
+  # No approval: primary and mates must remain on their previous bytes, with
+  # no restart candidates even though origin alone could be fast-forwarded.
+  if out=$(run_update "$w"); then fail 'unapproved fork publication accepted'; fi
+  assert_equals "$primary_tip" "$(git -C "$w/main" rev-parse HEAD)" 'failure moved primary'
+  assert_equals "$primary_tip" "$(git -C "$w/linked" rev-parse HEAD)" 'failure moved linked mate'
+  assert_equals "$fork_tip" "$(git -C "$w/origin.git" rev-parse main)" 'failure moved fork'
+  assert_contains "$out" 'restart-secondmates: none' 'failure restart set'
+  mkdir -p "$w/home/config"
+  printf 'enabled\n' > "$w/home/config/fork-publication"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$w/validator"
+  chmod +x "$w/validator"
+  printf '%s\n' "$w/validator" > "$w/home/config/fork-validation"
+  out=$(run_update "$w") || fail 'fork update failed'
+  assert_contains "$out" 'fork published:' 'publication output missing'
+  assert_contains "$out" 'firstmate: updated' 'primary did not land'
+  assert_contains "$out" 'secondmate solo: updated' 'standalone did not converge'
+  assert_contains "$out" 'restart-secondmates: fm-linked' 'settled mate not restarted'
+  for target in main linked standalone; do
+    git -C "$w/$target" merge-base --is-ancestor "$fork_tip" HEAD || fail "$target lost fork history"
+    git -C "$w/$target" merge-base --is-ancestor "$upstream_tip" HEAD || fail "$target missing upstream snapshot"
+  done
+  fork_tip=$(git -C "$w/origin.git" rev-parse main)
+  out=$(run_update "$w") || fail 'repeated fork update failed'
+  assert_contains "$out" 'firstmate: already current' 'repeat not current'
+  assert_equals "$fork_tip" "$(git -C "$w/origin.git" rev-parse main)" 'repeat published new commit'
+  # Primary dirt arriving after preflight must stop mate propagation even when
+  # the integrated fork was successfully published.
+  printf 'another upstream instruction\n' >> "$w/upstream/AGENTS.md"
+  git -C "$w/upstream" commit -qam another-upstream
+  git -C "$w/upstream" push -q origin main
+  printf '#!/usr/bin/env bash\ntouch "%s/late-dirt"\n' "$w/main" > "$w/validator"
+  if out=$(run_update "$w"); then fail 'primary landing race reported success'; fi
+  assert_equals "$fork_tip" "$(git -C "$w/main" rev-parse HEAD)" 'dirty primary moved'
+  assert_equals "$fork_tip" "$(git -C "$w/linked" rev-parse HEAD)" 'landing failure moved mate'
+  assert_contains "$out" 'restart-secondmates: none' 'landing failure restarted mate'
+  pass 'fork preparation and landing failures stop propagation; verified merge reaches primary and local mates'
+}
+
+test_fork_integration_and_propagation
 test_updates_main_and_secondmate
 test_reread_gate_is_instruction_only
 test_bin_only_advance_restarts
