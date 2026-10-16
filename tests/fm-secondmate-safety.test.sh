@@ -11,6 +11,10 @@ set -u
 . "$(dirname "${BASH_SOURCE[0]}")/secondmate-helpers.sh"
 
 TMP_ROOT=$(fm_test_tmproot fm-secondmate-safety)
+# Do not inherit the developer code root's optional upstream configuration in
+# ordinary seed fixtures; fork topology is exercised explicitly below.
+git clone -q "$ROOT" "$TMP_ROOT/code-root"
+export FM_ROOT_OVERRIDE="$TMP_ROOT/code-root"
 export FM_BACKEND=tmux
 
 file_mode() {
@@ -1032,7 +1036,7 @@ test_home_seed_refuses_active_home_and_root() {
     || fail "seed did not explain active FM_HOME ancestor rejection"
   [ ! -f "$active_ancestor/.fm-secondmate-home" ] || fail "seed marked an ancestor of active FM_HOME"
 
-  if FM_HOME="$home" "$ROOT/bin/fm-home-seed.sh" design "$ROOT" alpha >/dev/null 2>"$err"; then
+  if FM_HOME="$home" "$ROOT/bin/fm-home-seed.sh" design "$FM_ROOT_OVERRIDE" alpha >/dev/null 2>"$err"; then
     fail "seed allowed secondmate home to reuse FM_ROOT"
   fi
   grep -F 'secondmate home cannot be the firstmate repo' "$err" >/dev/null \
@@ -1514,7 +1518,7 @@ SH
   grep -F 'secondmate home cannot be the active firstmate home' "$err" >/dev/null || fail "spawn did not reject active home"
 
   if PATH="$fakebin:$PATH" FM_HOME="$home" FM_FAKE_TMUX_LOG="$log" FM_FAKE_TMUX_CAPTURE="$TMP_ROOT/spawn-validate-fake/pane.txt" \
-    "$ROOT/bin/fm-spawn.sh" domain "$ROOT" codex --secondmate >/dev/null 2>"$err"; then
+    "$ROOT/bin/fm-spawn.sh" domain "$FM_ROOT_OVERRIDE" codex --secondmate >/dev/null 2>"$err"; then
     fail "secondmate spawn accepted the firstmate repo root"
   fi
   grep -F 'secondmate home cannot be the firstmate repo' "$err" >/dev/null || fail "spawn did not reject firstmate repo root"
@@ -3114,6 +3118,31 @@ EOF
   pass "fm-backlog-handoff refuses Done items under whitespace section headings and unsafe homes"
 }
 
+test_fork_standalone_seed_origin() {
+  local parent home sub expected out
+  parent="$TMP_ROOT/fork-seed-parent"
+  home="$TMP_ROOT/fork-seed-home"
+  sub="$TMP_ROOT/fork-seed-sub"
+  git clone -q "$ROOT" "$parent"
+  git clone -q --bare "$parent" "$TMP_ROOT/fork-seed-origin.git"
+  expected="$TMP_ROOT/fork-seed-origin.git"
+  git -C "$parent" remote set-url origin "$expected"
+  git -C "$parent" remote add upstream "$TMP_ROOT/unused-upstream.git"
+  mkdir -p "$home/data" "$home/state"
+  FM_HOME="$home" FM_ROOT_OVERRIDE="$parent" FM_SECONDMATE_CHARTER='fork consumer' \
+    "$ROOT/bin/fm-home-seed.sh" fork-local "$sub" --no-projects >/dev/null || fail 'fork standalone seed failed'
+  assert_equals "$expected" "$(git -C "$sub" remote get-url origin)" 'seed origin is not fork'
+  if git -C "$sub" remote get-url upstream >/dev/null 2>&1; then fail 'standalone seed inherited upstream'; fi
+  git -C "$sub" remote set-url origin "$parent"
+  if out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$parent" FM_SECONDMATE_CHARTER='fork consumer' \
+    "$ROOT/bin/fm-home-seed.sh" fork-local "$sub" --no-projects 2>&1); then fail 'existing origin mismatch accepted'; fi
+  assert_contains "$out" 'explicit migration required' 'existing origin mismatch diagnostic'
+  assert_equals "$parent" "$(git -C "$sub" remote get-url origin)" 'existing origin silently repointed'
+  assert_equals "$expected" "$(git -C "$parent" remote get-url origin)" 'parent origin mutated'
+  pass 'fork standalone seed uses hosted origin; existing mismatches require explicit migration'
+}
+
+test_fork_standalone_seed_origin
 test_fm_home_parameterization
 test_lock_status_is_per_home
 test_seed_allows_overlapping_clones_and_drops_owner
