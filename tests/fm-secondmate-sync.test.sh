@@ -1209,6 +1209,35 @@ test_remote_sync_without_target_follows_host_copy() {
   pass "R7 a sync with no target still follows the host's own refreshed Firstmate copy"
 }
 
+test_remote_update_keeps_independent_origin() {
+  local w initial parent own out rc
+  w=$(new_remote_world independent-remote-update)
+  initial=$(head_of "$w/main")
+  add_remote_home "$w" sm "$w/coderoot" "$initial"
+  git clone -q --bare "$w/forge.git" "$w/remote-origin.git"
+  git clone -q "$w/remote-origin.git" "$w/remote-seed"
+  git -C "$w/coderoot" remote set-url origin "$w/remote-origin.git"
+  printf 'remote-only origin change\n' >> "$w/remote-seed/AGENTS.md"
+  git -C "$w/remote-seed" add -A
+  git -C "$w/remote-seed" commit -qm remote-origin
+  git -C "$w/remote-seed" push -q origin main
+  own=$(head_of "$w/remote-seed")
+  bump_primary "$w" instr
+  parent=$(head_of "$w/main")
+  rc=0
+  out=$(env -u FM_STATE_OVERRIDE -u FM_DATA_OVERRIDE -u FM_CONFIG_OVERRIDE -u FM_PROJECTS_OVERRIDE \
+    FM_HOME="$w/sm" FM_ROOT_OVERRIDE="$w/coderoot" \
+    "$ROOT/bin/fm-remote-secondmate-control.sh" update sm 2>&1) || rc=$?
+  [ "$rc" -eq 0 ] || fail "remote own-origin update failed: $out"
+  [ "$(head_of "$w/coderoot")" = "$own" ] && [ "$(head_of "$w/sm")" = "$own" ] \
+    || fail 'remote update did not consume its own configured origin'
+  [ "$(head_of "$w/main")" = "$parent" ] || fail 'remote update moved parent'
+  [ "$own" != "$parent" ] || fail 'fixture did not separate origin from parent convergence'
+  [ "$(git -C "$w/coderoot" remote get-url origin)" = "$w/remote-origin.git" ] || fail 'remote code root origin migrated'
+  [ "$(git -C "$w/sm" remote get-url origin)" = "$w/coderoot" ] || fail 'persistent home origin migrated'
+  pass 'remote update consumes its independent code-root origin, unlike parent-targeted sync'
+}
+
 # --- R8: session start hands the remote host the PRIMARY's commit --------------
 # The deferred network stage is the only startup path that reaches a remote home,
 # so this drives the real bin/fm-bootstrap.sh network phase across the real
@@ -1371,6 +1400,7 @@ test_remote_sync_uses_present_objects
 test_remote_sync_skips_unimportable_target
 test_remote_sync_skips_dirty_diverged_and_feature_branch
 test_remote_sync_without_target_follows_host_copy
+test_remote_update_keeps_independent_origin
 test_bootstrap_syncs_remote_home_to_primary_commit
 test_bootstrap_reports_outdated_host_actionably
 test_remote_launch_does_not_retarget_host_copy
