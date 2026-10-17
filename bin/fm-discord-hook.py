@@ -148,7 +148,7 @@ def guard(args):
                     with journal.transaction():
                         journal.put('pending-final', row['id'],
                                     {'note_id': args[1], 'reply_digest': reply_digest,
-                                     'generation': state.get('generation', 'preacceptance')})
+                                     'generation': state.get('note_generation', state.get('generation', 'preacceptance'))})
         finally:
             journal.close()
         return
