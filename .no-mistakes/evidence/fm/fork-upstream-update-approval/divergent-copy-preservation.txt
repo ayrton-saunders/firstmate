@@ -1,0 +1,6 @@
+schema=fm-secondmate-update-reconcile.v1
+id=divergent
+status=diverged
+local_commit=e224caa5547c3ccb2333f6f20215454125b6919a
+target_commit=2f68d327198161d48c4b3d74abf928687a7940a4
+target=origin/main
