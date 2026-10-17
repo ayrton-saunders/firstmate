@@ -62,8 +62,8 @@ Never work around a refusal by pointing the task at a second checkout, fork, or 
 
 ## Updating is not contributing
 
-`/updatefirstmate` and every guarded sync pull **from** upstream, which is consumption, not publication, and stays allowed for every role.
-The boundary covers only traffic that writes to the upstream repository.
+Origin consumption and guarded sync stay allowed for every role; `/updatefirstmate` integration publication follows the authority and qualification procedure in the [`updatefirstmate` skill](../updatefirstmate/SKILL.md).
+The boundary covers traffic that writes to the publication repository, including a personal fork.
 
 ## Secondmates
 

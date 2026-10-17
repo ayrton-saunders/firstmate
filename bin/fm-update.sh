@@ -1,12 +1,13 @@
 #!/usr/bin/env bash
-# Self-update a running firstmate and its secondmates to the latest origin.
+# Prepare/prove isolated upstream integration or consume origin for the fleet.
 #
-# Mechanical half of the /updatefirstmate skill. Fast-forwards the running
+# Mechanical half of the /updatefirstmate skill. Consumption fast-forwards the
 # firstmate repo's default branch from origin, then fast-forwards every
 # registered secondmate home. Local homes are treehouse worktrees or standalone
 # clones; remote routes update their configured code root on that host and then
-# fast-forward the persistent home to that root. FAST-FORWARD ONLY, exactly like
-# fm-fleet-sync.sh: never force, never create a merge commit, never stash.
+# fast-forward the persistent home to that root. Consumption is FAST-FORWARD
+# ONLY, exactly like fm-fleet-sync.sh: never force, merge or stash.
+# Isolated upstream preparation may create a merge commit, as described below.
 # A secondmate divergence whose complete local tree result is already present at
 # the target is reconciled with reset --keep; every other unsafe target is
 # skipped and reported, with divergence recorded durably by fm-ff-lib.sh.

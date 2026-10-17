@@ -649,14 +649,8 @@ The flag is a home-local supervision-noise preference and is not inherited by se
 ## Fork updates
 
 [`updatefirstmate`](../.agents/skills/updatefirstmate/SKILL.md) owns integration authority, qualification, per-origin consumption and the human-owned primary activation handover.
-`bin/fm-update.sh --help` and its header own the separate preparation, qualification, landed-result verification and pinned-consumption interfaces; no-argument calls remain origin-only.
-Preparation uses an already-dispatched isolated task copy and private task evidence, not the active source or a new publication service.
-Qualification checks caller-supplied actual normal Review/Test evidence and current Git identities; it does not create an attestation or grant merge authority.
-Unsupported final-head coverage, conflict provenance, custody, tested-base provenance and ancestry-only checked-publication paths stop before landing/consumption rather than changing pipeline defaults.
-The optional `bin/fm-pr-merge.sh --expected-head` binds the qualified head through the existing checked merge owner; base freshness still needs actual landed-parent/tree verification.
-The personal-fork setup keeps fork `origin` and canonical read remote `canonical`, with actual role, PR, push and evidence destinations all verified before publication.
+[`bin/fm-update.sh`](../bin/fm-update.sh)'s header and help own exact interfaces and record mechanics.
 Changing a shared remote name or refreshing gate registration has shared effects and requires concrete setup approval; updater invocation itself grants neither operation.
-Independent secondmate origins and unsafe copies remain unchanged, and source files updated on disk are not proof that a running process loaded them.
 
 ## Gate defaults (.no-mistakes.yaml)
 
