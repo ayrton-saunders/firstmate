@@ -3332,6 +3332,14 @@ else
   WT=""
   BRIEF="$DATA/$ID/brief.md"
 fi
+# Only explicitly enabled integration mappings add a parent-owned lane permit.
+# The immutable brief digest binds this local spawn to its authorized scope.
+# This is before worktree/endpoint/backlog creation; ordinary homes are unchanged.
+if [ "$KIND" != secondmate ] && [ -e "$FM_HOME/config/discord-integration.json" ]; then
+  DISCORD_BRIEF_DIGEST=$(shasum -a 256 "$BRIEF" | awk '{print $1}') || exit 1
+  printf '%s' "$DISCORD_BRIEF_DIGEST" | python3 -I "$SCRIPT_DIR/fm-discord-hook.py" spawn \
+    "$ID" "$PROJ_ABS" || exit 1
+fi
 # Project capacity admission (bin/fm-project-capacity-lib.sh owns the
 # declaration, what holds a place, and why this is race-safe). A fresh worker
 # for a project whose declared capacity is already held is deferred here, before

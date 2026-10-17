@@ -588,7 +588,7 @@ next_reply_seq() {
 }
 
 cmd_reply() {
-  local json=0 id body path staging seq
+  local json=0 id body path staging seq reply_digest
   if [ "${1:-}" = "--json" ]; then
     json=1
     shift
@@ -633,6 +633,15 @@ cmd_reply() {
   } >"$staging"
   mv "$staging" "$REPLIES/$id"
   fm_lock_release "$REPLY_SEQ_LOCK"
+  # A bound integration result owes a separately approved safe final; this
+  # hook stores only its digest, never mirrors the private reply or consumes
+  # another terminal reply slot. The parent intake owner repairs missed hooks.
+  if [ -e "$FM_HOME/config/discord-integration.json" ]; then
+    reply_digest=$(shasum -a 256 "$REPLIES/$id" | awk '{print $1}')
+    if ! printf '%s' "$reply_digest" | python3 -I "$SELF_DIR/fm-discord-hook.py" outcome "$id"; then
+      echo 'warning: reply recorded; integration final tracking needs reconciliation, do not resend the reply' >&2
+    fi
+  fi
   if [ "$json" -eq 1 ]; then
     need_python
     python3 - "$id" "$REPLIES/$id" <<'PY'
@@ -1114,6 +1123,13 @@ cmd_list() {
 }
 
 cmd_drain() {
+  # Only the existing private parent intake owner renews advisory readiness;
+  # endpoint polling and background custody capture cannot mint this lease.
+  if [ -e "$FM_HOME/config/discord-integration.json" ]; then
+    if ! python3 -I "$SELF_DIR/fm-discord-hook.py" ready; then
+      echo 'warning: integration readiness was not renewed; saved notes remain unaccepted' >&2
+    fi
+  fi
   if [ "${1:-}" = "--ack" ]; then
     shift
     [ "$#" -gt 0 ] || die "usage: fm-inbox.sh drain --ack <id>..."
