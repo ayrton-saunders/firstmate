@@ -1,0 +1,5 @@
+ok - a concurrent auto-relaunch prevents duplicate update restart and leaves activation unproved
+ok - T1 persist is a gate, and asks for open records and task status only
+not ok - a confirmed persist should restart the mate
+unreached: sm1: the restart outcome is unknown: secondmate home cannot be inside the firstmate repo: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/tmp/fm-secondmate-restart.Y0o8J4/order-22552/sm1-home
+summary: 0 of 1 restarted, 0 nudged, 1 unreached: expected exit 0, got 3

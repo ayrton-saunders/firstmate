@@ -1,87 +1,157 @@
-warning: You appear to have cloned an empty repository.
-=== Clean divergent integration retains both histories and actual personal behavior ===
 
-$ fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/fork.git main 8a2a19cd101cde8b78fe7b0bef97e11863093dde /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/canonical.git main a0fb80998326e316754d7d90ac20531b91bb533a /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/private/attempt
-preparation: divergent 8a2a19cd101cde8b78fe7b0bef97e11863093dde..751f14d439ebc607301431faa179f0ab68c52ad8
-fork-head: 8a2a19cd101cde8b78fe7b0bef97e11863093dde
-upstream-head: a0fb80998326e316754d7d90ac20531b91bb533a
-candidate: 751f14d439ebc607301431faa179f0ab68c52ad8
-tree: c775c9357be2a2833f3e8281e8b860e33f5751d0
+SCENARIO preparation contained
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/contained/fork.git main cbfb4dea7a86ba6376d02be51a0e5de5205516e7 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/contained/canonical.git main cbfb4dea7a86ba6376d02be51a0e5de5205516e7 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/contained/record
+preparation: contained cbfb4dea7a86ba6376d02be51a0e5de5205516e7..cbfb4dea7a86ba6376d02be51a0e5de5205516e7
+fork-head: cbfb4dea7a86ba6376d02be51a0e5de5205516e7
+upstream-head: cbfb4dea7a86ba6376d02be51a0e5de5205516e7
+candidate: cbfb4dea7a86ba6376d02be51a0e5de5205516e7
+tree: f440b3525892ad69cecf20fc95bc6dd7d0aa79ff
 conflict-history: clean
-deliberate fork behavior
-Active primary and published fork unchanged
-
-$ fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/fork.git main 8a2a19cd101cde8b78fe7b0bef97e11863093dde /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/canonical.git main a0fb80998326e316754d7d90ac20531b91bb533a /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/private/attempt
-fork-head: 8a2a19cd101cde8b78fe7b0bef97e11863093dde
-upstream-head: a0fb80998326e316754d7d90ac20531b91bb533a
-candidate: 751f14d439ebc607301431faa179f0ab68c52ad8
-tree: c775c9357be2a2833f3e8281e8b860e33f5751d0
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/contained/fork.git main cbfb4dea7a86ba6376d02be51a0e5de5205516e7 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/contained/canonical.git main cbfb4dea7a86ba6376d02be51a0e5de5205516e7 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/contained/record
+fork-head: cbfb4dea7a86ba6376d02be51a0e5de5205516e7
+upstream-head: cbfb4dea7a86ba6376d02be51a0e5de5205516e7
+candidate: cbfb4dea7a86ba6376d02be51a0e5de5205516e7
+tree: f440b3525892ad69cecf20fc95bc6dd7d0aa79ff
 conflict-history: clean
-Repeated preparation retained exact candidate
-=== Unknown attempt and missing normal pipeline evidence refuse ===
+exit: 0
+OBSERVED primary unchanged: cbfb4dea7a86ba6376d02be51a0e5de5205516e7
 
-$ fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/fork.git main 8a2a19cd101cde8b78fe7b0bef97e11863093dde /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/canonical.git main a0fb80998326e316754d7d90ac20531b91bb533a /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/private/interrupted
+SCENARIO preparation fast-forward
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/fast-forward/fork.git main 8806af7c5b6605e455391358d0c3b023a7435a49 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/fast-forward/canonical.git main d2bccf87e4a9a97c936b8eb84699524ec927dc0f /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/fast-forward/record
+preparation: fast-forward 8806af7c5b6605e455391358d0c3b023a7435a49..d2bccf87e4a9a97c936b8eb84699524ec927dc0f
+fork-head: 8806af7c5b6605e455391358d0c3b023a7435a49
+upstream-head: d2bccf87e4a9a97c936b8eb84699524ec927dc0f
+candidate: d2bccf87e4a9a97c936b8eb84699524ec927dc0f
+tree: d55584fd2f6a26fb43fc77c709b1089f545ee200
+conflict-history: clean
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/fast-forward/fork.git main 8806af7c5b6605e455391358d0c3b023a7435a49 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/fast-forward/canonical.git main d2bccf87e4a9a97c936b8eb84699524ec927dc0f /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/fast-forward/record
+fork-head: 8806af7c5b6605e455391358d0c3b023a7435a49
+upstream-head: d2bccf87e4a9a97c936b8eb84699524ec927dc0f
+candidate: d2bccf87e4a9a97c936b8eb84699524ec927dc0f
+tree: d55584fd2f6a26fb43fc77c709b1089f545ee200
+conflict-history: clean
+exit: 0
+OBSERVED primary unchanged: 8806af7c5b6605e455391358d0c3b023a7435a49
+
+SCENARIO preparation divergent
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/divergent/fork.git main 18a7b2462c245e1fa1aeee496c86a2c681d7f486 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/divergent/canonical.git main db9773fdaed1303fd566b0a736d04685ccfd210f /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/divergent/record
+preparation: divergent 18a7b2462c245e1fa1aeee496c86a2c681d7f486..e6e0f698f7be7d9b599f30008c02a053d4e4247b
+fork-head: 18a7b2462c245e1fa1aeee496c86a2c681d7f486
+upstream-head: db9773fdaed1303fd566b0a736d04685ccfd210f
+candidate: e6e0f698f7be7d9b599f30008c02a053d4e4247b
+tree: ea55940aa603f99a6aea287f833ffd190db94b79
+conflict-history: clean
+exit: 0
+$ bash /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/divergent/candidate/personal.sh
+deliberate personal behavior
+exit: 0
+Candidate parents: 18a7b2462c245e1fa1aeee496c86a2c681d7f486 db9773fdaed1303fd566b0a736d04685ccfd210f
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/divergent/fork.git main 18a7b2462c245e1fa1aeee496c86a2c681d7f486 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/divergent/canonical.git main db9773fdaed1303fd566b0a736d04685ccfd210f /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/divergent/record
+fork-head: 18a7b2462c245e1fa1aeee496c86a2c681d7f486
+upstream-head: db9773fdaed1303fd566b0a736d04685ccfd210f
+candidate: e6e0f698f7be7d9b599f30008c02a053d4e4247b
+tree: ea55940aa603f99a6aea287f833ffd190db94b79
+conflict-history: clean
+exit: 0
+OBSERVED primary unchanged: 2ba20cb600438fdaf4c5e36e8fc9cabb5ee91233
+
+SCENARIO preparation conflict
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/conflict/fork.git main 90c83595b6d0ba3df05fb0f66657a5a642078cd5 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/conflict/canonical.git main 13dd52c8441f8588b61c459454591a537d31f06c /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/conflict/record
+update refused: integration failed; preserve index, paths and task evidence for resolution/approval
+exit: 1
+Persisted conflict paths: shared.txt
+
+Retained unmerged index: 100644 4b48deed3a433909bfd6b6ab3d4b91348b6af464 1	shared.txt
+100644 b7be0251bde46490c42389cb41d27b8919388d1c 2	shared.txt
+100644 a1274f73f6232b5bdd2ddb0dc51c615d99f19266 3	shared.txt
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/conflict/fork.git main 90c83595b6d0ba3df05fb0f66657a5a642078cd5 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/conflict/canonical.git main 13dd52c8441f8588b61c459454591a537d31f06c /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/conflict/record
+fork-head: 90c83595b6d0ba3df05fb0f66657a5a642078cd5
+upstream-head: 13dd52c8441f8588b61c459454591a537d31f06c
+candidate: 49a41bb12bae00aa4bd3d82c0a58e91e7b4edc6e
+tree: 1400d7257c71a865d10fcdf24541cb10d3608a56
+conflict-history: conflicted
+exit: 0
+Persisted events: unknown
+conflicted
+
+OBSERVED primary unchanged: f675ceefbd11d3b11d9a2b71f71be29d614d19a9
+
+SCENARIO preparation interrupted
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/interrupted/fork.git main 844379101d5435259988cf90c635218ea299a9f4 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/interrupted/canonical.git main 6fcea2e3f2bc0de26efd5312718e1432bd7ac361 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/interrupted/record
 update refused: unknown task provenance
-Observed expected refusal
+exit: 1
+OBSERVED primary unchanged: 844379101d5435259988cf90c635218ea299a9f4
 
-$ fm-update.sh --qualify-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/private/attempt 751f14d439ebc607301431faa179f0ab68c52ad8 751f14d439ebc607301431faa179f0ab68c52ad8 751f14d439ebc607301431faa179f0ab68c52ad8 8a2a19cd101cde8b78fe7b0bef97e11863093dde 751f14d439ebc607301431faa179f0ab68c52ad8 clean /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/private/missing-pipeline-evidence
-update refused: missing actual pipeline evidence artifact
-Observed expected refusal
-No qualification or publication was fabricated
-=== Origin consumption and independent/unsafe secondmate copies ===
+SCENARIO preparation safety refusals
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/refusals/fork.git main 844379101d5435259988cf90c635218ea299a9f4 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/refusals/canonical.git main 844379101d5435259988cf90c635218ea299a9f4 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/refusals/record
+update refused: preparation requires the dispatched linked isolated copy, never the primary
+exit: 1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/refusals/fork.git main 844379101d5435259988cf90c635218ea299a9f4 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/refusals/canonical.git main 844379101d5435259988cf90c635218ea299a9f4 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/refusals/record
+update refused: dirty working tree; preserve it
+exit: 1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/refusals/fork.git main 844379101d5435259988cf90c635218ea299a9f4 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/refusals/canonical.git main 844379101d5435259988cf90c635218ea299a9f4 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/refusals/record
+update refused: source moved; reclassify in a new authorized attempt
+exit: 1
 
-$ fm-update.sh --consume-origin 8a2a19cd101cde8b78fe7b0bef97e11863093dde
+SCENARIO pinned consumption, independent origins, unsafe homes and repeat
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --consume-origin bd3f514a868adbc7ed82da45befae45a10997cf5
+firstmate: updated 9f31bad..bd3f514
+no watches registered
+secondmate linked: updated 9f31bad..bd3f514
+secondmate dirty: skipped: dirty working tree
+secondmate divergent: skipped: diverged from origin/main; reconciliation required (record: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/consumption/home/state/.secondmate-update-reconcile/divergent.pending)
+secondmate independent: updated 9f31bad..365f589
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+exit: 0
+OBSERVED primary/linked/independent heads: bd3f514a868adbc7ed82da45befae45a10997cf5 bd3f514a868adbc7ed82da45befae45a10997cf5 365f5892f2cd9661b6265c436321c767b2a727dd
+OBSERVED dirty and divergent heads preserved: 9f31bad4664275fe1fd1ed4430aed085385f9c07 79fb0d0e4105eba4ac8581df005117ee159ab7e7
+Persisted state state/.secondmate-update-reconcile/divergent.pending schema=fm-secondmate-update-reconcile.v1
+id=divergent
+status=diverged
+local_commit=79fb0d0e4105eba4ac8581df005117ee159ab7e7
+target_commit=bd3f514a868adbc7ed82da45befae45a10997cf5
+target=origin/main
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --consume-origin bd3f514a868adbc7ed82da45befae45a10997cf5
+firstmate: already current
+secondmate linked: already current
+secondmate dirty: skipped: dirty working tree
+secondmate divergent: skipped: diverged from origin/main; reconciliation required (record: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/live/consumption/home/state/.secondmate-update-reconcile/divergent.pending)
+secondmate independent: already current
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+exit: 0
+
+SCENARIO moving origin, dirty primary, active operation and divergent primary refuse before secondmate mutation
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --consume-origin bd3f514a868adbc7ed82da45befae45a10997cf5
 firstmate: skipped: origin moved or does not equal expected commit
 reread-firstmate: no
 restart-secondmates: none
 nudge-secondmates: none
-Observed expected refusal
-Moved pin refused before all secondary copies
-
-$ fm-update.sh --consume-origin 2f68d327198161d48c4b3d74abf928687a7940a4
+exit: 1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --consume-origin 9610fcffbf8f26b8b56cdd452c3313a2be24696f
 firstmate: skipped: dirty working tree
 reread-firstmate: no
 restart-secondmates: none
 nudge-secondmates: none
-Observed expected refusal
-
-$ fm-update.sh --consume-origin 2f68d327198161d48c4b3d74abf928687a7940a4
-firstmate: updated 8a2a19c..2f68d32
-no watches registered
-secondmate independent: updated 2f68d32..0443491
-secondmate dirty: skipped: dirty working tree
-secondmate divergent: skipped: diverged from origin/main; reconciliation required (record: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/home/state/.secondmate-update-reconcile/divergent.pending)
+exit: 1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --consume-origin 9610fcffbf8f26b8b56cdd452c3313a2be24696f
+firstmate: skipped: active Git operation
 reread-firstmate: no
 restart-secondmates: none
 nudge-secondmates: none
-Primary on exact pin 2f68d327198161d48c4b3d74abf928687a7940a4; independent copy on its own 04434918ff39dca900cc6d8cd4ef5c6cf2abf35d; unsafe work and private journal retained
-
-$ fm-update.sh --consume-origin 2f68d327198161d48c4b3d74abf928687a7940a4
-firstmate: already current
-secondmate independent: already current
-secondmate dirty: skipped: dirty working tree
-secondmate divergent: skipped: diverged from origin/main; reconciliation required (record: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/home/state/.secondmate-update-reconcile/divergent.pending)
+exit: 1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/bin/fm-update.sh --consume-origin 9610fcffbf8f26b8b56cdd452c3313a2be24696f
+firstmate: skipped: diverged from 9610fcffbf8f26b8b56cdd452c3313a2be24696f
 reread-firstmate: no
 restart-secondmates: none
 nudge-secondmates: none
-=== Conflicting integration preserves index and sticky provenance after resolution ===
-Updating 2f68d32..e819b6e
-Fast-forward
- runtime | 2 +-
- 1 file changed, 1 insertion(+), 1 deletion(-)
+exit: 1
+OBSERVED every refused pin kept the primary and linked home at their prior heads
 
-$ fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/fork.git main e819b6e2473c8fb5c1059163ff94d6a0f400e935 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/canonical.git main 4e92cbf41fd88d9a31b82f5685e72444e08c0e15 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/private/conflict-attempt
-update refused: integration failed; preserve index, paths and task evidence for resolution/approval
-Observed expected refusal
-100644 180b47c18ba7e484fc0d7350bc6cad8ec3423ea0 1	runtime
-100644 72dbfce06fd310be74f98b33b041fbad249e6cbe 2	runtime
-100644 319e09a6032d53484dd38c15e6981c453c9c256c 3	runtime
-
-$ fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/fork.git main e819b6e2473c8fb5c1059163ff94d6a0f400e935 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/canonical.git main 4e92cbf41fd88d9a31b82f5685e72444e08c0e15 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M55T7ZT46VVTPBC56HTCJV37/.test-tmp/live-update/private/conflict-attempt
-fork-head: e819b6e2473c8fb5c1059163ff94d6a0f400e935
-upstream-head: 4e92cbf41fd88d9a31b82f5685e72444e08c0e15
-candidate: 2e79a32a99c58e96a0d99e137c00e9c1b29a2dfb
-tree: 2907b9c9f6047f495dca76ce325aff7c15706b70
-conflict-history: conflicted
-Conflict resolution remains recorded as conflicted; active primary still unchanged
-=== Live CLI checks complete; no checked publication or loaded activation claimed ===
+All disposable live CLI scenarios completed. No forge publication, lifecycle or primary activation was attempted.

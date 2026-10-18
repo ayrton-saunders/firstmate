@@ -1,0 +1,11 @@
+# all fm-secondmate-restart tests passed
+not ok - native remote restart failed: unreached: sm2: the request to write down its open work could not be delivered: ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the requested message WILL still be sent.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/runtime/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M56Q5TREJK0ZBDQ247P0TCQC/.validation/runtime/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: remote command is not tracked by this Firstmate checkout: fm-remote-secondmate-control.sh
+error: steer not sent to remote secondmate sm2 (the remote steering-inbox record could not be written; the remote leg's stderr above has the reason); the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+summary: 0 of 1 restarted, 0 nudged, 1 unreached: expected exit 0, got 3
