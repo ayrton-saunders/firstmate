@@ -1,0 +1,317 @@
+SCENARIO: clean divergent integration preserves fork behavior and both ancestries without moving primary
+$ git init -q --bare --initial-branch=main /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/origin.git
+[exit 0]
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/origin.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/seed
+warning: You appear to have cloned an empty repository.
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/seed add -A
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/seed commit -qm base
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/seed rev-parse HEAD
+988f0c7574c7a558e41ba050e77396126c05b287
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/seed push -q origin main
+[exit 0]
+$ git clone -q --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/origin.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/canonical.git
+[exit 0]
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/canonical.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/up
+[exit 0]
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/origin.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/main remote set-head origin main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/main worktree add -qb integration /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/candidate main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/candidate remote add canonical /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/canonical.git
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/seed add -A
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/seed commit -qm personal customization
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/seed rev-parse HEAD
+7f86448b0aefe0d325d59619030e03b4bfe17977
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/seed push -q origin main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/candidate fetch -q origin
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/candidate merge -q --ff-only 7f86448b0aefe0d325d59619030e03b4bfe17977
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/main rev-parse HEAD
+988f0c7574c7a558e41ba050e77396126c05b287
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/up add -A
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/up commit -qm canonical change
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/up rev-parse HEAD
+d84cf1bda8306ec124eb8b62ba8303cec10a2d27
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/up push -q origin main
+[exit 0]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/origin.git main 7f86448b0aefe0d325d59619030e03b4bfe17977 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/canonical.git main d84cf1bda8306ec124eb8b62ba8303cec10a2d27 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/attempt
+preparation: divergent 7f86448b0aefe0d325d59619030e03b4bfe17977..4bdf9518a8cd089b2a4cc97d422d44793b595f96
+fork-head: 7f86448b0aefe0d325d59619030e03b4bfe17977
+upstream-head: d84cf1bda8306ec124eb8b62ba8303cec10a2d27
+candidate: 4bdf9518a8cd089b2a4cc97d422d44793b595f96
+tree: 80373aefbe1181484a3000700a18d5aba0be1b07
+conflict-history: clean
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/candidate rev-parse HEAD
+4bdf9518a8cd089b2a4cc97d422d44793b595f96
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/candidate merge-base --is-ancestor 7f86448b0aefe0d325d59619030e03b4bfe17977 4bdf9518a8cd089b2a4cc97d422d44793b595f96
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/candidate merge-base --is-ancestor d84cf1bda8306ec124eb8b62ba8303cec10a2d27 4bdf9518a8cd089b2a4cc97d422d44793b595f96
+[exit 0]
+$ sh /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/candidate/personal.sh
+personal behavior
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/main rev-parse HEAD
+988f0c7574c7a558e41ba050e77396126c05b287
+[exit 0]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/origin.git main 7f86448b0aefe0d325d59619030e03b4bfe17977 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/canonical.git main d84cf1bda8306ec124eb8b62ba8303cec10a2d27 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/attempt
+fork-head: 7f86448b0aefe0d325d59619030e03b4bfe17977
+upstream-head: d84cf1bda8306ec124eb8b62ba8303cec10a2d27
+candidate: 4bdf9518a8cd089b2a4cc97d422d44793b595f96
+tree: 80373aefbe1181484a3000700a18d5aba0be1b07
+conflict-history: clean
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/candidate rev-parse HEAD
+4bdf9518a8cd089b2a4cc97d422d44793b595f96
+[exit 0]
+PASS: clean preparation and repetition; primary unchanged; customization executed.
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/origin.git main 7f86448b0aefe0d325d59619030e03b4bfe17977 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/canonical.git main d84cf1bda8306ec124eb8b62ba8303cec10a2d27 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/attempt
+update refused: dirty working tree; preserve it
+[exit 1]
+PASS: dirty preparation refuses and preserves user data.
+SCENARIO: pinned consumption refuses a moving origin; independent and unsafe secondmates retain their boundaries
+$ git clone -q --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/origin.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/independent.git
+[exit 0]
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/independent.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/ownseed
+[exit 0]
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/independent.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/independent-home
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/ownseed add -A
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/ownseed commit -qm independent change
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/ownseed rev-parse HEAD
+c2aa76558ccd8983ab8431f32b47d3a4879ead80
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/ownseed push -q origin main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/main worktree add -q --detach /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/dirty-home main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/main worktree add -q --detach /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/diverged-home main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/diverged-home add -A
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/diverged-home commit -qm unique work
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/diverged-home rev-parse HEAD
+fba027adfc259135822adcf0ffcf8ed1b986932d
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/seed add -A
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/seed commit -qm latest fork
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/seed rev-parse HEAD
+8822655d65666a384f428d205b5398d9d183443b
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/seed push -q origin main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/main rev-parse HEAD
+988f0c7574c7a558e41ba050e77396126c05b287
+[exit 0]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/bin/fm-update.sh --consume-origin 7f86448b0aefe0d325d59619030e03b4bfe17977
+firstmate: skipped: origin moved or does not equal expected commit
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+[exit 1]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/main rev-parse HEAD
+988f0c7574c7a558e41ba050e77396126c05b287
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/independent-home rev-parse HEAD
+7f86448b0aefe0d325d59619030e03b4bfe17977
+[exit 0]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/bin/fm-update.sh --consume-origin 8822655d65666a384f428d205b5398d9d183443b
+firstmate: updated 988f0c7..8822655
+no watches registered
+secondmate independent: updated 7f86448..c2aa765
+secondmate dirty: skipped: dirty working tree
+secondmate diverged: skipped: diverged from origin/main; reconciliation required (record: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/home/state/.secondmate-update-reconcile/diverged.pending)
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/main rev-parse HEAD
+8822655d65666a384f428d205b5398d9d183443b
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/independent-home rev-parse HEAD
+c2aa76558ccd8983ab8431f32b47d3a4879ead80
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/independent-home remote get-url origin
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/independent.git
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/diverged-home rev-parse HEAD
+fba027adfc259135822adcf0ffcf8ed1b986932d
+[exit 0]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/bin/fm-update.sh --consume-origin 8822655d65666a384f428d205b5398d9d183443b
+firstmate: already current
+secondmate independent: already current
+secondmate dirty: skipped: dirty working tree
+secondmate diverged: skipped: diverged from origin/main; reconciliation required (record: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/clean/home/state/.secondmate-update-reconcile/diverged.pending)
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+[exit 0]
+PASS: exact target consumed; own-origin secondmate updated independently; dirty/divergent copies retained; repeated outcomes reported.
+SCENARIO: textual conflict is retained after resolution and repeat preparation
+$ git init -q --bare --initial-branch=main /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/origin.git
+[exit 0]
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/origin.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/seed
+warning: You appear to have cloned an empty repository.
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/seed add -A
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/seed commit -qm base
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/seed rev-parse HEAD
+714b61b7a96a87b79361c0f0f653be3c794d9141
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/seed push -q origin main
+[exit 0]
+$ git clone -q --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/origin.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/canonical.git
+[exit 0]
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/canonical.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/up
+[exit 0]
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/origin.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/main remote set-head origin main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/main worktree add -qb integration /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/candidate main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/candidate remote add canonical /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/canonical.git
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/seed add -A
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/seed commit -qm fork conflict
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/seed rev-parse HEAD
+b59e1da74f6530eabe9499816d126399b1e70c66
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/seed push -q origin main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/candidate fetch -q origin
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/candidate merge -q --ff-only b59e1da74f6530eabe9499816d126399b1e70c66
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/up add -A
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/up commit -qm canonical conflict
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/up rev-parse HEAD
+86fb14fe1fc15d638e44cbb0d92fcdfcb3b08965
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/up push -q origin main
+[exit 0]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/origin.git main b59e1da74f6530eabe9499816d126399b1e70c66 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/canonical.git main 86fb14fe1fc15d638e44cbb0d92fcdfcb3b08965 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/attempt
+update refused: integration failed; preserve index, paths and task evidence for resolution/approval
+[exit 1]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/candidate ls-files -u
+100644 df967b96a579e45a18b8251732d16804b2e56a55 1	README
+100644 8d36c640bd9988187d16073145ee4ec624ce007a 2	README
+100644 045951300cf4890e4273f294da20894d587b9ad1 3	README
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/candidate add -A
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/candidate commit -qm resolve conflict
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/candidate rev-parse HEAD
+9aa388eea8b0050a40ba9fda6228737b2c77f9ce
+[exit 0]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/origin.git main b59e1da74f6530eabe9499816d126399b1e70c66 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/canonical.git main 86fb14fe1fc15d638e44cbb0d92fcdfcb3b08965 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/conflict/attempt
+fork-head: b59e1da74f6530eabe9499816d126399b1e70c66
+upstream-head: 86fb14fe1fc15d638e44cbb0d92fcdfcb3b08965
+candidate: 9aa388eea8b0050a40ba9fda6228737b2c77f9ce
+tree: e01d90af3948dfb037666eee1cfb5e35c8dcbf84
+conflict-history: conflicted
+[exit 0]
+PASS: conflict index preserved; successful resolution cannot erase conflict history.
+SCENARIO: kill real preparation after merge; conflicted qualification retries cannot erase unknown provenance
+$ git init -q --bare --initial-branch=main /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/origin.git
+[exit 0]
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/origin.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/seed
+warning: You appear to have cloned an empty repository.
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/seed add -A
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/seed commit -qm base
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/seed rev-parse HEAD
+714b61b7a96a87b79361c0f0f653be3c794d9141
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/seed push -q origin main
+[exit 0]
+$ git clone -q --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/origin.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/canonical.git
+[exit 0]
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/canonical.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/up
+[exit 0]
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/origin.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/main remote set-head origin main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/main worktree add -qb integration /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/candidate main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/candidate remote add canonical /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/canonical.git
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/candidate rev-parse HEAD
+714b61b7a96a87b79361c0f0f653be3c794d9141
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/up add -A
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/up commit -qm canonical
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/up rev-parse HEAD
+e418e8075a587550d0f418fc3f9d2c19130f1462
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/up push -q origin main
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/candidate config core.hooksPath /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/hooks
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/candidate rev-parse HEAD
+e418e8075a587550d0f418fc3f9d2c19130f1462
+[exit 0]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/origin.git main 714b61b7a96a87b79361c0f0f653be3c794d9141 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/canonical.git main e418e8075a587550d0f418fc3f9d2c19130f1462 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/attempt
+[killed exit -9 after actual merge]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/candidate rev-parse HEAD
+e418e8075a587550d0f418fc3f9d2c19130f1462
+[exit 0]
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/candidate push -q origin integration
+[exit 0]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/bin/fm-update.sh --qualify-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/attempt e418e8075a587550d0f418fc3f9d2c19130f1462 e418e8075a587550d0f418fc3f9d2c19130f1462 e418e8075a587550d0f418fc3f9d2c19130f1462 714b61b7a96a87b79361c0f0f653be3c794d9141 e418e8075a587550d0f418fc3f9d2c19130f1462 conflicted /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/diagnostic
+update refused: unknown conflict history is ineligible for automatic landing
+[exit 1]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/bin/fm-update.sh --qualify-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/attempt e418e8075a587550d0f418fc3f9d2c19130f1462 e418e8075a587550d0f418fc3f9d2c19130f1462 e418e8075a587550d0f418fc3f9d2c19130f1462 714b61b7a96a87b79361c0f0f653be3c794d9141 e418e8075a587550d0f418fc3f9d2c19130f1462 clean /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/diagnostic
+update refused: unknown conflict history is ineligible for automatic landing
+[exit 1]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/bin/fm-update.sh --qualify-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/attempt e418e8075a587550d0f418fc3f9d2c19130f1462 e418e8075a587550d0f418fc3f9d2c19130f1462 e418e8075a587550d0f418fc3f9d2c19130f1462 714b61b7a96a87b79361c0f0f653be3c794d9141 e418e8075a587550d0f418fc3f9d2c19130f1462 conflicted /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/diagnostic
+update refused: unknown conflict history is ineligible for automatic landing
+[exit 1]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/origin.git main 714b61b7a96a87b79361c0f0f653be3c794d9141 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/canonical.git main e418e8075a587550d0f418fc3f9d2c19130f1462 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N21ZK23Y4CP4FDF5FAG9X2/.test-tmp/live-world/interrupted/attempt
+fork-head: 714b61b7a96a87b79361c0f0f653be3c794d9141
+upstream-head: e418e8075a587550d0f418fc3f9d2c19130f1462
+candidate: e418e8075a587550d0f418fc3f9d2c19130f1462
+tree: c10a7646bc83c05db4d69062844ca279e29b5bde
+conflict-history: unknown
+[exit 0]
+Persisted events contract:
+unknown
+unknown
+conflicted
+unknown
+conflicted
+PASS: actual interrupted merge remains unknown across public qualification and preparation retries.
