@@ -1,0 +1,13 @@
+name: Admission canary
+on:
+  pull_request:
+    types: [synchronize]
+    branches: [main]
+permissions: {}
+jobs:
+  probe:
+    name: Admission canary
+    runs-on: ubuntu-latest
+    timeout-minutes: 2
+    steps:
+      - run: printf '%s\n' 'admission-canary-ok'
