@@ -855,6 +855,8 @@ test_already_current_unprovable_mate_stays_on_the_nudge_path() {
 # A watcher-owned relaunch and an updater-owned restart share the same existing
 # lifecycle lock. The stale update list must not replace the agent a second time
 # or attribute an unproved outcome to the new incarnation.
+# The child sources lock helpers; parent locals and $! are assigned in this shell.
+# shellcheck disable=SC2031
 test_concurrent_auto_relaunch_is_not_a_second_restart() {
   local dir out rc holder i lock
   dir=$(new_case concurrent-auto-relaunch)
