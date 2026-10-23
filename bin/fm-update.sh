@@ -164,6 +164,7 @@ update_record() { # <existing task record>
   fi
   HISTORY=$(tail -1 "$RECORD/events")
   case "$HISTORY" in clean|unknown|conflicted) ;; *) update_refuse 'unknown conflict provenance' ;; esac
+  if tail -n +2 "$RECORD/events" | grep -qx unknown; then HISTORY=unknown; fi
   if [ "$HISTORY" != unknown ] && grep -qx conflicted "$RECORD/events"; then HISTORY=conflicted; fi
 }
 update_candidate() {
@@ -245,7 +246,7 @@ qualify_upstream() {
     clean) ;;
     conflicted)
       printf 'conflicted\n' >> "$RECORD/events"
-      if [ "$HISTORY" = unknown ]; then printf 'unknown\n' >> "$RECORD/events"; else HISTORY=conflicted; fi
+      if [ "$HISTORY" != unknown ]; then HISTORY=conflicted; fi
       ;;
     *) printf 'unknown\n' >> "$RECORD/events"; update_refuse 'pipeline conflict provenance unknown; preserve evidence and stop' ;;
   esac

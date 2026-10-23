@@ -793,6 +793,63 @@ test_published_qualification_and_landing() {
   pass 'final ancestry, actual Review/Test heads, conflict provenance, publication/head/base races and actual landed tree are checked'
 }
 
+test_unknown_provenance_survives_interrupted_conflicted_retry() {
+  local w o u h t m out rc retained history
+  w=$(new_world proof-interrupted-unknown)
+  prepare_world "$w"
+  o=$(git -C "$w/main" rev-parse HEAD)
+  printf 'canonical change\n' >> "$w/upstream/README.md"
+  git -C "$w/upstream" add -A
+  git -C "$w/upstream" commit -qm canonical
+  git -C "$w/upstream" push -q origin main
+  u=$(git -C "$w/upstream" rev-parse HEAD)
+  run_prepare "$w" "$o" "$u" >/dev/null || fail 'interruption preparation failed'
+  h=$(git -C "$w/candidate" rev-parse HEAD)
+  git -C "$w/candidate" push -q origin integration
+  t=$(printf 'tested merge\n' | git -C "$w/candidate" commit-tree "$h^{tree}" -p "$o" -p "$h")
+  printf 'fixture normal Review/Test evidence\n' > "$w/evidence"
+  run_proof "$w" --qualify-upstream "$w/attempt" "$h" "$h" "$h" "$o" "$t" clean "$w/evidence" >/dev/null \
+    || fail 'initial qualification failed'
+  rc=0
+  out=$(run_proof "$w" --qualify-upstream "$w/attempt" "$h" "$h" "$h" "$o" "$t" unknown "$w/evidence") || rc=$?
+  [ "$rc" -ne 0 ] || fail 'unknown pipeline history accepted'
+  retained=$(< "$w/attempt/events")
+  cat > "$w/interrupt.bash" <<'SH'
+set -T
+interrupt_after_conflict() {
+  if [ "$(tail -1 "$INTERRUPT_EVENTS")" = conflicted ]; then
+    trap - DEBUG
+    kill -KILL "$$"
+  fi
+}
+trap interrupt_after_conflict DEBUG
+SH
+  rc=0
+  out=$(BASH_ENV="$w/interrupt.bash" INTERRUPT_EVENTS="$w/attempt/events" \
+    run_proof "$w" --qualify-upstream "$w/attempt" "$h" "$h" "$h" "$o" "$t" conflicted "$w/evidence") || rc=$?
+  [ "$rc" -eq 137 ] || fail "conflicted retry was not interrupted after its persisted event: $rc $out"
+  [ "$(< "$w/attempt/events")" = "$(printf '%s\nconflicted' "$retained")" ] \
+    || fail 'interruption did not preserve full history with the new conflict event'
+  rc=0
+  out=$(run_prepare "$w" "$o" "$u") || rc=$?
+  [ "$rc" -eq 0 ] || fail "preparation retry failed: $out"
+  assert_contains "$out" 'conflict-history: unknown' 'preparation retry must preserve unknown provenance'
+  for history in clean conflicted; do
+    rc=0
+    out=$(run_proof "$w" --qualify-upstream "$w/attempt" "$h" "$h" "$h" "$o" "$t" "$history" "$w/evidence") || rc=$?
+    [ "$rc" -ne 0 ] || fail 'interrupted unknown provenance became eligible'
+    assert_contains "$out" 'unknown conflict history' 'qualification retry must retain unknown provenance'
+  done
+  m=$(printf 'landed merge\n' | git -C "$w/candidate" commit-tree "$h^{tree}" -p "$o" -p "$h")
+  git -C "$w/candidate" push -q origin "$m:refs/heads/main"
+  rc=0
+  out=$(run_proof "$w" --verify-landed "$w/attempt" "$m") || rc=$?
+  [ "$rc" -ne 0 ] || fail 'interrupted unknown provenance permitted landed verification'
+  assert_contains "$out" 'unknown conflict provenance' 'old qualification must not bypass unknown provenance'
+  assert_absent "$w/attempt/landings" 'unknown provenance recorded a verified landing'
+  pass 'unknown provenance survives interrupted conflicted retry across preparation, qualification and landing'
+}
+
 test_preparation_refusals_preserve_active_sources() {
   local w o u before out rc mode
   for mode in fork-moved canonical-moved dirty detached operation shallow mismatch primary; do
@@ -917,6 +974,7 @@ test_upstream_preparation
 test_preparation_refusals_preserve_active_sources
 test_pinned_consumption
 test_published_qualification_and_landing
+test_unknown_provenance_survives_interrupted_conflicted_retry
 test_semantic_repair_requires_final_evidence_not_approval
 test_standalone_secondmate_keeps_own_origin
 test_updates_main_and_secondmate
