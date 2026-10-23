@@ -1,122 +1,71 @@
-import os, subprocess, pathlib, shutil
-ROOT=pathlib.Path.cwd()
-WORLD=ROOT/'.validation/live'
-WORLD.mkdir()
+import os, pathlib, subprocess, shutil
+R=pathlib.Path.cwd(); W=R/'.test-work/live'; W.mkdir(parents=True,exist_ok=True)
 env=os.environ.copy()
-for k in ('GIT_DIR','GIT_WORK_TREE','GIT_INDEX_FILE','GIT_COMMON_DIR','FM_TASK_ID','FM_ROOT_OVERRIDE','FM_STATE_OVERRIDE','FM_DATA_OVERRIDE','FM_CONFIG_OVERRIDE','FM_PROJECTS_OVERRIDE','FM_GATE_REFUSE_BYPASS','FM_TEST_SEAM'):
-    env.pop(k,None)
-env.update(GIT_CONFIG_GLOBAL='/dev/null',GIT_CONFIG_NOSYSTEM='1',GIT_AUTHOR_NAME='Disposable Live Test',GIT_AUTHOR_EMAIL='test@example.invalid',GIT_COMMITTER_NAME='Disposable Live Test',GIT_COMMITTER_EMAIL='test@example.invalid')
-def cmd(*args, cwd=None, ok=True, visible=False, extra=None):
-    e=env.copy();e.update(extra or {})
-    r=subprocess.run([str(a) for a in args],cwd=cwd,env=e,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,text=True)
-    if visible:
-        print('$ '+' '.join(str(a) for a in args),flush=True);print(r.stdout,end='',flush=True);print('exit:',r.returncode,flush=True)
-    if ok and r.returncode: raise AssertionError(r.stdout)
-    return r
+for k in list(env):
+    if k.startswith(('FM_', 'GIT_')) or k in ('BASH_ENV','TASKS_AXI_FILE','TASKS_AXI_BACKEND'): env.pop(k,None)
+env.update(GIT_CONFIG_GLOBAL='/dev/null',GIT_CONFIG_NOSYSTEM='1',GIT_AUTHOR_NAME='Live validation',GIT_AUTHOR_EMAIL='live@example.invalid',GIT_COMMITTER_NAME='Live validation',GIT_COMMITTER_EMAIL='live@example.invalid')
+def cmd(*args, e=None, ok=True, show=False):
+    p=subprocess.run([str(x) for x in args],env=e or env,text=True,stdout=subprocess.PIPE,stderr=subprocess.STDOUT)
+    if show: print('$ '+' '.join(map(str,args))+'\n'+p.stdout+f'[exit {p.returncode}]',flush=True)
+    if ok and p.returncode: raise RuntimeError(p.stdout)
+    return p
 
-def git(p,*args):return cmd('git','-C',p,*args).stdout.strip()
-def sha(p):return git(p,'rev-parse','HEAD')
-def commit(p,name,text):
-    (p/name).write_text(text);git(p,'add',name);git(p,'commit','-qm',name)
-def init(name):
-    w=WORLD/name;w.mkdir();home=w/'home'
-    for d in ('state','data','config','projects'): (home/d).mkdir(parents=True,exist_ok=True)
-    origin=w/'fork.git';up=w/'canonical.git';seed=w/'seed';main=w/'primary';canonical=w/'upstream';candidate=w/'candidate'
-    git(w,'init','-q','--bare',origin);git(origin,'symbolic-ref','HEAD','refs/heads/main');git(w,'clone','-q',origin,seed)
-    shutil.copyfile(ROOT/'AGENTS.md',seed/'AGENTS.md')
-    (seed/'bin').mkdir();shutil.copyfile(ROOT/'bin/fm-guard.sh',seed/'bin/fm-guard.sh')
-    (seed/'.gitignore').write_text('.fm-secondmate-home\ndata/\nstate/\nconfig/\nprojects/\n')
-    git(seed,'add','AGENTS.md','bin','.gitignore')
-    commit(seed,'shared.txt','original\n');git(seed,'push','-q','origin','main')
-    git(w,'clone','-q','--bare',origin,up);git(w,'clone','-q',up,canonical)
-    git(w,'clone','-q',origin,main);git(main,'worktree','add','-qb','integration',candidate,'main');git(candidate,'remote','add','canonical',up)
-    return w,home,origin,up,seed,main,canonical,candidate
+def git(d,*args): return cmd('git','-C',d,*args).stdout.strip()
+def write(d,f,s): (d/f).write_text(s)
+def commit(d,msg): git(d,'add','-A'); git(d,'commit','-qm',msg); return git(d,'rev-parse','HEAD')
+def world(name,conflict=False):
+    w=W/name; w.mkdir(); home=w/'home'; (home/'state').mkdir(parents=True); (home/'data').mkdir(); (home/'state/.last-watcher-beat').touch()
+    cmd('git','init','-q','--bare','--initial-branch=main',w/'origin.git')
+    cmd('git','clone','-q',w/'origin.git',w/'seed')
+    seed=w/'seed'; write(seed,'shared.txt','base\n'); write(seed,'.gitignore','.fm-secondmate-home\n'); shutil.copyfile(R/'AGENTS.md',seed/'AGENTS.md'); (seed/'bin').mkdir(); shutil.copyfile(R/'bin/fm-update.sh',seed/'bin/fm-update.sh'); commit(seed,'base'); git(seed,'push','-q','origin','main')
+    cmd('git','clone','-q','--bare',w/'origin.git',w/'canonical.git'); cmd('git','clone','-q',w/'canonical.git',w/'upstream')
+    write(seed,'shared.txt' if conflict else 'personal.sh','fork\n' if conflict else '#!/bin/sh\nprintf "personal behavior\\n"\n'); o=commit(seed,'personal customization'); git(seed,'push','-q','origin','main')
+    cmd('git','clone','-q',w/'origin.git',w/'primary'); git(w/'primary','worktree','add','-qb','integration',w/'candidate'); git(w/'candidate','remote','add','canonical',w/'canonical.git')
+    write(w/'upstream','shared.txt','upstream\n'); u=commit(w/'upstream','upstream change'); git(w/'upstream','push','-q','origin','main')
+    return w,o,u
 
-def product(home,root,*args,ok=True):
-    extra=dict(FM_HOME=str(home),FM_ROOT_OVERRIDE=str(root),FM_STATE_OVERRIDE=str(home/'state'),FM_DATA_OVERRIDE=str(home/'data'),FM_CONFIG_OVERRIDE=str(home/'config'),FM_PROJECTS_OVERRIDE=str(home/'projects'))
-    return cmd(ROOT/'bin/fm-update.sh',*args,ok=ok,visible=True,extra=extra)
-def prepare(w,home,origin,up,main,candidate,o,u,ok=True):
-    before=sha(main)
-    r=product(home,candidate,'--prepare-upstream',origin,'main',o,up,'main',u,w/'record',ok=ok)
-    assert sha(main)==before
-    assert 'restart-secondmates:' not in r.stdout
-    return r
-
-for mode in ('contained','fast-forward','divergent','conflict','interrupted'):
-    print('\nSCENARIO preparation '+mode,flush=True)
-    w,home,origin,up,seed,main,canonical,candidate=init(mode)
-    if mode!='contained':
-        commit(canonical,'shared.txt','canonical feature\n');git(canonical,'push','-q','origin','main')
-    if mode in ('divergent','conflict'):
-        if mode=='conflict':commit(seed,'shared.txt','personal version\n')
-        else:commit(seed,'personal.sh','#!/bin/sh\nprintf "deliberate personal behavior\\n"\n')
-        git(seed,'push','-q','origin','main');git(candidate,'fetch','-q','origin');git(candidate,'merge','-q','--ff-only',sha(seed))
-    o,u=sha(candidate),sha(canonical)
-    if mode=='interrupted':
-        (w/'record').mkdir();(w/'record/events').write_text('interrupted unknown attempt\n')
-    r=prepare(w,home,origin,up,main,candidate,o,u,ok=mode not in ('conflict','interrupted'))
-    if mode=='conflict':
-        assert r.returncode and git(candidate,'ls-files','-u')
-        print('Persisted conflict paths:',(w/'record/conflicted-paths').read_text(),flush=True)
-        print('Retained unmerged index:',git(candidate,'ls-files','-u'),flush=True)
-        commit(candidate,'shared.txt','resolved personal and canonical behavior\n')
-        r=prepare(w,home,origin,up,main,candidate,o,u)
-        assert 'conflict-history: conflicted' in r.stdout
-        print('Persisted events:',(w/'record/events').read_text(),flush=True)
-    elif mode=='interrupted':
-        assert r.returncode and sha(candidate)==o
-        assert (w/'record/events').read_text()=='interrupted unknown attempt\n'
-    else:
-        h=sha(candidate);git(candidate,'merge-base','--is-ancestor',o,h);git(candidate,'merge-base','--is-ancestor',u,h)
-        if mode=='divergent':
-            r=cmd('bash',candidate/'personal.sh',visible=True);assert r.stdout=='deliberate personal behavior\n'
-            print('Candidate parents:',git(candidate,'show','-s','--format=%P','HEAD'),flush=True)
-        r=prepare(w,home,origin,up,main,candidate,o,u);assert sha(candidate)==h
-    print('OBSERVED primary unchanged:',sha(main),flush=True)
-
-print('\nSCENARIO preparation safety refusals',flush=True)
-w,home,origin,up,seed,main,canonical,candidate=init('refusals')
-o,u=sha(candidate),sha(canonical)
-r=product(home,main,'--prepare-upstream',origin,'main',o,up,'main',u,w/'record',ok=False);assert r.returncode and sha(main)==o
-(candidate/'unsaved').write_text('do not discard\n')
-r=prepare(w,home,origin,up,main,candidate,o,u,ok=False);assert r.returncode and (candidate/'unsaved').read_text()=='do not discard\n'
-(candidate/'unsaved').unlink()
-commit(canonical,'new.txt','moving upstream\n');git(canonical,'push','-q','origin','main')
-r=prepare(w,home,origin,up,main,candidate,o,u,ok=False);assert r.returncode and sha(candidate)==o
-
-print('\nSCENARIO pinned consumption, independent origins, unsafe homes and repeat',flush=True)
-w,home,origin,up,seed,main,canonical,candidate=init('consumption')
-old=sha(main)
-# Registered inactive homes exercise real disk convergence, without launching or inspecting any live session.
-linked=w/'linked';dirty=w/'dirty';divergent=w/'divergent';independent=w/'independent';ownorigin=w/'own.git';ownseed=w/'own-seed'
-for p in (linked,dirty,divergent):
-    git(main,'worktree','add','-q','--detach',p,'main');(p/'.fm-secondmate-home').write_text(p.name+'\n')
-(dirty/'unsaved').write_text('keep my work\n')
-commit(divergent,'unique.txt','unlanded unique work\n');local=sha(divergent)
-git(w,'clone','-q','--bare',origin,ownorigin);git(w,'clone','-q',ownorigin,ownseed);git(w,'clone','-q',ownorigin,independent);(independent/'.fm-secondmate-home').write_text('independent\n')
-commit(ownseed,'own.txt','independent origin update\n');git(ownseed,'push','-q','origin','main');own=sha(ownseed)
-(home/'data/secondmates.md').write_text(''.join(f'- {p.name} - disposable (home: {p}; scope: test; projects: none; added 2026-01-01)\n' for p in (linked,dirty,divergent,independent)))
-commit(seed,'feature.txt','fork landed update\n');git(seed,'push','-q','origin','main');target=sha(seed)
-r=product(home,main,'--consume-origin',target)
-assert sha(main)==target and sha(linked)==target and sha(independent)==own
-assert sha(dirty)==old and (dirty/'unsaved').read_text()=='keep my work\n' and sha(divergent)==local
-assert git(independent,'remote','get-url','origin')==str(ownorigin)
-print('OBSERVED primary/linked/independent heads:',sha(main),sha(linked),sha(independent),flush=True)
-print('OBSERVED dirty and divergent heads preserved:',sha(dirty),sha(divergent),flush=True)
-for p in (home/'state').rglob('*'):
-    if p.is_file(): print('Persisted state',p.relative_to(home),p.read_text(),flush=True)
-r=product(home,main,'--consume-origin',target);assert sha(main)==target and sha(divergent)==local
-
-print('\nSCENARIO moving origin, dirty primary, active operation and divergent primary refuse before secondmate mutation',flush=True)
-commit(seed,'later.txt','new moving origin\n');git(seed,'push','-q','origin','main');latest=sha(seed)
-r=product(home,main,'--consume-origin',target,ok=False);assert r.returncode and sha(main)==target and sha(linked)==target
-(main/'unsaved').write_text('primary private work\n')
-r=product(home,main,'--consume-origin',latest,ok=False);assert r.returncode and sha(main)==target and sha(linked)==target and (main/'unsaved').read_text()=='primary private work\n'
-(main/'unsaved').unlink()
-mergehead=pathlib.Path(git(main,'rev-parse','--absolute-git-dir'))/'MERGE_HEAD';mergehead.write_text(target+'\n')
-r=product(home,main,'--consume-origin',latest,ok=False);assert r.returncode and sha(main)==target and sha(linked)==target
-mergehead.unlink()
-commit(main,'local-primary.txt','unlanded primary\n');primary=sha(main)
-r=product(home,main,'--consume-origin',latest,ok=False);assert r.returncode and sha(main)==primary and sha(linked)==target
-print('OBSERVED every refused pin kept the primary and linked home at their prior heads',flush=True)
-print('\nAll disposable live CLI scenarios completed. No forge publication, lifecycle or primary activation was attempted.',flush=True)
+def product(w,root,*args,ok=True,extra=None):
+    e=env.copy(); e.update(FM_HOME=str(w/'home'),FM_ROOT_OVERRIDE=str(root),FM_STATE_OVERRIDE=str(w/'home/state'),FM_DATA_OVERRIDE=str(w/'home/data'),FM_CONFIG_OVERRIDE=str(w/'home/config'),FM_PROJECTS_OVERRIDE=str(w/'home/projects'))
+    if extra: e.update(extra)
+    return cmd(R/'bin/fm-update.sh',*args,e=e,ok=ok,show=True)
+def prepare(w,o,u,ok=True): return product(w,w/'candidate','--prepare-upstream',w/'origin.git','main',o,w/'canonical.git','main',u,w/'attempt',ok=ok)
+print('SCENARIO isolated integration retains fork behavior and both histories',flush=True)
+w,o,u=world('clean'); prepare(w,o,u); h=git(w/'candidate','rev-parse','HEAD'); git(w/'candidate','merge-base','--is-ancestor',o,h); git(w/'candidate','merge-base','--is-ancestor',u,h)
+assert git(w/'primary','rev-parse','HEAD')==o
+cmd('sh',w/'candidate/personal.sh',show=True); prepare(w,o,u); assert git(w/'candidate','rev-parse','HEAD')==h
+print(f'primary unchanged={o}; candidate={h}; both parents retained',flush=True)
+print('SCENARIO dirty primary and moving canonical preparation are refused',flush=True)
+write(w/'candidate','unsaved','keep me'); assert prepare(w,o,u,False).returncode; assert (w/'candidate/unsaved').read_text()=='keep me'; (w/'candidate/unsaved').unlink()
+write(w/'upstream','later.txt','later'); commit(w/'upstream','later'); git(w/'upstream','push','-q','origin','main'); assert prepare(w,o,u,False).returncode; assert git(w/'candidate','rev-parse','HEAD')==h
+print('SCENARIO text conflict survives manual resolution and repeat preparation',flush=True)
+c,co,cu=world('conflict',True); assert prepare(c,co,cu,False).returncode; assert git(c/'candidate','ls-files','-u'); write(c/'candidate','shared.txt','fork plus upstream resolution\n'); commit(c/'candidate','resolve conflict'); assert 'conflict-history: conflicted' in prepare(c,co,cu).stdout
+print('SCENARIO unknown history remains unknown after SIGKILL during conflicted retry',flush=True)
+# Public qualification records unknown before inspecting pipeline evidence. No fake successful attestation is used.
+ch=git(c/'candidate','rev-parse','HEAD'); args=['--qualify-upstream',c/'attempt',ch,ch,ch,co,ch]
+p=product(c,c/'candidate',*args,'unknown',c/'missing-evidence',ok=False); assert p.returncode
+retained=(c/'attempt/events').read_text()
+interrupt=c/'interrupt.bash'; interrupt.write_text('set -T\nstop_after_event() { if [ "$(tail -1 "$INTERRUPT_EVENTS")" = conflicted ]; then trap - DEBUG; kill -KILL "$$"; fi; }\ntrap stop_after_event DEBUG\n')
+p=product(c,c/'candidate',*args,'conflicted',c/'missing-evidence',ok=False,extra={'BASH_ENV':str(interrupt),'INTERRUPT_EVENTS':str(c/'attempt/events')}); assert p.returncode==-9
+assert (c/'attempt/events').read_text()==retained+'conflicted\n'
+assert 'conflict-history: unknown' in prepare(c,co,cu).stdout
+print('Persisted events after interruption:\n'+(c/'attempt/events').read_text(),flush=True)
+print('SCENARIO pinned consumption preserves independent origins and unsafe homes',flush=True)
+p,po,pu=world('consume'); cmd('git','clone','-q','--bare',p/'origin.git',p/'independent.git'); cmd('git','clone','-q',p/'independent.git',p/'ind-seed'); cmd('git','clone','-q',p/'independent.git',p/'own')
+write(p/'ind-seed','independent.txt','own source\n'); own=commit(p/'ind-seed','independent update'); git(p/'ind-seed','push','-q','origin','main')
+for id in ['dirty','divergent']:
+    cmd('git','clone','-q',p/'origin.git',p/id)
+write(p/'dirty','unsaved','local unsaved\n'); write(p/'divergent','unique.txt','unique work\n'); div=commit(p/'divergent','unique secondmate work')
+for id in ['own','dirty','divergent']: write(p/id,'.fm-secondmate-home',id+'\n')
+(p/'home/data/secondmates.md').write_text(''.join(f'- {id} - disposable (home: {p/id}; scope: validation; projects: none; added 2026-01-01)\n' for id in ['own','dirty','divergent']))
+write(p/'seed','new.txt','fork landed bytes\n'); target=commit(p/'seed','advance fork'); git(p/'seed','push','-q','origin','main')
+# An old pin must not silently consume the now-moving default.
+assert product(p,p/'primary','--consume-origin',po,ok=False).returncode
+assert git(p/'primary','rev-parse','HEAD')==po and git(p/'own','rev-parse','HEAD')==po
+product(p,p/'primary','--consume-origin',target)
+assert git(p/'primary','rev-parse','HEAD')==target
+assert git(p/'own','rev-parse','HEAD')==own and git(p/'own','remote','get-url','origin')==str(p/'independent.git')
+assert git(p/'dirty','rev-parse','HEAD')==po and (p/'dirty/unsaved').read_text()=='local unsaved\n'
+assert git(p/'divergent','rev-parse','HEAD')==div
+pending=p/'home/state/.secondmate-update-reconcile/divergent.pending'; print('Durable divergence record:\n'+pending.read_text(),flush=True)
+product(p,p/'primary','--consume-origin',target)
+print('ALL LIVE CLI SCENARIOS PASSED; no runtime primary was launched and no publication attestation synthesized',flush=True)

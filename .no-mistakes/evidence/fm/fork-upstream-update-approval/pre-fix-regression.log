@@ -1,0 +1,7 @@
+not ok - preparation retry must preserve unknown provenance (missing: 'conflict-history: unknown')
+--- output ---
+fork-head: d5f401d363d9e8ee030166d90c25bf82198c7faa
+upstream-head: 2ee27a39abc80e7effee7ac9758e90bdf1887c53
+candidate: 2ee27a39abc80e7effee7ac9758e90bdf1887c53
+tree: 84ca913fd3fd44993841d1e493a2618439e4645a
+conflict-history: conflicted
