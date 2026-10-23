@@ -1,92 +1,578 @@
-SCENARIO isolated integration retains fork behavior and both histories
-$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/clean/origin.git main 173b90b28fb9655312030da33b0596e8c9328d28 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/clean/canonical.git main 8e6f3ced10c2f529ce7539487ff7dc452f794d3e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/clean/attempt
-preparation: divergent 173b90b28fb9655312030da33b0596e8c9328d28..ba845048fbbfa26bc1931cb0598de01dd34be662
-fork-head: 173b90b28fb9655312030da33b0596e8c9328d28
-upstream-head: 8e6f3ced10c2f529ce7539487ff7dc452f794d3e
-candidate: ba845048fbbfa26bc1931cb0598de01dd34be662
-tree: f55e8aba1cd123799b601f83b442535f39b72bf6
+
+### Contained, fast-forward, and divergent integration preserve both histories without moving active source
+$ git init -q --bare --initial-branch=main /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/fork.git
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/seed
+warning: You appear to have cloned an empty repository.
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/seed add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/seed commit -qm base
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/seed rev-parse HEAD
+331d222b2764a8c973ef24888065843e83e0c911
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/seed push -q origin main
+exit: 0
+$ git clone -q --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/canonical.git
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/canonical.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/up
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/main worktree add -qb integration /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/candidate main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/main remote add canonical /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/canonical.git
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/main rev-parse HEAD
+331d222b2764a8c973ef24888065843e83e0c911
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/up rev-parse HEAD
+331d222b2764a8c973ef24888065843e83e0c911
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/fork.git main 331d222b2764a8c973ef24888065843e83e0c911 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/canonical.git main 331d222b2764a8c973ef24888065843e83e0c911 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/attempt
+preparation: contained 331d222b2764a8c973ef24888065843e83e0c911..331d222b2764a8c973ef24888065843e83e0c911
+fork-head: 331d222b2764a8c973ef24888065843e83e0c911
+upstream-head: 331d222b2764a8c973ef24888065843e83e0c911
+candidate: 331d222b2764a8c973ef24888065843e83e0c911
+tree: 5e7f701ef4ad6d6cdd89b711af5bffc2277da6c1
 conflict-history: clean
-[exit 0]
-$ sh /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/clean/candidate/personal.sh
-personal behavior
-[exit 0]
-$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/clean/origin.git main 173b90b28fb9655312030da33b0596e8c9328d28 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/clean/canonical.git main 8e6f3ced10c2f529ce7539487ff7dc452f794d3e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/clean/attempt
-fork-head: 173b90b28fb9655312030da33b0596e8c9328d28
-upstream-head: 8e6f3ced10c2f529ce7539487ff7dc452f794d3e
-candidate: ba845048fbbfa26bc1931cb0598de01dd34be662
-tree: f55e8aba1cd123799b601f83b442535f39b72bf6
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/candidate rev-parse HEAD
+331d222b2764a8c973ef24888065843e83e0c911
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/candidate merge-base --is-ancestor 331d222b2764a8c973ef24888065843e83e0c911 331d222b2764a8c973ef24888065843e83e0c911
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/candidate merge-base --is-ancestor 331d222b2764a8c973ef24888065843e83e0c911 331d222b2764a8c973ef24888065843e83e0c911
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/main rev-parse HEAD
+331d222b2764a8c973ef24888065843e83e0c911
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/fork.git rev-parse main
+331d222b2764a8c973ef24888065843e83e0c911
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/fork.git main 331d222b2764a8c973ef24888065843e83e0c911 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/canonical.git main 331d222b2764a8c973ef24888065843e83e0c911 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/attempt
+fork-head: 331d222b2764a8c973ef24888065843e83e0c911
+upstream-head: 331d222b2764a8c973ef24888065843e83e0c911
+candidate: 331d222b2764a8c973ef24888065843e83e0c911
+tree: 5e7f701ef4ad6d6cdd89b711af5bffc2277da6c1
 conflict-history: clean
-[exit 0]
-primary unchanged=173b90b28fb9655312030da33b0596e8c9328d28; candidate=ba845048fbbfa26bc1931cb0598de01dd34be662; both parents retained
-SCENARIO dirty primary and moving canonical preparation are refused
-$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/clean/origin.git main 173b90b28fb9655312030da33b0596e8c9328d28 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/clean/canonical.git main 8e6f3ced10c2f529ce7539487ff7dc452f794d3e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/clean/attempt
-update refused: dirty working tree; preserve it
-[exit 1]
-$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/clean/origin.git main 173b90b28fb9655312030da33b0596e8c9328d28 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/clean/canonical.git main 8e6f3ced10c2f529ce7539487ff7dc452f794d3e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/clean/attempt
-update refused: source moved; reclassify in a new authorized attempt
-[exit 1]
-SCENARIO text conflict survives manual resolution and repeat preparation
-$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/conflict/origin.git main 76793a9262dc68b765d0c9f6c8fdc023ade6f0f0 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/conflict/canonical.git main 8674aea886cf145293f7091355bff5f98e558043 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/conflict/attempt
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/contained/candidate rev-parse HEAD
+331d222b2764a8c973ef24888065843e83e0c911
+exit: 0
+$ git init -q --bare --initial-branch=main /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/fork.git
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/seed
+warning: You appear to have cloned an empty repository.
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/seed add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/seed commit -qm base
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/seed rev-parse HEAD
+0f31a6c19281639664c4d70801861bdd6f5f6df1
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/seed push -q origin main
+exit: 0
+$ git clone -q --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/canonical.git
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/canonical.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/up
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/up add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/up commit -qm canonical
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/up rev-parse HEAD
+e3103fb24dbb212c51a85ff4374617c064a9efc3
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/up push -q origin main
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/main worktree add -qb integration /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/candidate main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/main remote add canonical /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/canonical.git
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/main rev-parse HEAD
+0f31a6c19281639664c4d70801861bdd6f5f6df1
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/up rev-parse HEAD
+e3103fb24dbb212c51a85ff4374617c064a9efc3
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/fork.git main 0f31a6c19281639664c4d70801861bdd6f5f6df1 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/canonical.git main e3103fb24dbb212c51a85ff4374617c064a9efc3 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/attempt
+preparation: fast-forward 0f31a6c19281639664c4d70801861bdd6f5f6df1..e3103fb24dbb212c51a85ff4374617c064a9efc3
+fork-head: 0f31a6c19281639664c4d70801861bdd6f5f6df1
+upstream-head: e3103fb24dbb212c51a85ff4374617c064a9efc3
+candidate: e3103fb24dbb212c51a85ff4374617c064a9efc3
+tree: d5516b7e20e55ad805a3237c97b7ebe100fba525
+conflict-history: clean
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/candidate rev-parse HEAD
+e3103fb24dbb212c51a85ff4374617c064a9efc3
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/candidate merge-base --is-ancestor 0f31a6c19281639664c4d70801861bdd6f5f6df1 e3103fb24dbb212c51a85ff4374617c064a9efc3
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/candidate merge-base --is-ancestor e3103fb24dbb212c51a85ff4374617c064a9efc3 e3103fb24dbb212c51a85ff4374617c064a9efc3
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/main rev-parse HEAD
+0f31a6c19281639664c4d70801861bdd6f5f6df1
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/fork.git rev-parse main
+0f31a6c19281639664c4d70801861bdd6f5f6df1
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/fork.git main 0f31a6c19281639664c4d70801861bdd6f5f6df1 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/canonical.git main e3103fb24dbb212c51a85ff4374617c064a9efc3 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/attempt
+fork-head: 0f31a6c19281639664c4d70801861bdd6f5f6df1
+upstream-head: e3103fb24dbb212c51a85ff4374617c064a9efc3
+candidate: e3103fb24dbb212c51a85ff4374617c064a9efc3
+tree: d5516b7e20e55ad805a3237c97b7ebe100fba525
+conflict-history: clean
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/ff/candidate rev-parse HEAD
+e3103fb24dbb212c51a85ff4374617c064a9efc3
+exit: 0
+$ git init -q --bare --initial-branch=main /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/fork.git
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/seed
+warning: You appear to have cloned an empty repository.
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/seed add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/seed commit -qm base
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/seed rev-parse HEAD
+0898d01ea5f09e98f1107f0a43413018c0df38b0
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/seed push -q origin main
+exit: 0
+$ git clone -q --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/canonical.git
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/canonical.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/up
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/up add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/up commit -qm canonical
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/up rev-parse HEAD
+439630cde84b038c6a9728c2a37ff484ed69e465
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/up push -q origin main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/seed add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/seed commit -qm personal customization
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/seed rev-parse HEAD
+032673ac6b734fb2d225cd088a4aa9f5cee19670
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/seed push -q origin main
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/main worktree add -qb integration /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/candidate main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/main remote add canonical /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/canonical.git
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/main rev-parse HEAD
+032673ac6b734fb2d225cd088a4aa9f5cee19670
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/up rev-parse HEAD
+439630cde84b038c6a9728c2a37ff484ed69e465
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/fork.git main 032673ac6b734fb2d225cd088a4aa9f5cee19670 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/canonical.git main 439630cde84b038c6a9728c2a37ff484ed69e465 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/attempt
+preparation: divergent 032673ac6b734fb2d225cd088a4aa9f5cee19670..ebbf2bdfac687daf66a3ab3397f398c76b0614b3
+fork-head: 032673ac6b734fb2d225cd088a4aa9f5cee19670
+upstream-head: 439630cde84b038c6a9728c2a37ff484ed69e465
+candidate: ebbf2bdfac687daf66a3ab3397f398c76b0614b3
+tree: bd1c43b7574465ecd415368df780dbd8f334d2d2
+conflict-history: clean
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/candidate rev-parse HEAD
+ebbf2bdfac687daf66a3ab3397f398c76b0614b3
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/candidate merge-base --is-ancestor 032673ac6b734fb2d225cd088a4aa9f5cee19670 ebbf2bdfac687daf66a3ab3397f398c76b0614b3
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/candidate merge-base --is-ancestor 439630cde84b038c6a9728c2a37ff484ed69e465 ebbf2bdfac687daf66a3ab3397f398c76b0614b3
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/main rev-parse HEAD
+032673ac6b734fb2d225cd088a4aa9f5cee19670
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/fork.git rev-parse main
+032673ac6b734fb2d225cd088a4aa9f5cee19670
+exit: 0
+$ bash /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/candidate/personal.sh
+deliberate personal behavior
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/fork.git main 032673ac6b734fb2d225cd088a4aa9f5cee19670 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/canonical.git main 439630cde84b038c6a9728c2a37ff484ed69e465 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/attempt
+fork-head: 032673ac6b734fb2d225cd088a4aa9f5cee19670
+upstream-head: 439630cde84b038c6a9728c2a37ff484ed69e465
+candidate: ebbf2bdfac687daf66a3ab3397f398c76b0614b3
+tree: bd1c43b7574465ecd415368df780dbd8f334d2d2
+conflict-history: clean
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/divergent/candidate rev-parse HEAD
+ebbf2bdfac687daf66a3ab3397f398c76b0614b3
+exit: 0
+
+### Merge conflict retains index and permanent conflicted history after resolution
+$ git init -q --bare --initial-branch=main /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/fork.git
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/seed
+warning: You appear to have cloned an empty repository.
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/seed add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/seed commit -qm base
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/seed rev-parse HEAD
+0898d01ea5f09e98f1107f0a43413018c0df38b0
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/seed push -q origin main
+exit: 0
+$ git clone -q --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/canonical.git
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/canonical.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/up
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/up add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/up commit -qm canonical
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/up rev-parse HEAD
+df351aa49cfbacf734326b02ae8b9d26fa95e4f7
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/up push -q origin main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/seed add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/seed commit -qm personal customization
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/seed rev-parse HEAD
+84233ff8d3eb8b3611356488f12a4c028e96f37a
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/seed push -q origin main
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/main worktree add -qb integration /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/candidate main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/main remote add canonical /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/canonical.git
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/main rev-parse HEAD
+84233ff8d3eb8b3611356488f12a4c028e96f37a
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/up rev-parse HEAD
+df351aa49cfbacf734326b02ae8b9d26fa95e4f7
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/fork.git main 84233ff8d3eb8b3611356488f12a4c028e96f37a /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/canonical.git main df351aa49cfbacf734326b02ae8b9d26fa95e4f7 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/attempt
 update refused: integration failed; preserve index, paths and task evidence for resolution/approval
-[exit 1]
-$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/conflict/origin.git main 76793a9262dc68b765d0c9f6c8fdc023ade6f0f0 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/conflict/canonical.git main 8674aea886cf145293f7091355bff5f98e558043 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/conflict/attempt
-fork-head: 76793a9262dc68b765d0c9f6c8fdc023ade6f0f0
-upstream-head: 8674aea886cf145293f7091355bff5f98e558043
-candidate: 8ac072e96dd4d0439712aff113986021b046d8bf
-tree: 522911e903b8ec8838fd7cc06697f43a7bdd9b9f
+exit: 1
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/candidate ls-files -u
+100644 df967b96a579e45a18b8251732d16804b2e56a55 1	README.md
+100644 8d36c640bd9988187d16073145ee4ec624ce007a 2	README.md
+100644 51217b3fc25876e00ad882e6634419c2083a67cd 3	README.md
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/candidate add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/candidate commit -qm resolve
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/candidate rev-parse HEAD
+9df0b1cdf53f192b18d04399000e9c9fe3715c23
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/fork.git main 84233ff8d3eb8b3611356488f12a4c028e96f37a /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/canonical.git main df351aa49cfbacf734326b02ae8b9d26fa95e4f7 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/attempt
+fork-head: 84233ff8d3eb8b3611356488f12a4c028e96f37a
+upstream-head: df351aa49cfbacf734326b02ae8b9d26fa95e4f7
+candidate: 9df0b1cdf53f192b18d04399000e9c9fe3715c23
+tree: c0b836ead91fc15ce0db23897fb242189953480d
 conflict-history: conflicted
-[exit 0]
-SCENARIO unknown history remains unknown after SIGKILL during conflicted retry
-$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/bin/fm-update.sh --qualify-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/conflict/attempt 8ac072e96dd4d0439712aff113986021b046d8bf 8ac072e96dd4d0439712aff113986021b046d8bf 8ac072e96dd4d0439712aff113986021b046d8bf 76793a9262dc68b765d0c9f6c8fdc023ade6f0f0 8ac072e96dd4d0439712aff113986021b046d8bf unknown /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/conflict/missing-evidence
-update refused: pipeline conflict provenance unknown; preserve evidence and stop
-[exit 1]
-$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/bin/fm-update.sh --qualify-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/conflict/attempt 8ac072e96dd4d0439712aff113986021b046d8bf 8ac072e96dd4d0439712aff113986021b046d8bf 8ac072e96dd4d0439712aff113986021b046d8bf 76793a9262dc68b765d0c9f6c8fdc023ade6f0f0 8ac072e96dd4d0439712aff113986021b046d8bf conflicted /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/conflict/missing-evidence
-[exit -9]
-$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/conflict/origin.git main 76793a9262dc68b765d0c9f6c8fdc023ade6f0f0 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/conflict/canonical.git main 8674aea886cf145293f7091355bff5f98e558043 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/conflict/attempt
-fork-head: 76793a9262dc68b765d0c9f6c8fdc023ade6f0f0
-upstream-head: 8674aea886cf145293f7091355bff5f98e558043
-candidate: 8ac072e96dd4d0439712aff113986021b046d8bf
-tree: 522911e903b8ec8838fd7cc06697f43a7bdd9b9f
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/conflict/main rev-parse HEAD
+84233ff8d3eb8b3611356488f12a4c028e96f37a
+exit: 0
+
+### Unsafe preparation refuses dirty copy, primary copy, and moving source without changing candidate
+$ git init -q --bare --initial-branch=main /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/fork.git
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/seed
+warning: You appear to have cloned an empty repository.
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/seed add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/seed commit -qm base
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/seed rev-parse HEAD
+cb221e77a371e121a1223a13a82f70ad7debc437
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/seed push -q origin main
+exit: 0
+$ git clone -q --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/canonical.git
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/canonical.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/up
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/up add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/up commit -qm canonical
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/up rev-parse HEAD
+91ce410b591d8573f671bb77db6b9f313656fa60
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/up push -q origin main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/seed add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/seed commit -qm personal customization
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/seed rev-parse HEAD
+99b82be8187e32028ddef9fc817e0379b37997cc
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/seed push -q origin main
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/main worktree add -qb integration /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/candidate main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/main remote add canonical /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/canonical.git
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/main rev-parse HEAD
+99b82be8187e32028ddef9fc817e0379b37997cc
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/up rev-parse HEAD
+91ce410b591d8573f671bb77db6b9f313656fa60
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/fork.git main 99b82be8187e32028ddef9fc817e0379b37997cc /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/canonical.git main 91ce410b591d8573f671bb77db6b9f313656fa60 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/attempt
+update refused: dirty working tree; preserve it
+exit: 1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/fork.git main 99b82be8187e32028ddef9fc817e0379b37997cc /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/canonical.git main 91ce410b591d8573f671bb77db6b9f313656fa60 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/attempt
+update refused: preparation requires the dispatched linked isolated copy, never the primary
+exit: 1
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/up add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/up commit -qm move source
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/up rev-parse HEAD
+bc09595e1e37cde9b23777f19462ed39fb5e42bf
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/up push -q origin main
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/fork.git main 99b82be8187e32028ddef9fc817e0379b37997cc /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/canonical.git main 91ce410b591d8573f671bb77db6b9f313656fa60 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/attempt
+update refused: source moved; reclassify in a new authorized attempt
+exit: 1
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/guards/candidate rev-parse HEAD
+99b82be8187e32028ddef9fc817e0379b37997cc
+exit: 0
+
+### Interrupted preparation remains unknown across conflicted qualification retries
+$ git init -q --bare --initial-branch=main /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/fork.git
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/seed
+warning: You appear to have cloned an empty repository.
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/seed add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/seed commit -qm base
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/seed rev-parse HEAD
+81c7cbbff2d92bab295899f218838b3d4cb9a5fe
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/seed push -q origin main
+exit: 0
+$ git clone -q --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/canonical.git
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/canonical.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/up
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/up add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/up commit -qm canonical
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/up rev-parse HEAD
+18040c8c4ce93ff83ba7fe779071c2bfd41a525e
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/up push -q origin main
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/main worktree add -qb integration /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/candidate main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/main remote add canonical /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/canonical.git
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/main rev-parse HEAD
+81c7cbbff2d92bab295899f218838b3d4cb9a5fe
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/up rev-parse HEAD
+18040c8c4ce93ff83ba7fe779071c2bfd41a525e
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/fork.git main 81c7cbbff2d92bab295899f218838b3d4cb9a5fe /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/canonical.git main 18040c8c4ce93ff83ba7fe779071c2bfd41a525e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/attempt
+exit: -9
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/candidate rev-parse HEAD
+18040c8c4ce93ff83ba7fe779071c2bfd41a525e
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --qualify-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/attempt 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 81c7cbbff2d92bab295899f218838b3d4cb9a5fe 18040c8c4ce93ff83ba7fe779071c2bfd41a525e conflicted /Users/ayrton/.no-mistakes/evidence/01M5N4TJW593J0BXGY34H02RHB/updater-targeted.log
+update refused: unknown conflict history is ineligible for automatic landing
+exit: 1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --qualify-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/attempt 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 81c7cbbff2d92bab295899f218838b3d4cb9a5fe 18040c8c4ce93ff83ba7fe779071c2bfd41a525e clean /Users/ayrton/.no-mistakes/evidence/01M5N4TJW593J0BXGY34H02RHB/updater-targeted.log
+update refused: unknown conflict history is ineligible for automatic landing
+exit: 1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --qualify-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/attempt 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 81c7cbbff2d92bab295899f218838b3d4cb9a5fe 18040c8c4ce93ff83ba7fe779071c2bfd41a525e conflicted /Users/ayrton/.no-mistakes/evidence/01M5N4TJW593J0BXGY34H02RHB/updater-targeted.log
+update refused: unknown conflict history is ineligible for automatic landing
+exit: 1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --qualify-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/attempt 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 81c7cbbff2d92bab295899f218838b3d4cb9a5fe 18040c8c4ce93ff83ba7fe779071c2bfd41a525e conflicted /Users/ayrton/.no-mistakes/evidence/01M5N4TJW593J0BXGY34H02RHB/updater-targeted.log
+exit: -9
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/fork.git main 81c7cbbff2d92bab295899f218838b3d4cb9a5fe /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/canonical.git main 18040c8c4ce93ff83ba7fe779071c2bfd41a525e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/attempt
+fork-head: 81c7cbbff2d92bab295899f218838b3d4cb9a5fe
+upstream-head: 18040c8c4ce93ff83ba7fe779071c2bfd41a525e
+candidate: 18040c8c4ce93ff83ba7fe779071c2bfd41a525e
+tree: d5516b7e20e55ad805a3237c97b7ebe100fba525
 conflict-history: unknown
-[exit 0]
-Persisted events after interruption:
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --qualify-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/attempt 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 81c7cbbff2d92bab295899f218838b3d4cb9a5fe 18040c8c4ce93ff83ba7fe779071c2bfd41a525e clean /Users/ayrton/.no-mistakes/evidence/01M5N4TJW593J0BXGY34H02RHB/updater-targeted.log
+update refused: unknown conflict history is ineligible for automatic landing
+exit: 1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --qualify-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/interruption/attempt 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 18040c8c4ce93ff83ba7fe779071c2bfd41a525e 81c7cbbff2d92bab295899f218838b3d4cb9a5fe 18040c8c4ce93ff83ba7fe779071c2bfd41a525e conflicted /Users/ayrton/.no-mistakes/evidence/01M5N4TJW593J0BXGY34H02RHB/updater-targeted.log
+update refused: unknown conflict history is ineligible for automatic landing
+exit: 1
+Persisted append-only public task events: unknown
+unknown
+conflicted
+unknown
+conflicted
 unknown
 conflicted
 unknown
 conflicted
 
-SCENARIO pinned consumption preserves independent origins and unsafe homes
-$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/bin/fm-update.sh --consume-origin 958233ba02f5b444eefe8830cd7efcf7ec66b520
+
+### Pinned origin consumption preserves independent secondmate origin and private data
+$ git init -q --bare --initial-branch=main /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/fork.git
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/seed
+warning: You appear to have cloned an empty repository.
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/seed add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/seed commit -qm base
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/seed rev-parse HEAD
+7134ba114afec40c14b5b39cce4ad8f0a58f94dd
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/seed push -q origin main
+exit: 0
+$ git clone -q --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/canonical.git
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/canonical.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/up
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/main worktree add -qb integration /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/candidate main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/main remote add canonical /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/canonical.git
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/main rev-parse HEAD
+7134ba114afec40c14b5b39cce4ad8f0a58f94dd
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/up rev-parse HEAD
+7134ba114afec40c14b5b39cce4ad8f0a58f94dd
+exit: 0
+$ git clone -q --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/independent.git
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/independent.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/independent
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/seed add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/seed commit -qm advance fork
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/seed rev-parse HEAD
+62d1933821574b817e097726dc033fd2de46b5ba
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/seed push -q origin main
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --consume-origin 7134ba114afec40c14b5b39cce4ad8f0a58f94dd
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/main/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/main/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 firstmate: skipped: origin moved or does not equal expected commit
 reread-firstmate: no
 restart-secondmates: none
 nudge-secondmates: none
-[exit 1]
-$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/bin/fm-update.sh --consume-origin 0a2d9f25e3eba48cac0d517ec97bbfa5ae700f5f
-firstmate: updated 958233b..0a2d9f2
-no watches registered
-secondmate own: updated 958233b..14db236
-secondmate dirty: skipped: dirty working tree
-secondmate divergent: skipped: diverged from origin/main; reconciliation required (record: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/consume/home/state/.secondmate-update-reconcile/divergent.pending)
+exit: 1
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/main rev-parse HEAD
+7134ba114afec40c14b5b39cce4ad8f0a58f94dd
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/independent rev-parse HEAD
+7134ba114afec40c14b5b39cce4ad8f0a58f94dd
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --consume-origin 62d1933821574b817e097726dc033fd2de46b5ba
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+firstmate: skipped: dirty working tree
 reread-firstmate: no
 restart-secondmates: none
 nudge-secondmates: none
-[exit 0]
-Durable divergence record:
-schema=fm-secondmate-update-reconcile.v1
-id=divergent
+exit: 1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --consume-origin 62d1933821574b817e097726dc033fd2de46b5ba
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+firstmate: updated 7134ba1..62d1933
+no watches registered
+secondmate sm1: already current
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/main rev-parse HEAD
+62d1933821574b817e097726dc033fd2de46b5ba
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/independent rev-parse HEAD
+7134ba114afec40c14b5b39cce4ad8f0a58f94dd
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/independent remote get-url origin
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/independent.git
+exit: 0
+
+### Dirty and uniquely divergent homes are skipped, without erasing local content
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --consume-origin 62d1933821574b817e097726dc033fd2de46b5ba
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+firstmate: already current
+secondmate sm1: skipped: dirty working tree
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+exit: 0
+$ git clone -q /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/independent.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/remote-seed
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/remote-seed add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/remote-seed commit -qm independent remote
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/remote-seed rev-parse HEAD
+c9e68d098b1b931f42e5c70b1d92c1e74db716af
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/remote-seed push -q origin main
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/independent add -A
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/independent commit -qm unique local
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/independent rev-parse HEAD
+1daab0a2426fbc516c02d2d431d77d3ec8dadad9
+exit: 0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/bin/fm-update.sh --consume-origin 62d1933821574b817e097726dc033fd2de46b5ba
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+firstmate: already current
+secondmate sm1: skipped: diverged from origin/main; reconciliation required (record: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/home/state/.secondmate-update-reconcile/sm1.pending)
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+exit: 0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5N4TJW593J0BXGY34H02RHB/.gate-live/consumption/independent rev-parse HEAD
+1daab0a2426fbc516c02d2d431d77d3ec8dadad9
+exit: 0
+Persisted reconciliation: schema=fm-secondmate-update-reconcile.v1
+id=sm1
 status=diverged
-local_commit=f3957b42310279daea5b725945a4dc53b7397848
-target_commit=0a2d9f25e3eba48cac0d517ec97bbfa5ae700f5f
+local_commit=1daab0a2426fbc516c02d2d431d77d3ec8dadad9
+target_commit=c9e68d098b1b931f42e5c70b1d92c1e74db716af
 target=origin/main
 
-$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/bin/fm-update.sh --consume-origin 0a2d9f25e3eba48cac0d517ec97bbfa5ae700f5f
-firstmate: already current
-secondmate own: already current
-secondmate dirty: skipped: dirty working tree
-secondmate divergent: skipped: diverged from origin/main; reconciliation required (record: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5MVD96E9SJSBE0BR30EH187/.test-work/live/consume/home/state/.secondmate-update-reconcile/divergent.pending)
-reread-firstmate: no
-restart-secondmates: none
-nudge-secondmates: none
-[exit 0]
-ALL LIVE CLI SCENARIOS PASSED; no runtime primary was launched and no publication attestation synthesized
+
+### All live CLI assertions passed; no forge publication or primary activation performed
