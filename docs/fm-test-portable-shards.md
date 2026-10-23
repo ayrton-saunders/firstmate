@@ -126,14 +126,16 @@ The workflow retains per-PR supersession without cancelling main pushes or chang
 
 CI job timeouts follow one three-tier policy, so the workflow reads as a policy rather than as a collection of per-job numbers.
 Every tier is a hang tripwire with headroom above the healthy duration, never a packing estimate or a runtime target.
-A lane that reaches its tier bound needs investigation and a distribution or runtime fix, not a larger timeout to fit the same work.
+A lane that reaches its tier bound needs investigation rather than an automatic timeout increase. The explicitly approved serial shard 2 exception below retains the same work and finite enforcement.
 
 | Tier | Jobs | Bound | Rationale |
 |---|---|---|---|
 | Fast | coverage guard, repo invariants, timing aggregate | 5 minutes | Seconds-long local work, so the tripwire only catches a hung runner. |
-| Normal | lint partitions, portable parallel shards, portable serial shards, macOS stock Bash | 30 minutes, one value shared by every job in the tier | One shared hang tripwire keeps every ordinary test and lint lane on the same policy instead of allowing per-lane packing estimates or one-off caps to set the bound. |
+| Normal | lint partitions, portable parallel shards, portable serial shards, macOS stock Bash | 30 minutes; serial shard 2 only: 45 minutes | Shared baseline hang tripwire, with one approved exception after repeated hosted 30-minute exhaustion; all unrelated jobs and sibling shards retain their bounds. |
 | Heavy | Herdr | family-run step 20 minutes under a 75-minute job-level last-resort backstop | Healthy runs finish in about 7-10 minutes, so the step tripwire fails a wedged suite while the `always()` cleanup and timing upload still run, and the job cap only catches a hang outside that step. |
 
+The serial shard 2 exception follows repeated exhaustion at head `0f58ef2c7a9718198e09119499129e30f38a2f9d`: original job [120632845652](https://github.com/ayrton-saunders/firstmate/actions/runs/40017384612/job/120632845652) and same-head replacement [120648660401](https://github.com/ayrton-saunders/firstmate/actions/runs/40017384612/job/120648660401). The replacement ran from 20:48:14Z to 21:18:33Z on 2026-10-23; the provider annotated it as exceeding 30m0s. Completed `FM_TEST_END` markers showed the supervision-host test passing in 28m28s with remaining inventory unfinished. No completed timing artifact was uploaded. The new 45-minute job cap changes neither shard membership nor assertions and does not establish a successful duration: genuine final-head completion on the original hosted CI workflow remains required, retaining these old timings and the new run's markers/artifacts for comparison. Cancellation is not a passing verdict.
+
 [`.github/workflows/ci.yml`](../.github/workflows/ci.yml) holds the executable values and names each job's tier beside its `timeout-minutes`.
-[`tests/fm-ci-workflow.test.sh`](../tests/fm-ci-workflow.test.sh) holds the policy against the parsed workflow: every job belongs to exactly one tier, the workflow carries exactly three distinct job-level values, the fast tier stays within 5-10 minutes, the normal jobs share one 30-minute budget, and the Herdr family-run step is the 20-minute tripwire below its job backstop with an `always()` teardown after it.
+[`tests/fm-ci-workflow.test.sh`](../tests/fm-ci-workflow.test.sh) holds the policy against the parsed workflow: every job belongs to exactly one tier, the three baseline job-level values remain unchanged, the fast tier stays within 5-10 minutes, the normal jobs share a 30-minute budget except serial shard 2 at 45 minutes (resolved across every matrix shard), and the Herdr family-run step is the 20-minute tripwire below its job backstop with an `always()` teardown after it.
 A passing coverage guard does not establish a healthy job duration; refresh the healthy figures above from the lanes' uploaded timing artifacts.

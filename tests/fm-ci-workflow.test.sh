@@ -7,7 +7,7 @@
 # safeguards: PR runs supersede within one PR while main pushes are never
 # cancelled, and every CI job carries a finite hang tripwire drawn from the
 # three-tier timeout policy that docs/fm-test-portable-shards.md "Timeouts"
-# owns (fast, normal, heavy), so no job drifts back to a one-off number.
+# owns (fast, normal, heavy), including the serial shard 2 budget exception.
 #
 # They also hold the fork opt-out: the repository variables FM_CI_SKIP_PUSH and
 # FM_CI_SKIP_MACOS let a fork skip the push run and the macOS job through a
@@ -29,7 +29,7 @@ command -v ruby >/dev/null 2>&1 \
   || fail "ruby is required to parse .github/workflows/ci.yml as YAML"
 
 # Evaluate the subset of GitHub's expression language that ci.yml uses -
-# string literals, context lookups, the status functions, !, ==, !=, &&,
+# string and integer literals, context lookups, the status functions, !, ==, !=, &&,
 # ||, and parentheses - against a simulated context hash, following the
 # documented operator precedence, the case-insensitive string comparison, and
 # the `a || b` fallback that returns the first truthy operand rather than a
@@ -70,6 +70,7 @@ class Expression
     until scanner.eos?
       next if scanner.skip(/\s+/)
       if scanner.scan(/\x27([^\x27]*)\x27/) then @tokens << [:string, scanner[1]]
+      elsif scanner.scan(/\d+/) then @tokens << [:integer, scanner.matched.to_i]
       elsif scanner.scan(/\|\||&&|==|!=|[()!]/) then @tokens << [:operator, scanner.matched]
       elsif scanner.scan(/[A-Za-z_][\w.\-]*(?:\(\))?/) then @tokens << [:name, scanner.matched]
       else raise "unsupported expression syntax at: #{scanner.rest}"
@@ -139,8 +140,8 @@ class Expression
       return inner
     end
     kind, value = @tokens.shift
-    raise "expected an operand, got #{kind.inspect}" unless kind == :string || kind == :name
-    return value if kind == :string
+    raise "expected an operand, got #{kind.inspect}" unless [:string, :integer, :name].include?(kind)
+    return value if kind == :string || kind == :integer
     if STATUS_FUNCTIONS.include?(value)
       status = @context.fetch("needs.status", "success")
       return value == "always()" || value == "#{status}()"
@@ -190,10 +191,12 @@ end
 ' "$CI_WORKFLOW" "$1" "$2" "$3"
 }
 
-job_timeout() {
-  ruby -ryaml -e '
-puts YAML.load_file(ARGV[0]).fetch("jobs").fetch(ARGV[1]).fetch("timeout-minutes", "none")
-' "$CI_WORKFLOW" "$1"
+job_timeout() {  # <job> [serial shard, defaults to 1]
+  ruby -ryaml -e "$EXPRESSION_RUBY" -e '
+raw = YAML.load_file(ARGV[0]).fetch("jobs").fetch(ARGV[1]).fetch("timeout-minutes", "none")
+value = raw.is_a?(String) && raw.match(/\A\$\{\{(.*)\}\}\z/m)
+puts(value ? Expression.evaluate(value[1], {"matrix.shard" => Integer(ARGV[2])}) : raw)
+' "$CI_WORKFLOW" "$1" "${2:-1}"
 }
 
 # Tier membership is the executable inventory of the timeout policy: a new job
@@ -261,19 +264,25 @@ test_main_pushes_are_never_cancelled() {
 
 test_every_job_has_a_finite_timeout() {
   local reported
-  reported=$(ruby -ryaml -e '
+  reported=$(ruby -ryaml -e "$EXPRESSION_RUBY" -e '
 YAML.load_file(ARGV[0]).fetch("jobs").each do |name, job|
-  timeout = job["timeout-minutes"]
-  next if timeout.is_a?(Integer) && timeout > 0
-  puts "#{name}: #{timeout.inspect}"
+  shards = job.fetch("strategy", {}).fetch("matrix", {}).fetch("shard", [1])
+  shards.each do |shard|
+    timeout = job["timeout-minutes"]
+    if timeout.is_a?(String) && timeout =~ /\A\$\{\{(.*)\}\}\z/m
+      timeout = Expression.evaluate(Regexp.last_match(1), {"matrix.shard" => shard})
+    end
+    next if timeout.is_a?(Integer) && timeout > 0
+    puts "#{name} shard #{shard}: #{timeout.inspect}"
+  end
 end
 ' "$CI_WORKFLOW") || fail "could not read job timeouts from ci.yml"
   [ -z "$reported" ] || fail "these CI jobs have no finite hang tripwire:"$'\n'"$reported"
   pass "every ci.yml job carries a finite timeout"
 }
 
-# Every job sits in exactly one tier, and the workflow carries exactly three
-# distinct job-level timeouts: one per tier, no one-off numbers.
+# Every job sits in exactly one tier with three distinct baseline timeouts.
+# The serial shard 2 exception is checked across the expanded matrix below.
 test_every_job_belongs_to_exactly_one_timeout_tier() {
   local expected actual distinct
   # shellcheck disable=SC2086
@@ -299,8 +308,8 @@ test_fast_tier_shares_one_short_tripwire() {
   pass "fast tier jobs share one $fast minute tripwire"
 }
 
-# Normal tier: every test or lint lane shares ONE fixed 30-minute budget,
-# above the fast tier. That budget is a hang tripwire, not a packing estimate.
+# Normal tier baseline: 30 minutes, except serial shard 2 checked below.
+# That budget is a hang tripwire, not a packing estimate.
 test_normal_tier_shares_one_budget() {
   local fast normal
   # shellcheck disable=SC2086
@@ -312,6 +321,20 @@ test_normal_tier_shares_one_budget() {
   [ "$normal" = 30 ] \
     || fail "normal tier must be the single 30-minute shared budget, got $normal"
   pass "normal tier jobs share one $normal minute budget"
+}
+
+test_serial_shard_timeout_exception() {
+  local shard actual expected
+  for shard in $(ruby -ryaml -e '
+puts YAML.load_file(ARGV[0]).fetch("jobs").fetch("tests-portable-serial").fetch("strategy").fetch("matrix").fetch("shard")
+' "$CI_WORKFLOW"); do
+    expected=30
+    [ "$shard" != 2 ] || expected=45
+    actual=$(job_timeout tests-portable-serial "$shard") || fail "could not resolve shard $shard timeout"
+    [ "$actual" = "$expected" ] \
+      || fail "serial shard $shard must have a $expected minute budget, got $actual"
+  done
+  pass "only serial shard 2 has a 45-minute budget; all sibling shards retain 30 minutes"
 }
 
 # Heavy tier: Herdr alone carries a job-level last-resort backstop above the
@@ -445,6 +468,7 @@ test_separate_prs_do_not_cancel_each_other
 test_main_pushes_are_never_cancelled
 test_fork_skip_variables_are_opt_in
 test_timing_aggregate_still_runs_after_a_failed_lane
+test_serial_shard_timeout_exception
 test_every_job_has_a_finite_timeout
 test_every_job_belongs_to_exactly_one_timeout_tier
 test_fast_tier_shares_one_short_tripwire
