@@ -245,6 +245,7 @@ qualify_upstream() {
   case "$pipeline_history" in
     clean) ;;
     conflicted)
+      if [ "$HISTORY" = unknown ]; then printf 'unknown\n' >> "$RECORD/events"; fi
       printf 'conflicted\n' >> "$RECORD/events"
       if [ "$HISTORY" != unknown ]; then HISTORY=conflicted; fi
       ;;
