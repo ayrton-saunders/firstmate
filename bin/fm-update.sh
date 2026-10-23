@@ -29,11 +29,11 @@
 #   - one status line per target (updated/already current/skipped)
 #   - reread-firstmate: yes|no    (did the running firstmate's instructions change)
 #   - restart-secondmates: fm-<id>...|none (every live secondmate this pass left
-#     on origin's tip - advanced OR already there - whose recorded runtime can
-#     prove a restart)
-#   - nudge-secondmates: fm-<id>...|none   (the residual: live secondmates on
-#     that same tip whose runtime CANNOT prove a restart, so the older re-read
-#     steer is all that is honest for them)
+#     on its own origin/code-root target - advanced OR already there - whose
+#     recorded runtime can prove a restart)
+#   - nudge-secondmates: fm-<id>...|none (the residual: live secondmates settled
+#     on their own targets whose runtime CANNOT prove a restart, so the older
+#     re-read steer is all that is honest for them)
 #
 # The two sets are disjoint, and restart is UNCONDITIONAL on a successful update
 # of that home. It is deliberately not gated on the git diff: replacing the agent
@@ -162,6 +162,10 @@ update_record() { # <existing task record>
   if ! { update_sha "$O" && update_sha "$U" && update_source_url "$FORK_URL" && update_source_url "$UPSTREAM_URL"; }; then
     update_refuse 'malformed task identity'
   fi
+  # Only preparation can classify the provisional first unknown. Later unknowns
+  # are sticky; qualification must persist an observed initial unknown before
+  # appending conflict evidence so interruption cannot make a retry eligible.
+  # Executable interruption coverage: tests/fm-update.test.sh.
   HISTORY=$(tail -1 "$RECORD/events")
   case "$HISTORY" in clean|unknown|conflicted) ;; *) update_refuse 'unknown conflict provenance' ;; esac
   if tail -n +2 "$RECORD/events" | grep -qx unknown; then HISTORY=unknown; fi
