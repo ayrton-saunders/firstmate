@@ -156,7 +156,9 @@
 # Extra args must not include --repo or -R in any form, including a bundled
 # short-option cluster such as -yR, because the repository comes only from the
 # URL, nor --sha or --match-head-commit because the head comes only from the
-# live read. An existing task-meta pr= must equal the requested canonical URL,
+# live read. The opt-in --expected-head <full-sha> binds that read to the caller's
+# qualified candidate; every backend receives that same SHA. It protects head
+# identity, not base freshness or merge authority. An existing task-meta pr= must equal the requested canonical URL,
 # unless that bound PR has already merged - proven by its recorded merge
 # notification - in which case the task's next PR is accepted so several PRs
 # from one task can each merge in turn; while the bound PR is still unmerged a
@@ -168,7 +170,7 @@
 # explicit captain instruction and never skips the live green check, the
 # away-record read, or a captain hold.
 #
-# Usage: fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--allow-red <check-name>] [--allow-missing <check-name>] [-- <extra forge merge args>]
+# Usage: fm-pr-merge.sh <task-id> <pr-url> [--expected-head <full-sha>] [--attended-override] [--allow-red <check-name>] [--allow-missing <check-name>] [-- <extra forge merge args>]
 #
 # On GitLab, this script confirms the MR is actually merged before reporting it;
 # an auto-merge-queued or unconfirmed request leaves the poll armed and records
@@ -227,10 +229,28 @@ if [ "$PROVIDER" = gerrit ]; then
 fi
 shift 2
 ATTENDED_OVERRIDE=false
+EXPECTED_HEAD=
+require_expected_head() {
+  if [ -n "$EXPECTED_HEAD" ] && [ "$1" != "$EXPECTED_HEAD" ]; then
+    echo 'error: live PR head differs from expected qualified head; requalify before merging' >&2
+    return 1
+  fi
+}
 ALLOW_RED=()
 ALLOW_MISSING=()
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    --expected-head)
+      [ -z "$EXPECTED_HEAD" ] && [[ "${2:-}" =~ ^[0-9a-f]{40}$ ]] || {
+        echo 'error: --expected-head requires one full lowercase commit SHA' >&2; exit 2;
+      }
+      EXPECTED_HEAD=$2
+      shift 2
+      ;;
+    --expected-head=*)
+      echo 'error: --expected-head requires a separate full commit SHA argument' >&2
+      exit 2
+      ;;
     --attended-override)
       ATTENDED_OVERRIDE=true
       shift
@@ -624,7 +644,8 @@ FIELDS
   fi
   printf 'verified: %s is open and mergeable, with a successful pipeline at head %s\n' \
     "$URL" "$live_head" >&2
-  FM_PR_MERGE_HEAD=$live_head
+  require_expected_head "$live_head" || return 1
+  FM_PR_MERGE_HEAD=${EXPECTED_HEAD:-$live_head}
   FM_PR_GITLAB_ASYNC_CONFIGURED=$async_configured
 }
 
@@ -754,7 +775,8 @@ FIELDS
   fi
   printf 'verified: %s is open and mergeable, with a successful combined status at head %s\n' \
     "$URL" "$live_head" >&2
-  FM_PR_MERGE_HEAD=$live_head
+  require_expected_head "$live_head" || return 1
+  FM_PR_MERGE_HEAD=${EXPECTED_HEAD:-$live_head}
 }
 
 # The caller's own extra arguments may only name a merge method, in the same
@@ -1108,7 +1130,8 @@ EOF
   fi
   printf 'verified: %s is open and mergeable, with every unwaived required check reported and every unwaived check green at head %s\n' \
     "$URL" "$live_head" >&2
-  FM_PR_MERGE_HEAD=$live_head
+  require_expected_head "$live_head" || return 1
+  FM_PR_MERGE_HEAD=${EXPECTED_HEAD:-$live_head}
   FM_PR_GITHUB_BASE=$base
 }
 

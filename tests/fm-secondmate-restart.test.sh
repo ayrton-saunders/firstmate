@@ -33,7 +33,7 @@ fm_git_identity fmtest fmtest@example.com
 TMP_ROOT=$(fm_test_tmproot fm-secondmate-restart)
 mkdir -p "$TMP_ROOT"
 TMP_ROOT=$(cd "$TMP_ROOT" && pwd -P)
-trap 'rm -rf -- "$TMP_ROOT"' EXIT
+# tests/lib.sh owns registered fixture cleanup, including read-only hook dirs.
 
 # A session-provider stub that models the two things this pass depends on: the
 # harness exit command stops the agent, a launch brief starts the replacement,
@@ -230,6 +230,8 @@ run_update_in_case() {
   local dir=$1
   env PATH="$dir/fakebin:$PATH" FM_FAKE_DIR="$dir/fake" \
     FM_ROOT_OVERRIDE="$dir/fmrepo" FM_HOME="$dir/home" \
+    FM_STATE_OVERRIDE="$dir/home/state" FM_DATA_OVERRIDE="$dir/home/data" \
+    FM_CONFIG_OVERRIDE="$dir/home/config" FM_PROJECTS_OVERRIDE="$dir/home/projects" \
     FM_SSH_BIN="${FM_TEST_SSH_BIN:-ssh}" \
     "$ROOT/bin/fm-update.sh" 2>/dev/null
 }
@@ -244,6 +246,9 @@ arm_answer() {
 run_restart() {  # <case-dir> <args...>
   local dir=$1; shift
   env PATH="$dir/fakebin:$PATH" FM_HOME="$dir/home" FM_FAKE_DIR="$dir/fake" \
+    FM_ROOT_OVERRIDE="$ROOT" FM_STATE_OVERRIDE="$dir/home/state" \
+    FM_DATA_OVERRIDE="$dir/home/data" FM_CONFIG_OVERRIDE="$dir/home/config" \
+    FM_PROJECTS_OVERRIDE="$dir/home/projects" \
     FM_SPAWN_NO_GUARD=1 FM_SECONDMATE_PERSIST_POLL=1 \
     FM_SECONDMATE_PERSIST_WAIT="${FM_TEST_PERSIST_WAIT:-30}" \
     FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 \
@@ -847,6 +852,37 @@ test_already_current_unprovable_mate_stays_on_the_nudge_path() {
   pass "T16 an already-current mate with an unprovable runtime keeps the honest nudge path"
 }
 
+# A watcher-owned relaunch and an updater-owned restart share the same existing
+# lifecycle lock. The stale update list must not replace the agent a second time
+# or attribute an unproved outcome to the new incarnation.
+test_concurrent_auto_relaunch_is_not_a_second_restart() {
+  local dir out rc holder i lock
+  dir=$(new_case concurrent-auto-relaunch)
+  add_local_mate "$dir" sm1
+  arm_answer "$dir" sm1
+  lock="$dir/home/state/.control-sm1.lock"
+  (
+    . "$ROOT/bin/fm-wake-lib.sh"
+    fm_lock_try_acquire "$lock" || exit 1
+    sleep 30
+  ) &
+  holder=$!
+  i=0
+  while [ ! -e "$lock" ] && [ "$i" -lt 100 ]; do sleep 0.1; i=$((i + 1)); done
+  [ -e "$lock" ] || { kill "$holder"; wait "$holder" 2>/dev/null || true; fail 'concurrent relaunch lock absent'; }
+  out=$(run_restart "$dir" sm1); rc=$?
+  kill "$holder" 2>/dev/null || true
+  wait "$holder" 2>/dev/null || true
+  expect_code 3 "$rc" 'a concurrent auto-relaunch must leave update restart unproved'
+  assert_contains "$out" 'another lifecycle action is already running' 'existing control owner serializes replacement'
+  assert_contains "$out" 'unreached: sm1:' 'concurrent incarnation outcome remains unknown'
+  assert_not_contains "$out" 'restarted: sm1' 'old action list cannot prove new activation'
+  assert_no_grep '^/exit$' "$dir/fake/literal" 'updater must not stop the concurrently owned incarnation'
+  assert_absent "$dir/home/state/sm1.control-relaunch" 'updater must not open a duplicate replacement transaction'
+  pass 'a concurrent auto-relaunch prevents duplicate update restart and leaves activation unproved'
+}
+
+test_concurrent_auto_relaunch_is_not_a_second_restart
 test_persist_gates_and_asks_only_for_open_records
 test_persist_precedes_restart
 test_arrived_answer_precedes_deadline_check
