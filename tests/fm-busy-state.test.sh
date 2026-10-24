@@ -56,6 +56,47 @@ test_apply_advances_seq_and_source() {
   pass "apply advances seq under the armed gen and attributes the writing source"
 }
 
+test_conditional_apply_checks_sequence_under_writer_lock() {
+  local state gen fakebin real_mkdir pid rc i
+  state=$(new_state_dir conditional-lock)
+  gen=$("$EV" arm "$state" t1) || fail "conditional fixture did not arm"
+  fakebin=$(fm_fakebin "$TMP_ROOT/conditional-bin")
+  real_mkdir=$(command -v mkdir)
+  cat > "$fakebin/mkdir" <<'SH'
+#!/usr/bin/env bash
+if [ "${1:-}" = "$FM_TEST_BUSY_LOCK" ]; then
+  : > "$FM_TEST_BUSY_READY"
+  for ((i=0; i<300; i++)); do
+    [ ! -e "$FM_TEST_BUSY_RELEASE" ] || break
+    sleep 0.1
+  done
+fi
+exec "$FM_TEST_REAL_MKDIR" "$@"
+SH
+  chmod +x "$fakebin/mkdir"
+  PATH="$fakebin:$PATH" FM_TEST_REAL_MKDIR="$real_mkdir" FM_TEST_BUSY_LOCK="$state/t1.busy-state.lock" \
+    FM_TEST_BUSY_READY="$state/ready" FM_TEST_BUSY_RELEASE="$state/release" \
+    "$EV" apply "$state" t1 idle --gen "$gen" --expected-seq 1 \
+      --source fm-interrupt --event interrupt --turn-ended > "$state/close.out" 2>&1 &
+  pid=$!
+  for ((i=0; i<100; i++)); do [ ! -e "$state/ready" ] || break; sleep 0.1; done
+  [ -e "$state/ready" ] || { kill "$pid" 2>/dev/null; fail "conditional writer never reached lock acquisition"; }
+  "$EV" apply "$state" t1 busy --gen "$gen" --source polytoken-hook --event pre-user-prompt \
+    || fail "the competing prompt must publish"
+  : > "$state/release"
+  rc=0
+  wait "$pid" || rc=$?
+  [ "$rc" -ne 0 ] || fail "a conditional close overwrote the newer prompt"
+  assert_equals 'busy polytoken-hook pre-user-prompt 2' "$(fm_busy_record_read "$state" t1 | awk '{print $1,$2,$3,$4}')" \
+    "the newer prompt must retain its busy state and sequence"
+  [ ! -e "$state/t1.turn-ended" ] || fail "a rejected close emitted a turn-ended notification"
+  "$EV" apply "$state" t1 idle --gen "$gen" --expected-seq 2 --source fm-interrupt --event interrupt \
+    || fail "a matching conditional close must still apply"
+  assert_equals 'idle fm-interrupt interrupt 3' "$(fm_busy_record_read "$state" t1 | awk '{print $1,$2,$3,$4}')" \
+    "matching conditional apply must advance normally"
+  pass "conditional busy apply compares the observed sequence inside the writer lock"
+}
+
 test_apply_current_gen_reset() {
   local state out
   state=$(new_state_dir apply-current)
@@ -618,6 +659,7 @@ test_turn_ended_notification_is_generation_bound
 
 test_arm_seeds_busy_spawn
 test_apply_advances_seq_and_source
+test_conditional_apply_checks_sequence_under_writer_lock
 test_apply_current_gen_reset
 test_apply_unarmed_refused
 test_retire_serializes_and_rejects_stale_gen

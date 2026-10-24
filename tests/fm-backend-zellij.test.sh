@@ -120,8 +120,8 @@ zellij_expected_root_hash() {  # <root>
   fi
 }
 
-zellij_expected_home_label() {  # [home] [root]
-  local home=${1:-$ROOT} root=${2:-$ROOT} marker id prefix
+zellij_expected_home_label() {  # [home]
+  local home=${1:-$ROOT} marker id prefix
   marker="$home/.fm-secondmate-home"
   if [ -f "$marker" ]; then
     id=$(tr -d '[:space:]' < "$marker" 2>/dev/null)
@@ -133,16 +133,16 @@ zellij_expected_home_label() {  # [home] [root]
   else
     prefix="firstmate"
   fi
-  printf '%s-%s' "$prefix" "$(zellij_expected_root_hash "$root")"
+  printf '%s-%s' "$prefix" "$(zellij_expected_root_hash "$home")"
 }
 
-zellij_expected_scoped_title() {  # <fm-task-label> [home] [root]
-  local label=$1 home=${2:-$ROOT} root=${3:-$ROOT} rest
+zellij_expected_scoped_title() {  # <fm-task-label> [home]
+  local label=$1 home=${2:-$ROOT} rest
   case "$label" in
     fm-*) rest=${label#fm-} ;;
     *) rest=$label ;;
   esac
-  printf 'fm-%s-%s' "$(zellij_expected_home_label "$home" "$root")" "$rest"
+  printf 'fm-%s-%s' "$(zellij_expected_home_label "$home")" "$rest"
 }
 
 # --- version_check / tool_check ----------------------------------------------
@@ -184,7 +184,7 @@ test_version_check_refuses_old_version() {
 test_version_check_refuses_missing_zellij() {
   local dir out status
   dir="$TMP_ROOT/version-missing"; mkdir -p "$dir/empty-fakebin"
-  out=$( PATH="$dir/empty-fakebin:/usr/bin:/bin" \
+  out=$( PATH="$dir/empty-fakebin:$(fm_test_base_path_sans /usr/bin:/bin zellij)" \
     bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_version_check' "$ROOT" 2>&1 )
   status=$?
   [ "$status" -ne 0 ] || fail "version_check should refuse when zellij is not installed"
@@ -251,18 +251,21 @@ test_scoped_title_uses_secondmate_home_label() {
   pass "fm_backend_zellij_scoped_title: scopes a secondmate task title with the home marker plus root hash"
 }
 
-test_scoped_title_changes_with_root_path() {
-  local dir home root_one root_two out_one out_two expected_one expected_two
-  dir="$TMP_ROOT/scoped-title-root-hash"; home="$dir/home"; root_one="$dir/root-one"; root_two="$dir/root-two"
-  mkdir -p "$home" "$root_one" "$root_two"
-  expected_one=$(zellij_expected_scoped_title fm-task1 "$home" "$root_one")
-  expected_two=$(zellij_expected_scoped_title fm-task1 "$home" "$root_two")
-  out_one=$( FM_HOME="$home" FM_ROOT_OVERRIDE="$root_one" bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_scoped_title fm-task1' "$ROOT" )
-  out_two=$( FM_HOME="$home" FM_ROOT_OVERRIDE="$root_two" bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_scoped_title fm-task1' "$ROOT" )
-  [ "$out_one" = "$expected_one" ] || fail "scoped title should include root-one hash as $expected_one, got '$out_one'"
-  [ "$out_two" = "$expected_two" ] || fail "scoped title should include root-two hash as $expected_two, got '$out_two'"
-  [ "$out_one" != "$out_two" ] || fail "scoped titles should differ for distinct FM_ROOT paths"
-  pass "fm_backend_zellij_scoped_title: includes the resolved FM_ROOT hash in the home label"
+test_scoped_title_changes_with_home_path() {
+  local dir home_one home_two root_one root_two out_one out_two
+  dir="$TMP_ROOT/scoped-title-home-hash"
+  home_one="$dir/home-one"; home_two="$dir/home-two"
+  root_one="$dir/root-one"; root_two="$dir/root-two"
+  mkdir -p "$home_one" "$home_two" "$root_one" "$root_two"
+  out_one=$(FM_HOME="$home_one" FM_ROOT_OVERRIDE="$root_one" bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_scoped_title fm-task1' "$ROOT")
+  out_two=$(FM_HOME="$home_two" FM_ROOT_OVERRIDE="$root_one" bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_scoped_title fm-task1' "$ROOT")
+  assert_not_equals "$out_one" "$out_two" "same-code-root homes must have distinct titles"
+  out_two=$(FM_HOME="$home_one" FM_ROOT_OVERRIDE="$root_two" bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_scoped_title fm-task1' "$ROOT")
+  assert_equals "$out_one" "$out_two" "changing code roots must not change home identity"
+  ln -s "$home_one" "$dir/home-link"
+  out_two=$(FM_HOME="$dir/home-link" FM_ROOT_OVERRIDE="$root_one" bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_scoped_title fm-task1' "$ROOT")
+  assert_equals "$out_one" "$out_two" "home aliases must retain the same identity"
+  pass "zellij namespaces follow the physical operational home, not the tracked code root"
 }
 
 test_expected_label_accepts_unambiguous_untagged_legacy_tab() {
@@ -309,7 +312,7 @@ test_list_live_scopes_to_own_home_tag() {
   dir="$TMP_ROOT/list-live-scope"; mkdir -p "$dir/responses"
   other_root="$dir/other-root"; mkdir -p "$other_root"
   own_title=$(zellij_expected_scoped_title fm-task1)
-  foreign_title=$(zellij_expected_scoped_title fm-task2 "$ROOT" "$other_root")
+  foreign_title=$(zellij_expected_scoped_title fm-task2 "$other_root")
   # 1: list-tabs --json -> our own home-scoped tab, a DIFFERENT installation's
   # home-scoped tab (same prefix shape, different FM_ROOT hash), and an
   # unrelated non-firstmate tab.
@@ -810,7 +813,7 @@ test_kill_skips_recorded_tab_when_label_mismatches() {
   PATH="$fb:$PATH" FM_ZELLIJ_LOG="$dir/log" FM_ZELLIJ_RESPONSES="$dir/responses" \
     FM_ZELLIJ_SESSION_LIST="firstmate" \
     bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_kill firstmate:7 3 fm-zghost' "$ROOT"
-  expect_code 0 $? "kill must stay best-effort when the recorded tab id no longer belongs to the task"
+  expect_code 1 $? "kill must refuse when the recorded tab is present but its identity cannot be verified"
   zellij_assert_call_order "$dir/log" $'\x1f''list-panes'$'\x1f''--json' $'\x1f''list-tabs'$'\x1f''--json' \
     "kill did not verify the recorded tab id by label"
   assert_not_contains "$(cat "$dir/log")" $'\x1f''close-tab-by-id' \
@@ -818,6 +821,26 @@ test_kill_skips_recorded_tab_when_label_mismatches() {
   assert_not_contains "$(cat "$dir/log")" $'\x1f''close-pane' \
     "kill should not fall back to closing a pane once an expected task label is available"
   pass "fm_backend_zellij_kill: skips a stale recorded tab id whose label does not match"
+}
+
+test_kill_refuses_present_unverified_live_tab() {
+  local dir fb name rc
+  for name in "fm-firstmate-$(zellij_expected_root_hash "$ROOT")-legacy" foreign-name ''; do
+    dir="$TMP_ROOT/kill-unverified-live-${name:-empty}"
+    mkdir -p "$dir/responses" "$dir/home"
+    zellij_pane_response "$dir" 1 7 3
+    zellij_tab_response "$dir" 2 3 "$name"
+    fb=$(make_zellij_fakebin "$dir")
+    rc=0
+    PATH="$fb:$PATH" FM_HOME="$dir/home" FM_ZELLIJ_SESSION_LIST=firstmate \
+      FM_ZELLIJ_LOG="$dir/log" FM_ZELLIJ_RESPONSES="$dir/responses" \
+      bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_kill firstmate:7 4 fm-legacy' "$ROOT" \
+      > "$dir/out" 2> "$dir/err" || rc=$?
+    [ "$rc" -ne 0 ] || fail "present unverified Zellij tab was reported closed: $name"
+    assert_not_contains "$(cat "$dir/log")" 'close-tab-by-id' "unverified live tab must not close"
+    assert_not_contains "$(cat "$dir/log")" 'close-pane' "identity mismatch must not fall back to closing a pane"
+  done
+  pass "Zellij cleanup refuses present unverified live tabs without falling back to another tab"
 }
 
 test_kill_is_noop_when_session_absent() {
@@ -892,7 +915,7 @@ test_forced_secondmate_teardown_kills_zellij_children_with_child_home_tag() {
     "worktree=$dir/missing-child-worktree" \
     "project=$project" \
     "kind=scout"
-  child_title=$(zellij_expected_scoped_title fm-childz "$home" "$home")
+  child_title=$(zellij_expected_scoped_title fm-childz "$home")
   zellij_pane_response "$dir" 1 7 4
   zellij_tab_response "$dir" 2 4 "$child_title"
   printf '[]\n' > "$dir/responses/3.out"
@@ -1304,7 +1327,7 @@ test_parse_target
 test_normalize_key
 test_scoped_title_uses_primary_home_label
 test_scoped_title_uses_secondmate_home_label
-test_scoped_title_changes_with_root_path
+test_scoped_title_changes_with_home_path
 test_expected_label_accepts_unambiguous_untagged_legacy_tab
 test_expected_label_refuses_ambiguous_untagged_tab
 test_list_live_scopes_to_own_home_tag
@@ -1337,6 +1360,7 @@ test_kill_resolves_tab_and_closes_by_id
 test_kill_falls_back_to_close_pane_when_tab_lookup_empty
 test_kill_closes_recorded_tab_when_pane_already_gone
 test_kill_skips_recorded_tab_when_label_mismatches
+test_kill_refuses_present_unverified_live_tab
 test_kill_is_noop_when_session_absent
 test_teardown_passes_recorded_tab_id_to_zellij_kill
 test_forced_secondmate_teardown_kills_zellij_children_with_child_home_tag
