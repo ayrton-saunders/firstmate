@@ -188,6 +188,7 @@ DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 . "$SCRIPT_DIR/fm-busy-lib.sh"
 # shellcheck source=bin/fm-control-lib.sh
 . "$SCRIPT_DIR/fm-control-lib.sh"
+# shellcheck source=bin/fm-codex-config-lib.sh
 . "$SCRIPT_DIR/fm-codex-config-lib.sh"
 # shellcheck source=bin/fm-polytoken-lib.sh
 . "$SCRIPT_DIR/fm-polytoken-lib.sh"

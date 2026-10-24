@@ -777,6 +777,7 @@ case "$CLAUDE_PERMISSION_MODE" in
 auto) CLAUDE_PERM_FLAG='--permission-mode auto' ;;
 *) CLAUDE_PERM_FLAG='--dangerously-skip-permissions' ;;
 esac
+# shellcheck source=bin/fm-codex-config-lib.sh
 . "$SCRIPT_DIR/fm-codex-config-lib.sh"
 fm_codex_resolve_modes "$CONFIG" || exit 1
 # config/lavish-axi-host is the primary-owned per-machine address for the
