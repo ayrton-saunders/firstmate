@@ -94,7 +94,7 @@ pass "real rex: OSC 7501 records from the foreground shell drive busy_state"
 # --- cleanup and absence proof -----------------------------------------------
 
 ENDPOINT=$(fm_backend_rex_server_endpoint) || fail "could not read the server endpoint"
-fm_backend_rex_kill "$T" || fail "kill must close the block and prove it gone"
+fm_backend_rex_kill "$T" "$REX_TEST_ENDPOINT" || fail "kill must close the block and prove it gone"
 [ "$(fm_backend_rex_block_presence "$T")" = missing ] || fail "a killed block must read missing"
 [ "$(fm_backend_rex_endpoint_absence_recheck "$T" "$ENDPOINT")" = missing ] || fail "the absence proof must read missing"
 [ "$(fm_backend_rex_endpoint_absence_recheck "$T" unix:///not-this-server.sock)" = unproven ] \
@@ -105,7 +105,7 @@ pass "real rex: kill closes exactly the task tab and the recorded server proves 
 
 TRIPLE2=$(fm_backend_rex_create_task_in_session "$SMOKE_SID" fm-test-beta "$WORK") || fail "create_task_in_session failed"
 read -r _ _ BID2 <<<"$TRIPLE2"
-fm_backend_rex_kill "$(fm_backend_rex_target "$SMOKE_SID" "$BID2")" || fail "kill of the reclaimed tab failed"
+fm_backend_rex_kill "$(fm_backend_rex_target "$SMOKE_SID" "$BID2")" "$REX_TEST_ENDPOINT" || fail "kill of the reclaimed tab failed"
 fm_backend_rex_create_task_in_session "session:00000000-0000-7000-8000-000000000000" fm-test-gamma "$WORK" >/dev/null 2>&1
 [ "$?" = 2 ] || fail "create_task_in_session on a session that does not exist must return 2"
 pass "real rex: relaunch reclaim opens a tab in the exact session, and a gone session returns 2 creating nothing"

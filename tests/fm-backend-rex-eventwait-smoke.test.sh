@@ -105,7 +105,7 @@ T3=$(fm_backend_rex_target "$SID2" "$BID3")
 WPID=$!
 sleep 1.5
 START=$(now_ms)
-fm_backend_rex_kill "$T3" || fail "could not close the watched tab"
+fm_backend_rex_kill "$T3" "$REX_TEST_ENDPOINT" || fail "could not close the watched tab"
 wait "$WPID"
 END=$(now_ms)
 [ "$(cat "$RCF")" = 1 ] || fail "a closed watched block must end the wait with 1, got $(cat "$RCF")"

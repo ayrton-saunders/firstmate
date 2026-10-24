@@ -1619,6 +1619,7 @@ spawn_abort_cleanup() {
       SPAWN_FRESH_ENDPOINT_OPENED=0
       local abort_tab_id=
       [ "$BACKEND" != zellij ] || abort_tab_id=${ZELLIJ_TAB_ID:-}
+      [ "$BACKEND" != rex ] || abort_tab_id=${FM_REX_TASK_SERVER:-}
       if fm_backend_kill "$BACKEND" "$T" "$abort_tab_id" "fm-$ID" 2>/dev/null; then
         SPAWN_ENDPOINT_CLOSED=1
       else
@@ -4965,6 +4966,7 @@ rovo_endpoint_cleanup() {
   fi
   local tab_id=
   [ "$BACKEND" = zellij ] && tab_id=$ZELLIJ_TAB_ID
+  [ "$BACKEND" != rex ] || tab_id=${FM_REX_TASK_SERVER:-}
   fm_backend_kill "$BACKEND" "$T" "$tab_id" "fm-$ID" 2>/dev/null && SPAWN_ENDPOINT_CLOSED=1 || true
 }
 

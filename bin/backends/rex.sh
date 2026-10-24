@@ -962,17 +962,21 @@ fm_backend_rex_block_presence() {  # <target>
 # so a close that failed or left the block alive returns nonzero and the
 # caller keeps its records. An already-gone block is success. A per-home
 # session left with no windows is then retired.
-fm_backend_rex_kill() {  # <target> [unused] [expected-label]
-  local sid
+fm_backend_rex_kill() {  # <target> <recorded-server> [expected-label]
+  local sid recorded=${2:-} endpoint
+  [ -n "$recorded" ] && endpoint=$(fm_backend_rex_server_endpoint) && [ "$endpoint" = "$recorded" ] || {
+    echo "error: rex server identity cannot be verified for this task; refusing close" >&2
+    return 1
+  }
   fm_backend_rex_parse_target "$1" || {
     echo "error: malformed rex target '$1'; cannot close it" >&2
     return 1
   }
   sid=$FM_BACKEND_REX_SESSION
   fm_backend_rex_cli block close -s "$sid" "$FM_BACKEND_REX_BLOCK" >/dev/null 2>&1 || true
-  case "$(fm_backend_rex_block_presence "$1")" in
+  case "$(fm_backend_rex_endpoint_absence_recheck "$1" "$recorded")" in
     missing) ;;
-    present)
+    alive|dead)
       echo "error: rex block $FM_BACKEND_REX_BLOCK is still open after its close" >&2
       return 1
       ;;

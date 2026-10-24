@@ -89,7 +89,10 @@ case "$cmd:$sub" in
   version:)
     printf 'rex 0.0.1-fake\napi: revision %s\n' "${FM_REX_FAKE_API:-5}" ;;
   whoami:)
-    printf '{"endpoint":"%s"}\n' "${FM_REX_FAKE_ENDPOINT:-unix:///fake/rex.sock}" ;;
+    [ ! -f "$D/whoami-fail" ] || exit 4
+    endpoint=${FM_REX_FAKE_ENDPOINT:-unix:///fake/rex.sock}
+    [ ! -f "$D/endpoint" ] || endpoint=$(cat "$D/endpoint")
+    printf '{"endpoint":"%s"}\n' "$endpoint" ;;
   ls:)
     [ ! -f "$D/ls-fail" ] || exit 1
     jq -c '{sessions: [.sessions[] | {session_id, label}]}' "$S" ;;
@@ -123,6 +126,7 @@ case "$cmd:$sub" in
       '(.sessions[] | select(.session_id == $s) | .windows[].blocks[] | select(.block_id == $b) | .label) = $l' ;;
   block:close)
     has_block "$sid" "$p0" || notfound "block"
+    [ ! -f "$D/after-close-endpoint" ] || cp "$D/after-close-endpoint" "$D/endpoint"
     [ ! -f "$D/close-noop" ] || exit 0
     save --arg s "$sid" --arg b "$p0" \
       '(.sessions[] | select(.session_id == $s) | .windows) |= ([.[] | .blocks |= map(select(.block_id != $b))]
@@ -760,10 +764,10 @@ test_kill_closes_and_retires_per_home_session() {
   dir=$(new_case kill)
   out=$(rex_env "$dir" 'fm_backend_rex_create_task fm-alpha /tmp'); read -r sid _ bid1 <<<"$out"
   out=$(rex_env "$dir" 'fm_backend_rex_create_task fm-beta /tmp'); read -r _ _ bid2 <<<"$out"
-  rex_env "$dir" "fm_backend_kill rex '${sid#session:}:${bid1#block:}'" || fail "kill of a live block must succeed"
+  rex_env "$dir" "fm_backend_kill rex '${sid#session:}:${bid1#block:}' unix:///fake/rex.sock" || fail "kill of a live block must succeed"
   assert_equals 1 "$(state_json "$dir" '.sessions[0].windows | length')" "kill must close only its own tab"
-  rex_env "$dir" "fm_backend_kill rex '${sid#session:}:${bid1#block:}'" || fail "kill of an already-gone block must succeed"
-  rex_env "$dir" "fm_backend_kill rex '${sid#session:}:${bid2#block:}'" || fail "kill of the last block must succeed"
+  rex_env "$dir" "fm_backend_kill rex '${sid#session:}:${bid1#block:}' unix:///fake/rex.sock" || fail "kill of an already-gone block must succeed"
+  rex_env "$dir" "fm_backend_kill rex '${sid#session:}:${bid2#block:}' unix:///fake/rex.sock" || fail "kill of the last block must succeed"
   assert_equals 0 "$(state_json "$dir" '.sessions | length')" "the emptied per-home session must be retired"
   pass "fm_backend_kill rex: closes exactly its tab, treats a gone block as done, retires the emptied per-home session"
 }
@@ -777,9 +781,60 @@ test_kill_never_retires_a_foreign_session() {
   out=$(rex_env "$dir" TERM_PROGRAM=rex "REX_SESSION=$capsid" "REX_BLOCK=$capbid" 'fm_backend_rex_create_task fm-alpha /tmp')
   read -r sid _ bid <<<"$out"
   fake_rex "$dir" block close -s "$capsid" "$capbid"
-  rex_env "$dir" "fm_backend_kill rex '${sid#session:}:${bid#block:}'" || fail "kill in a foreign session must succeed"
+  rex_env "$dir" "fm_backend_kill rex '${sid#session:}:${bid#block:}' unix:///fake/rex.sock" || fail "kill in a foreign session must succeed"
   assert_equals 1 "$(state_json "$dir" '.sessions | length')" "a session not labeled for this home must never be killed, even empty"
   pass "fm_backend_kill rex: never kills a session this home does not own, even when it is empty"
+}
+
+test_kill_requires_the_recorded_server() {
+  local a b out sid bid target collision before_a before_b mode recorded
+  a=$(new_case close-server-a)
+  out=$(rex_env "$a" 'fm_backend_rex_create_task fm-alpha /tmp')
+  read -r sid _ bid <<< "$out"
+  target="${sid#session:}:${bid#block:}"
+  before_a=$(state_json "$a" '.')
+  for collision in absent present; do
+    b=$(new_case "close-server-b-$collision")
+    if [ "$collision" = present ]; then
+      out=$(rex_env "$b" 'fm_backend_rex_create_task fm-foreign /tmp')
+      read -r sid _ bid <<< "$out"
+      assert_equals "$target" "${sid#session:}:${bid#block:}" "fixture must collide IDs across independent servers"
+    else
+      printf '{"sessions":[]}\n' > "$b/fake/state.json"
+    fi
+    before_b=$(state_json "$b" '.')
+    : > "$b/fake/log"
+    if rex_env "$b" FM_REX_FAKE_ENDPOINT=unix:///server-b.sock \
+      "fm_backend_kill rex '$target' unix:///fake/rex.sock fm-alpha" 2>/dev/null; then
+      fail "a different server's $collision target was accepted as the recorded endpoint"
+    fi
+    assert_equals "$before_a" "$(state_json "$a" '.')" "the launched server-A endpoint must survive"
+    assert_equals "$before_b" "$(state_json "$b" '.')" "the foreign server must remain untouched"
+    assert_not_contains "$(cat "$b/fake/log")" 'block close' "server mismatch must refuse before close"
+  done
+  for mode in missing-record unreadable empty; do
+    rm -f "$a/fake/whoami-fail" "$a/fake/endpoint"
+    recorded=unix:///fake/rex.sock
+    case "$mode" in
+      missing-record) recorded= ;;
+      unreadable) : > "$a/fake/whoami-fail" ;;
+      empty) : > "$a/fake/endpoint" ;;
+    esac
+    : > "$a/fake/log"
+    if rex_env "$a" "fm_backend_kill rex '$target' '$recorded' fm-alpha" 2>/dev/null; then
+      fail "$mode server identity admitted a close"
+    fi
+    assert_equals "$before_a" "$(state_json "$a" '.')" "$mode identity must preserve the task endpoint"
+    assert_not_contains "$(cat "$a/fake/log")" 'block close' "$mode identity must refuse before close"
+  done
+  rm -f "$a/fake/endpoint"
+  : > "$a/fake/close-noop"
+  printf 'unix:///server-b.sock\n' > "$a/fake/after-close-endpoint"
+  if rex_env "$a" "fm_backend_kill rex '$target' unix:///fake/rex.sock fm-alpha" 2>/dev/null; then
+    fail "a changed server identity after close was accepted as absence"
+  fi
+  assert_equals "$before_a" "$(state_json "$a" '.')" "a no-op close and changed server must not prove the endpoint gone"
+  pass "Rex close requires recorded-server identity before mutation and absence proof"
 }
 
 test_kill_refuses_without_proof() {
@@ -787,21 +842,25 @@ test_kill_refuses_without_proof() {
   dir=$(new_case kill-noop)
   out=$(rex_env "$dir" 'fm_backend_rex_create_task fm-alpha /tmp'); read -r sid _ bid <<<"$out"
   touch "$dir/fake/close-noop"
-  rex_env "$dir" "fm_backend_kill rex '${sid#session:}:${bid#block:}'" 2>/dev/null && fail "a close that leaves the block alive must fail"
+  rex_env "$dir" "fm_backend_kill rex '${sid#session:}:${bid#block:}' unix:///fake/rex.sock" 2>/dev/null && fail "a close that leaves the block alive must fail"
   rm -f "$dir/fake/close-noop"; touch "$dir/fake/unreachable"
-  rex_env "$dir" "fm_backend_kill rex '${sid#session:}:${bid#block:}'" 2>/dev/null && fail "an unreachable server must fail the kill"
+  rex_env "$dir" "fm_backend_kill rex '${sid#session:}:${bid#block:}' unix:///fake/rex.sock" 2>/dev/null && fail "an unreachable server must fail the kill"
   pass "fm_backend_kill rex: refuses success unless the block is proven gone"
 }
 
 # rex_teardown_meta: record <id> of <kind> on the fake's block in <state-dir>.
 rex_teardown_meta() {  # <state-dir> <id> <kind> <home> <session-id> <window-id> <block-id>
-  local state=$1 id=$2 kind=$3 home=$4 sid=$5 wid=$6 bid=$7
+  local state=$1 id=$2 kind=$3 home=$4 sid=$5 wid=$6 bid=$7 project=${8:-$4}
   {
     echo "window=${sid#session:}:${bid#block:}"
     echo "endpoint_task_id=$id"
     echo "worktree=$home"
-    echo "project=$home"
-    [ "$kind" != secondmate ] || { echo "home=$home"; echo "mode=secondmate"; echo "projects=alpha"; }
+    echo "project=$project"
+    if [ "$kind" = secondmate ]; then
+      echo "home=$home"; echo "mode=secondmate"; echo "projects=alpha"
+    else
+      echo "mode=local-only"
+    fi
     echo "harness=echo"
     echo "yolo=off"
     echo "kind=$kind"
@@ -839,6 +898,68 @@ test_teardown_retires_the_secondmate_session() {
     "retiring the secondmate must retire its emptied per-home session"
   assert_equals 1 "$(state_json "$dir" '.sessions | length')" "an unrelated session must survive the retirement"
   pass "fm-teardown rex: retiring a secondmate closes its crew and its own tab and retires its per-home session"
+}
+
+test_teardown_keeps_records_when_rex_server_is_unverified() {
+  local axis failure dir foreign mate out sid wid bid child_sid child_wid child_bid id rc before tool
+  for axis in ordinary secondmate descendant; do
+    for failure in foreign unreadable; do
+      dir=$(new_case "teardown-binding-$axis-$failure")
+      foreign=$(new_case "teardown-foreign-$axis-$failure")
+      mkdir -p "$dir/home/data" "$dir/home/config"
+      printf manual > "$dir/home/config/backlog-backend"
+      for tool in gh gh-axi no-mistakes treehouse tmux; do
+        printf '#!/usr/bin/env bash\nexit 0\n' > "$dir/bin/$tool"
+        chmod +x "$dir/bin/$tool"
+      done
+      if [ "$axis" = ordinary ]; then
+        id=task
+        fm_git_worktree "$dir/project" "$dir/wt" fm/task
+        out=$(rex_env "$dir" 'fm_backend_rex_create_task fm-task /tmp') || fail "could not launch fake ordinary task"
+        read -r sid wid bid <<< "$out"
+        rex_teardown_meta "$dir/home/state" "$id" ship "$dir/wt" "$sid" "$wid" "$bid" "$dir/project"
+      else
+        id=sm
+        mate="$dir/mate"
+        mkdir -p "$mate/state" "$mate/data" "$mate/config"
+        printf sm > "$mate/.fm-secondmate-home"
+        out=$(rex_env "$dir" "FM_HOME=$mate" "FM_ROOT=$mate" "STATE=$mate/state" \
+          'fm_backend_rex_create_task fm-sm /tmp other-home') || fail "could not launch fake secondmate"
+        read -r sid wid bid <<< "$out"
+        rex_teardown_meta "$dir/home/state" "$id" secondmate "$mate" "$sid" "$wid" "$bid"
+        if [ "$axis" = descendant ]; then
+          out=$(rex_env "$dir" "FM_HOME=$mate" "FM_ROOT=$mate" "STATE=$mate/state" \
+            'fm_backend_rex_create_task fm-child /tmp') || fail "could not launch fake descendant"
+          read -r child_sid child_wid child_bid <<< "$out"
+          rex_teardown_meta "$mate/state" child ship "$dir/gone-child" "$child_sid" "$child_wid" "$child_bid"
+        fi
+      fi
+      before=$(state_json "$dir" '.')
+      printf '{"sessions":[]}\n' > "$foreign/fake/state.json"
+      : > "$foreign/fake/log"
+      [ "$failure" != unreadable ] || : > "$foreign/fake/whoami-fail"
+      rc=0
+      out=$(env -u TERM_PROGRAM -u REX_SESSION -u REX_BLOCK -u REX_SERVER \
+        PATH="$dir/bin:$PATH" FM_REX_FAKE_DIR="$foreign/fake" REX_BIN_DIR="$foreign/bin" \
+        FM_REX_FAKE_ENDPOINT=unix:///server-b.sock FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$ROOT" \
+        FM_STATE_OVERRIDE="$dir/home/state" FM_DATA_OVERRIDE="$dir/home/data" FM_CONFIG_OVERRIDE="$dir/home/config" \
+        FM_REX_FAKE_DEAD_PID="$DEAD_PID" FM_BACKEND_REX_BUNDLE_BIN="$dir/no-bundle/rex" \
+        "$ROOT/bin/fm-teardown.sh" "$id" --force 2>&1) || rc=$?
+      [ "$rc" -ne 0 ] || fail "$axis/$failure teardown accepted an unverified Rex server"
+      assert_contains "$out" 'rex server identity cannot be verified' "$axis/$failure must reach the shared close refusal: $out"
+      [ -f "$dir/home/state/$id.meta" ] || fail "$axis/$failure erased the task record under --force"
+      if [ "$axis" != ordinary ]; then
+        [ -d "$mate" ] || fail "$axis/$failure removed the unverified secondmate home"
+      fi
+      if [ "$axis" = descendant ]; then
+        [ -f "$mate/state/child.meta" ] || fail "descendant refusal erased the child record"
+      fi
+      assert_equals "$before" "$(state_json "$dir" '.')" "$axis/$failure modified the original server"
+      assert_equals 0 "$(state_json "$foreign" '.sessions | length')" "$axis/$failure modified the foreign server"
+      assert_not_contains "$(cat "$foreign/fake/log")" 'block close' "$axis/$failure issued a foreign close"
+    done
+  done
+  pass "ordinary, secondmate and descendant teardown retain records when recorded Rex server identity cannot be verified"
 }
 
 test_absence_recheck() {
@@ -968,7 +1089,7 @@ test_same_code_root_homes_have_distinct_sessions() {
     'fm_backend_rex_send_literal ffffffff-0000-7000-8000-000000000000:eeeeeeee-0000-7000-8000-000000000000 wrong fm-collision' 2>/dev/null \
     && fail "a missing Rex identity must not recover another home's equal task label"
   assert_equals recorded-identity "$(cat "$dir/fake/sent")" "missing identity must not send anything"
-  rex_env "$dir" "FM_HOME=$home_b" "STATE=$home_b/state" "fm_backend_rex_kill '$target_b'" \
+  rex_env "$dir" "FM_HOME=$home_b" "STATE=$home_b/state" "fm_backend_rex_kill '$target_b' unix:///fake/rex.sock" \
     || fail "home B must reclaim its own recorded block"
   assert_equals 2 "$(state_json "$dir" '.sessions | length')" "home B retirement must retain A and the legacy session"
   fake_rex "$dir" block close -s "$sid_old" "$bid_old"
@@ -1014,8 +1135,10 @@ test_send_literal_and_keys
 test_submit_confirms_turn_start_without_accepting_arbitrary_unknown
 test_kill_closes_and_retires_per_home_session
 test_kill_never_retires_a_foreign_session
+test_kill_requires_the_recorded_server
 test_kill_refuses_without_proof
 test_teardown_retires_the_secondmate_session
+test_teardown_keeps_records_when_rex_server_is_unverified
 test_absence_recheck
 test_control_absence_verdict_reads_rex_meta
 test_control_exit_after_a_server_stop
