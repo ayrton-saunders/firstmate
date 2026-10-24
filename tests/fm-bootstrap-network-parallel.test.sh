@@ -13,6 +13,7 @@ set -u
 
 # shellcheck source=tests/lib.sh disable=SC1091
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+. "$ROOT/bin/fm-timeout-lib.sh"
 
 BASE_PATH=${FM_TEST_BASE_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}
 TMP_ROOT=$(fm_test_tmproot fm-bootstrap-network-parallel)
@@ -506,7 +507,7 @@ run_inherit_push() {  # <id> <generation> -> stdout+stderr; status of the push
     FM_SSH_BIN="$CF_FAKEBIN/fake-ssh" \
     FM_FAKE_SSH_LOG="$CF_LOG" \
     FM_INHERITABLE_CONFIG='item-a item-b item-c item-d item-e item-f' \
-    "$ROOT/bin/fm-remote-inherit-push.sh" "$@" 2>&1
+    fm_run_timed 15 "$ROOT/bin/fm-remote-inherit-push.sh" "$@" 2>&1
 }
 
 max_inherit_overlap() {  # <log>: the most inheritance items in flight at once
@@ -557,6 +558,69 @@ test_inherit_push_failure_stops_new_sends() {
     fail "a concurrent push kept starting items after the first item failed"$'\n'"$(cat "$CF_LOG")"
   fi
   pass "remote inheritance push: a failed item fails the push and no later item is started"
+}
+
+install_completion_publication_fault() {
+  local real_mv
+  real_mv=$(command -v mv) || fail "mv is required"
+  cat > "$CF_FAKEBIN/mv" <<SH
+#!/usr/bin/env bash
+case "\${2:-}" in
+  */item.1.rc.tmp)
+    printf 'FAULT completion-publication\\n' >> "\$FM_FAKE_SSH_LOG"
+    if [ "\${FM_FAKE_COMPLETION_MODE:-fail}" = drop ]; then exit 0; fi
+    printf 'error: synthetic completion storage exhaustion\\n' >&2
+    exit 1
+    ;;
+esac
+exec "$real_mv" "\$@"
+SH
+  chmod +x "$CF_FAKEBIN/mv"
+}
+
+test_inherit_push_missing_completion_terminates() {
+  local out rc jobs mode
+  for jobs in 1 4; do
+    for mode in fail drop; do
+      convergence_fixture "$TMP_ROOT/push-missing-$jobs-$mode" sm:host-sm
+      install_completion_publication_fault
+      out=$(FM_FAKE_COMPLETION_MODE="$mode" FM_REMOTE_INHERIT_PUSH_JOBS="$jobs" \
+        run_inherit_push sm 1); rc=$?
+      expect_code 255 "$rc" "missing completion must terminate as unknown, not hang ($jobs jobs, $mode): $out"
+      assert_grep 'FAULT completion-publication' "$CF_LOG" "the completion publication fault must execute"
+      assert_contains "$out" "error: inherited item config/item-a has no completion record" "the missing item must be identified"
+      assert_contains "$out" "unchanged: config/item-a" "the completed remote command's output must still be replayed"
+      if [ "$jobs" = 1 ]; then
+        assert_not_contains "$(cat "$CF_LOG")" "config/item-b" "a missing completion must stop subsequent sends"
+      fi
+    done
+  done
+
+  convergence_fixture "$TMP_ROOT/push-missing-mixed" sm:host-sm
+  install_completion_publication_fault
+  out=$(FM_FAKE_ITEM_FAIL=config/item-b FM_FAKE_ITEM_SLEEP=0.3 \
+    run_inherit_push sm 1); rc=$?
+  expect_code 255 "$rc" "missing completion must override a sibling's known failure: $out"
+  assert_contains "$out" "error: synthetic refusal of config/item-b" "the sibling failure must be replayed"
+  assert_contains "$out" "error: inherited item config/item-a has no completion record" "the publication failure must be replayed"
+  pass "remote inheritance push: exited senders without completion terminate as unknown in serial and parallel"
+}
+
+test_config_push_missing_completion_keeps_the_reread_owed() {
+  local out rc
+  convergence_fixture "$TMP_ROOT/config-push-missing-completion" sm:host-sm
+  install_completion_publication_fault
+  out=$(fm_run_timed 15 env PATH="$CF_FAKEBIN:$BASE_PATH" \
+    FM_HOME="$CF_HOME" FM_ROOT_OVERRIDE="$CF_PRIMARY" \
+    FM_SSH_BIN="$CF_FAKEBIN/fake-ssh" FM_FAKE_SSH_LOG="$CF_LOG" \
+    FM_INHERITABLE_CONFIG='item-a item-b' FM_REMOTE_INHERIT_PUSH_JOBS=1 \
+    "$ROOT/bin/fm-config-push.sh" 2>&1); rc=$?
+  expect_code 1 "$rc" "direct config-push must terminate and fail on missing completion: $out"
+  assert_contains "$out" "error: inherited item config/item-a has no completion record" "config-push must report missing completion"
+  rm "$CF_FAKEBIN/mv"
+  assert_owed_reread_survives_unchanged_retry fm-config-push.sh \
+    "missing completion must preserve the owed reread even without a reported mutation"
+  pass "config-push: missing completion terminates and keeps the reread owed"
 }
 
 test_inherit_push_local_refusal_sends_nothing() {
@@ -761,6 +825,8 @@ test_remote_probe_scheduling_keeps_per_mate_lines fallback
 test_remote_inheritance_failure_names_its_own_error_not_an_unchanged_item
 test_inherit_push_overlaps_items_and_replays_in_order
 test_inherit_push_failure_stops_new_sends
+test_inherit_push_missing_completion_terminates
+test_config_push_missing_completion_keeps_the_reread_owed
 test_inherit_push_local_refusal_sends_nothing
 test_convergence_budget_isolates_a_hung_mate
 test_partial_push_failure_keeps_the_reread_owed

@@ -129,6 +129,7 @@ item_failed() {  # <n>: 0 when the item finished with a non-zero status
   [ "$rc" != 0 ]
 }
 
+PIDS=()
 running=0
 next=1
 launched=0
@@ -137,9 +138,16 @@ while [ "$next" -le "$N" ] || [ "$running" -gt 0 ]; do
   running=0
   i=1
   while [ "$i" -le "$launched" ]; do
-    if [ -f "$TMP/item.$i.started" ] && [ ! -f "$TMP/item.$i.rc" ]; then
-      running=$((running + 1))
-    elif item_failed "$i"; then
+    if [ -n "${PIDS[$i]:-}" ]; then
+      if kill -0 "${PIDS[$i]}" 2>/dev/null; then
+        running=$((running + 1))
+      else
+        wait "${PIDS[$i]}" || true
+        PIDS[$i]=
+        [ -f "$TMP/item.$i.rc" ] || stop=1
+      fi
+    fi
+    if item_failed "$i"; then
       stop=1
     fi
     i=$((i + 1))
@@ -149,8 +157,8 @@ while [ "$next" -le "$N" ] || [ "$running" -gt 0 ]; do
     if [ "$(cut -d' ' -f1 "$TMP/item.$next.plan")" = skip ]; then
       printf '0\n' > "$TMP/item.$next.rc"
     else
-      : > "$TMP/item.$next.started"
       send_item "$next" &
+      PIDS[$next]=$!
     fi
     next=$((next + 1))
     continue
@@ -169,9 +177,12 @@ while [ "$i" -le "$launched" ]; do
   if [ "$(cut -d' ' -f1 "$TMP/item.$i.plan")" = skip ]; then
     printf 'unchanged: %s\n' "$(cat "$TMP/item.$i.rel")"
   else
-    cat "$TMP/item.$i.out"
-    cat "$TMP/item.$i.err" >&2
-    if item_failed "$i"; then
+    cat "$TMP/item.$i.out" || status=255
+    cat "$TMP/item.$i.err" >&2 || status=255
+    if [ ! -f "$TMP/item.$i.rc" ]; then
+      printf 'error: inherited item %s has no completion record\n' "$(cat "$TMP/item.$i.rel")" >&2
+      status=255
+    elif item_failed "$i"; then
       item_rc=$(cat "$TMP/item.$i.rc")
       if [ "$status" -eq 0 ] || [ "$item_rc" -eq 255 ]; then status=$item_rc; fi
     fi
