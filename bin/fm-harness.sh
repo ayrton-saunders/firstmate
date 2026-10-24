@@ -500,10 +500,10 @@ secondmate_parse() {
     return 1
   fi
   local contents
-  [ -f "$file" ] && contents=$(cat "$file") || {
+  if [ ! -f "$file" ] || ! contents=$(cat "$file"); then
     echo "error: config/secondmate-harness cannot be read" >&2
     return 1
-  }
+  fi
   local line num=0 id rest i ntok
   local override_pattern='^mate[[:space:]]+([^:[:space:]]+)[[:space:]]*:[[:space:]]*(.*)$'
   # First pass: the legacy default line, and whether the file declares any
