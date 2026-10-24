@@ -488,6 +488,50 @@ SH
   pass "captain presence and quota runway publish derived words only, unknown when unreadable"
 }
 
+test_quota_default_account_selection_in_json_and_publish() {
+  local home fakebin variant expected doc out rc
+  home=$(make_home quota-accounts 0 0)
+  fakebin=$(make_probes "$TMP_ROOT/p-quota-accounts" 0.50 60 8 20971520)
+  printf '3\nquota-provider claude\n' > "$home/config/lane-capacity"
+  cat > "$fakebin/quota-axi" <<SH
+#!/usr/bin/env bash
+cat "$home/snapshot.json"
+SH
+  chmod +x "$fakebin/quota-axi"
+  for variant in other-first default-first missing-default model-only-default schema5; do
+    expected=exhausted_now
+    case "$variant" in missing-default|model-only-default) expected=unknown ;; esac
+    jq -n --arg variant "$variant" '
+      def availability($scope; $status): {scope: $scope, runway: {status: $status}};
+      {schemaVersion: 6, providers: [
+        {provider: "claude", accountKey: "other", quotaSemantics: {effectiveAvailability: [availability("all_models"; "through_reset")]}},
+        {provider: "claude", accountKey: "default", quotaSemantics: {effectiveAvailability: [
+          availability("model:x"; "through_reset"), availability("all_models"; "exhausted_now")]}},
+        {provider: "openai", accountKey: "default", quotaSemantics: {effectiveAvailability: [availability("all_models"; "through_reset")]}}
+      ]} |
+      if $variant == "default-first" then .providers |= reverse
+      elif $variant == "missing-default" then .providers |= map(select(.provider != "claude" or .accountKey != "default"))
+      elif $variant == "model-only-default" then
+        .providers |= map(if .provider == "claude" and .accountKey == "default" then
+          .quotaSemantics.effectiveAvailability |= map(select(.scope != "all_models")) else . end)
+      elif $variant == "schema5" then
+        .schemaVersion = 5 | .providers |= [ .[] | select(.accountKey == "default") | del(.accountKey) ]
+      else . end
+    ' > "$home/snapshot.json" || fail "could not construct quota snapshot"
+    doc=$(capacity_doc "$home" "$fakebin"); rc=$?
+    expect_code 0 "$rc" "capacity JSON failed ($variant): $doc"
+    printf '%s\n' "$doc" | jq -e --arg expected "$expected" '
+      .quota == {provider: "claude", runway: $expected}
+    ' >/dev/null || fail "JSON selected the wrong account or scope ($variant): $doc"
+    out=$(FM_LANE_CAPACITY_PUBLISH_INTERVAL=0 run_capacity_jq "$home" "$fakebin" --publish); rc=$?
+    expect_code 0 "$rc" "capacity publish failed ($variant): $out"
+    jq -e --arg expected "$expected" '
+      .quota == {provider: "claude", runway: $expected}
+    ' "$home/state/lane-capacity.json" >/dev/null || fail "published quota selected the wrong account or scope ($variant)"
+  done
+  pass "JSON and publish select the default quota account independently of row order and scope siblings"
+}
+
 # start_watcher <home>: run the real watcher for that home in the background;
 # the suite's cleanup stops it through the arm script.
 start_watcher() {
@@ -539,6 +583,7 @@ test_cap_only_memory_rule_unchanged
 test_limits_and_admit
 test_publish_document
 test_captain_and_quota
+test_quota_default_account_selection_in_json_and_publish
 test_watcher_publishes_only_when_opted_in
 test_real_host_smoke
 
