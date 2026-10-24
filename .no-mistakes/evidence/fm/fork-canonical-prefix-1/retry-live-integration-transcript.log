@@ -1,0 +1,20 @@
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.test-phase-tmp/integration/fork.git main 1c4b77cfc5878f6f61d85698bc2d7ad55dae78f7 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.test-phase-tmp/integration/canonical.git main 428a3e92240e492c5f59882a05d83d85bc900f7a /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.test-phase-tmp/integration/record
+update refused: integration failed; preserve index, paths and task evidence for resolution/approval
+exit=1
+Observed: genuine content conflict retained in isolated candidate; active primary unchanged; conflict provenance recorded.
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.test-phase-tmp/integration/fork.git main 1c4b77cfc5878f6f61d85698bc2d7ad55dae78f7 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.test-phase-tmp/integration/canonical.git main 428a3e92240e492c5f59882a05d83d85bc900f7a /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.test-phase-tmp/integration/record
+fork-head: 1c4b77cfc5878f6f61d85698bc2d7ad55dae78f7
+upstream-head: 428a3e92240e492c5f59882a05d83d85bc900f7a
+candidate: 756272c3323ea80dd0d17d2d5322b7f6213fb797
+tree: 509b09f841eb1ceeb31f345d5556b3e95206a421
+conflict-history: conflicted
+exit=0
+Actual merge parents: 1c4b77cfc5878f6f61d85698bc2d7ad55dae78f7 428a3e92240e492c5f59882a05d83d85bc900f7a
+Retained behavior:
+Fork updates
+Canonical evidence guards
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.test-phase-tmp/integration/fork.git main 1c4b77cfc5878f6f61d85698bc2d7ad55dae78f7 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.test-phase-tmp/integration/canonical.git main 428a3e92240e492c5f59882a05d83d85bc900f7a /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.test-phase-tmp/integration/record
+update refused: dirty working tree; preserve it
+exit=1
+Observed: dirty candidate refused without losing unlanded work; no qualification, landing, activation, or fleet update attempted.

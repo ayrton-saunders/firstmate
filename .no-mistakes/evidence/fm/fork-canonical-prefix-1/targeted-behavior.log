@@ -1,0 +1,313 @@
+FM_TEST_BEGIN 2026-10-24T11:05:48Z tests/fm-tool-update-check.test.sh family=watcher-wake-lock expected_gate_skip=none
+ok - PATH skew is reported by asking every copy on PATH for its own version
+ok - no report when PATH already resolves the newest installed copy
+ok - two copies of the same version are not skew
+ok - one copy reached through two PATH entries is probed once as one install
+ok - a copy that reports no version is a check failure, not a pass
+ok - a watched command missing from PATH is reported
+ok - a tool's own update announcement is read from its output
+ok - an announcement naming an already-installed version is not also reported as an available update
+ok - an announcement naming a version newer than every installed copy is still reported as available
+ok - an announcement carried by another command is read from that command
+ok - an announce_pattern that cannot be used is reported instead of read as silence
+ok - a broken pattern is reported for its own tool and the rest of the sweep still reports
+ok - an announcement source the budget could not reach is reported, not read as current
+ok - an announcement probe that does not answer is reported, not read as current
+ok - a tool that announces nothing stays silent
+ok - a version_url newer than every installed copy is reported as an available update
+ok - a version_url no newer than an installed copy reports only PATH skew when needed
+ok - a version_url that matches the PATH version is silent
+ok - a version_url that does not answer with a version is a check failure
+ok - a missing curl is a check failure
+ok - version_url is validated as one https URL beside a command
+ok - commits behind the origin branch are reported without touching the repository
+ok - an omitted branch is detected from the remote's default branch
+ok - the default branch is asked of the remote when the clone has no local record
+ok - a repository that is current or ahead of its origin branch is silent
+not ok - an unusable git source was not reported (missing: 'firstmate check failed')
+--- output ---
+
+FM_TEST_END 2026-10-24T11:06:04Z tests/fm-tool-update-check.test.sh exit=1 duration_ms=15959 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T11:06:04Z tests/fm-polytoken-harness.test.sh family=pure-contract-unit expected_gate_skip=none
+FM_TEST_BEGIN 2026-10-24T11:06:04Z tests/fm-trace-context-lib.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - fm_trace_context_valid accepts a conformant W3C traceparent
+ok - fm_trace_context_valid rejects all-zero ids, ff version, uppercase, wrong length, missing field, shell metacharacters, and empty
+ok - a command-substitution-shaped value is rejected as inert data, never executed
+ok - fm_trace_context_hex yields exact-length lowercase hex, distinct per call
+ok - fm_trace_context_mint starts a valid sampled root trace
+ok - every mint is an unrelated fresh root - one trace per task, no parent adoption
+ok - a minted root is the fixed 55-char W3C form (hex and hyphens only), so firstmate originates no free-form content in the carrier
+ok - enablement is default-off; FM_TRACE_CONTEXT overrides with truthy/other precedence, and unset or empty defers to config/trace-context
+ok - session start normalizes config and environment precedence into frozen on/off state
+ok - session state is atomically published through a same-directory replacement
+ok - a stale on record is inactive when publication fails in a new locked session
+ok - missing or invalid frozen session state defaults off
+ok - resolve omits the carrier and returns success when the capability is off (byte-identical default)
+ok - resolve mints a valid traceparent when enabled
+ok - Secondmate home-session state stays off or on despite later file state; ambient TRACEPARENT is never adopted, so each routed task roots its own trace
+ok - resolve reuses a valid recorded traceparent verbatim on relaunch (stable identity across restarts)
+ok - disabling the capability omits the carrier even for a task with a recorded identity
+ok - a corrupt recorded traceparent is re-minted rather than propagated
+ok - resolve yields exactly one carrier per logical task, so the recorded and injected values are identical by construction
+ok - entropy failure omits telemetry safely: mint reports failure, resolve returns success with no carrier
+ok - resolver tmux inputs: enabled fresh root, stable recovery, disabled omission, inert prose, unchanged metadata
+ok - resolver herdr inputs: enabled fresh root, stable recovery, disabled omission, inert prose, unchanged metadata
+ok - resolver zellij inputs: enabled fresh root, stable recovery, disabled omission, inert prose, unchanged metadata
+ok - resolver orca inputs: enabled fresh root, stable recovery, disabled omission, inert prose, unchanged metadata
+ok - resolver cmux inputs: enabled fresh root, stable recovery, disabled omission, inert prose, unchanged metadata
+ok - config/trace-context is inherited into secondmate homes, keeping the nested chain enabled end to end
+# fm-trace-context-lib.test.sh: all assertions passed
+FM_TEST_END 2026-10-24T11:06:06Z tests/fm-trace-context-lib.test.sh exit=0 duration_ms=2215 gate_skip=false
+ok - fm-harness.sh: ancestry detects a natively-named polytoken command
+ok - fm-harness.sh: ancestry rejects unrelated polytoken mentions
+ok - fm-harness.sh: no inherited launcher marker claims the polytoken identity
+ok - fm-control-lib: polytoken mechanics are REST interrupt, /quit exit, no secondmates
+ok - fm-control-lib: polytoken wiring tables name every generated artifact and no project file
+ok - bin/fm-agent-process-lib.sh: polytoken is an agent, fragments are not
+ok - fm-busy-lib: the polytoken-hook source is scoped to polytoken tasks
+ok - fm-composer-lib: only the pinned Running-for row carries the polytoken busy verdict
+ok - fm-composer-lib: the polytoken separated shape reads empty, pending, and unknown exactly
+ok - fm-composer-lib: the queued-Enter conversion covers polytoken's verified queue behavior
+ok - fm-tmux-lib: only a polytoken-identity pane confirms a submit from its Running-for row
+ok - fm-polytoken-lib: the config mirror enforces the unattended posture
+ok - config mirror parses quoted keys, whitespace, structured values, aliases, and merges
+ok - read-only config preflight and writer refuse malformed YAML before any writes
+ok - read-only config preflight requires Ruby YAML before worker shutdown
+ok - Polytoken directory aliases preserve external destinations and permit contained wiring
+ok - facet writer and admission preserve existing files and symlinks
+ok - fm-polytoken-lib: the worker facet carries the role contract and no model pin
+ok - fm-polytoken-lib: the no-argv busy writer opens, closes, and never fails
+ok - fm-polytoken-lib: the hook layer binds the three events and refuses to clobber
+ok - fm-polytoken-lib: the model ref composes the effort axis and refuses unlisted models
+ok - fm-polytoken-lib: an unreachable listing refuses an unprovable pin
+ok - fm-polytoken-lib: the REST interrupt reports cancelled, not-running, and refuses unauthorized
+ok - fm-polytoken-lib: the interrupt close lands after mid-turn rewrites and spares a reopened or running turn
+ok - interrupt close preserves a newer prompt and a replacement incarnation at deterministic interleavings
+ok - fm-polytoken-lib: the typed settle postcondition follows GET /sync
+ok - fm-spawn: the polytoken launch carries the hybrid contract end to end
+ok - fm-spawn: polytoken maps an unlisted effort and retains the requested axis
+ok - fm-spawn: polytoken requires explicit model and effort axes
+ok - fm-spawn: an unlisted polytoken model refuses before pane creation
+ok - fm-spawn: polytoken cannot be launched as a secondmate
+ok - fm-spawn: a project's own polytoken hook layer is refused, not clobbered
+ok - spawn refuses project facets and symlinks without generating wiring
+ok - fm-spawn: a whitespace-bearing state dir refuses polytoken wiring before writing any
+ok - fm-spawn: a failed readiness gate fails loudly, reaps, and retires its wiring
+ok - fm-spawn: a gate failure after publication drops the slot claim with the record
+ok - fm-spawn: the polytoken busy contract arms and advances through the generated writer
+FM_TEST_END 2026-10-24T11:06:51Z tests/fm-polytoken-harness.test.sh exit=0 duration_ms=47253 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T11:06:51Z tests/fm-pr-state.test.sh family=pr-forge expected_gate_skip=none
+ok - a passing required check and a skipped one leave nothing to report
+ok - a terminal pull request reports that state and nothing else
+ok - draft state blocks readiness
+ok - stale changes-requested verdicts explain a blocking review decision
+ok - approved PR ignores stale changes-requested history
+ok - current changes-requested review blocks readiness
+ok - a CHANGES_REQUESTED decision is always reported
+ok - the author's own review is never listed as a blocker
+ok - a pending approval is not reported as a blocker
+ok - required failure blocks readiness
+ok - given gh's sentence, an unreported required check is unconfirmed, other check lookup failures refuse
+ok - given gh's sentence, a head with no reported checks is unverified rather than ready
+ok - a failing reported check is shown when the base has no required checks
+ok - a pending reported check is shown when the base has no required checks, and a failed fallback read refuses
+ok - a protected base reports only required checks
+ok - help states what empty output means and what is out of scope
+ok - unknown and conflicting mergeability block readiness
+ok - argument and lookup refusals exit nonzero
+FM_TEST_END 2026-10-24T11:06:53Z tests/fm-pr-state.test.sh exit=0 duration_ms=1368 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T11:06:53Z tests/fm-control-relaunch.test.sh family=backend-dispatch expected_gate_skip=none
+ok - fm-spawn --relaunch: tracked opencode wiring is retired as on main
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch: a same-harness relaunch replaces the agent in the same endpoint and worktree
+ok - fm-control relaunch: pending composer text refuses before the exit command is typed
+ok - fm-control relaunch: an unreadable composer fails safe before the exit command is typed
+ok - fm-control relaunch: a linked spawning home preserves committed and unfinished work in the recorded copy
+ok - fm-control relaunch: durable task metadata survives replacement launch publication
+ok - fm-control relaunch: delivery and concurrent task metadata publication serialize
+ok - fm-control relaunch: disabling tracing clears metadata and pane context
+ok - fm-control relaunch: progress and the Firstmate-worktree worker identity reach the replacement
+ok - fm-control relaunch: a ship task refuses without the progress note its replacement needs
+ok - fm-control relaunch: switching harness is one ordinary relaunch, and the old wiring goes with the old agent
+ok - fm-control relaunch: project hooks, facets, and symlinks refuse before stopping the worker
+ok - Polytoken parent aliases refuse before stopping either prior harness, even with matching generated content
+ok - fm-control relaunch: invalid Polytoken profiles and config sources refuse before shutdown
+ok - fm-spawn --relaunch: retiring a raw polytoken launch's wiring keeps the project's own layers
+ok - fm-control relaunch: a harness switch resets model and effort unless they are named too
+ok - fm-control relaunch: a prefixed recorded harness can switch adapters transactionally
+ok - fm-control relaunch: a prefixed command requires an explicit replacement harness
+ok - fm-control relaunch: a same-harness relaunch keeps the profile axes it was running with
+ok - native Ultra relaunch preserves its profile and rejects an unsupported model before stopping
+ok - fm-control relaunch: a signed-out worker account pin refuses before the old agent stops
+ok - fm-control relaunch: the replacement follows the home's current worker account pin
+not ok - the secondmate should relaunch on its claude pin: error: secondmate home cannot be inside the firstmate repo: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.test-phase-tmp/fm-control-relaunch.9uWDpv/sm-account-claude-16256/wt
+error: the replacement agent for rl-sm-acct could not be launched on claude
+error: rl-sm-acct's agent was stopped but the replacement did not launch; no agent is running, and its work plus the recorded progress note are preserved at /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.test-phase-tmp/fm-control-relaunch.9uWDpv/sm-account-claude-16256/wt: expected exit 0, got 1
+FM_TEST_END 2026-10-24T11:07:46Z tests/fm-control-relaunch.test.sh exit=1 duration_ms=52990 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T11:07:46Z tests/fm-backend-cmux.test.sh family=cmux expected_gate_skip=optional-binary
+ok - fm_backend_cmux_version_check: accepts the verified minimum (0.64.17)
+ok - fm_backend_cmux_version_check: accepts a newer version (0.70.0)
+ok - fm_backend_cmux_version_check: refuses an old version loudly
+ok - fm_backend_cmux_version_check: refuses loudly when cmux is not found on PATH or at the bundle path
+ok - fm_backend_cmux_password: reads the first non-empty line of config/cmux-socket-password
+ok - fm_backend_cmux_password: preserves spaces and tabs in config/cmux-socket-password
+ok - fm_backend_cmux_password: respects FM_CONFIG_OVERRIDE
+ok - fm_backend_cmux_password: empty when config/cmux-socket-password is absent
+ok - fm_backend_cmux_cli: exports CMUX_SOCKET_PASSWORD when config/cmux-socket-password is set
+ok - fm_backend_cmux_parse_target: splits '<workspace_uuid>:<surface_uuid>' on the first colon
+ok - fm_backend_cmux_normalize_key: Enter/Escape/C-c map to cmux's verified enter/escape/ctrl-c
+ok - fm_backend_cmux_scoped_title: scopes a primary task title with firstmate plus root hash
+ok - fm_backend_cmux_scoped_title: scopes a secondmate task title with the home marker plus root hash
+ok - cmux namespaces follow the physical operational home, not the tracked code root
+ok - fm_backend_validate: cmux is a known backend
+ok - fm_backend_busy_state: cmux (no native primitive) always reports unknown, same as tmux/zellij/orca
+ok - fm_backend_composer_state: routes cmux to the cmux composer classifier
+ok - fm_backend_cmux_ping_state: reports 'ok' on PONG
+ok - fm_backend_cmux_ping_state: reports 'denied' when socketControlMode=cmuxOnly rejects the connection
+ok - fm_backend_cmux_ping_state: reports 'unauth' when password mode rejects a missing/wrong password
+ok - fm_backend_cmux_ping_state: reports 'unauth' when password mode rejects a wrong password (Invalid password)
+ok - fm_backend_cmux_ping_state: reports 'down' when the app is not running yet
+ok - fm_backend_cmux_ensure_running: returns immediately when cmux is already reachable
+ok - fm_backend_cmux_ensure_running: fails fast on a denied socket without attempting to launch, naming every viable mode
+ok - fm_backend_cmux_ensure_running: fails fast on an unauthenticated socket, naming the password config and the Automation mode alternative
+ok - fm_backend_cmux_create_task: refuses a duplicate workspace title (cmux's own new-workspace has no uniqueness check)
+ok - fm_backend_cmux_create_task: creates a workspace and parses workspace_id/surface_id from list responses
+ok - fm_backend_cmux_target_ready: fails when the workspace/surface is not found (list-panes structural check)
+ok - fm_backend_cmux_target_ready: verifies the workspace title against the expected label first
+ok - fm_backend_cmux_target_ready: rejects a workspace id reused under a different title
+ok - fm_backend_cmux_capture: fetches generously and trims to N lines locally
+ok - fm_backend_cmux_capture: propagates a read-screen failure even when stdout is empty
+ok - fm_backend_cmux_capture: fails when the target surface is absent
+ok - fm_backend_cmux_send_key: normalizes the key (Escape -> escape) and targets the explicit workspace/surface
+ok - fm_backend_cmux_send_key: recovers stale workspace/surface ids by expected label
+ok - fm_backend_cmux_send_literal: calls send with an explicit workspace/surface and a -- separator
+ok - fm_backend_cmux_send_text_line: clears partial input when Enter fails
+ok - fm_backend_cmux_send_text_line: reports unsafe input when cleanup also fails
+ok - fm_backend_cmux_current_path: actively probes with marked begin/end lines (zellij-shape frozen cwd)
+ok - fm_backend_cmux_composer_state: a bare '❯' composer row reads empty
+ok - fm_backend_cmux_composer_state: a borderless Claude '❯' composer row reads empty
+ok - fm_backend_cmux_composer_state: a borderless Claude row outranks stale bordered scrollback
+ok - fm_backend_cmux_composer_state: a borderless Claude '❯'+NBSP composer row reads empty under LC_ALL=C
+ok - fm_backend_cmux_composer_state: plain-capture text after a bare glyph degrades to unknown (never false pending)
+ok - fm_backend_cmux_composer_state: the ghost placeholder text reads empty, not pending
+ok - fm_backend_cmux_composer_state: real composer text reads pending
+ok - fm_backend_cmux_composer_state: a slash-command popup's argument-hint placeholder still reads pending (the incident fix)
+ok - fm_backend_cmux_composer_state: reports unknown when the surface cannot be captured
+ok - fm_backend_cmux_composer_state: reports unknown when no border-delimited composer row is found
+ok - fm_backend_cmux_send_text_submit: reports 'empty' once the composer row reads empty after one Enter
+ok - fm_backend_cmux_send_text_submit: reports 'pending' when the composer never clears after retried Enters (swallowed)
+ok - fm_backend_cmux_send_text_submit: retries past a popup-placeholder-fill Enter and lands the real second Enter (the incident fix)
+ok - fm_backend_cmux_send_text_submit: reports 'send-failed' when the target workspace/surface is absent
+ok - fm_backend_cmux_window_of_workspace: walks windows and counts the membership-confirming workspace list
+ok - fm_backend_cmux_window_of_workspace: echoes nothing when no window holds the workspace
+ok - cmux cleanup refuses present legacy, foreign and empty workspace identities
+ok - fm_backend_cmux_kill: closes the task workspace directly when it is not the last in its window
+ok - fm_backend_cmux_kill: adds a throwaway sibling then closes the target when it is the last workspace in its window
+ok - fm_backend_cmux_kill: never fails even when close-workspace fails
+ok - fm_backend_cmux_kill: recovers stale workspace/surface ids by expected label
+ok - fm_backend_cmux_list_live: lists only this home's scoped task workspaces using plain fm-<id> labels
+ok - fm-spawn.sh: refuses backend=cmux for --secondmate spawns (mirrors Orca's refusal; no secondmate launch design exists yet)
+FM_TEST_END 2026-10-24T11:07:54Z tests/fm-backend-cmux.test.sh exit=0 duration_ms=8735 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T11:07:54Z tests/fm-backend-zellij.test.sh family=zellij expected_gate_skip=optional-binary
+ok - fm_backend_zellij_version_check: accepts the verified minimum (0.44.0)
+ok - fm_backend_zellij_version_check: accepts a newer version (0.45.2)
+ok - fm_backend_zellij_version_check: refuses an old version loudly
+ok - fm_backend_zellij_version_check: refuses loudly when zellij is not installed
+ok - fm_backend_zellij_session: defaults to 'firstmate' when FM_ZELLIJ_SESSION is unset
+ok - fm_backend_zellij_session: honors the FM_ZELLIJ_SESSION test-isolation override
+ok - fm_backend_zellij_parse_target: splits '<session>:<pane_id>' on the first colon
+ok - fm_backend_zellij_normalize_key: Enter/Escape/C-c map to zellij's verified Enter/Esc/'Ctrl c'
+ok - fm_backend_zellij_scoped_title: scopes a primary task title with firstmate plus root hash
+ok - fm_backend_zellij_scoped_title: scopes a secondmate task title with the home marker plus root hash
+ok - zellij namespaces follow the physical operational home, not the tracked code root
+ok - fm_backend_zellij_tab_matches_label: accepts an untagged legacy fm-<id> title when it is the only live tab carrying it
+ok - fm_backend_zellij_tab_matches_label: refuses an untagged legacy label match when 2+ live tabs share it (migration ambiguity guard)
+ok - fm_backend_zellij_list_live: scopes to this home's own tag - excludes a different installation's tagged tab and unrelated tabs
+ok - fm_backend_zellij_resolve_bare_selector: matches the home-scoped tagged title first
+ok - fm_backend_zellij_resolve_bare_selector: refuses an ambiguous untagged legacy label shared by 2+ live tabs
+ok - fm_backend_zellij_resolve_bare_selector: checks every session for the scoped title before legacy fallback
+ok - fm_backend_zellij_resolve_bare_selector: requires untagged legacy labels to be globally unique across sessions
+ok - fm_backend_zellij_session_exists: true when the session name is listed
+ok - fm_backend_zellij_session_exists: false when the session name is not listed
+ok - fm_backend_zellij_server_ensure: reuses an existing session without calling attach
+ok - fm_backend_validate: zellij is a known backend (P3)
+ok - fm_backend_busy_state: zellij (no native primitive) always reports unknown, same as tmux
+ok - fm_backend_zellij_create_task: refuses a duplicate home-scoped tab title (zellij's own new-tab has no uniqueness check)
+ok - fm_backend_zellij_create_task: creates a home-scoped tab and parses tab_id/pane_id from the response
+ok - fm_backend_zellij_create_task: restores focus to the previously-active tab after the steal-focus new-tab call
+ok - fm_backend_zellij_create_task: skips the restore call when there was no previously-active tab
+ok - fm_backend_zellij_capture: small reads use viewport-only dump-screen and trim to N lines locally
+ok - fm_backend_zellij_capture: reads above the watcher-size threshold request --full scrollback
+ok - fm_backend_zellij_capture: fails when the specific pane is absent
+ok - fm_backend_zellij_capture: fails when the target session is not listed as active (session_exists pre-check)
+ok - fm_backend_zellij_send_key: normalizes the key (Escape -> Esc) and targets the explicit pane id
+ok - fm_backend_zellij_send_literal: calls paste with an explicit pane id and a -- separator
+ok - fm_backend_zellij_send_text_line: clears partial input when Enter fails
+ok - fm_backend_zellij_send_text_line: reports unsafe input when cleanup also fails
+ok - fm_backend_zellij_target_ready: expected labels allow matching fm-<id> tabs
+ok - fm_backend_zellij_target_ready: expected labels reject stale pane ids reused by another tab
+ok - fm_backend_zellij_current_path: actively probes with marked begin/end lines and reconstructs wrapped cwd output
+ok - fm_backend_zellij_current_path: never picks up a ~-prefixed banner line as the answer
+ok - fm_backend_zellij_kill: resolves the owning tab id fresh and calls close-tab-by-id (never a bare close-pane)
+ok - fm_backend_zellij_kill: falls back to close-pane when the owning tab cannot be resolved
+ok - fm_backend_zellij_kill: closes the recorded tab id only after label verification
+error: zellij recorded tab identity does not match; refusing cleanup
+ok - fm_backend_zellij_kill: skips a stale recorded tab id whose label does not match
+ok - Zellij cleanup refuses present unverified live tabs without falling back to another tab
+ok - fm_backend_zellij_kill: never fails when the target session no longer exists
+ok - fm-teardown.sh: passes recorded zellij_tab_id with the expected task label
+not ok - fm-teardown should force-retire a secondmate with a zellij child: ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REFUSED: unsafe secondmate home removal target /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.test-phase-tmp/fm-backend-zellij-tests.IUjav1/teardown-zellij-secondmate-child/secondmate-home is inside the active firstmate home: expected exit 0, got 1
+FM_TEST_END 2026-10-24T11:08:05Z tests/fm-backend-zellij.test.sh exit=1 duration_ms=10380 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T11:08:05Z tests/fm-herdr-groups.test.sh family=unclassified expected_gate_skip=none
+ok - absent or off setting: no plan, no key, and not a single Herdr call
+ok - on with zero tasks: plan and sync stay quiet and exit 0
+ok - on: one group per project, status order needs-captain, problem, running, done
+ok - rules: line order sets group order; task prefix beats repo beats catch-all; bad rules warn
+ok - all-invalid rules: empty RULE_GROUP still plans via project fallback
+ok - sync: reports only drifted tokens, workspace tokens only on the exact projection, view installed independently of token changes
+ok - sync retries failed views independently of token convergence
+ok - sync: an older Herdr protocol warns once and stays inactive
+ok - clear: removes this home's tokens and the agents view after the feature is turned off
+ok - sidebar-config: prints rows; --apply backs up, appends once, never reloads Herdr
+ok - sidebar --apply refuses quoted, dotted, inline, and array declarations before backup
+ok - sidebar --apply parses both original and proposed TOML before backup or append
+ok - sidebar --apply distinguishes literal dotted names and preserves sibling tables
+not ok - agent view helper set failed (2):  Traceback (most recent call last):
+  File "<stdin>", line 4, in <module>
+OSError: AF_UNIX path too long
+FM_TEST_END 2026-10-24T11:08:13Z tests/fm-herdr-groups.test.sh exit=1 duration_ms=8251 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T11:08:13Z tests/fm-trace-context-spawn.test.sh family=backend-dispatch expected_gate_skip=none
+ok - enabled: one resolved carrier is recorded in meta and the identical TRACEPARENT is exported before launch
+ok - disabled: neither traceparent= in meta nor a TRACEPARENT export is produced
+ok - failed TRACEPARENT delivery omits metadata while the source task still launches
+ok - uncleared TRACEPARENT input stops before the launch command is appended
+ok - failed traceparent metadata append removes the carrier from the launched task
+not ok - duplicate secondmate spawn should report the existing endpoint (missing: 'already exists')
+--- output ---
+error: secondmate home cannot be inside the firstmate repo: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.test-phase-tmp/fm-trace-context-spawn.5t7sYW/duplicate-secondmate/sm
+FM_TEST_END 2026-10-24T11:08:34Z tests/fm-trace-context-spawn.test.sh exit=1 duration_ms=20859 gate_skip=false
+FM_TEST_SUMMARY total=9 failed=5 skipped_gate=0 duration_ms=166569
+FM_TEST_SUMMARY_FAMILY family=backend-dispatch count=2 duration_ms=73849 failed=2
+FM_TEST_SUMMARY_FAMILY family=cmux count=1 duration_ms=8735 failed=0
+FM_TEST_SUMMARY_FAMILY family=pr-forge count=1 duration_ms=1368 failed=0
+FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=2 duration_ms=49468 failed=0
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=8251 failed=1
+FM_TEST_SUMMARY_FAMILY family=watcher-wake-lock count=1 duration_ms=15959 failed=1
+FM_TEST_SUMMARY_FAMILY family=zellij count=1 duration_ms=10380 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-control-relaunch.test.sh duration_ms=52990
+FM_TEST_SLOWEST rank=2 script=tests/fm-polytoken-harness.test.sh duration_ms=47253
+FM_TEST_SLOWEST rank=3 script=tests/fm-trace-context-spawn.test.sh duration_ms=20859
+FM_TEST_SLOWEST rank=4 script=tests/fm-tool-update-check.test.sh duration_ms=15959
+FM_TEST_SLOWEST rank=5 script=tests/fm-backend-zellij.test.sh duration_ms=10380
+FM_TEST_SLOWEST rank=6 script=tests/fm-backend-cmux.test.sh duration_ms=8735
+FM_TEST_SLOWEST rank=7 script=tests/fm-herdr-groups.test.sh duration_ms=8251
+FM_TEST_SLOWEST rank=8 script=tests/fm-trace-context-lib.test.sh duration_ms=2215
+FM_TEST_SLOWEST rank=9 script=tests/fm-pr-state.test.sh duration_ms=1368

@@ -1,0 +1,28 @@
+{
+  "tested_head": "732602b6e3c4022acaf2d8dcedd66ea032e3a6df",
+  "parents": [
+    "04d736459678c646bbf0b5fe6134158935070671",
+    "4e6b9f5989ba0b4cf490bc128a0d6c4c13abd826"
+  ],
+  "final_worktree_status": "",
+  "source_changes_made": false,
+  "prior_evidence": "Existing files retained unchanged as supplemental evidence only. Earlier publication-discovery.log has no final runner summary and is not treated as a completed pass. Earlier targeted setup failures and the 300-second teardown cut are not current product failures; the retry independently ran these targeted subjects.",
+  "retry_setup_corrections": [
+    "Worktree-local TMPDIR caused the product secondmate-home containment guard to refuse; normal ephemeral test-toolchain temp roots allowed the complete relaunch suite to pass.",
+    "The worktree pathname exceeded the Unix-domain socket length limit; the unique private tmux -L socket passed using its normal ephemeral socket root."
+  ],
+  "current_runtime_evidence": [
+    "retry-live-cli-transcript.log",
+    "retry-live-integration-transcript.log",
+    "retry-real-tmux-short-socket.log"
+  ],
+  "current_fixture_evidence": [
+    "retry-relaunch-system-temp.log",
+    "retry-targeted.log"
+  ],
+  "incomplete_live_surfaces": [
+    "Polytoken credentialed lifecycle: explicit opt-in guard stopped before launch because polytoken is not on PATH.",
+    "cmux and zellij real backend lifecycle: tools not on PATH; portable fixture coverage only."
+  ],
+  "visual_evidence": "No screenshot: exercised CLI output, generated TOML, local Git state and private tmux shell transport, not a rendered agent UI. Herdr endpoint/view rendering was not driven; group transport evidence is fixture-only."
+}

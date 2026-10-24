@@ -1,0 +1,432 @@
+Tested HEAD: 732602b6e3c4022acaf2d8dcedd66ea032e3a6df
+Command: bash bin/fm-test-run.sh tests/fm-polytoken-harness.test.sh tests/fm-backend-cmux.test.sh tests/fm-backend-zellij.test.sh tests/fm-pr-state.test.sh tests/fm-trace-context-spawn.test.sh tests/fm-herdr-groups.test.sh tests/fm-teardown.test.sh
+FM_TEST_BEGIN 2026-10-24T11:44:25Z tests/fm-polytoken-harness.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - fm-harness.sh: ancestry detects a natively-named polytoken command
+ok - fm-harness.sh: ancestry rejects unrelated polytoken mentions
+ok - fm-harness.sh: no inherited launcher marker claims the polytoken identity
+ok - fm-control-lib: polytoken mechanics are REST interrupt, /quit exit, no secondmates
+ok - fm-control-lib: polytoken wiring tables name every generated artifact and no project file
+ok - bin/fm-agent-process-lib.sh: polytoken is an agent, fragments are not
+ok - fm-busy-lib: the polytoken-hook source is scoped to polytoken tasks
+ok - fm-composer-lib: only the pinned Running-for row carries the polytoken busy verdict
+ok - fm-composer-lib: the polytoken separated shape reads empty, pending, and unknown exactly
+ok - fm-composer-lib: the queued-Enter conversion covers polytoken's verified queue behavior
+ok - fm-tmux-lib: only a polytoken-identity pane confirms a submit from its Running-for row
+ok - fm-polytoken-lib: the config mirror enforces the unattended posture
+ok - config mirror parses quoted keys, whitespace, structured values, aliases, and merges
+ok - read-only config preflight and writer refuse malformed YAML before any writes
+ok - read-only config preflight requires Ruby YAML before worker shutdown
+ok - Polytoken directory aliases preserve external destinations and permit contained wiring
+ok - facet writer and admission preserve existing files and symlinks
+ok - fm-polytoken-lib: the worker facet carries the role contract and no model pin
+ok - fm-polytoken-lib: the no-argv busy writer opens, closes, and never fails
+ok - fm-polytoken-lib: the hook layer binds the three events and refuses to clobber
+ok - fm-polytoken-lib: the model ref composes the effort axis and refuses unlisted models
+ok - fm-polytoken-lib: an unreachable listing refuses an unprovable pin
+ok - fm-polytoken-lib: the REST interrupt reports cancelled, not-running, and refuses unauthorized
+ok - fm-polytoken-lib: the interrupt close lands after mid-turn rewrites and spares a reopened or running turn
+ok - interrupt close preserves a newer prompt and a replacement incarnation at deterministic interleavings
+ok - fm-polytoken-lib: the typed settle postcondition follows GET /sync
+ok - fm-spawn: the polytoken launch carries the hybrid contract end to end
+ok - fm-spawn: polytoken maps an unlisted effort and retains the requested axis
+ok - fm-spawn: polytoken requires explicit model and effort axes
+ok - fm-spawn: an unlisted polytoken model refuses before pane creation
+ok - fm-spawn: polytoken cannot be launched as a secondmate
+ok - fm-spawn: a project's own polytoken hook layer is refused, not clobbered
+ok - spawn refuses project facets and symlinks without generating wiring
+ok - fm-spawn: a whitespace-bearing state dir refuses polytoken wiring before writing any
+ok - fm-spawn: a failed readiness gate fails loudly, reaps, and retires its wiring
+ok - fm-spawn: a gate failure after publication drops the slot claim with the record
+ok - fm-spawn: the polytoken busy contract arms and advances through the generated writer
+FM_TEST_END 2026-10-24T11:45:11Z tests/fm-polytoken-harness.test.sh exit=0 duration_ms=45564 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T11:45:11Z tests/fm-teardown.test.sh family=pr-forge expected_gate_skip=none
+FM_TEST_BEGIN 2026-10-24T11:45:11Z tests/fm-pr-state.test.sh family=pr-forge expected_gate_skip=none
+ok - a passing required check and a skipped one leave nothing to report
+ok - a terminal pull request reports that state and nothing else
+ok - draft state blocks readiness
+ok - stale changes-requested verdicts explain a blocking review decision
+ok - approved PR ignores stale changes-requested history
+ok - current changes-requested review blocks readiness
+ok - a CHANGES_REQUESTED decision is always reported
+ok - the author's own review is never listed as a blocker
+ok - a pending approval is not reported as a blocker
+ok - required failure blocks readiness
+ok - given gh's sentence, an unreported required check is unconfirmed, other check lookup failures refuse
+ok - given gh's sentence, a head with no reported checks is unverified rather than ready
+ok - a failing reported check is shown when the base has no required checks
+ok - a pending reported check is shown when the base has no required checks, and a failed fallback read refuses
+ok - a protected base reports only required checks
+ok - help states what empty output means and what is out of scope
+ok - unknown and conflicting mergeability block readiness
+ok - argument and lookup refusals exit nonzero
+FM_TEST_END 2026-10-24T11:45:12Z tests/fm-pr-state.test.sh exit=0 duration_ms=1208 gate_skip=false
+ok - teardown leaves opencode's busy plugin in the returned pool worktree as on main
+ok - a missing teardown startup source refuses before cleanup
+ok - an unreadable teardown startup source refuses before cleanup
+ok - a missing adapter sibling refuses before cleanup
+ok - a forced descendant with a missing adapter sibling refuses before cleanup
+ok - a forced secondmate with a missing own adapter sibling refuses before child cleanup
+ok - present required sources still reach the ordinary teardown refusal
+ok - local-only worktree with HEAD on a fork remote is torn down and the home summary is refreshed
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 1s ago).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ok - teardown closes its own backlog item before reporting success
+ok - teardown closes a landed Gerrit task with its change URL as a note and a GitHub task with --pr
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 0s ago).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ok - teardown honors config/backlog-backend=manual and still finishes cleanly
+ok - local-only worktree with truly unpushed work is refused (safety preserved)
+ok - local-only worktree with work merged into local main is torn down (no regression)
+ok - no-mistakes worktree with HEAD on origin is torn down (no regression)
+ok - no-mistakes worktree with genuinely unlanded work is refused (safety preserved)
+ok - local-only worktree with unpushed work is torn down under --force (escape hatch)
+ok - fm-pr-check publishes the PR-ready line on a secondmate's parent channel once
+ok - a secondmate home's teardown delivers the child's final line or refuses until it can
+ok - teardown completes when an exact busy-state sidecar is already absent
+ok - teardown retires a polytoken task's generated worktree wiring on pool return
+ok - teardown never deletes a tracked .polytoken hook layer
+ok - teardown never deletes a .polytoken hook layer firstmate did not generate
+ok - teardown scopes .polytoken wiring removal to polytoken tasks
+ok - herdr teardown removes pane-owned escalation dedupe state
+ok - herdr flat teardown refuses before returning the isolated copy under lock contention and the retry completes cleanly
+ok - herdr flat teardown never erases records when pane presence is unparseable
+ok - herdr flat teardown preflight refuses before every destructive change
+ok - herdr teardown refuses a foreign-owned per-account namespace (owner-shim arms need the non-Darwin stat branch; skipped on Darwin)
+ok - forced secondmate teardown preflights every Herdr child before cleanup mutation
+ok - forced secondmate teardown holds every descendant lifecycle and metadata lock
+ok - forced secondmate teardown retains Herdr child identity until exact pane disappearance
+ok - forced teardown retains a nested secondmate home and its grandchild's Herdr identity when the grandchild close is unconfirmed
+ok - herdr projection teardown retires its journal only after confirming the exact recorded pane is gone
+ok - herdr projection teardown retains every record when post-close presence is unknown
+ok - herdr projection teardown surfaces failed focus restoration without turning confirmed cleanup into a hard failure
+ok - teardown retires the task's own watcher markers and orphaned presentation journal, leaving other tasks' markers alone
+ok - teardown retains a presentation journal bound to a pane other than the closed endpoint
+ok - teardown retires a v1 presentation journal once its token workspace is confirmed gone
+ok - teardown retains a v1 presentation journal while its token workspace is still present
+ok - teardown retains a v1 presentation journal when the workspace query is ambiguous
+ok - squash-merged + deleted-branch worktree (PR merged) is torn down (the fix)
+ok - squash-merged PR accepts a local HEAD that is an ancestor of the final PR head
+ok - teardown discovers a merged PR by branch name and tears down when no pr= was ever recorded
+ok - direct and nested cmux closes use their owning home/state and retain unmatched legacy records
+ok - teardown retains cmux and Zellij live/empty-tab records when legacy identity verification refuses
+ok - teardown binds discovery and landing reads to the personal base despite canonical GH_REPO
+ok - teardown discovers only a unique exact publication head across forks
+ok - squash-merged PR accepts replayed unpushed local patches contained in the PR head
+ok - merged PR does not allow teardown after a later local commit
+ok - squash-merged task whose local branch followed the pipeline rebase is torn down
+ok - teardown proves a Forgejo task landed from the merged pull request when the content check is inconclusive
+ok - squash-merged same-path different content still refuses
+ok - squash-merged rebased local still refuses a genuinely unlanded follow-up commit
+ok - squash-merged stale local still refuses when the forge is unreachable
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 1s ago).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+fm-contributions: data directory unavailable
+contributions: observation not armed; coverage is unconfirmed
+WARNING: watcher still down (same stale episode; last beat: 1s ago, grace 300s) - full banner already printed this episode.
+fm-contributions: data directory unavailable
+contributions: observation not armed; coverage is unconfirmed
+ok - fm-pr-check does not refresh PR head after HEAD moves
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 0s ago).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+fm-contributions: data directory unavailable
+contributions: observation not armed; coverage is unconfirmed
+ok - fm-pr-check records the remote PR head when the local worktree lags
+ok - worktree whose content already landed in the default branch is torn down (content fallback)
+ok - the content-landed fallback checks a task's recorded base branch, not the default branch
+ok - content fallback refreshes origin default before comparing trees
+ok - dirty worktree is refused even when its committed work has landed (dirty always wins)
+ok - untracked/no-mistakes: dirty refusal classifies leftovers and preserves work
+ok - untracked/local-only: dirty refusal classifies leftovers and preserves work
+ok - tracked/no-mistakes: dirty refusal classifies leftovers and preserves work
+ok - tracked/local-only: dirty refusal classifies leftovers and preserves work
+ok - mixed/no-mistakes: dirty refusal classifies leftovers and preserves work
+ok - mixed/local-only: dirty refusal classifies leftovers and preserves work
+ok - scout copy with a nested clone and a scratch file returns with no untracked entries
+ok - ship copy with a nested clone is refused and its bytes stay
+ok - a return that leaves residue names the lost slot and the remaining paths
+ok - a dirty return is reported even when a later teardown step refuses
+ok - forced child pool return retires only owned Polytoken wiring and preserves project bytes
+ok - a forced secondmate teardown returns a child scout copy with a nested clone clean
+ok - a forced secondmate teardown warns about a dirty child return and still completes
+ok - a return that leaves no readable copy reports the slot as unverified, not clean
+ok - ignored files survive the scratch clean and plain scratch does not
+ok - gh lookup error with content not in default refuses (fail-safe)
+ok - a record predating spawn_gen refuses teardown until --legacy-record is passed
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 1s ago).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ok - a windowless leftover with no spawn_gen and no worktree tears down without --legacy-record
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 1s ago).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ok - a windowless leftover with no spawn_gen also tears down when --legacy-record is passed
+ok - a windowless leftover still refuses while its worktree holds unlanded work
+ok - a windowless record with a spawn_gen, a non-tmux backend or endpoint identity, no backlog validation, or ambiguous, foreign, or malformed identity still refuses
+WARNING: watcher still down (same stale episode; last beat: 2s ago, grace 300s) - full banner already printed this episode.
+ok - a windowless leftover retries its retained legacy stamp without --legacy-record
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 1s ago).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5PS2RV5DXG4RYWK86BGQ2M7/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+ok - a landed legacy record with a dead endpoint tears down and logs its accepted incarnation
+ok - --legacy-record never relaxes the unlanded-work refusal
+ok - an endpoint that cannot be confidently read as dead refuses --legacy-record teardown
+ok - --legacy-record teardown rolls its stamp back when the close marker write fails
+ok - a legacy stamp a failed rollback left behind still faces the endpoint gate
+ok - a corrupt spawn_gen is never accepted as a legacy record
+ok - provably-stale worktree index.lock (old, no live holder) is cleared and teardown succeeds
+ok - live-held worktree index.lock is never removed and teardown refuses
+ok - lsof errors leave worktree index.lock in place and refuse teardown
+ok - stale lock cleanup rechecks and refuses dirty worktree before return
+ok - normal repo index.lock is resolved from the worktree and cleared when stale
+ok - index-lock mtime fault injection is PATH-based; skipped on Darwin where stat is /usr/bin/stat
+ok - transient index.lock cleared after first failed return is retried successfully without force-remove
+ok - persistent index.lock exhausts retries and refuses without force-removing the lock
+ok - empty retry wait overrides use the default without aborting teardown
+ok - fractional legacy retry wait remains supported without arithmetic
+ok - teardown records the task's pipeline spend before removing its branch and record
+ok - teardown skips all pipeline-spend recording when the home has not opted in
+ok - teardown records unavailable pipeline spend for an owned ship task whose copy is gone
+ok - a task's own parked no-mistakes run is aborted, not orphaned, before the worker is removed
+ok - a run that lands on passed-with-override after abort is still recognized as terminal
+ok - a run that lands on passed-with-skips after abort is still recognized as terminal
+ok - a parked run the pipeline advanced past the task copy is still concluded from the runs ledger, not orphaned
+ok - a ledger row for a different head never authorizes a parked-run abort
+ok - a malformed ledger row never authorizes a parked-run abort
+ok - an impossible ledger date never authorizes a parked-run abort
+ok - a terminal status with a stale gate never reaches ledger cleanup
+ok - an advanced head present locally aborts through the strict rule alone - the ledger fallback stays dormant
+ok - an unresolvable active row with no same-branch anchor is never concluded (conservative refusal)
+ok - an ancestor-only anchor never binds an advanced parked run to this task
+ok - a terminal unfetched-head row is stale history and never concludes a run
+ok - a terminal newest row anchored at this worktree's head never authorizes an abort
+ok - a resolvable diverged newer same-branch row makes every older row stale history; no run is concluded
+ok - consecutive unresolvable rows are ambiguous and never conclude a run
+ok - a ledger-proven continuation is still left alone while the run is autonomously active
+ok - teardown refuses before reap or removal when a task-owned run remains parked
+ok - a different run cannot confirm the targeted abort
+ok - empty post-abort status is not accepted as confirmation
+ok - the CLI's exact run-not-found signal confirms completion
+ok - a parked run on another branch is never aborted by this task's teardown (ownership is precise)
+ok - a task-owned autonomous running step is left alone rather than aborted
+ok - a leaked descendant process rooted under the task's worktree is reaped by teardown, not left surviving
+ok - a leaked descendant process rooted under the task's per-task tasktmp is reaped by teardown too
+ok - missing lsof falls back to reaping the tmux pane process group
+ok - an erroring lsof scan refuses teardown and preserves the task
+ok - a reused pid with a different start time is never force-killed
+ok - an exec change preserves birth identity and the process is reaped
+ok - a process spawned during grace is reaped on a later pass
+ok - persistent leaked processes refuse teardown after bounded retries
+ok - a process exiting during identity lookup does not block teardown
+ok - the run abort and the leaked-process reap both complete before the destructive worktree return
+FM_TEST_END 2026-10-24T11:51:13Z tests/fm-teardown.test.sh exit=0 duration_ms=362324 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T11:51:13Z tests/fm-backend-cmux.test.sh family=cmux expected_gate_skip=optional-binary
+ok - fm_backend_cmux_version_check: accepts the verified minimum (0.64.17)
+ok - fm_backend_cmux_version_check: accepts a newer version (0.70.0)
+ok - fm_backend_cmux_version_check: refuses an old version loudly
+ok - fm_backend_cmux_version_check: refuses loudly when cmux is not found on PATH or at the bundle path
+ok - fm_backend_cmux_password: reads the first non-empty line of config/cmux-socket-password
+ok - fm_backend_cmux_password: preserves spaces and tabs in config/cmux-socket-password
+ok - fm_backend_cmux_password: respects FM_CONFIG_OVERRIDE
+ok - fm_backend_cmux_password: empty when config/cmux-socket-password is absent
+ok - fm_backend_cmux_cli: exports CMUX_SOCKET_PASSWORD when config/cmux-socket-password is set
+ok - fm_backend_cmux_parse_target: splits '<workspace_uuid>:<surface_uuid>' on the first colon
+ok - fm_backend_cmux_normalize_key: Enter/Escape/C-c map to cmux's verified enter/escape/ctrl-c
+ok - fm_backend_cmux_scoped_title: scopes a primary task title with firstmate plus root hash
+ok - fm_backend_cmux_scoped_title: scopes a secondmate task title with the home marker plus root hash
+ok - cmux namespaces follow the physical operational home, not the tracked code root
+ok - fm_backend_validate: cmux is a known backend
+ok - fm_backend_busy_state: cmux (no native primitive) always reports unknown, same as tmux/zellij/orca
+ok - fm_backend_composer_state: routes cmux to the cmux composer classifier
+ok - fm_backend_cmux_ping_state: reports 'ok' on PONG
+ok - fm_backend_cmux_ping_state: reports 'denied' when socketControlMode=cmuxOnly rejects the connection
+ok - fm_backend_cmux_ping_state: reports 'unauth' when password mode rejects a missing/wrong password
+ok - fm_backend_cmux_ping_state: reports 'unauth' when password mode rejects a wrong password (Invalid password)
+ok - fm_backend_cmux_ping_state: reports 'down' when the app is not running yet
+ok - fm_backend_cmux_ensure_running: returns immediately when cmux is already reachable
+ok - fm_backend_cmux_ensure_running: fails fast on a denied socket without attempting to launch, naming every viable mode
+ok - fm_backend_cmux_ensure_running: fails fast on an unauthenticated socket, naming the password config and the Automation mode alternative
+ok - fm_backend_cmux_create_task: refuses a duplicate workspace title (cmux's own new-workspace has no uniqueness check)
+ok - fm_backend_cmux_create_task: creates a workspace and parses workspace_id/surface_id from list responses
+ok - fm_backend_cmux_target_ready: fails when the workspace/surface is not found (list-panes structural check)
+ok - fm_backend_cmux_target_ready: verifies the workspace title against the expected label first
+ok - fm_backend_cmux_target_ready: rejects a workspace id reused under a different title
+ok - fm_backend_cmux_capture: fetches generously and trims to N lines locally
+ok - fm_backend_cmux_capture: propagates a read-screen failure even when stdout is empty
+ok - fm_backend_cmux_capture: fails when the target surface is absent
+ok - fm_backend_cmux_send_key: normalizes the key (Escape -> escape) and targets the explicit workspace/surface
+ok - fm_backend_cmux_send_key: recovers stale workspace/surface ids by expected label
+ok - fm_backend_cmux_send_literal: calls send with an explicit workspace/surface and a -- separator
+ok - fm_backend_cmux_send_text_line: clears partial input when Enter fails
+ok - fm_backend_cmux_send_text_line: reports unsafe input when cleanup also fails
+ok - fm_backend_cmux_current_path: actively probes with marked begin/end lines (zellij-shape frozen cwd)
+ok - fm_backend_cmux_composer_state: a bare '❯' composer row reads empty
+ok - fm_backend_cmux_composer_state: a borderless Claude '❯' composer row reads empty
+ok - fm_backend_cmux_composer_state: a borderless Claude row outranks stale bordered scrollback
+ok - fm_backend_cmux_composer_state: a borderless Claude '❯'+NBSP composer row reads empty under LC_ALL=C
+ok - fm_backend_cmux_composer_state: plain-capture text after a bare glyph degrades to unknown (never false pending)
+ok - fm_backend_cmux_composer_state: the ghost placeholder text reads empty, not pending
+ok - fm_backend_cmux_composer_state: real composer text reads pending
+ok - fm_backend_cmux_composer_state: a slash-command popup's argument-hint placeholder still reads pending (the incident fix)
+ok - fm_backend_cmux_composer_state: reports unknown when the surface cannot be captured
+ok - fm_backend_cmux_composer_state: reports unknown when no border-delimited composer row is found
+ok - fm_backend_cmux_send_text_submit: reports 'empty' once the composer row reads empty after one Enter
+ok - fm_backend_cmux_send_text_submit: reports 'pending' when the composer never clears after retried Enters (swallowed)
+ok - fm_backend_cmux_send_text_submit: retries past a popup-placeholder-fill Enter and lands the real second Enter (the incident fix)
+ok - fm_backend_cmux_send_text_submit: reports 'send-failed' when the target workspace/surface is absent
+ok - fm_backend_cmux_window_of_workspace: walks windows and counts the membership-confirming workspace list
+ok - fm_backend_cmux_window_of_workspace: echoes nothing when no window holds the workspace
+ok - cmux cleanup refuses present legacy, foreign and empty workspace identities
+ok - fm_backend_cmux_kill: closes the task workspace directly when it is not the last in its window
+ok - fm_backend_cmux_kill: adds a throwaway sibling then closes the target when it is the last workspace in its window
+ok - fm_backend_cmux_kill: never fails even when close-workspace fails
+ok - fm_backend_cmux_kill: recovers stale workspace/surface ids by expected label
+ok - fm_backend_cmux_list_live: lists only this home's scoped task workspaces using plain fm-<id> labels
+ok - fm-spawn.sh: refuses backend=cmux for --secondmate spawns (mirrors Orca's refusal; no secondmate launch design exists yet)
+FM_TEST_END 2026-10-24T11:51:22Z tests/fm-backend-cmux.test.sh exit=0 duration_ms=8634 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T11:51:22Z tests/fm-backend-zellij.test.sh family=zellij expected_gate_skip=optional-binary
+ok - fm_backend_zellij_version_check: accepts the verified minimum (0.44.0)
+ok - fm_backend_zellij_version_check: accepts a newer version (0.45.2)
+ok - fm_backend_zellij_version_check: refuses an old version loudly
+ok - fm_backend_zellij_version_check: refuses loudly when zellij is not installed
+ok - fm_backend_zellij_session: defaults to 'firstmate' when FM_ZELLIJ_SESSION is unset
+ok - fm_backend_zellij_session: honors the FM_ZELLIJ_SESSION test-isolation override
+ok - fm_backend_zellij_parse_target: splits '<session>:<pane_id>' on the first colon
+ok - fm_backend_zellij_normalize_key: Enter/Escape/C-c map to zellij's verified Enter/Esc/'Ctrl c'
+ok - fm_backend_zellij_scoped_title: scopes a primary task title with firstmate plus root hash
+ok - fm_backend_zellij_scoped_title: scopes a secondmate task title with the home marker plus root hash
+ok - zellij namespaces follow the physical operational home, not the tracked code root
+ok - fm_backend_zellij_tab_matches_label: accepts an untagged legacy fm-<id> title when it is the only live tab carrying it
+ok - fm_backend_zellij_tab_matches_label: refuses an untagged legacy label match when 2+ live tabs share it (migration ambiguity guard)
+ok - fm_backend_zellij_list_live: scopes to this home's own tag - excludes a different installation's tagged tab and unrelated tabs
+ok - fm_backend_zellij_resolve_bare_selector: matches the home-scoped tagged title first
+ok - fm_backend_zellij_resolve_bare_selector: refuses an ambiguous untagged legacy label shared by 2+ live tabs
+ok - fm_backend_zellij_resolve_bare_selector: checks every session for the scoped title before legacy fallback
+ok - fm_backend_zellij_resolve_bare_selector: requires untagged legacy labels to be globally unique across sessions
+ok - fm_backend_zellij_session_exists: true when the session name is listed
+ok - fm_backend_zellij_session_exists: false when the session name is not listed
+ok - fm_backend_zellij_server_ensure: reuses an existing session without calling attach
+ok - fm_backend_validate: zellij is a known backend (P3)
+ok - fm_backend_busy_state: zellij (no native primitive) always reports unknown, same as tmux
+ok - fm_backend_zellij_create_task: refuses a duplicate home-scoped tab title (zellij's own new-tab has no uniqueness check)
+ok - fm_backend_zellij_create_task: creates a home-scoped tab and parses tab_id/pane_id from the response
+ok - fm_backend_zellij_create_task: restores focus to the previously-active tab after the steal-focus new-tab call
+ok - fm_backend_zellij_create_task: skips the restore call when there was no previously-active tab
+ok - fm_backend_zellij_capture: small reads use viewport-only dump-screen and trim to N lines locally
+ok - fm_backend_zellij_capture: reads above the watcher-size threshold request --full scrollback
+ok - fm_backend_zellij_capture: fails when the specific pane is absent
+ok - fm_backend_zellij_capture: fails when the target session is not listed as active (session_exists pre-check)
+ok - fm_backend_zellij_send_key: normalizes the key (Escape -> Esc) and targets the explicit pane id
+ok - fm_backend_zellij_send_literal: calls paste with an explicit pane id and a -- separator
+ok - fm_backend_zellij_send_text_line: clears partial input when Enter fails
+ok - fm_backend_zellij_send_text_line: reports unsafe input when cleanup also fails
+ok - fm_backend_zellij_target_ready: expected labels allow matching fm-<id> tabs
+ok - fm_backend_zellij_target_ready: expected labels reject stale pane ids reused by another tab
+ok - fm_backend_zellij_current_path: actively probes with marked begin/end lines and reconstructs wrapped cwd output
+ok - fm_backend_zellij_current_path: never picks up a ~-prefixed banner line as the answer
+ok - fm_backend_zellij_kill: resolves the owning tab id fresh and calls close-tab-by-id (never a bare close-pane)
+ok - fm_backend_zellij_kill: falls back to close-pane when the owning tab cannot be resolved
+ok - fm_backend_zellij_kill: closes the recorded tab id only after label verification
+error: zellij recorded tab identity does not match; refusing cleanup
+ok - fm_backend_zellij_kill: skips a stale recorded tab id whose label does not match
+ok - Zellij cleanup refuses present unverified live tabs without falling back to another tab
+ok - fm_backend_zellij_kill: never fails when the target session no longer exists
+ok - fm-teardown.sh: passes recorded zellij_tab_id with the expected task label
+ok - fm-teardown.sh: force cleanup kills zellij children using the child home tag
+ok - fm_backend_zellij_send_text_submit: reports 'empty' once the composer classifies empty (submitted)
+ok - fm_backend_zellij_send_text_submit: reports 'pending' when the composer still holds the text after retried Enters (swallowed)
+ok - fm_backend_zellij_send_text_submit: an unrelated pane change is not a delivery confirmation (false-positive regression)
+ok - fm_backend_zellij_send_text_submit: refuses confirmation when paste exits successfully without typing
+ok - fm_backend_zellij_send_text_submit: transcript echoes outside the selected composer cannot prove typing
+ok - fm_backend_zellij_send_text_submit: pre-existing text cannot prove a no-op paste landed
+ok - fm_backend_zellij_send_text_submit: unrelated drafts and furniture cannot prove typing
+ok - fm_backend_zellij_send_text_submit: observes wrapped text replacing a shell-prompt placeholder
+ok - fm_backend_zellij_send_text_submit: observes wrapped text in a bare composer
+ok - fm_backend_zellij_send_text_submit: preserves agent glyphs within wrapped content
+ok - fm_backend_zellij_send_text_submit: refuses a live shell below a stale composer
+ok - fm_backend_zellij_composer_state: classifies the real claude-in-zellij --ansi dump as empty
+ok - fm_backend_zellij_composer_state: a dead pane (empty dumps) reads unknown, never a confirmation
+ok - fm_backend_zellij_send_text_submit: reports 'send-failed' when the target session is not active
+ok - fm_backend_zellij_send_text_submit: reports 'send-failed' when the target pane is absent
+ok - fm-peek/fm-send: explicit metadata-matched targets use the recorded zellij backend
+ok - fm-peek: fm-id zellij targets verify the owning tab label before capture
+ok - fm-send: fm-id zellij targets reject pane ids whose tab label no longer matches
+FM_TEST_END 2026-10-24T11:51:39Z tests/fm-backend-zellij.test.sh exit=0 duration_ms=16570 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T11:51:39Z tests/fm-trace-context-spawn.test.sh family=backend-dispatch expected_gate_skip=none
+ok - enabled: one resolved carrier is recorded in meta and the identical TRACEPARENT is exported before launch
+ok - disabled: neither traceparent= in meta nor a TRACEPARENT export is produced
+ok - failed TRACEPARENT delivery omits metadata while the source task still launches
+ok - uncleared TRACEPARENT input stops before the launch command is appended
+ok - failed traceparent metadata append removes the carrier from the launched task
+ok - duplicate secondmate preflight leaves trace-context unchanged
+ok - relaunch reuses the recorded carrier verbatim for both the meta record and the injected export
+ok - session start freezes the env override and later config or environment edits do not alter spawns
+ok - two-level: env-on/file-absent keeps the nested worker enabled, rooting its own per-task trace
+ok - two-level: env-off/file-present keeps the nested worker disabled even though the config file was copied into the secondmate home
+ok - two unrelated routed tasks through one persistent Secondmate root distinct traces, adopt nothing from its environment, and keep per-task identity across relaunch
+ok - secondmate carrier and FM_TRACE_CONTEXT snapshot always agree, both derived from one frozen decision (file-decided path)
+# all fm-trace-context-spawn tests passed
+FM_TEST_END 2026-10-24T11:52:54Z tests/fm-trace-context-spawn.test.sh exit=0 duration_ms=75207 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T11:52:54Z tests/fm-herdr-groups.test.sh family=unclassified expected_gate_skip=none
+ok - absent or off setting: no plan, no key, and not a single Herdr call
+ok - on with zero tasks: plan and sync stay quiet and exit 0
+ok - on: one group per project, status order needs-captain, problem, running, done
+ok - rules: line order sets group order; task prefix beats repo beats catch-all; bad rules warn
+ok - all-invalid rules: empty RULE_GROUP still plans via project fallback
+ok - sync: reports only drifted tokens, workspace tokens only on the exact projection, view installed independently of token changes
+ok - sync retries failed views independently of token convergence
+ok - sync: an older Herdr protocol warns once and stays inactive
+ok - clear: removes this home's tokens and the agents view after the feature is turned off
+ok - sidebar-config: prints rows; --apply backs up, appends once, never reloads Herdr
+ok - sidebar --apply refuses quoted, dotted, inline, and array declarations before backup
+ok - sidebar --apply parses both original and proposed TOML before backup or append
+ok - sidebar --apply distinguishes literal dotted names and preserves sibling tables
+ok - agent view helper: exactly agent.view.set and agent.view.clear for source firstmate
+ok - watcher: one poll cycle reconciles the project-group tags
+FM_TEST_END 2026-10-24T11:53:02Z tests/fm-herdr-groups.test.sh exit=0 duration_ms=7936 gate_skip=false
+FM_TEST_SUMMARY total=7 failed=0 skipped_gate=0 duration_ms=516823
+FM_TEST_SUMMARY_FAMILY family=backend-dispatch count=1 duration_ms=75207 failed=0
+FM_TEST_SUMMARY_FAMILY family=cmux count=1 duration_ms=8634 failed=0
+FM_TEST_SUMMARY_FAMILY family=pr-forge count=2 duration_ms=363532 failed=0
+FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=45564 failed=0
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=7936 failed=0
+FM_TEST_SUMMARY_FAMILY family=zellij count=1 duration_ms=16570 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-teardown.test.sh duration_ms=362324
+FM_TEST_SLOWEST rank=2 script=tests/fm-trace-context-spawn.test.sh duration_ms=75207
+FM_TEST_SLOWEST rank=3 script=tests/fm-polytoken-harness.test.sh duration_ms=45564
+FM_TEST_SLOWEST rank=4 script=tests/fm-backend-zellij.test.sh duration_ms=16570
+FM_TEST_SLOWEST rank=5 script=tests/fm-backend-cmux.test.sh duration_ms=8634
+FM_TEST_SLOWEST rank=6 script=tests/fm-herdr-groups.test.sh duration_ms=7936
+FM_TEST_SLOWEST rank=7 script=tests/fm-pr-state.test.sh duration_ms=1208
+COMMAND_EXIT=0 elapsed_seconds=516.914

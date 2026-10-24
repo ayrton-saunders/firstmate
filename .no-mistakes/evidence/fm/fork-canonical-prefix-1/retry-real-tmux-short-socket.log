@@ -1,0 +1,28 @@
+Tested HEAD: 732602b6e3c4022acaf2d8dcedd66ea032e3a6df
+Default ephemeral tmux socket root; worktree path exceeds Unix-domain socket limit. Unique -L socket, never default server.
+FM_TEST_BEGIN 2026-10-24T11:54:22Z tests/fm-backend-tmux-smoke.test.sh family=backend-dispatch expected_gate_skip=none
+@4
+ok - real tmux: fm_backend_tmux_create_task creates a window and refuses a duplicate
+ok - real tmux: fm_backend_tmux_send_text_line sends literal text and submits with Enter
+ok - real tmux: fm_backend_tmux_send_literal + fm_backend_tmux_send_key Enter submit as two separate steps
+ok - real tmux: fm_backend_tmux_capture's -S -N bound trims old history for a small window and reaches it for a large one
+ok - real tmux: fm_backend_tmux_resolve_bare_selector (list-live) finds the created window by name
+ok - real tmux: fm_backend_tmux_resolve_bare_selector fails for a window that does not exist
+ok - real tmux: fm_backend_target_exists finds an existing window
+ok - real tmux: fm_backend_target_exists finds an existing pane
+ok - real tmux: fm_backend_target_exists accepts bare and session-scoped window ids
+ok - real tmux: fm_backend_target_exists accepts window indexes including firstmate:0
+ok - real tmux: fm_backend_target_exists accepts index.pane targets
+ok - real tmux: fm_backend_target_exists accepts a bare session and explicit exact markers
+ok - real tmux: fm_backend_target_exists anchors the session name
+ok - real tmux: fm_backend_target_exists rejects malformed targets
+ok - real tmux: fm_backend_tmux_send_key withholds a key from a gone prefix target
+ok - real tmux: a gone dotted window reads absent beside its undotted neighbor
+ok - real tmux: fm_backend_target_exists rejects a killed window while another session stays alive
+ok - real tmux: fm_backend_target_exists rejects a missing session while another session stays alive
+ok - real tmux: kill removes the window and the readable session inventory authoritatively classifies it missing
+FM_TEST_END 2026-10-24T11:54:24Z tests/fm-backend-tmux-smoke.test.sh exit=0 duration_ms=1243 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=1317
+FM_TEST_SUMMARY_FAMILY family=backend-dispatch count=1 duration_ms=1243 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-backend-tmux-smoke.test.sh duration_ms=1243
+COMMAND_EXIT=0 elapsed_seconds=1.464
