@@ -48,6 +48,7 @@ make_fake_root() {
   local id=$1 tasktmp=$2
   local fake="$TMP_ROOT/$id"
   mkdir -p "$fake/bin/backends" "$fake/state" "$fake/data"
+  ln -s "$ROOT/bin/fm-role-lib.sh" "$fake/bin/fm-role-lib.sh"
   # Symlink the REAL teardown so the test exercises actual code, not a copy.
   ln -s "$TEARDOWN" "$fake/bin/fm-teardown.sh"
   # fm-backend.sh is real, while its adapter is stubbed so this temp-cleanup
@@ -160,6 +161,7 @@ test_teardown_skips_gracefully_without_tasktmp() {
   local id=td-absent-z3
   local fake="$TMP_ROOT/$id-root"
   mkdir -p "$fake/bin/backends" "$fake/state" "$fake/data"
+  ln -s "$ROOT/bin/fm-role-lib.sh" "$fake/bin/fm-role-lib.sh"
   ln -s "$TEARDOWN" "$fake/bin/fm-teardown.sh"
   ln -s "$ROOT/bin/fm-backend.sh" "$fake/bin/fm-backend.sh"
   cat > "$fake/bin/backends/tmux.sh" <<'SH'
