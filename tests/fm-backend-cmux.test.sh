@@ -118,8 +118,8 @@ cmux_expected_root_hash() {  # <root>
   fi
 }
 
-cmux_expected_home_label() {  # [home] [root]
-  local home=${1:-$ROOT} root=${2:-$ROOT} marker id prefix
+cmux_expected_home_label() {  # [home]
+  local home=${1:-$ROOT} marker id prefix
   marker="$home/.fm-secondmate-home"
   if [ -f "$marker" ]; then
     id=$(tr -d '[:space:]' < "$marker" 2>/dev/null)
@@ -131,16 +131,16 @@ cmux_expected_home_label() {  # [home] [root]
   else
     prefix="firstmate"
   fi
-  printf '%s-%s' "$prefix" "$(cmux_expected_root_hash "$root")"
+  printf '%s-%s' "$prefix" "$(cmux_expected_root_hash "$home")"
 }
 
-cmux_expected_scoped_title() {  # <fm-task-label> [home] [root]
-  local label=$1 home=${2:-$ROOT} root=${3:-$ROOT} rest
+cmux_expected_scoped_title() {  # <fm-task-label> [home]
+  local label=$1 home=${2:-$ROOT} rest
   case "$label" in
     fm-*) rest=${label#fm-} ;;
     *) rest=$label ;;
   esac
-  printf 'fm-%s-%s' "$(cmux_expected_home_label "$home" "$root")" "$rest"
+  printf 'fm-%s-%s' "$(cmux_expected_home_label "$home")" "$rest"
 }
 
 cmux_assert_call_order() {
@@ -195,7 +195,7 @@ test_version_check_refuses_missing_cmux() {
   # this test may run on a machine (like the one that verified this adapter)
   # where cmux really is installed at the real bundle path, which the plain
   # PATH-emptying above would not hide.
-  out=$( PATH="$dir/empty-fakebin:/usr/bin:/bin" FM_BACKEND_CMUX_BUNDLE_BIN="$dir/no-such-cmux" \
+  out=$( PATH="$dir/empty-fakebin:$(fm_test_base_path_sans /usr/bin:/bin cmux)" FM_BACKEND_CMUX_BUNDLE_BIN="$dir/no-such-cmux" \
     bash -c '. "$0/bin/backends/cmux.sh"; fm_backend_cmux_version_check' "$ROOT" 2>&1 )
   status=$?
   [ "$status" -ne 0 ] || fail "version_check should refuse when cmux is not installed"
@@ -295,18 +295,21 @@ test_scoped_title_uses_secondmate_home_label() {
   pass "fm_backend_cmux_scoped_title: scopes a secondmate task title with the home marker plus root hash"
 }
 
-test_scoped_title_changes_with_root_path() {
-  local dir home root_one root_two out_one out_two expected_one expected_two
-  dir="$TMP_ROOT/scoped-title-root-hash"; home="$dir/home"; root_one="$dir/root-one"; root_two="$dir/root-two"
-  mkdir -p "$home" "$root_one" "$root_two"
-  expected_one=$(cmux_expected_scoped_title fm-task1 "$home" "$root_one")
-  expected_two=$(cmux_expected_scoped_title fm-task1 "$home" "$root_two")
-  out_one=$( FM_HOME="$home" FM_ROOT_OVERRIDE="$root_one" bash -c '. "$0/bin/backends/cmux.sh"; fm_backend_cmux_scoped_title fm-task1' "$ROOT" )
-  out_two=$( FM_HOME="$home" FM_ROOT_OVERRIDE="$root_two" bash -c '. "$0/bin/backends/cmux.sh"; fm_backend_cmux_scoped_title fm-task1' "$ROOT" )
-  [ "$out_one" = "$expected_one" ] || fail "scoped title should include root-one hash as $expected_one, got '$out_one'"
-  [ "$out_two" = "$expected_two" ] || fail "scoped title should include root-two hash as $expected_two, got '$out_two'"
-  [ "$out_one" != "$out_two" ] || fail "scoped titles should differ for distinct FM_ROOT paths"
-  pass "fm_backend_cmux_scoped_title: includes the resolved FM_ROOT hash in the home label"
+test_scoped_title_changes_with_home_path() {
+  local dir home_one home_two root_one root_two out_one out_two
+  dir="$TMP_ROOT/scoped-title-home-hash"
+  home_one="$dir/home-one"; home_two="$dir/home-two"
+  root_one="$dir/root-one"; root_two="$dir/root-two"
+  mkdir -p "$home_one" "$home_two" "$root_one" "$root_two"
+  out_one=$(FM_HOME="$home_one" FM_ROOT_OVERRIDE="$root_one" bash -c '. "$0/bin/backends/cmux.sh"; fm_backend_cmux_scoped_title fm-task1' "$ROOT")
+  out_two=$(FM_HOME="$home_two" FM_ROOT_OVERRIDE="$root_one" bash -c '. "$0/bin/backends/cmux.sh"; fm_backend_cmux_scoped_title fm-task1' "$ROOT")
+  assert_not_equals "$out_one" "$out_two" "same-code-root homes must have distinct titles"
+  out_two=$(FM_HOME="$home_one" FM_ROOT_OVERRIDE="$root_two" bash -c '. "$0/bin/backends/cmux.sh"; fm_backend_cmux_scoped_title fm-task1' "$ROOT")
+  assert_equals "$out_one" "$out_two" "changing code roots must not change home identity"
+  ln -s "$home_one" "$dir/home-link"
+  out_two=$(FM_HOME="$dir/home-link" FM_ROOT_OVERRIDE="$root_one" bash -c '. "$0/bin/backends/cmux.sh"; fm_backend_cmux_scoped_title fm-task1' "$ROOT")
+  assert_equals "$out_one" "$out_two" "home aliases must retain the same identity"
+  pass "cmux namespaces follow the physical operational home, not the tracked code root"
 }
 
 # --- dispatch wiring (fm-backend.sh) ------------------------------------------
@@ -976,6 +979,24 @@ test_window_of_workspace_empty_when_not_found() {
 
 # The common case: the task workspace shares its window with at least one other
 # workspace, so cmux closes it directly with no sibling dance.
+test_kill_refuses_present_unverified_workspace() {
+  local dir fb title rc
+  for title in "fm-firstmate-$(cmux_expected_root_hash "$ROOT")-legacy" foreign-title ''; do
+    dir="$TMP_ROOT/kill-unverified-${title:-empty}"
+    mkdir -p "$dir/responses" "$dir/home"
+    cmux_workspace_list_response "$dir" 1 aaaaaaaa-0000-0000-0000-000000000000 "$title"
+    fb=$(make_cmux_fakebin "$dir")
+    rc=0
+    PATH="$fb:$PATH" FM_HOME="$dir/home" FM_CMUX_LOG="$dir/log" FM_CMUX_RESPONSES="$dir/responses" \
+      bash -c '. "$0/bin/backends/cmux.sh"; fm_backend_cmux_kill "aaaaaaaa-0000-0000-0000-000000000000:bbbbbbbb-1111-1111-1111-111111111111" "" fm-legacy' "$ROOT" \
+      > "$dir/out" 2> "$dir/err" || rc=$?
+    [ "$rc" -ne 0 ] || fail "present unverified cmux workspace was reported closed: $title"
+    assert_not_contains "$(cat "$dir/log")" 'close-workspace' "an unverified identity must not be closed"
+    assert_not_contains "$(cat "$dir/log")" 'new-workspace' "refused cleanup must create nothing"
+  done
+  pass "cmux cleanup refuses present legacy, foreign and empty workspace identities"
+}
+
 test_kill_closes_workspace_directly_when_not_last() {
   local dir fb
   dir="$TMP_ROOT/kill-workspace"; mkdir -p "$dir/responses"
@@ -1070,7 +1091,7 @@ test_list_live_filters_by_title_prefix() {
   dir="$TMP_ROOT/list-live"; mkdir -p "$dir/responses"
   other_root="$dir/other-root"; mkdir -p "$other_root"
   title=$(cmux_expected_scoped_title fm-task1)
-  other_title=$(cmux_expected_scoped_title fm-task2 "$ROOT" "$other_root")
+  other_title=$(cmux_expected_scoped_title fm-task2 "$other_root")
   # 1: workspace list --json --id-format uuids -> one in-home task, two unrelated
   cmux_workspace_list_response "$dir" 1 \
     "aaaaaaaa-0000-0000-0000-000000000000" "$title" \
@@ -1116,7 +1137,7 @@ test_parse_target
 test_normalize_key
 test_scoped_title_uses_primary_home_label
 test_scoped_title_uses_secondmate_home_label
-test_scoped_title_changes_with_root_path
+test_scoped_title_changes_with_home_path
 test_dispatch_routes_cmux_backend
 test_dispatch_busy_state_unknown_for_cmux
 test_dispatch_composer_state_routes_cmux
@@ -1158,6 +1179,7 @@ test_send_text_submit_popup_autocomplete_requires_second_enter
 test_send_text_submit_send_failed_when_target_absent
 test_window_of_workspace_finds_window_and_count
 test_window_of_workspace_empty_when_not_found
+test_kill_refuses_present_unverified_workspace
 test_kill_closes_workspace_directly_when_not_last
 test_kill_adds_sibling_when_last_in_window
 test_kill_is_best_effort_when_close_workspace_fails
