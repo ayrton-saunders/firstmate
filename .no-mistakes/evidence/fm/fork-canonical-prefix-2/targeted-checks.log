@@ -1,0 +1,273 @@
+FM_TEST_BEGIN 2026-10-24T14:57:45Z tests/fm-pr-merge.test.sh family=pr-forge expected_gate_skip=none
+ok - fm-pr-merge reports exact queue retry flags after a zero-exit false success
+ok - fm-pr-merge omits merge-queue retry guidance for a closed GitHub PR
+ok - fm-pr-merge aggregates agreeing merge-queue rules
+ok - fm-pr-merge reports ambiguity for conflicting merge-queue rules
+ok - fm-pr-merge records pr= and pr_head= for a verified GitHub merge
+ok - fm-pr-merge records pr= before the forge call can land the merge
+ok - fm-pr-merge propagates a real merge failure without silently succeeding
+ok - fm-pr-merge refuses a GitHub merge call that leaves the PR open and unqueued
+ok - fm-pr-merge retries a bounded number of times when mergeable is UNKNOWN and merges once it resolves
+ok - fm-pr-merge reports mergeability still pending after its bounded UNKNOWN retry is spent
+ok - fm-pr-merge refuses on the UNKNOWN re-check when a check turned red between reads
+ok - fm-pr-merge refuses a genuine mergeable conflict immediately, without retrying
+ok - fm-pr-merge keeps PR bookkeeping when it cannot read a successful merge call's outcome
+ok - fm-pr-merge refuses with the forge's own output quoted apart from its verdict
+ok - fm-pr-merge quotes the forge output when it cannot read the outcome either
+ok - fm-pr-merge does not echo back queue flags the caller already used
+ok - fm-pr-merge still names retry flags when the caller used a different method
+ok - fm-pr-merge names the queue requirement even when its method is unrecognised
+ok - fm-pr-merge distinguishes unreadable branch rules from a base with no merge queue
+ok - fm-pr-merge reads a plan-gated 403 on branch rules as no merge queue, not unreadable
+ok - fm-pr-merge says nothing about a merge queue when the base branch has no queue rule
+ok - fm-pr-merge accepts only a proved merge from the gh-axi fallback
+ok - fm-pr-merge explains an armed auto-merge that landed nothing on a queue-less base
+ok - fm-pr-merge never reports auto-merge as armed when the merge command failed
+ok - fm-pr-merge claims no acceptance for a failed merge command carrying queue flags
+ok - fm-pr-merge falls back to the gh-axi view when gh's read fails
+ok - fm-pr-merge names a landed state hiding behind a failed GitHub merge command
+ok - fm-pr-merge refuses a GitHub merge when gh is missing, before recording
+ok - fm-pr-merge refuses a GitHub merge when gh is missing rather than merging blind
+ok - fm-pr-merge verifies a genuinely merged GitHub pull request
+ok - fm-pr-merge refuses to claim a merge when poll recording fails
+ok - fm-pr-merge accepts and accurately reports a GitHub merge-queue entry
+ok - fm-pr-merge explains how to retry with the required GitHub merge queue method
+ok - fm-pr-merge refuses branch deletion unless --attended-override is passed
+ok - fm-pr-merge refuses before merging when task meta is missing
+ok - fm-pr-merge refuses malformed PR URLs before calling gh-axi
+ok - fm-pr-merge refuses unsafe PR URL segments before recording state
+ok - fm-pr-merge refuses repo override args before recording state
+ok - fm-pr-merge refuses a bundled short-option repo override and refuses -d unless attended
+ok - fm-pr-merge does not add default --squash when the caller passes an explicit merge method
+ok - fm-pr-merge respects --method=<value> as an explicit merge method
+ok - fm-pr-merge parses a GitHub PR URL into gh-axi number and --repo arguments
+ok - fm-pr-merge refuses a caller --sha on GitHub because the head comes from the live read
+ok - fm-pr-merge merges a GitLab merge request through glab instead of refusing it
+ok - fm-pr-merge takes the GitLab instance from the URL rather than assuming one
+ok - fm-pr-merge imposes no merge method on GitLab, leaving the project's own one
+ok - fm-pr-merge refuses GitLab source-branch deletion unless --attended-override is passed
+ok - fm-pr-merge propagates a real glab merge failure without silently succeeding
+ok - fm-pr-merge refuses on each GitLab pre-merge condition independently
+ok - fm-pr-merge reports every failing GitLab condition, not only the first
+ok - fm-pr-merge reports a stale recorded head and verifies the live one
+ok - fm-pr-merge refuses an unreadable GitLab merge request state rather than merging blind
+ok - fm-pr-merge refuses a GitLab head commit it cannot validate
+ok - fm-pr-merge refuses before recording anything when glab or jq is absent
+ok - fm-pr-merge merges a Forgejo pull request through tea api instead of refusing it
+ok - fm-pr-merge resolves the tea login by matching the PR's host against every registered login
+ok - fm-pr-merge refuses when zero or more than one tea login matches the pull request's host
+ok - fm-pr-merge refuses on each Forgejo pre-merge condition independently
+ok - fm-pr-merge treats an unconfigured Forgejo combined status as none, refusing rather than skipping the check
+ok - fm-pr-merge reads every Forgejo combined-status page before merging
+ok - fm-pr-merge reports a stale recorded head and binds the merge to the live one instead
+ok - fm-pr-merge refuses a Forgejo head commit it cannot validate
+ok - fm-pr-merge refuses before recording anything when tea or jq is absent
+ok - fm-pr-merge never trusts tea api's exit status alone; a rejected merge is caught by the confirm read
+ok - fm-pr-merge retries a failed Forgejo confirmation read and persists the merge authority
+ok - fm-pr-merge maps --squash/--rebase to Forgejo's Do field, defaults to the repository's default merge style, and refuses any other extra argument
+ok - optional expected qualified head is enforced and passed identically through every existing backend
+ok - fm-pr-merge refuses a GitLab head override before recording state
+ok - a merge a secondmate home performs itself is reported upward exactly once
+ok - a locally routed secondmate home reports the landed PR into its parent's own channel
+ok - a landed GitLab merge request is reported upward on the same channel
+ok - a queued GitLab merge stays silent and leaves confirmation to the armed poll
+ok - a refused or failed merge reports no outcome
+ok - a GitLab merge refused before the forge call reports no outcome
+ok - a merge a main home performs itself leaves one durable wake naming the PR
+ok - a queued GitHub merge stays silent and leaves confirmation to the armed poll
+ok - distinct merged PRs for one task retain distinct captain-facing wakes
+ok - an uncommitted marker retry preserves at least one durable outcome
+ok - a secondmate home that cannot report upward says so instead of merging in silence
+ok - fm-pr-merge proceeds when the home carries no backlog at all
+ok - fm-pr-merge refuses when the backlog exists but cannot be read
+ok - fm-pr-merge refuses when its configured backend cannot be read
+ok - fm-pr-merge refuses when its user backend configuration cannot be read
+ok - fm-pr-merge refuses when its user backend configuration directory cannot be traversed
+ok - fm-pr-merge proceeds once when its user configuration directory and backlog are genuinely absent
+ok - fm-pr-merge honors a backend override over an unreadable user configuration
+ok - fm-pr-merge refuses red GitHub checks and waives only a named --allow-red check
+ok - fm-pr-merge refuses a draft pull request and one with no boolean draft state
+ok - fm-pr-merge merges when a failed check run was replaced by a passing re-run
+ok - fm-pr-merge never lets a check run supersede a legacy status context
+ok - fm-pr-merge still refuses when a check's current run failed after an earlier pass
+ok - fm-pr-merge uses start order when the old success finishes last
+ok - fm-pr-merge supersedes an old cancellation that finishes last
+ok - fm-pr-merge keeps a check red while its re-run is still in flight
+ok - fm-pr-merge never lets one check's pass clear another check's failure
+ok - fm-pr-merge clears a failure only on a proven later pass of the same check
+ok - fm-pr-merge keeps --allow-red scoped to its named check beside a superseded failure
+ok - fm-pr-merge rechecks away presence before an attended red merge
+ok - fm-pr-merge keeps a quiet-mode home's merges attended, the named red-check waiver included
+ok - fm-pr-merge accepts exactly one separately named red-check waiver
+ok - while the away-posture record exists any green merge lands under away authority, yolo or not, and attended merges stay untagged
+ok - under the away-posture record the branch merges a green task, is refused on a red check with or without --allow-red, and is refused at the partition while attended
+ok - a branch merge refuses under the lock when the away record is archived during preflight
+ok - away posture permits immediate merges but refuses every asynchronous path
+ok - away merge proceeds on a plan-gated 403 because that repository cannot have a merge queue
+ok - the away record does not bypass red checks, and a recorded pr= must match the URL
+ok - an unreadable away-posture record refuses the merge instead of skipping the record
+ok - no away-record archive or replacement lands between the authority read and the merge
+ok - a record made unreadable before the merge's own authority read refuses the merge
+ok - a merge that cannot lock the away record refuses instead of merging unlocked
+ok - fm-pr-merge refuses --allow-red on GitLab
+ok - fm-pr-merge refuses when a required check from branch protection or a ruleset never reported
+ok - fm-pr-merge merges when every required check reported and is green
+ok - fm-pr-merge reports a red check and an unreported required check together with every other failure
+ok - fm-pr-merge refuses when the required checks cannot be read, and tells a plan without rules apart
+ok - fm-pr-merge --allow-missing waives only its named unreported check
+ok - fm-pr-merge --allow-missing is single use, attended-only, and GitHub-only like --allow-red
+ok - fm-pr-merge enforces required producer identity and named waivers
+ok - fm-pr-merge matches an app-bound required commit status by name
+ok - fm-pr-merge reports known missing checks and all independent read errors
+ok - fm-pr-merge refuses --allow-red on Forgejo
+ok - fm-pr-merge refuses --allow-missing on Forgejo
+ok - fm-pr-merge --allow-no-pipeline waives only a null GitLab head pipeline and keeps every other condition
+ok - fm-pr-merge --allow-no-pipeline is attended-only, takes no value, and applies only to GitLab
+FM_TEST_END 2026-10-24T15:04:13Z tests/fm-pr-merge.test.sh exit=0 duration_ms=387810 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T15:04:13Z tests/fm-secondmate-harness.test.sh family=secondmate expected_gate_skip=none
+FM_TEST_BEGIN 2026-10-24T15:04:13Z tests/fm-secondmate-restart.test.sh family=secondmate expected_gate_skip=none
+ok - a concurrent auto-relaunch prevents duplicate update restart and leaves activation unproved
+ok - T1 persist is a gate, and asks for open records and task status only
+not ok - a confirmed persist should restart the mate
+unreached: sm1: the restart outcome is unknown: secondmate home cannot be inside the firstmate repo: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fm-test-run.ab4U2K/w3/tmp/fm-secondmate-restart.FlRigb/order-5611/sm1-home
+summary: 0 of 1 restarted, 0 nudged, 1 unreached: expected exit 0, got 3
+FM_TEST_END 2026-10-24T15:04:20Z tests/fm-secondmate-restart.test.sh exit=1 duration_ms=6677 gate_skip=false
+ok - A1 fm-harness.sh secondmate resolves the fallback chain; crew mode unchanged
+ok - fm-harness detects only Cursor Agent CLI's exact invocation marker
+ok - C1 fm-harness.sh secondmate-model/secondmate-effort resolve the optional tokens; bare harness stays empty (backward-compat)
+ok - D1 fm-harness.sh honors a mate override line for its id and changes nothing else
+ok - D2 malformed config/secondmate-harness refuses with its line number on every read verb
+ok - secondmate pin I/O failures refuse every resolution verb without fallback or partial tokens
+ok - secondmate resolution distinguishes inaccessible ancestors from genuinely missing pin paths
+ok - D3 a config/secondmate-harness that declares no mate line is never refused
+ok - pi-signed identity: authoritative launch selection distinguishes shared wrapper ancestry
+ok - harness identity: dash-leading ps command names are basename operands, not options
+ok - B1 propagate_inheritable_config: copy, idempotence, convergence, absence-mirror, exclusion, no-op, skip diagnostics
+not ok - split: no meta written
+FM_TEST_END 2026-10-24T15:04:27Z tests/fm-secondmate-harness.test.sh exit=1 duration_ms=14061 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T15:04:27Z tests/fm-bootstrap-network-parallel.test.sh family=session-bootstrap expected_gate_skip=none
+ok - bootstrap network (parallel): per-mate output stays intact, fail-closed, and correctly sequenced
+ok - bootstrap network (fallback): per-mate output stays intact, fail-closed, and correctly sequenced
+ok - a remote inheritance failure reports its own error line, not an earlier unchanged item
+ok - remote inheritance push: items overlap up to the bound and replay in allowlist order
+ok - remote inheritance push: a failed item fails the push and no later item is started
+ok - remote inheritance push: exited senders without completion terminate as unknown in serial and parallel
+ok - config-push: missing completion terminates and keeps the reread owed
+ok - remote inheritance push: a local refusal is decided before any item is sent
+ok - per-mate convergence budget: a hung host is that mate's skip, keeps its retry marker, and does not hold the others
+ok - a push that fails after applying an item keeps the mate's re-read owed
+ok - config-push: a push that fails after applying an item keeps the mate's re-read owed
+ok - unknown-completion sync or push keeps the mate's re-read owed across an unchanged retry
+ok - parallel push preserves unknown completion status
+ok - a kill during the remote call keeps the mate's re-read owed
+# all fm-bootstrap-network-parallel tests passed
+FM_TEST_END 2026-10-24T15:07:52Z tests/fm-bootstrap-network-parallel.test.sh exit=0 duration_ms=205033 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T15:07:52Z tests/fm-control-relaunch.test.sh family=backend-dispatch expected_gate_skip=none
+ok - fm-spawn --relaunch: tracked opencode wiring is retired as on main
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch: a same-harness relaunch replaces the agent in the same endpoint and worktree
+ok - fm-control relaunch: pending composer text refuses before the exit command is typed
+ok - fm-control relaunch: an unreadable composer fails safe before the exit command is typed
+ok - fm-control relaunch: a linked spawning home preserves committed and unfinished work in the recorded copy
+ok - fm-control relaunch: durable task metadata survives replacement launch publication
+ok - fm-control relaunch: delivery and concurrent task metadata publication serialize
+ok - fm-control relaunch: disabling tracing clears metadata and pane context
+ok - fm-control relaunch: progress and the Firstmate-worktree worker identity reach the replacement
+ok - fm-control relaunch: the progress note's inbox listing is silent on an empty inbox
+ok - fm-control relaunch: a ship task refuses without the progress note its replacement needs
+ok - fm-control relaunch: switching harness is one ordinary relaunch, and the old wiring goes with the old agent
+ok - fm-control relaunch: project hooks, facets, and symlinks refuse before stopping the worker
+ok - Polytoken parent aliases refuse before stopping either prior harness, even with matching generated content
+ok - fm-control relaunch: invalid Polytoken profiles and config sources refuse before shutdown
+ok - fm-spawn --relaunch: retiring a raw polytoken launch's wiring keeps the project's own layers
+ok - fm-control relaunch: a harness switch resets model and effort unless they are named too
+ok - fm-control relaunch: a prefixed recorded harness can switch adapters transactionally
+ok - fm-control relaunch: a prefixed command requires an explicit replacement harness
+ok - fm-control relaunch: a same-harness relaunch keeps the profile axes it was running with
+ok - native Ultra relaunch preserves its profile and rejects an unsupported model before stopping
+ok - fm-control relaunch: a signed-out worker account pin refuses before the old agent stops
+ok - fm-control relaunch: the replacement follows the home's current worker account pin
+not ok - the secondmate should relaunch on its claude pin: error: secondmate home cannot be inside the firstmate repo: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fm-control-relaunch.ALp1uB/sm-account-claude-484/wt
+error: the replacement agent for rl-sm-acct could not be launched on claude
+error: rl-sm-acct's agent was stopped but the replacement did not launch; no agent is running, and its work plus the recorded progress note are preserved at /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fm-control-relaunch.ALp1uB/sm-account-claude-484/wt: expected exit 0, got 1
+FM_TEST_END 2026-10-24T15:08:47Z tests/fm-control-relaunch.test.sh exit=1 duration_ms=54396 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T15:08:47Z tests/fm-backend-paseo.test.sh family=paseo expected_gate_skip=optional-binary
+ok - paseo fixtures ignore inherited home, root, STATE, and FM_STATE_OVERRIDE
+ok - fm_backend_paseo_version_check: accepts the verified minimum (0.8.0)
+ok - fm_backend_paseo_version_check: accepts a newer version (0.9.2)
+ok - fm_backend_paseo_version_check: refuses an old version loudly
+ok - fm_backend_paseo_version_check: refuses loudly when paseo is not found on PATH or at the bundle path
+ok - fm_backend_paseo_parse_target: splits '<terminal_id>:<workspace_id>' on the first colon
+ok - fm_backend_paseo_scoped_name: scopes a primary task name with firstmate plus physical home hash
+ok - fm_backend_paseo_scoped_name: scopes a secondmate task name with the home marker plus physical home hash
+ok - fm_backend_validate: paseo is a known backend
+ok - fm_backend_busy_state: paseo (no native primitive) always reports unknown, same as tmux/zellij/orca/cmux
+ok - fm_backend_composer_state: routes paseo to the paseo composer classifier
+ok - fm_backend_paseo_daemon_state: reports 'ok' when localDaemon=running and connectedDaemon=reachable
+ok - fm_backend_paseo_daemon_state: reports 'down' when 'paseo status' fails
+ok - fm_backend_paseo_ensure_running: returns immediately when paseo is already reachable
+ok - fm_backend_paseo_create_task: refuses a duplicate terminal name (paseo's own terminal create has no uniqueness check)
+ok - fm_backend_paseo_create_task: creates the shared workspace once plus a terminal tab and parses terminal_id/workspace_id
+ok - fm_backend_paseo_create_task: refuses, creating nothing, when the terminal or workspace inventory cannot be read
+ok - fm_backend_paseo_create_task: adopts the project's live firstmate workspace by cwd+label and adds a tab (never a second workspace)
+ok - fm_backend_paseo_create_task: adopts the workspace firstmate itself runs in (PASEO_WORKSPACE_ID) when its cwd is the project, ahead of the title lookup
+ok - fm_backend_paseo_create_task: a task for any project becomes a tab in firstmate's own workspace (PASEO_WORKSPACE_ID)
+ok - fm_backend_paseo_create_task: a Paseo agent uses the one workspace whose folder is its home, and falls back when that is ambiguous
+ok - fm_backend_paseo_workspace_ensure: adopts the shared workspace by its physical or slash-normalized logical cwd
+ok - fm_backend_paseo_cli_json: keeps stderr out of parsed JSON and relays it only on failure
+ok - fm_backend_paseo_workspace_label: 'firstmate' for the primary home, '2ndmate-<id>' for a secondmate home (no path hash)
+ok - Paseo same-code-root homes isolate admission, recovery, steering and discovery; ambiguous legacy names refuse
+ok - fm_backend_paseo_target_ready: fails when the terminal is not found and no expected label is given
+ok - fm_backend_paseo_target_ready: verifies the live terminal name against the expected label
+ok - fm_backend_paseo_target_ready: rejects a terminal id reused under a different name
+ok - fm_backend_paseo_target_ready: recovers a stale terminal id by home-scoped NAME, never by title
+ok - fm_backend_paseo_capture: fetches the whole scrollback and trims to N lines locally
+ok - fm_backend_paseo_capture: fails when the target terminal is absent
+ok - fm_backend_paseo_send_key: passes the key through unchanged to the recorded terminal id
+ok - fm_backend_paseo_send_key: C-u goes as the raw 0x15 byte via -l; keys outside paseo's token set are refused, never typed
+ok - fm_backend_paseo_send_literal: calls send-keys -l with a -- separator before the literal payload
+ok - fm_backend_paseo_send_text_line: sends literal text then submits with Enter
+ok - fm_backend_paseo_current_path: actively probes with marked begin/end lines (creation-time-frozen cwd)
+ok - fm_backend_paseo_composer_state: a bare '❯' composer row reads empty
+ok - fm_backend_paseo_composer_state: real composer text reads pending
+ok - fm_backend_paseo_composer_state: reports unknown when the terminal cannot be captured
+ok - fm_backend_paseo_send_text_submit: reports 'empty' once the composer row reads empty after one Enter
+ok - fm_backend_paseo_send_text_submit: reports 'send-failed' when the target terminal is absent
+ok - Paseo cleanup refuses present legacy, foreign and empty terminal identities
+ok - fm_backend_paseo_kill: closes the task's terminal tab and leaves the workspace alive when its inventory is unreadable
+ok - fm_backend_paseo_kill: the last task tab retires firstmate's shared workspace and its own clone's project
+ok - fm_backend_paseo_kill: retires the recorded workspace and project when the task tab was already closed
+ok - fm_backend_paseo_kill: keeps the workspace while a tab, agent, other title, or firstmate itself uses it, and never retires anything outside this home's clones
+ok - Paseo retirement proves agent and terminal ownership before archive and deletion on both close paths
+ok - fm_backend_paseo: spawn and workspace retirement share one lock; neither acts while another process holds it
+ok - fm_backend_paseo_kill: never fails even when terminal kill fails
+ok - fm_backend_paseo_list_live: lists only this home's scoped task terminals using plain fm-<id> labels
+ok - fm-spawn.sh: an explicit paseo refuses --secondmate (mirrors cmux/Orca); ambient Paseo markers never select paseo
+ok - Pi supervision branch claims a paseo stale wake keyed by the task's window= endpoint
+FM_TEST_END 2026-10-24T15:09:11Z tests/fm-backend-paseo.test.sh exit=0 duration_ms=23800 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T15:09:11Z tests/fm-capacity.test.sh family=unclassified expected_gate_skip=none
+ok - absent config/lane-capacity reports counts and no target
+ok - the Constrained line is printed only when config/lane-capacity exists
+ok - a target yields open lanes, full, and never a negative count
+ok - cpu, memory, and disk pressure close every lane and are named
+ok - unavailable probes print unknown and do not constrain
+ok - a malformed target is reported, not guessed
+ok - real host probes produce a well-formed report
+# all fm-capacity tests passed
+FM_TEST_END 2026-10-24T15:09:14Z tests/fm-capacity.test.sh exit=0 duration_ms=3165 gate_skip=false
+FM_TEST_SUMMARY total=7 failed=3 skipped_gate=0 duration_ms=688866
+FM_TEST_SUMMARY_FAMILY family=backend-dispatch count=1 duration_ms=54396 failed=1
+FM_TEST_SUMMARY_FAMILY family=paseo count=1 duration_ms=23800 failed=0
+FM_TEST_SUMMARY_FAMILY family=pr-forge count=1 duration_ms=387810 failed=0
+FM_TEST_SUMMARY_FAMILY family=secondmate count=2 duration_ms=20738 failed=2
+FM_TEST_SUMMARY_FAMILY family=session-bootstrap count=1 duration_ms=205033 failed=0
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=3165 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-pr-merge.test.sh duration_ms=387810
+FM_TEST_SLOWEST rank=2 script=tests/fm-bootstrap-network-parallel.test.sh duration_ms=205033
+FM_TEST_SLOWEST rank=3 script=tests/fm-control-relaunch.test.sh duration_ms=54396
+FM_TEST_SLOWEST rank=4 script=tests/fm-backend-paseo.test.sh duration_ms=23800
+FM_TEST_SLOWEST rank=5 script=tests/fm-secondmate-harness.test.sh duration_ms=14061
+FM_TEST_SLOWEST rank=6 script=tests/fm-secondmate-restart.test.sh duration_ms=6677
+FM_TEST_SLOWEST rank=7 script=tests/fm-capacity.test.sh duration_ms=3165
+fm-test-run: wrote timing artifact: /Users/ayrton/.no-mistakes/evidence/01M5Q4KBXA4FE87Y7CZV7AG0QH/targeted-timing.json

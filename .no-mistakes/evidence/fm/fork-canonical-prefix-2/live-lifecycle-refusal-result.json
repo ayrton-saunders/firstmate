@@ -1,0 +1,31 @@
+{
+  "tested_head_sha": "09ec339702595abc542640c4b0d9678e84eccea2",
+  "result": "pass",
+  "scenario": "Refuse unresolved runtime replacement before stopping a real running agent",
+  "runtime": "Pi openai-codex/gpt-6.1-sol medium",
+  "method": "Real interactive Pi in a marked disposable home, manually registered exact task endpoint on a helper-created private tmux socket; actual fm-control.sh relaunch entrypoint, without lifecycle stubs. No integrated spawn certification claimed.",
+  "observed": [
+    "Real agent completed initial nonce turn",
+    "Unreadable mate-specific pin refused relaunch with exit 1 before stop",
+    "Duplicate mate override refused relaunch with exit 1 before stop",
+    "Both refusals preserved live pane PID and byte-identical metadata, without a relaunch journal",
+    "Same surviving agent completed follow-up nonce turn"
+  ],
+  "cleanup": [
+    "Single EXIT trap killed only exact private tmux server and ran fm-lab-home.sh teardown",
+    "Helper-created socket directory removed",
+    "Disposable home and driver removed from worktree",
+    "No residual Pi/node process using exact lab session directory",
+    "git status --short empty"
+  ],
+  "source_changes": false,
+  "prior_evidence": "Existing four live passing scenarios and fixture logs retained unchanged; not rerun or recertified in this iteration",
+  "combined_live_coverage": "5 of 8 scenarios, including four retained prior receipts",
+  "still_untested_live": [
+    "Shared Paseo workspace retirement: vendor absent; no installation or server operations authorized",
+    "Parallel inherited-material completion and owed rereads: no authorized isolated remote endpoint",
+    "Expected merge head and GitLab no-pipeline handling: real forge mutation out of scope"
+  ],
+  "limitations": "No default/fleet/other-home endpoint addressed; no Herdr used; discovery extensions, tools and context files disabled only for safe disposable nonce agent; existing model/auth profile unchanged. Remaining live gaps are not converted into passes.",
+  "artifacts": ["live-lifecycle-refusal.log", "live-lifecycle-refusal-driver.sh"]
+}

@@ -1,0 +1,55 @@
+FM_TEST_BEGIN 2026-10-24T15:22:05Z tests/fm-update.test.sh family=session-bootstrap expected_gate_skip=none
+ok - contained/FF/divergent/conflicted/empty histories preserve ancestry, behavior and interrupted evidence
+ok - moving identities, dirty/detached/active/shallow/mismatched and primary preparation refuse without active-source effects
+ok - pinned consumption rejects moving/unsafe targets before all secondmate effects
+ok - final ancestry, actual Review/Test heads, conflict provenance, publication/head/base races and actual landed tree are checked
+ok - unknown provenance survives interrupted preparation and conflicted retries across preparation, qualification and landing
+ok - textually clean semantic regression fails behavior testing; final normal repair evidence qualifies without another human approval
+ok - pinned primary consumption preserves a standalone secondmate distinct origin and source result
+ok - T1 main + secondmate fast-forward (single-parent), reread + restart signalled
+ok - T3 a non-instruction advance still restarts the live secondmate
+ok - T3b a bin/-only advance restarts the secondmate
+ok - T3c an unverifiable secondmate receives the fallback nudge
+ok - T3d an already-stopped secondmate is left to startup recovery
+ok - T3e a legacy remote advance still restarts the live remote mate
+ok - T4 dirty secondmate skipped, local edit preserved
+ok - T5 diverged secondmate is preserved and durably actionable
+ok - T5b squash-merged divergence heals and rejoins live convergence
+ok - T6 an already-current live secondmate is still restarted
+ok - T6b an already-current mate with an unprovable runtime is steered, not claimed as reloaded
+ok - T7 registry backstop resolves, dedups meta+registry, excludes the firstmate repo
+ok - T9 firstmate off its default branch is skipped, not forced
+ok - T10 firstmate detached HEAD is skipped
+ok - T11 unsafe secondmate home is not fast-forwarded
+ok - T12 a self-update rebinds a locally armed watch on the primary
+# all fm-update tests passed
+FM_TEST_END 2026-10-24T15:22:58Z tests/fm-update.test.sh exit=0 duration_ms=53199 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T15:22:58Z tests/fm-self-repo-role.test.sh family=unclassified expected_gate_skip=none
+ok - fm-role.sh report: default, user, and maintainer directives resolve
+ok - fm-role.sh report: malformed, unknown, and unsafe input fails closed
+ok - fm-role.sh check: the default user/operator home cannot publish to firstmate upstream
+ok - fm-role.sh check: a task on an ordinary project is untouched by the boundary
+ok - fm-role.sh check: a matching maintainer scope authorizes the self-repository publication
+ok - fm-role.sh check: scope mismatch and mere upstream remote presence never authorize
+ok - fm-role.sh check: equivalent remote spellings resolve to one publication target
+ok - fm-role.sh check: repository lineage, not remotes, identifies firstmate across forks
+ok - fm-role.sh check: gh-resolved base selects the exact fork target, otherwise legacy precedence holds
+ok - fm-role.sh check: undeterminable lineage or publication target refuses
+ok - fm-role.sh check: recorded one-task consent authorizes its named repository only
+ok - secondmate home: a role file without an inheritance receipt grants nothing
+ok - secondmate home: inherited grants need a matching receipt; receipt-less and revoked grants are dead
+ok - secondmate home: a primary role its own resolver rejects propagates as revocation
+ok - fm_dod_block: upstream consent renders on publishing contracts and is refused on local-only
+ok - fm-brief.sh: --upstream-consent validates, scopes to ship tasks, and renders normalized
+ok - fm-brief.sh: --project applies the self-repository gate at scaffold time
+ok - fm-spawn.sh: the launch gate refuses a user/operator home and passes a matching maintainer
+ok - fm-spawn.sh: consent must agree between flag and brief, and is refused on local-only
+ok - fm-promote.sh: the self-repository gate governs promotion identically to spawn
+ok - fm-spawn.sh: --upstream-consent is refused on secondmate charters
+# all fm-self-repo-role tests passed
+FM_TEST_END 2026-10-24T15:23:07Z tests/fm-self-repo-role.test.sh exit=0 duration_ms=8850 gate_skip=false
+FM_TEST_SUMMARY total=2 failed=0 skipped_gate=0 duration_ms=62176
+FM_TEST_SUMMARY_FAMILY family=session-bootstrap count=1 duration_ms=53199 failed=0
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=8850 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-update.test.sh duration_ms=53199
+FM_TEST_SLOWEST rank=2 script=tests/fm-self-repo-role.test.sh duration_ms=8850

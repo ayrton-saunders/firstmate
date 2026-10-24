@@ -1,0 +1,174 @@
+FM_TEST_BEGIN 2026-10-24T15:09:54Z tests/fm-secondmate-harness.test.sh family=secondmate expected_gate_skip=none
+FM_TEST_BEGIN 2026-10-24T15:09:54Z tests/fm-secondmate-restart.test.sh family=secondmate expected_gate_skip=none
+ok - a concurrent auto-relaunch prevents duplicate update restart and leaves activation unproved
+ok - T1 persist is a gate, and asks for open records and task status only
+ok - T2 the mate persists before anything is stopped
+ok - T2b an arrived persist answer is resolved before timeout
+ok - T2c a reply between the preliminary scan and timeout decision wins
+ok - T3 a runtime that cannot prove a restart falls back to the re-read message
+ok - T4 every named mate is accounted for, including one this home does not know
+ok - T5 a refused restart leaves the mate running and reports an unknown outcome
+ok - T8 a local restart re-resolves this home's pin and reports the runtime that came up
+not ok - native remote restart failed: unreached: sm2: the request to write down its open work could not be delivered: ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━; the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+summary: 0 of 1 restarted, 0 nudged, 1 unreached: expected exit 0, got 3
+FM_TEST_END 2026-10-24T15:10:28Z tests/fm-secondmate-restart.test.sh exit=1 duration_ms=34339 gate_skip=false
+ok - A1 fm-harness.sh secondmate resolves the fallback chain; crew mode unchanged
+ok - fm-harness detects only Cursor Agent CLI's exact invocation marker
+ok - C1 fm-harness.sh secondmate-model/secondmate-effort resolve the optional tokens; bare harness stays empty (backward-compat)
+ok - D1 fm-harness.sh honors a mate override line for its id and changes nothing else
+ok - D2 malformed config/secondmate-harness refuses with its line number on every read verb
+ok - secondmate pin I/O failures refuse every resolution verb without fallback or partial tokens
+ok - secondmate resolution distinguishes inaccessible ancestors from genuinely missing pin paths
+ok - D3 a config/secondmate-harness that declares no mate line is never refused
+ok - pi-signed identity: authoritative launch selection distinguishes shared wrapper ancestry
+ok - harness identity: dash-leading ps command names are basename operands, not options
+ok - B1 propagate_inheritable_config: copy, idempotence, convergence, absence-mirror, exclusion, no-op, skip diagnostics
+ok - B2 spawn: secondmate runs the secondmate harness; its home inherits declared config
+ok - B3 spawn: an absent secondmate-harness falls back to the crew harness (backward-compat)
+ok - B4 spawn: no config at all -> own harness and no propagation side effects
+ok - B5 spawn: an explicit per-spawn harness arg overrides config/secondmate-harness
+ok - B6 spawn: an unverified resolved secondmate harness is refused (guard intact)
+skip: cursor executable not resolvable in this environment, so the launch could not be built
+ok - B5b spawn: FM_BACKEND wins over inherited config/backend
+ok - B5c spawn: explicit --backend wins over FM_BACKEND and inherited config/backend
+ok - C2 spawn: a bare harness-only secondmate-harness file launches with no model/effort flag (backward-compat)
+ok - C3 spawn: config/secondmate-harness's model token threads --model into the launch and meta
+ok - C4 spawn: config/secondmate-harness's model+effort tokens thread into the launch and meta
+ok - C10 spawn: a legacy secondmate-harness file still launches on its first line (opt-in scope)
+ok - C11 spawn: a declared pin file that is malformed refuses the spawn with its line number
+ok - C5 spawn: an explicit --model overrides config/secondmate-harness's model token; the file's effort token still applies
+ok - C6 spawn: an explicit --effort overrides config/secondmate-harness's effort token; the file's model token still applies
+ok - C7 spawn: an explicit --harness starts with clean model/effort defaults
+ok - C8 spawn: an explicit --harness still honors explicit model/effort flags
+ok - C9 spawn: secondmate launch pins supervision to its own harness
+ok - C9 spawn: the harness fallback chain still resolves with no tokens; crew/scout launches are unaffected by this feature
+ok - B7 bootstrap sweep pushes, re-converges, and mirrors absence; never inherits secondmate-harness
+ok - B8 bootstrap sweep propagates config even when the home's tracked files are already current
+ok - B9 bootstrap sweep defers new inherited config until the home ignores it
+ok - B10 bootstrap sweep materializes and inherits the startup-memory default while fast-forwarding
+ok - B12b backend inheritance: present values and primary absence converge exactly
+ok - C2b spawn: config/claude-permission-mode=auto reaches a Claude secondmate launch
+ok - claude secondmate launches cover the parent-home steering inbox in auto and bypass modes
+ok - B12c claude-permission-mode inheritance: present values and primary absence converge exactly
+ok - B12c presentation inheritance: the primary default converges on, and only an explicit opt-out propagates off
+ok - B11 bootstrap sweep surfaces config propagation failures
+ok - B11 bootstrap rereads completed config writes after partial propagation
+ok - B12 config-push propagates via shared live discovery, reports items, rereads on change only, and does not fast-forward
+ok - B13 config-push reports dirty, non-allowing, and invalid homes without failing warnings-only runs
+ok - B14 config-push exits nonzero on real propagation errors
+ok - B14 config-push rereads completed config writes after partial propagation
+ok - B15 config reread is per-home, exact-byte, ordered, and pointer-only
+ok - B16 config reread isolation, ABSENT, generation safety, send failure, and retry
+ok - B20 config reread publication failures retain exact generations for retry
+ok - B21 config reread instruction-write failures retain exact retry generations
+ok - B21 config reread preserves exact bytes when temporary adoption also fails
+ok - B21 config reread serializes concurrent propagation and delivery
+ok - B22 full config reread retry queues drain before new publication
+ok - B23 mixed config reread delivery failures still bound sent history
+ok - B26 config reread delivery stops after the oldest failed generation
+ok - B17 config reread skips unchanged homes and reads destination post-write bytes
+ok - B18 bootstrap config reread path works; spawn flexibility remains defaults-only
+ok - B19 bootstrap respawns before inherited-config reread
+ok - B25 spawn quarantines stale rereads without blocking relaunch
+ok - B24 bootstrap detect-only mode remains filesystem read-only
+# all fm-secondmate-harness tests passed
+FM_TEST_END 2026-10-24T15:14:11Z tests/fm-secondmate-harness.test.sh exit=0 duration_ms=257006 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T15:14:11Z tests/fm-control-relaunch.test.sh family=backend-dispatch expected_gate_skip=none
+ok - fm-spawn --relaunch: tracked opencode wiring is retired as on main
+ok - fm-control removes the dialog file after exit and after relaunch
+ok - fm-control exit removes the dialog file before it releases the control lock
+ok - fm-control relaunch: a same-harness relaunch replaces the agent in the same endpoint and worktree
+ok - fm-control relaunch: pending composer text refuses before the exit command is typed
+ok - fm-control relaunch: an unreadable composer fails safe before the exit command is typed
+ok - fm-control relaunch: a linked spawning home preserves committed and unfinished work in the recorded copy
+ok - fm-control relaunch: durable task metadata survives replacement launch publication
+ok - fm-control relaunch: delivery and concurrent task metadata publication serialize
+ok - fm-control relaunch: disabling tracing clears metadata and pane context
+ok - fm-control relaunch: progress and the Firstmate-worktree worker identity reach the replacement
+ok - fm-control relaunch: the progress note's inbox listing is silent on an empty inbox
+ok - fm-control relaunch: a ship task refuses without the progress note its replacement needs
+ok - fm-control relaunch: switching harness is one ordinary relaunch, and the old wiring goes with the old agent
+ok - fm-control relaunch: project hooks, facets, and symlinks refuse before stopping the worker
+ok - Polytoken parent aliases refuse before stopping either prior harness, even with matching generated content
+ok - fm-control relaunch: invalid Polytoken profiles and config sources refuse before shutdown
+ok - fm-spawn --relaunch: retiring a raw polytoken launch's wiring keeps the project's own layers
+ok - fm-control relaunch: a harness switch resets model and effort unless they are named too
+ok - fm-control relaunch: a prefixed recorded harness can switch adapters transactionally
+ok - fm-control relaunch: a prefixed command requires an explicit replacement harness
+ok - fm-control relaunch: a same-harness relaunch keeps the profile axes it was running with
+ok - native Ultra relaunch preserves its profile and rejects an unsupported model before stopping
+ok - fm-control relaunch: a signed-out worker account pin refuses before the old agent stops
+ok - fm-control relaunch: the replacement follows the home's current worker account pin
+ok - fm-control relaunch: mate pins are re-read for Claude and Pi, and unusable pins refuse before stopping the agent
+ok - fm-control relaunch: a Pi replacement keeps the home's tool exclusions
+ok - fm-control relaunch: exclusion-list refusals happen before the running agent stops
+ok - fm-control relaunch: explicit model and effort win over the recorded ones
+ok - fm-control relaunch: refuses to relaunch onto an adapter with no verified mechanics
+ok - fm-control relaunch: the retired incarnation's global turn-end token is revoked
+ok - fm-control relaunch: wiring cleanup failure refuses replacement arming
+ok - fm-control-lib: one owner resolves each harness's turn-end registry entry, and refuses a malformed token
+ok - fm-control relaunch: a secondmate relaunch re-resolves its durable configured harness pin
+ok - fm-control relaunch: a claude secondmate keeps settings.local.json and retires the state settings file and the Stop pointer
+ok - fm-control relaunch: a mate with a per-mate override line lands on that override, not the default pin
+ok - fm-control relaunch: a mate with no override line still resolves the default pin
+ok - fm-control relaunch: a legacy secondmate pin file still relaunches the mate onto its first line
+ok - fm-control relaunch: malformed and unreadable secondmate pins refuse before anything is stopped
+ok - fm-control relaunch: invalid configured effort is ignored before stop
+ok - fm-control relaunch: an adapter unverified for this task kind refuses before the agent is stopped
+ok - fm-control relaunch: explicit secondmate harness resets unnamed profile axes
+ok - fm-control relaunch: a ship task keeps its recorded harness instead of re-reading crew config
+ok - fm-spawn --relaunch: with no explicit harness it reuses the task's recorded one, never the crew default
+ok - fm-spawn --relaunch: a promoted scout with a recorded custom branch relaunches on it instead of being refused
+ok - fm-promote/fm-spawn --relaunch: the current ship contract supersedes stale scout delivery text
+ok - fm-spawn --relaunch: wiring armed under a prefixed harness name is still retired
+ok - fm-spawn --relaunch: switching away from muse retires its session binding
+ok - fm-spawn --relaunch: switching away from cursor retires its session binding
+ok - fm-control relaunch: an unaccountable local copy refuses before the agent is touched
+ok - fm-control relaunch: a worker with nothing to work from is never launched
+ok - fm-control relaunch: a refusal before the agent is stopped leaves the durable record untouched
+ok - fm-control relaunch: checkpoint inspection failures refuse before stopping
+ok - fm-control relaunch: a launch failure after the stop keeps the prior record and reports the real state
+ok - fm-control relaunch: unpublished rollback keeps concurrent durable metadata
+ok - fm-control relaunch: post-publication failure keeps the new durable record
+ok - fm-control relaunch: partial stop reconciles actual agent state
+ok - fm-control relaunch: failed journal replacement preserves durable phase
+ok - fm-spawn relaunch: prepublication abort removes replacement state
+ok - fm-control relaunch: the checkpoint records the exact unlanded work it preserved
+ok - fm-control relaunch: a secondmate's child work is accounted for and its charter is left alone
+ok - fm-control relaunch: a secondmate home that is not this secondmate's is refused
+ok - fm-control relaunch: unreadable child records fail checkpoint
+ok - fm-control relaunch: unlistable state fails checkpoint
+ok - fm-control relaunch: a vanished watcher scratch file does not fail the child-record checkpoint
+ok - fm-control relaunch: two control actions on one task serialize instead of interleaving
+ok - fm-spawn relaunch: direct entry participates in lifecycle serialization
+ok - fm-promote: promotion participates in lifecycle serialization
+ok - fm-spawn --relaunch: refuses to launch a second agent into a live endpoint
+ok - fm-spawn --relaunch: symlinked records refuse before inspection
+ok - fm-spawn --relaunch: keeps its early meta lock continuous
+ok - fm-spawn --relaunch: pending closes refuse before replacement begins
+ok - fm-spawn --relaunch: every identity axis comes from the record, and a contradicting flag refuses
+ok - fm-spawn --relaunch: an unrecorded task is refused
+ok - fm-spawn --relaunch: refuses to start a replacement outside the copy holding its work
+ok - tmux: a window absent from its session refuses both verbs rather than being assumed gone
+ok - tmux: an unfindable session refuses both verbs, so a live agent is never duplicated
+ok - tmux: a dead server on this socket refuses both verbs rather than proving absence
+ok - reclaim: an unclassifiable endpoint is still refused, so two agents cannot share one
+ok - fm-spawn --relaunch: resumes the bound Pi session only for a Pi registration
+ok - reclaim: a herdr pane that outlived its stopped server is adopted, never orphaned beside a new tab
+ok - fm-control exit: a herdr pane that outlived its stopped server is already-stopped, not gone
+ok - reclaim: a herdr rebind is created in the session the record names, never the ambient one
+ok - reclaim: a herdr agent that came back with its server refuses, so one worktree keeps one agent
+ok - reclaim: a herdr reclaim rebinds the endpoint and leaves the whole rest of the task alone
+ok - reclaim: a herdr secondmate whose endpoint is gone is sent to its own respawn owner
+ok - reclaim: a rebind refused from a plain shell reports the real cause, not a fabricated session mismatch
+ok - relaunch re-reads the backlog item instead of blindly re-running the transition
+ok - relaunch heals an item that drifted out of In flight while the task stayed live
+ok - away supervision relaunches existing In-flight and queued items under the saturated fresh-spawn spend cap
+FM_TEST_END 2026-10-24T15:17:35Z tests/fm-control-relaunch.test.sh exit=0 duration_ms=204420 gate_skip=false
+FM_TEST_SUMMARY total=3 failed=1 skipped_gate=0 duration_ms=461724
+FM_TEST_SUMMARY_FAMILY family=backend-dispatch count=1 duration_ms=204420 failed=0
+FM_TEST_SUMMARY_FAMILY family=secondmate count=2 duration_ms=291345 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-secondmate-harness.test.sh duration_ms=257006
+FM_TEST_SLOWEST rank=2 script=tests/fm-control-relaunch.test.sh duration_ms=204420
+FM_TEST_SLOWEST rank=3 script=tests/fm-secondmate-restart.test.sh duration_ms=34339
+fm-test-run: wrote timing artifact: /Users/ayrton/.no-mistakes/evidence/01M5Q4KBXA4FE87Y7CZV7AG0QH/recheck-timing.json

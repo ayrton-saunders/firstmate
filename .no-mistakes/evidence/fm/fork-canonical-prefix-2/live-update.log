@@ -1,0 +1,31 @@
+== Consume exact new default head from private local origin ==
+firstmate: updated d068537..7f86fa9
+no watches registered
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+Confirmed: HEAD advanced to exact origin tip, retaining its ancestor.
+
+== Refuse stale expected head without moving current default ==
+firstmate: skipped: origin moved or does not equal expected commit
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+exit=1
+
+== Refuse a task branch without moving it ==
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WORKTREE TANGLE - PRIMARY CHECKOUT IS ON A FEATURE BRANCH
+●  /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/update-live/operator is on 'task', not its default branch 'main'.
+●  A crewmate likely branched/committed in the primary instead of its own worktree.
+●  The work is SAFE on the 'task' ref.
+●  Restore the primary to 'main':
+●      git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/update-live/operator checkout main
+●  then re-validate 'task' in a proper isolated worktree.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+firstmate: skipped: on task, expected main
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+exit=1
+Confirmed: refused stale target and non-default branch; no secondmate actions.

@@ -1,0 +1,21 @@
+ok - a concurrent auto-relaunch prevents duplicate update restart and leaves activation unproved
+ok - T1 persist is a gate, and asks for open records and task status only
+ok - T2 the mate persists before anything is stopped
+ok - T2b an arrived persist answer is resolved before timeout
+ok - T2c a reply between the preliminary scan and timeout decision wins
+ok - T3 a runtime that cannot prove a restart falls back to the re-read message
+ok - T4 every named mate is accounted for, including one this home does not know
+ok - T5 a refused restart leaves the mate running and reports an unknown outcome
+ok - T8 a local restart re-resolves this home's pin and reports the runtime that came up
+not ok - native remote restart failed: unreached: sm2: the request to write down its open work could not be delivered: ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the requested message WILL still be sent.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: remote command is not tracked by this Firstmate checkout: fm-remote-secondmate-control.sh
+error: steer not sent to remote secondmate sm2 (the remote steering-inbox record could not be written; the remote leg's stderr above has the reason); the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: remote command is not tracked by this Firstmate checkout: fm-remote-secondmate-control.sh
+error: steer not sent to remote secondmate sm2 (the remote steering-inbox record could not be written; the remote leg's stderr above has the reason)
+summary: 0 of 1 restarted, 0 nudged, 1 unreached: expected exit 0, got 3

@@ -1,0 +1,1208 @@
++ set -u
+++ dirname .validation-tmp/product/tests/fm-secondmate-restart.test.sh
++ . .validation-tmp/product/tests/lib.sh
+++ '[' -n '' ']'
+++ FM_TEST_LIB_SOURCED=1
+++ umask 022
++++ dirname .validation-tmp/product/tests/lib.sh
+++ . .validation-tmp/product/tests/git-config-helpers.sh
++++ export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
++++ GIT_CONFIG_GLOBAL=/dev/null
++++ GIT_CONFIG_NOSYSTEM=1
++++ unset GIT_DIR GIT_WORK_TREE GIT_INDEX_FILE GIT_COMMON_DIR
+++ export FM_GATE_REFUSE_BYPASS=1
+++ FM_GATE_REFUSE_BYPASS=1
+++ export FM_TEST_SEAM=1
+++ FM_TEST_SEAM=1
+++ unset FM_TASK_ID
+++ unset TASKS_AXI_FILE TASKS_AXI_BACKEND
+++++ dirname .validation-tmp/product/tests/lib.sh
++++ cd .validation-tmp/product/tests/..
++++ pwd
+++ ROOT=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product
++++ fm_test_tmpdir
++++ local base=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures physical
++++ base=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures
++++ '[' -n /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures ']'
++++ case "$base" in
+++++ CDPATH=
+++++ cd -- /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures
+++++ pwd -P
++++ physical=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures
++++ base=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures
++++ '[' -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/.git ']'
++++ printf '%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures
+++ FM_TEST_TMPDIR=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures
+++ FM_TEST_CLEANUP_DIRS=()
++++ mktemp /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/.fm-test-cleanup.63505.XXXXXX
+++ FM_TEST_CLEANUP_REGISTRY=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/.fm-test-cleanup.63505.Z2zRmv
++++ fm_test_pid_identity 63505
++++ local pid=63505
++++ FM_STATE_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures
++++ bash -c '. "$1"; fm_pid_identity "$2"' _ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-wake-lib.sh 63505
+++ FM_TEST_OWNER_IDENTITY='Sat Oct 24 16:18:00 2026     bash -x .validation-tmp/product/tests/fm-secondmate-restart.test.sh'
++++ mktemp /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/.fm-test-procevent.63505.XXXXXX
+++ FM_TEST_PROCEVENT_REGISTRY=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/.fm-test-procevent.63505.dLDAOW
++++ mktemp /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/.fm-test-watcher.63505.XXXXXX
+++ FM_TEST_WATCHER_REGISTRY=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/.fm-test-watcher.63505.AGfavZ
+++ FM_TEST_STUB_MAX_BLOCK_SECONDS=120
+++ export FM_TEST_STUB_MAX_BLOCK_SECONDS
+++ trap fm_test_cleanup EXIT
+++ trap 'fm_test_cleanup; exit 130' INT
+++ trap 'fm_test_cleanup; exit 143' TERM
+++ trap 'fm_test_cleanup; exit 129' HUP
+++ trap 'fm_test_cleanup; exit 131' QUIT
+++ FM_TEST_ORPHAN_MAX_AGE_SECONDS=3600
+++ '[' 0 '!=' 1 ']'
+++ fm_test_reap_orphans
+++ local marker dir mtime now owner_pid owner_identity current_identity
++++ date +%s
+++ now=1792855080
+++ for marker in "$FM_TEST_TMPDIR"/fm-*/.fm-test-fixture
+++ '[' -e '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-*/.fm-test-fixture' ']'
+++ continue
++ RESTART=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-secondmate-restart.sh
++ fm_git_identity fmtest fmtest@example.com
++ export GIT_AUTHOR_NAME=fmtest GIT_AUTHOR_EMAIL=fmtest@example.com
++ GIT_AUTHOR_NAME=fmtest
++ GIT_AUTHOR_EMAIL=fmtest@example.com
++ export GIT_COMMITTER_NAME=fmtest GIT_COMMITTER_EMAIL=fmtest@example.com
++ GIT_COMMITTER_NAME=fmtest
++ GIT_COMMITTER_EMAIL=fmtest@example.com
+++ fm_test_tmproot fm-secondmate-restart
+++ local prefix=fm-secondmate-restart root tmp_base
++++ fm_test_tmpdir
++++ local base=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures physical
++++ base=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures
++++ '[' -n /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures ']'
++++ case "$base" in
+++++ CDPATH=
+++++ cd -- /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures
+++++ pwd -P
++++ physical=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures
++++ base=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures
++++ '[' -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/.git ']'
++++ printf '%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures
+++ tmp_base=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures
+++ tmp_base=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures
++++ mktemp -d /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.XXXXXX
+++ root=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ
++++ cd -P -- /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ
++++ pwd -P
+++ root=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ
+++ printf '%s\n%s\n' 63505 'Sat Oct 24 16:18:00 2026     bash -x .validation-tmp/product/tests/fm-secondmate-restart.test.sh'
+++ printf '%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ
+++ printf '%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ
++ TMP_ROOT=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ
+++ cd /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ
+++ pwd -P
++ TMP_ROOT=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ
++ test_concurrent_auto_relaunch_is_not_a_second_restart
++ local dir out rc holder i lock
+++ new_case concurrent-auto-relaunch
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/config /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/fake
+++ printf 'claude\n'
+++ :
+++ :
+++ :
+++ printf claude
+++ printf claude
+++ make_stub /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432
+++ local fb=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/fakebin
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/fakebin
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/fakebin/tmux
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/fakebin/sleep
+++ printf '%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432
++ dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432
++ add_local_mate /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432 id=sm1 harness=claude backend=
++ local home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home smhome=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-home
++ fm_git_worktree /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-home sm-sm1
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-home branch=sm-sm1
++ fm_git_init_commit /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo init -q -b main
+++ basename /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo
++ printf '# %s\n' sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo add README.md
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo -c 'user.name=Firstmate Tests' -c user.email=tests@example.invalid commit -qm initial
++ fm_git_add_origin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo.origin.git
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo remote=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo.origin.git remote_abs
++ git clone --quiet --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo.origin.git
+++ cd /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo.origin.git
+++ pwd
++ remote_abs=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo remote add origin file:///Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-repo worktree add --quiet -b sm-sm1 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-home
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-home/bin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/data/sm1
++ printf '%s\n' sm1
++ printf '# agents\n'
++ printf '# charter\n'
++ echo window=fmses:fm-sm1
++ echo endpoint_task_id=sm1
++ echo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-home
++ echo project=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-home
++ echo harness=claude
++ echo kind=secondmate
++ echo mode=secondmate
++ echo yolo=off
++ echo model=default
++ echo effort=default
++ echo home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-home
++ '[' -z '' ']'
++ printf '%s\n' fm-sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/sm1-home
++ arm_answer /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432 id=sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/sm1.inbox
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/sm1.status
++ lock=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock
++ holder=63583
++ i=0
++ '[' '!' -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock ']'
++ '[' 0 -lt 100 ']'
++ sleep 0.1
++ . /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-wake-lib.sh
++++ d=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin
++++ '[' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin '!=' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-wake-lib.sh ']'
++++ cd /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin
++++ pwd
+++ FM_WAKE_LIB_DIR=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin
++++ cd /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/..
++++ pwd
+++ FM_WAKE_DEFAULT_ROOT=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product
+++ FM_ROOT=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product
+++ FM_HOME=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product
+++ STATE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/state
+++ FM_WAKE_QUEUE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/state/.wake-queue
+++ FM_WAKE_QUEUE_LOCK=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/state/.wake-queue.lock
+++ FM_LOCK_STALE_AFTER=2
+++ . /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-path-lib.sh
++++ uname
+++ _FM_UNAME=Darwin
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/state
+++ '[' 5 -gt 4 ']'
+++ FM_WATCHER_MATCHED_IDENTITY=
+++ FM_WATCHER_HEALTHY_PID=
+++ FM_WATCHER_HEALTHY_IDENTITY=
+++ FM_WATCHER_VERDICT_OK=false
+++ FM_WATCHER_VERDICT_REASON=stale-beacon
+++ FM_RECOVERY_MARKER_TOKEN=
+++ FM_RECOVERY_MARKER_ACTION=none
+++ FM_RECOVERY_MARKER_WRITTEN_TOKEN=
+++ FM_WAKE_APPEND_RECOVERY_PREVIOUS_TOKEN=
+++ FM_WAKE_APPEND_RECOVERY_PUBLISHED_TOKEN=
+++ FM_RECOVERY_HANDOVER_TOKEN=
+++ FM_RECOVERY_HANDOVER_SEQ=
+++ FM_WAKE_STATUS_KEY=
+++ FM_WAKE_STATUS_HISTORICAL=false
+++ FM_WAKE_EVENT_LINE=
+++ FM_WAKE_UNREAD_LINES=
++ fm_lock_try_acquire /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock
++ local lockdir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock pid steal cur rc steal_owner primary_owner current
++ FM_LOCK_HELD_PID=
++ FM_LOCK_OWNER_DIR=
++ FM_LOCK_RECOVERED_PID=
++ fm_lock_try_create /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock
++ local lockdir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock allowed_steal_owner= ownerdir
++ FM_LOCK_OWNER_DIR=
+++ fm_lock_owner_dir /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock
+++ local lockdir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock lock_abs
++++ fm_lock_abs_path /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock
++++ local path=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock dir base
++++ fm_dirname_to dir /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock
++++ local fm_path=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock
++++ case "$fm_path" in
++++ fm_path=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock
++++ case "$fm_path" in
++++ fm_path=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state
++++ fm_path=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state
++++ '[' -n /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state ']'
++++ '[' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state '!=' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state ']'
++++ printf -v dir %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state
++++ fm_basename_to base /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock
++++ local fm_path=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock
++++ case "$fm_path" in
++++ fm_path=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock
++++ fm_path=.control-sm1.lock
++++ '[' .control-sm1.lock '!=' .control-sm1.lock ']'
++++ printf -v base %s .control-sm1.lock
+++++ cd /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state
+++++ pwd -P
++++ dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state
++++ printf '%s/%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state .control-sm1.lock
+++ lock_abs=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock
+++ mktemp -d /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.XXXXXX
++ ownerdir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy
++ '[' -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock ']'
++ '[' -L /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock ']'
++ fm_lock_prepare_owner /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy
++ local ownerdir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy mypid back
++ fm_current_pid mypid
++ local fm_pid
++ fm_pid=63583
++ case "$fm_pid" in
++ '[' 1 -gt 0 ']'
++ printf -v mypid %s 63583
++ printf '%s\n' 63583
+++ cat /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy/pid
++ back=63583
++ '[' 63583 = 63583 ']'
++ ln -s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock
++ fm_lock_points_to_owner /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy
++ local lockdir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock ownerdir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy actual
+++ readlink /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock
++ actual=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy
++ '[' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy = /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy ']'
++ fm_lock_claim /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy ''
++ local lockdir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock ownerdir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy allowed_steal_owner= mypid back
++ fm_current_pid mypid
++ local fm_pid
++ fm_pid=63583
++ case "$fm_pid" in
++ '[' 1 -gt 0 ']'
++ printf -v mypid %s 63583
+++ cat /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy/pid
++ back=63583
++ '[' 63583 '!=' 63583 ']'
++ fm_lock_points_to_owner /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy
++ local lockdir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock ownerdir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy actual
+++ readlink /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock
++ actual=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy
++ '[' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy = /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy ']'
++ fm_lock_claim_blocked_by_steal /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock ''
++ local lockdir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock allowed_steal_owner= steal
++ steal=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.steal
++ '[' -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.steal ']'
++ '[' -L /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.steal ']'
++ return 1
++ return 0
++ FM_LOCK_OWNER_DIR=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock.owner.hu4Tpy
++ return 0
++ return 0
++ sleep 30
++ i=1
++ '[' '!' -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock ']'
++ '[' -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/.control-sm1.lock ']'
+++ run_restart /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432 sm1
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432
+++ shift
+++ env PATH=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/fakebin:/Users/ayrton/.pi/agent/bin:/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ayrton/.local/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Users/ayrton/go/bin:/Users/ayrton/.cargo/bin:/Users/ayrton/bin:/usr/local/sbin:/Users/ayrton/.orbstack/bin FM_HOME=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home FM_FAKE_DIR=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/fake FM_ROOT_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product FM_STATE_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state FM_DATA_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/data FM_CONFIG_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/config FM_PROJECTS_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/projects FM_SPAWN_NO_GUARD=1 FM_SECONDMATE_PERSIST_POLL=1 FM_SECONDMATE_PERSIST_WAIT=30 FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 FM_SSH_BIN=ssh /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-secondmate-restart.sh sm1
++ out=$'unreached: sm1: the restart outcome is unknown: another lifecycle action is already running for task sm1\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached'
++ rc=3
++ kill 63583
++ wait 63583
++ true
++ expect_code 3 3 'a concurrent auto-relaunch must leave update restart unproved'
++ local expected=3 actual=3 'label=a concurrent auto-relaunch must leave update restart unproved'
++ '[' 3 = 3 ']'
++ assert_contains $'unreached: sm1: the restart outcome is unknown: another lifecycle action is already running for task sm1\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached' 'another lifecycle action is already running' 'existing control owner serializes replacement'
++ case "$1" in
++ :
++ assert_contains $'unreached: sm1: the restart outcome is unknown: another lifecycle action is already running for task sm1\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached' 'unreached: sm1:' 'concurrent incarnation outcome remains unknown'
++ case "$1" in
++ :
++ assert_not_contains $'unreached: sm1: the restart outcome is unknown: another lifecycle action is already running for task sm1\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached' 'restarted: sm1' 'old action list cannot prove new activation'
++ case "$1" in
++ :
++ assert_no_grep '^/exit$' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/fake/literal 'updater must not stop the concurrently owned incarnation'
++ grep -F -- '^/exit$' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/fake/literal
++ assert_absent /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/sm1.control-relaunch 'updater must not open a duplicate replacement transaction'
++ '[' '!' -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/concurrent-auto-relaunch-25432/home/state/sm1.control-relaunch ']'
++ pass 'a concurrent auto-relaunch prevents duplicate update restart and leaves activation unproved'
++ printf 'ok - %s\n' 'a concurrent auto-relaunch prevents duplicate update restart and leaves activation unproved'
+ok - a concurrent auto-relaunch prevents duplicate update restart and leaves activation unproved
++ test_persist_gates_and_asks_only_for_open_records
++ local dir out rc request
+++ new_case gate
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home/config /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/fake
+++ printf 'claude\n'
+++ :
+++ :
+++ :
+++ printf claude
+++ printf claude
+++ make_stub /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290
+++ local fb=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/fakebin
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/fakebin
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/fakebin/tmux
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/fakebin/sleep
+++ printf '%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290
++ dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290
++ add_local_mate /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290 id=sm1 harness=claude backend=
++ local home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home smhome=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-home
++ fm_git_worktree /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-home sm-sm1
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-home branch=sm-sm1
++ fm_git_init_commit /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo init -q -b main
+++ basename /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo
++ printf '# %s\n' sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo add README.md
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo -c 'user.name=Firstmate Tests' -c user.email=tests@example.invalid commit -qm initial
++ fm_git_add_origin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo.origin.git
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo remote=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo.origin.git remote_abs
++ git clone --quiet --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo.origin.git
+++ cd /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo.origin.git
+++ pwd
++ remote_abs=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo remote add origin file:///Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-repo worktree add --quiet -b sm-sm1 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-home
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-home/bin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home/data/sm1
++ printf '%s\n' sm1
++ printf '# agents\n'
++ printf '# charter\n'
++ echo window=fmses:fm-sm1
++ echo endpoint_task_id=sm1
++ echo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-home
++ echo project=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-home
++ echo harness=claude
++ echo kind=secondmate
++ echo mode=secondmate
++ echo yolo=off
++ echo model=default
++ echo effort=default
++ echo home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-home
++ '[' -z '' ']'
++ printf '%s\n' fm-sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/sm1-home
+++ FM_TEST_PERSIST_WAIT=0
+++ run_restart /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290 fm-sm1
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290
+++ shift
+++ env PATH=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/fakebin:/Users/ayrton/.pi/agent/bin:/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ayrton/.local/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Users/ayrton/go/bin:/Users/ayrton/.cargo/bin:/Users/ayrton/bin:/usr/local/sbin:/Users/ayrton/.orbstack/bin FM_HOME=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home FM_FAKE_DIR=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/fake FM_ROOT_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product FM_STATE_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home/state FM_DATA_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home/data FM_CONFIG_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home/config FM_PROJECTS_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home/projects FM_SPAWN_NO_GUARD=1 FM_SECONDMATE_PERSIST_POLL=1 FM_SECONDMATE_PERSIST_WAIT=0 FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 FM_SSH_BIN=ssh /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-secondmate-restart.sh fm-sm1
++ out=$'nudged: sm1: it did not confirm within 0s that its open work is written down, so its conversation was not spent\nsummary: 0 of 1 restarted, 1 nudged, 0 unreached'
++ rc=3
++ expect_code 3 3 $'an unconfirmed persist is a fallback, not a success\nnudged: sm1: it did not confirm within 0s that its open work is written down, so its conversation was not spent\nsummary: 0 of 1 restarted, 1 nudged, 0 unreached'
++ local expected=3 actual=3 $'label=an unconfirmed persist is a fallback, not a success\nnudged: sm1: it did not confirm within 0s that its open work is written down, so its conversation was not spent\nsummary: 0 of 1 restarted, 1 nudged, 0 unreached'
++ '[' 3 = 3 ']'
++ assert_contains $'nudged: sm1: it did not confirm within 0s that its open work is written down, so its conversation was not spent\nsummary: 0 of 1 restarted, 1 nudged, 0 unreached' 'nudged: sm1:' 'an unconfirmed persist must fall back to the re-read message'
++ case "$1" in
++ :
++ assert_contains $'nudged: sm1: it did not confirm within 0s that its open work is written down, so its conversation was not spent\nsummary: 0 of 1 restarted, 1 nudged, 0 unreached' 'its open work is written down' 'the fallback must name the missing confirmation'
++ case "$1" in
++ :
++ assert_not_contains $'nudged: sm1: it did not confirm within 0s that its open work is written down, so its conversation was not spent\nsummary: 0 of 1 restarted, 1 nudged, 0 unreached' 'restarted: sm1' 'a mate that never confirmed must not be restarted'
++ case "$1" in
++ :
++ assert_contains $'nudged: sm1: it did not confirm within 0s that its open work is written down, so its conversation was not spent\nsummary: 0 of 1 restarted, 1 nudged, 0 unreached' 'summary: 0 of 1 restarted' 'the summary must not claim a reload'
++ case "$1" in
++ :
++ assert_no_grep '^/exit$' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/fake/literal 'the agent was stopped without a confirmed persist'
++ grep -F -- '^/exit$' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/fake/literal
++ assert_absent /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home/state/sm1.control-relaunch 'a restart transaction was opened without a confirmed persist'
++ '[' '!' -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home/state/sm1.control-relaunch ']'
++ grep -h '^phase=' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home/state/pending-replies/6a2175d343fa0b5c /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home/state/pending-replies/88ce410c19428671
++ grep -q '^phase=awaiting_report$'
+++ cat /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home/state/sm1.inbox/001.msg /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/gate-12290/home/state/sm1.inbox/002.msg
++ request=$'schema=fm-task-inbox.v1\nat=2026-10-24T15:18:02Z\n--\n[fm-from-firstmate]\342\201\243corr=6a2175d343fa0b5c Firstmate was updated and I am about to restart your agent so it comes up on the current instructions and launch-time settings, which drops your conversation but keeps every durable record. Before that, persist the open work you are holding only in this conversation, following the /stow skill\'s "Open-record persistence" section and nothing else from that skill: file a task for each open record that exists only in this conversation, including any captain call you had formed but never registered, and correct any task whose status no longer reflects what you now know. Do NOT run the memory, learnings, or captain-preference sweeps. Then reply on your parent channel saying it is done, or saying what you deliberately left alone and why.schema=fm-task-inbox.v1\nat=2026-10-24T15:18:03Z\n--\n[fm-from-firstmate]\342\201\243corr=88ce410c19428671 firstmate was updated to the latest - please re-read your AGENTS.md to pick up the new instructions.'
++ assert_contains $'schema=fm-task-inbox.v1\nat=2026-10-24T15:18:02Z\n--\n[fm-from-firstmate]\342\201\243corr=6a2175d343fa0b5c Firstmate was updated and I am about to restart your agent so it comes up on the current instructions and launch-time settings, which drops your conversation but keeps every durable record. Before that, persist the open work you are holding only in this conversation, following the /stow skill\'s "Open-record persistence" section and nothing else from that skill: file a task for each open record that exists only in this conversation, including any captain call you had formed but never registered, and correct any task whose status no longer reflects what you now know. Do NOT run the memory, learnings, or captain-preference sweeps. Then reply on your parent channel saying it is done, or saying what you deliberately left alone and why.schema=fm-task-inbox.v1\nat=2026-10-24T15:18:03Z\n--\n[fm-from-firstmate]\342\201\243corr=88ce410c19428671 firstmate was updated to the latest - please re-read your AGENTS.md to pick up the new instructions.' 'Open-record persistence' 'the request must reuse stow'\''s open-record contract'
++ case "$1" in
++ :
++ assert_contains $'schema=fm-task-inbox.v1\nat=2026-10-24T15:18:02Z\n--\n[fm-from-firstmate]\342\201\243corr=6a2175d343fa0b5c Firstmate was updated and I am about to restart your agent so it comes up on the current instructions and launch-time settings, which drops your conversation but keeps every durable record. Before that, persist the open work you are holding only in this conversation, following the /stow skill\'s "Open-record persistence" section and nothing else from that skill: file a task for each open record that exists only in this conversation, including any captain call you had formed but never registered, and correct any task whose status no longer reflects what you now know. Do NOT run the memory, learnings, or captain-preference sweeps. Then reply on your parent channel saying it is done, or saying what you deliberately left alone and why.schema=fm-task-inbox.v1\nat=2026-10-24T15:18:03Z\n--\n[fm-from-firstmate]\342\201\243corr=88ce410c19428671 firstmate was updated to the latest - please re-read your AGENTS.md to pick up the new instructions.' 'file a task for each open record' 'the request must ask for the unfiled open records'
++ case "$1" in
++ :
++ assert_contains $'schema=fm-task-inbox.v1\nat=2026-10-24T15:18:02Z\n--\n[fm-from-firstmate]\342\201\243corr=6a2175d343fa0b5c Firstmate was updated and I am about to restart your agent so it comes up on the current instructions and launch-time settings, which drops your conversation but keeps every durable record. Before that, persist the open work you are holding only in this conversation, following the /stow skill\'s "Open-record persistence" section and nothing else from that skill: file a task for each open record that exists only in this conversation, including any captain call you had formed but never registered, and correct any task whose status no longer reflects what you now know. Do NOT run the memory, learnings, or captain-preference sweeps. Then reply on your parent channel saying it is done, or saying what you deliberately left alone and why.schema=fm-task-inbox.v1\nat=2026-10-24T15:18:03Z\n--\n[fm-from-firstmate]\342\201\243corr=88ce410c19428671 firstmate was updated to the latest - please re-read your AGENTS.md to pick up the new instructions.' 'correct any task whose status' 'the request must ask for stale task status'
++ case "$1" in
++ :
++ assert_contains $'schema=fm-task-inbox.v1\nat=2026-10-24T15:18:02Z\n--\n[fm-from-firstmate]\342\201\243corr=6a2175d343fa0b5c Firstmate was updated and I am about to restart your agent so it comes up on the current instructions and launch-time settings, which drops your conversation but keeps every durable record. Before that, persist the open work you are holding only in this conversation, following the /stow skill\'s "Open-record persistence" section and nothing else from that skill: file a task for each open record that exists only in this conversation, including any captain call you had formed but never registered, and correct any task whose status no longer reflects what you now know. Do NOT run the memory, learnings, or captain-preference sweeps. Then reply on your parent channel saying it is done, or saying what you deliberately left alone and why.schema=fm-task-inbox.v1\nat=2026-10-24T15:18:03Z\n--\n[fm-from-firstmate]\342\201\243corr=88ce410c19428671 firstmate was updated to the latest - please re-read your AGENTS.md to pick up the new instructions.' 'captain call you had formed but never registered' 'the request must flush an unregistered captain call'
++ case "$1" in
++ :
++ assert_contains $'schema=fm-task-inbox.v1\nat=2026-10-24T15:18:02Z\n--\n[fm-from-firstmate]\342\201\243corr=6a2175d343fa0b5c Firstmate was updated and I am about to restart your agent so it comes up on the current instructions and launch-time settings, which drops your conversation but keeps every durable record. Before that, persist the open work you are holding only in this conversation, following the /stow skill\'s "Open-record persistence" section and nothing else from that skill: file a task for each open record that exists only in this conversation, including any captain call you had formed but never registered, and correct any task whose status no longer reflects what you now know. Do NOT run the memory, learnings, or captain-preference sweeps. Then reply on your parent channel saying it is done, or saying what you deliberately left alone and why.schema=fm-task-inbox.v1\nat=2026-10-24T15:18:03Z\n--\n[fm-from-firstmate]\342\201\243corr=88ce410c19428671 firstmate was updated to the latest - please re-read your AGENTS.md to pick up the new instructions.' 'Do NOT run the memory, learnings, or captain-preference sweeps' 'the request must exclude the memory curation half of stow'
++ case "$1" in
++ :
++ pass 'T1 persist is a gate, and asks for open records and task status only'
++ printf 'ok - %s\n' 'T1 persist is a gate, and asks for open records and task status only'
+ok - T1 persist is a gate, and asks for open records and task status only
++ test_persist_precedes_restart
++ local dir out rc doorbell_line exit_line
+++ new_case order
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/home/config /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/fake
+++ printf 'claude\n'
+++ :
+++ :
+++ :
+++ printf claude
+++ printf claude
+++ make_stub /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489
+++ local fb=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/fakebin
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/fakebin
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/fakebin/tmux
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/fakebin/sleep
+++ printf '%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489
++ dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489
++ add_local_mate /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489 id=sm1 harness=claude backend=
++ local home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/home smhome=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-home
++ fm_git_worktree /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-home sm-sm1
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-home branch=sm-sm1
++ fm_git_init_commit /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo init -q -b main
+++ basename /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo
++ printf '# %s\n' sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo add README.md
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo -c 'user.name=Firstmate Tests' -c user.email=tests@example.invalid commit -qm initial
++ fm_git_add_origin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo.origin.git
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo remote=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo.origin.git remote_abs
++ git clone --quiet --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo.origin.git
+++ cd /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo.origin.git
+++ pwd
++ remote_abs=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo remote add origin file:///Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-repo worktree add --quiet -b sm-sm1 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-home
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-home/bin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/home/data/sm1
++ printf '%s\n' sm1
++ printf '# agents\n'
++ printf '# charter\n'
++ echo window=fmses:fm-sm1
++ echo endpoint_task_id=sm1
++ echo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-home
++ echo project=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-home
++ echo harness=claude
++ echo kind=secondmate
++ echo mode=secondmate
++ echo yolo=off
++ echo model=default
++ echo effort=default
++ echo home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-home
++ '[' -z '' ']'
++ printf '%s\n' fm-sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/sm1-home
++ arm_answer /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489 id=sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/home/state/sm1.inbox
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/home/state/sm1.status
+++ run_restart /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489 sm1
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489
+++ shift
+++ env PATH=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/fakebin:/Users/ayrton/.pi/agent/bin:/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ayrton/.local/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Users/ayrton/go/bin:/Users/ayrton/.cargo/bin:/Users/ayrton/bin:/usr/local/sbin:/Users/ayrton/.orbstack/bin FM_HOME=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/home FM_FAKE_DIR=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/fake FM_ROOT_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product FM_STATE_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/home/state FM_DATA_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/home/data FM_CONFIG_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/home/config FM_PROJECTS_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/home/projects FM_SPAWN_NO_GUARD=1 FM_SECONDMATE_PERSIST_POLL=1 FM_SECONDMATE_PERSIST_WAIT=30 FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 FM_SSH_BIN=ssh /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-secondmate-restart.sh sm1
++ out=$'restarted: sm1 (claude)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached'
++ rc=0
++ expect_code 0 0 $'a confirmed persist should restart the mate\nrestarted: sm1 (claude)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached'
++ local expected=0 actual=0 $'label=a confirmed persist should restart the mate\nrestarted: sm1 (claude)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached'
++ '[' 0 = 0 ']'
++ assert_contains $'restarted: sm1 (claude)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached' 'restarted: sm1 (claude)' 'the mate should be restarted on its pinned runtime'
++ case "$1" in
++ :
++ assert_contains $'restarted: sm1 (claude)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached' 'summary: 1 of 1 restarted, 0 nudged, 0 unreached' 'the summary should report the reload'
++ case "$1" in
++ :
+++ grep -n '^: Firstmate instruction waiting: ' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/fake/literal
+++ head -1
+++ cut -d: -f1
++ doorbell_line=1
+++ grep -n '^/exit$' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/fake/literal
+++ head -1
+++ cut -d: -f1
++ exit_line=2
++ '[' -n 1 ']'
++ '[' -n 2 ']'
++ '[' 1 -lt 2 ']'
++ grep -h '^phase=' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/order-16489/home/state/pending-replies/a973607de104b704
++ grep -q '^phase=resolved$'
++ pass 'T2 the mate persists before anything is stopped'
++ printf 'ok - %s\n' 'T2 the mate persists before anything is stopped'
+ok - T2 the mate persists before anything is stopped
++ test_arrived_answer_precedes_deadline_check
++ local dir out rc
+++ new_case arrived-at-bound
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/home/config /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/fake
+++ printf 'claude\n'
+++ :
+++ :
+++ :
+++ printf claude
+++ printf claude
+++ make_stub /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703
+++ local fb=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/fakebin
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/fakebin
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/fakebin/tmux
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/fakebin/sleep
+++ printf '%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703
++ dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703
++ add_local_mate /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703 id=sm1 harness=claude backend=
++ local home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/home smhome=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-home
++ fm_git_worktree /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-home sm-sm1
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-home branch=sm-sm1
++ fm_git_init_commit /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo init -q -b main
+++ basename /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo
++ printf '# %s\n' sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo add README.md
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo -c 'user.name=Firstmate Tests' -c user.email=tests@example.invalid commit -qm initial
++ fm_git_add_origin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo.origin.git
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo remote=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo.origin.git remote_abs
++ git clone --quiet --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo.origin.git
+++ cd /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo.origin.git
+++ pwd
++ remote_abs=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo remote add origin file:///Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-repo worktree add --quiet -b sm-sm1 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-home
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-home/bin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/home/data/sm1
++ printf '%s\n' sm1
++ printf '# agents\n'
++ printf '# charter\n'
++ echo window=fmses:fm-sm1
++ echo endpoint_task_id=sm1
++ echo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-home
++ echo project=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-home
++ echo harness=claude
++ echo kind=secondmate
++ echo mode=secondmate
++ echo yolo=off
++ echo model=default
++ echo effort=default
++ echo home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-home
++ '[' -z '' ']'
++ printf '%s\n' fm-sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/sm1-home
++ arm_answer /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703 id=sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/home/state/sm1.inbox
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/home/state/sm1.status
+++ FM_TEST_PERSIST_WAIT=0
+++ run_restart /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703 sm1
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703
+++ shift
+++ env PATH=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/fakebin:/Users/ayrton/.pi/agent/bin:/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ayrton/.local/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Users/ayrton/go/bin:/Users/ayrton/.cargo/bin:/Users/ayrton/bin:/usr/local/sbin:/Users/ayrton/.orbstack/bin FM_HOME=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/home FM_FAKE_DIR=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/fake FM_ROOT_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product FM_STATE_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/home/state FM_DATA_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/home/data FM_CONFIG_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/home/config FM_PROJECTS_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/arrived-at-bound-5703/home/projects FM_SPAWN_NO_GUARD=1 FM_SECONDMATE_PERSIST_POLL=1 FM_SECONDMATE_PERSIST_WAIT=0 FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 FM_SSH_BIN=ssh /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-secondmate-restart.sh sm1
++ out=$'restarted: sm1 (claude)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached'
++ rc=0
++ expect_code 0 0 $'an answer delivered with the request must beat the deadline check\nrestarted: sm1 (claude)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached'
++ local expected=0 actual=0 $'label=an answer delivered with the request must beat the deadline check\nrestarted: sm1 (claude)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached'
++ '[' 0 = 0 ']'
++ assert_contains $'restarted: sm1 (claude)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached' 'restarted: sm1' 'the arrived persist answer was ignored at the deadline'
++ case "$1" in
++ :
++ pass 'T2b an arrived persist answer is resolved before timeout'
++ printf 'ok - %s\n' 'T2b an arrived persist answer is resolved before timeout'
+ok - T2b an arrived persist answer is resolved before timeout
++ test_answer_between_resolution_and_timeout_wins
++ local dir out rc
+++ new_case answer-at-timeout-decision
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/home/config /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/fake
+++ printf 'claude\n'
+++ :
+++ :
+++ :
+++ printf claude
+++ printf claude
+++ make_stub /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310
+++ local fb=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/fakebin
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/fakebin
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/fakebin/tmux
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/fakebin/sleep
+++ printf '%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310
++ dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310
++ add_local_mate /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310 id=sm1 harness=claude backend=
++ local home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/home smhome=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-home
++ fm_git_worktree /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-home sm-sm1
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-home branch=sm-sm1
++ fm_git_init_commit /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo init -q -b main
+++ basename /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo
++ printf '# %s\n' sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo add README.md
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo -c 'user.name=Firstmate Tests' -c user.email=tests@example.invalid commit -qm initial
++ fm_git_add_origin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo.origin.git
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo remote=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo.origin.git remote_abs
++ git clone --quiet --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo.origin.git
+++ cd /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo.origin.git
+++ pwd
++ remote_abs=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo remote add origin file:///Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-repo worktree add --quiet -b sm-sm1 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-home
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-home/bin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/home/data/sm1
++ printf '%s\n' sm1
++ printf '# agents\n'
++ printf '# charter\n'
++ echo window=fmses:fm-sm1
++ echo endpoint_task_id=sm1
++ echo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-home
++ echo project=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-home
++ echo harness=claude
++ echo kind=secondmate
++ echo mode=secondmate
++ echo yolo=off
++ echo model=default
++ echo effort=default
++ echo home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-home
++ '[' -z '' ']'
++ printf '%s\n' fm-sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/sm1-home
++ cat
++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/fakebin/mv
+++ FM_TEST_PERSIST_WAIT=0
+++ run_restart /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310 sm1
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310
+++ shift
+++ env PATH=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/fakebin:/Users/ayrton/.pi/agent/bin:/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ayrton/.local/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Users/ayrton/go/bin:/Users/ayrton/.cargo/bin:/Users/ayrton/bin:/usr/local/sbin:/Users/ayrton/.orbstack/bin FM_HOME=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/home FM_FAKE_DIR=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/fake FM_ROOT_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product FM_STATE_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/home/state FM_DATA_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/home/data FM_CONFIG_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/home/config FM_PROJECTS_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/answer-at-timeout-decision-20310/home/projects FM_SPAWN_NO_GUARD=1 FM_SECONDMATE_PERSIST_POLL=1 FM_SECONDMATE_PERSIST_WAIT=0 FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 FM_SSH_BIN=ssh /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-secondmate-restart.sh sm1
++ out=$'restarted: sm1 (claude)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached'
++ rc=0
++ expect_code 0 0 $'an answer already on disk at the timeout decision must release the gate\nrestarted: sm1 (claude)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached'
++ local expected=0 actual=0 $'label=an answer already on disk at the timeout decision must release the gate\nrestarted: sm1 (claude)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached'
++ '[' 0 = 0 ']'
++ assert_contains $'restarted: sm1 (claude)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached' 'restarted: sm1' 'the reply that raced the timeout was ignored'
++ case "$1" in
++ :
++ assert_not_contains $'restarted: sm1 (claude)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached' 'nudged: sm1' 'a confirmed mate must not take the timeout fallback'
++ case "$1" in
++ :
++ pass 'T2c a reply between the preliminary scan and timeout decision wins'
++ printf 'ok - %s\n' 'T2c a reply between the preliminary scan and timeout decision wins'
+ok - T2c a reply between the preliminary scan and timeout decision wins
++ test_unprovable_runtime_falls_back
++ local dir out rc
+++ new_case unprovable
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/home/config /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/fake
+++ printf 'claude\n'
+++ :
+++ :
+++ :
+++ printf claude
+++ printf claude
+++ make_stub /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961
+++ local fb=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/fakebin
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/fakebin
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/fakebin/tmux
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/fakebin/sleep
+++ printf '%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961
++ dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961
++ add_local_mate /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961 sm1 claude zellij
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961 id=sm1 harness=claude backend=zellij
++ local home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/home smhome=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-home
++ fm_git_worktree /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-home sm-sm1
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-home branch=sm-sm1
++ fm_git_init_commit /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo init -q -b main
+++ basename /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo
++ printf '# %s\n' sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo add README.md
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo -c 'user.name=Firstmate Tests' -c user.email=tests@example.invalid commit -qm initial
++ fm_git_add_origin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo.origin.git
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo remote=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo.origin.git remote_abs
++ git clone --quiet --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo.origin.git
+++ cd /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo.origin.git
+++ pwd
++ remote_abs=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo remote add origin file:///Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-repo worktree add --quiet -b sm-sm1 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-home
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-home/bin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/home/data/sm1
++ printf '%s\n' sm1
++ printf '# agents\n'
++ printf '# charter\n'
++ echo window=fmses:fm-sm1
++ echo endpoint_task_id=sm1
++ echo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-home
++ echo project=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-home
++ echo harness=claude
++ echo kind=secondmate
++ echo mode=secondmate
++ echo yolo=off
++ echo model=default
++ echo effort=default
++ echo home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-home
++ '[' -z zellij ']'
++ echo backend=zellij
++ printf '%s\n' fm-sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/sm1-home
+++ run_restart /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961 sm1
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961
+++ shift
+++ env PATH=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/fakebin:/Users/ayrton/.pi/agent/bin:/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ayrton/.local/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Users/ayrton/go/bin:/Users/ayrton/.cargo/bin:/Users/ayrton/bin:/usr/local/sbin:/Users/ayrton/.orbstack/bin FM_HOME=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/home FM_FAKE_DIR=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/fake FM_ROOT_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product FM_STATE_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/home/state FM_DATA_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/home/data FM_CONFIG_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/home/config FM_PROJECTS_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/home/projects FM_SPAWN_NO_GUARD=1 FM_SECONDMATE_PERSIST_POLL=1 FM_SECONDMATE_PERSIST_WAIT=30 FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 FM_SSH_BIN=ssh /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-secondmate-restart.sh sm1
++ out=$'nudged: sm1: its runtime cannot prove an agent stopped and came back (backend zellij)\nsummary: 0 of 1 restarted, 1 nudged, 0 unreached'
++ rc=3
++ expect_code 3 3 $'an unprovable runtime must not report a reload\nnudged: sm1: its runtime cannot prove an agent stopped and came back (backend zellij)\nsummary: 0 of 1 restarted, 1 nudged, 0 unreached'
++ local expected=3 actual=3 $'label=an unprovable runtime must not report a reload\nnudged: sm1: its runtime cannot prove an agent stopped and came back (backend zellij)\nsummary: 0 of 1 restarted, 1 nudged, 0 unreached'
++ '[' 3 = 3 ']'
++ assert_contains $'nudged: sm1: its runtime cannot prove an agent stopped and came back (backend zellij)\nsummary: 0 of 1 restarted, 1 nudged, 0 unreached' 'nudged: sm1:' 'an unprovable runtime must fall back to the re-read message'
++ case "$1" in
++ :
++ assert_contains $'nudged: sm1: its runtime cannot prove an agent stopped and came back (backend zellij)\nsummary: 0 of 1 restarted, 1 nudged, 0 unreached' 'cannot prove an agent stopped' 'the fallback must name the runtime limit'
++ case "$1" in
++ :
++ assert_not_contains $'nudged: sm1: its runtime cannot prove an agent stopped and came back (backend zellij)\nsummary: 0 of 1 restarted, 1 nudged, 0 unreached' 'restarted: sm1' 'an unprovable runtime must not be reported as restarted'
++ case "$1" in
++ :
++ assert_no_grep 'Open-record persistence' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/home/state/sm1.inbox/001.msg 'a mate that cannot be restarted should not be asked to persist first'
++ grep -F -- 'Open-record persistence' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/home/state/sm1.inbox/001.msg
++ assert_grep 're-read your AGENTS.md' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/home/state/sm1.inbox/001.msg 'the fallback should hand the mate the ordinary re-read message'
++ grep -F -- 're-read your AGENTS.md' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unprovable-19961/home/state/sm1.inbox/001.msg
++ pass 'T3 a runtime that cannot prove a restart falls back to the re-read message'
++ printf 'ok - %s\n' 'T3 a runtime that cannot prove a restart falls back to the re-read message'
+ok - T3 a runtime that cannot prove a restart falls back to the re-read message
++ test_unknown_mate_is_accounted_for
++ local dir out rc
+++ new_case unknown
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/home/config /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/fake
+++ printf 'claude\n'
+++ :
+++ :
+++ :
+++ printf claude
+++ printf claude
+++ make_stub /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370
+++ local fb=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/fakebin
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/fakebin
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/fakebin/tmux
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/fakebin/sleep
+++ printf '%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370
++ dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370
++ add_local_mate /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370 id=sm1 harness=claude backend=
++ local home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/home smhome=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-home
++ fm_git_worktree /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-home sm-sm1
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-home branch=sm-sm1
++ fm_git_init_commit /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo init -q -b main
+++ basename /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo
++ printf '# %s\n' sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo add README.md
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo -c 'user.name=Firstmate Tests' -c user.email=tests@example.invalid commit -qm initial
++ fm_git_add_origin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo.origin.git
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo remote=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo.origin.git remote_abs
++ git clone --quiet --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo.origin.git
+++ cd /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo.origin.git
+++ pwd
++ remote_abs=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo remote add origin file:///Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-repo worktree add --quiet -b sm-sm1 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-home
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-home/bin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/home/data/sm1
++ printf '%s\n' sm1
++ printf '# agents\n'
++ printf '# charter\n'
++ echo window=fmses:fm-sm1
++ echo endpoint_task_id=sm1
++ echo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-home
++ echo project=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-home
++ echo harness=claude
++ echo kind=secondmate
++ echo mode=secondmate
++ echo yolo=off
++ echo model=default
++ echo effort=default
++ echo home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-home
++ '[' -z '' ']'
++ printf '%s\n' fm-sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/sm1-home
++ arm_answer /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370 id=sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/home/state/sm1.inbox
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/home/state/sm1.status
+++ run_restart /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370 sm1 ghost
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370
+++ shift
+++ env PATH=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/fakebin:/Users/ayrton/.pi/agent/bin:/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ayrton/.local/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Users/ayrton/go/bin:/Users/ayrton/.cargo/bin:/Users/ayrton/bin:/usr/local/sbin:/Users/ayrton/.orbstack/bin FM_HOME=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/home FM_FAKE_DIR=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/fake FM_ROOT_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product FM_STATE_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/home/state FM_DATA_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/home/data FM_CONFIG_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/home/config FM_PROJECTS_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/unknown-30370/home/projects FM_SPAWN_NO_GUARD=1 FM_SECONDMATE_PERSIST_POLL=1 FM_SECONDMATE_PERSIST_WAIT=30 FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 FM_SSH_BIN=ssh /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-secondmate-restart.sh sm1 ghost
++ out=$'unreached: ghost: no durable record for this second mate in this home; the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nrestarted: sm1 (claude)\nsummary: 1 of 2 restarted, 0 nudged, 1 unreached'
++ rc=3
++ expect_code 3 3 $'an unknown mate must not pass silently\nunreached: ghost: no durable record for this second mate in this home; the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nrestarted: sm1 (claude)\nsummary: 1 of 2 restarted, 0 nudged, 1 unreached'
++ local expected=3 actual=3 $'label=an unknown mate must not pass silently\nunreached: ghost: no durable record for this second mate in this home; the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nrestarted: sm1 (claude)\nsummary: 1 of 2 restarted, 0 nudged, 1 unreached'
++ '[' 3 = 3 ']'
++ assert_contains $'unreached: ghost: no durable record for this second mate in this home; the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nrestarted: sm1 (claude)\nsummary: 1 of 2 restarted, 0 nudged, 1 unreached' 'restarted: sm1' 'the known mate should still be restarted'
++ case "$1" in
++ :
++ assert_contains $'unreached: ghost: no durable record for this second mate in this home; the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nrestarted: sm1 (claude)\nsummary: 1 of 2 restarted, 0 nudged, 1 unreached' ghost: 'the unknown mate must be accounted for by name'
++ case "$1" in
++ :
++ assert_contains $'unreached: ghost: no durable record for this second mate in this home; the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nrestarted: sm1 (claude)\nsummary: 1 of 2 restarted, 0 nudged, 1 unreached' 'no durable record' 'the unknown mate'\''s reason must be concrete'
++ case "$1" in
++ :
++ assert_contains $'unreached: ghost: no durable record for this second mate in this home; the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nrestarted: sm1 (claude)\nsummary: 1 of 2 restarted, 0 nudged, 1 unreached' 'summary: 1 of 2 restarted, 0 nudged, 1 unreached' 'the summary must count both mates'
++ case "$1" in
++ :
++ pass 'T4 every named mate is accounted for, including one this home does not know'
++ printf 'ok - %s\n' 'T4 every named mate is accounted for, including one this home does not know'
+ok - T4 every named mate is accounted for, including one this home does not know
++ test_refused_restart_falls_back_without_claiming_a_reload
++ local dir out rc before
+++ new_case refused
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/home/config /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/fake
+++ printf 'claude\n'
+++ :
+++ :
+++ :
+++ printf claude
+++ printf claude
+++ make_stub /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771
+++ local fb=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/fakebin
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/fakebin
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/fakebin/tmux
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/fakebin/sleep
+++ printf '%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771
++ dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771
++ add_local_mate /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771 id=sm1 harness=claude backend=
++ local home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/home smhome=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-home
++ fm_git_worktree /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-home sm-sm1
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-home branch=sm-sm1
++ fm_git_init_commit /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo init -q -b main
+++ basename /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo
++ printf '# %s\n' sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo add README.md
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo -c 'user.name=Firstmate Tests' -c user.email=tests@example.invalid commit -qm initial
++ fm_git_add_origin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo.origin.git
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo remote=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo.origin.git remote_abs
++ git clone --quiet --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo.origin.git
+++ cd /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo.origin.git
+++ pwd
++ remote_abs=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo remote add origin file:///Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-repo worktree add --quiet -b sm-sm1 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-home
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-home/bin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/home/data/sm1
++ printf '%s\n' sm1
++ printf '# agents\n'
++ printf '# charter\n'
++ echo window=fmses:fm-sm1
++ echo endpoint_task_id=sm1
++ echo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-home
++ echo project=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-home
++ echo harness=claude
++ echo kind=secondmate
++ echo mode=secondmate
++ echo yolo=off
++ echo model=default
++ echo effort=default
++ echo home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-home
++ '[' -z '' ']'
++ printf '%s\n' fm-sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/sm1-home
++ arm_answer /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771 id=sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/home/state/sm1.inbox
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/home/state/sm1.status
++ printf 'muse\n'
+++ cat /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/fake/command
++ before=claude
+++ run_restart /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771 sm1
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771
+++ shift
+++ env PATH=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/fakebin:/Users/ayrton/.pi/agent/bin:/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ayrton/.local/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Users/ayrton/go/bin:/Users/ayrton/.cargo/bin:/Users/ayrton/bin:/usr/local/sbin:/Users/ayrton/.orbstack/bin FM_HOME=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/home FM_FAKE_DIR=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/fake FM_ROOT_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product FM_STATE_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/home/state FM_DATA_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/home/data FM_CONFIG_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/home/config FM_PROJECTS_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/home/projects FM_SPAWN_NO_GUARD=1 FM_SECONDMATE_PERSIST_POLL=1 FM_SECONDMATE_PERSIST_WAIT=30 FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 FM_SSH_BIN=ssh /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-secondmate-restart.sh sm1
++ out=$'unreached: sm1: the restart outcome is unknown: \'muse\' is not verified to run a secondmate task, so relaunching sm1 onto it would stop the running agent for a launch that must be refused; choose an adapter verified for this kind\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached'
++ rc=3
++ expect_code 3 3 $'a refused restart must not be reported as a reload\nunreached: sm1: the restart outcome is unknown: \'muse\' is not verified to run a secondmate task, so relaunching sm1 onto it would stop the running agent for a launch that must be refused; choose an adapter verified for this kind\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached'
++ local expected=3 actual=3 $'label=a refused restart must not be reported as a reload\nunreached: sm1: the restart outcome is unknown: \'muse\' is not verified to run a secondmate task, so relaunching sm1 onto it would stop the running agent for a launch that must be refused; choose an adapter verified for this kind\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached'
++ '[' 3 = 3 ']'
++ assert_contains $'unreached: sm1: the restart outcome is unknown: \'muse\' is not verified to run a secondmate task, so relaunching sm1 onto it would stop the running agent for a launch that must be refused; choose an adapter verified for this kind\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached' 'unreached: sm1:' 'a failed restart must be reported as unknown'
++ case "$1" in
++ :
++ assert_contains $'unreached: sm1: the restart outcome is unknown: \'muse\' is not verified to run a secondmate task, so relaunching sm1 onto it would stop the running agent for a launch that must be refused; choose an adapter verified for this kind\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached' 'restart outcome is unknown' 'the report must not attribute an ambiguous failure'
++ case "$1" in
++ :
++ assert_not_contains $'unreached: sm1: the restart outcome is unknown: \'muse\' is not verified to run a secondmate task, so relaunching sm1 onto it would stop the running agent for a launch that must be refused; choose an adapter verified for this kind\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached' 'nudged: sm1' 'a failed restart must not claim the old agent was nudged'
++ case "$1" in
++ :
++ assert_not_contains $'unreached: sm1: the restart outcome is unknown: \'muse\' is not verified to run a secondmate task, so relaunching sm1 onto it would stop the running agent for a launch that must be refused; choose an adapter verified for this kind\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached' 'restarted: sm1' 'a refused restart must not be reported as restarted'
++ case "$1" in
++ :
+++ cat /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/fake/command
++ '[' claude = claude ']'
++ assert_no_grep '^/exit$' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/fake/literal 'a pre-stop refusal must not have stopped the agent'
++ grep -F -- '^/exit$' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/refused-8771/fake/literal
++ pass 'T5 a refused restart leaves the mate running and reports an unknown outcome'
++ printf 'ok - %s\n' 'T5 a refused restart leaves the mate running and reports an unknown outcome'
+ok - T5 a refused restart leaves the mate running and reports an unknown outcome
++ test_local_restart_uses_the_home_pin_and_reports_what_ran
++ local dir out rc
+++ new_case pin
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/home/config /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/fake
+++ printf 'claude\n'
+++ :
+++ :
+++ :
+++ printf claude
+++ printf claude
+++ make_stub /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062
+++ local fb=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/fakebin
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/fakebin
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/fakebin/tmux
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/fakebin/sleep
+++ printf '%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062
++ dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062
++ add_local_mate /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062 id=sm1 harness=claude backend=
++ local home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/home smhome=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-home
++ fm_git_worktree /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-home sm-sm1
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-home branch=sm-sm1
++ fm_git_init_commit /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo init -q -b main
+++ basename /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo
++ printf '# %s\n' sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo add README.md
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo -c 'user.name=Firstmate Tests' -c user.email=tests@example.invalid commit -qm initial
++ fm_git_add_origin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo.origin.git
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo remote=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo.origin.git remote_abs
++ git clone --quiet --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo.origin.git
+++ cd /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo.origin.git
+++ pwd
++ remote_abs=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo remote add origin file:///Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-repo worktree add --quiet -b sm-sm1 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-home
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-home/bin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/home/data/sm1
++ printf '%s\n' sm1
++ printf '# agents\n'
++ printf '# charter\n'
++ echo window=fmses:fm-sm1
++ echo endpoint_task_id=sm1
++ echo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-home
++ echo project=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-home
++ echo harness=claude
++ echo kind=secondmate
++ echo mode=secondmate
++ echo yolo=off
++ echo model=default
++ echo effort=default
++ echo home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-home
++ '[' -z '' ']'
++ printf '%s\n' fm-sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/sm1-home
++ arm_answer /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062 id=sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/home/state/sm1.inbox
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/home/state/sm1.status
++ printf 'codex\n'
++ printf codex
+++ run_restart /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062 sm1
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062
+++ shift
+++ env PATH=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/fakebin:/Users/ayrton/.pi/agent/bin:/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ayrton/.local/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Users/ayrton/go/bin:/Users/ayrton/.cargo/bin:/Users/ayrton/bin:/usr/local/sbin:/Users/ayrton/.orbstack/bin FM_HOME=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/home FM_FAKE_DIR=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/fake FM_ROOT_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product FM_STATE_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/home/state FM_DATA_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/home/data FM_CONFIG_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/home/config FM_PROJECTS_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/home/projects FM_SPAWN_NO_GUARD=1 FM_SECONDMATE_PERSIST_POLL=1 FM_SECONDMATE_PERSIST_WAIT=30 FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 FM_SSH_BIN=ssh /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-secondmate-restart.sh sm1
++ out=$'restarted: sm1 (codex)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached'
++ rc=0
++ expect_code 0 0 $'a pinned local restart should succeed\nrestarted: sm1 (codex)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached'
++ local expected=0 actual=0 $'label=a pinned local restart should succeed\nrestarted: sm1 (codex)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached'
++ '[' 0 = 0 ']'
++ assert_contains $'restarted: sm1 (codex)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached' 'restarted: sm1 (codex)' 'the restart should land on this home'\''s pin and report the runtime that actually came up'
++ case "$1" in
++ :
+++ grep '^harness=' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/pin-11062/home/state/sm1.meta
+++ tail -1
++ '[' harness=codex = harness=codex ']'
++ pass 'T8 a local restart re-resolves this home'\''s pin and reports the runtime that came up'
++ printf 'ok - %s\n' 'T8 a local restart re-resolves this home'\''s pin and reports the runtime that came up'
+ok - T8 a local restart re-resolves this home's pin and reports the runtime that came up
++ test_native_ultra_restart_keeps_local_and_remote_profiles
++ local dir out rc relaunch_line
+++ new_case native-local
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home/config /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/fake
+++ printf 'claude\n'
+++ :
+++ :
+++ :
+++ printf claude
+++ printf claude
+++ make_stub /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712
+++ local fb=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/fakebin
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/fakebin
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/fakebin/tmux
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/fakebin/sleep
+++ printf '%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712
++ dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712
++ add_local_mate /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712 id=sm1 harness=claude backend=
++ local home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home smhome=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home
++ fm_git_worktree /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home sm-sm1
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home branch=sm-sm1
++ fm_git_init_commit /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo init -q -b main
+++ basename /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo
++ printf '# %s\n' sm1-repo
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo add README.md
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo -c 'user.name=Firstmate Tests' -c user.email=tests@example.invalid commit -qm initial
++ fm_git_add_origin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo.origin.git
++ local repo=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo remote=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo.origin.git remote_abs
++ git clone --quiet --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo.origin.git
+++ cd /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo.origin.git
+++ pwd
++ remote_abs=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo remote add origin file:///Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo.origin.git
++ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-repo worktree add --quiet -b sm-sm1 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home/bin /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home/data/sm1
++ printf '%s\n' sm1
++ printf '# agents\n'
++ printf '# charter\n'
++ echo window=fmses:fm-sm1
++ echo endpoint_task_id=sm1
++ echo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home
++ echo project=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home
++ echo harness=claude
++ echo kind=secondmate
++ echo mode=secondmate
++ echo yolo=off
++ echo model=default
++ echo effort=default
++ echo home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home
++ '[' -z '' ']'
++ printf '%s\n' fm-sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home
++ arm_answer /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712 sm1
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712 id=sm1
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home/state/sm1.inbox
++ printf %s /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home/state/sm1.status
++ printf 'pi codex-native/gpt-6-astra ultra\n'
++ printf pi
++ printf '#!/usr/bin/env bash\nprintf "Options: --tui-mode\\n"\n'
++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/fakebin/pi
+++ run_restart /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712 sm1
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712
+++ shift
+++ env PATH=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/fakebin:/Users/ayrton/.pi/agent/bin:/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ayrton/.local/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Users/ayrton/go/bin:/Users/ayrton/.cargo/bin:/Users/ayrton/bin:/usr/local/sbin:/Users/ayrton/.orbstack/bin FM_HOME=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home FM_FAKE_DIR=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/fake FM_ROOT_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product FM_STATE_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home/state FM_DATA_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home/data FM_CONFIG_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home/config FM_PROJECTS_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home/projects FM_SPAWN_NO_GUARD=1 FM_SECONDMATE_PERSIST_POLL=1 FM_SECONDMATE_PERSIST_WAIT=30 FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 FM_SSH_BIN=ssh /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-secondmate-restart.sh sm1
++ out=$'restarted: sm1 (pi)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached'
++ rc=0
++ expect_code 0 0 $'native local restart failed: restarted: sm1 (pi)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached'
++ local expected=0 actual=0 $'label=native local restart failed: restarted: sm1 (pi)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached'
++ '[' 0 = 0 ']'
++ assert_contains $'restarted: sm1 (pi)\nsummary: 1 of 1 restarted, 0 nudged, 0 unreached' 'restarted: sm1 (pi)' 'native local restart did not complete'
++ case "$1" in
++ :
+++ cat /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home/state/sm1.meta
++ assert_contains $'window=fmses:fm-sm1\nendpoint_task_id=sm1\nworktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home\nproject=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home\nharness=pi\nkind=secondmate\nmode=secondmate\nyolo=off\ntasktmp=/tmp/fm-sm1\nmodel=codex-native/gpt-6-astra\neffort=ultra\nbusy_gen=g1792855108.96563.17893\nspawn_gen=s1792855108.96244.15279\nhome=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home\nprojects=\ncontrol_relaunch_tx=95834.20261024T151827Z.20983' effort=ultra 'local restart dropped native effort'
++ case "$1" in
++ :
+++ cat /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/fake/literal
++ assert_contains $': Firstmate instruction waiting: list "$FM_TASK_INBOX"/*.msg in your \'sm1.inbox\' steering inbox, read and act on each in numeric order, then mv each into its handled/.\n/exit\nunset TRACEPARENT; export COMPACT_ADVISER_DISABLE=1; export FM_TASK_INBOX=\'/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home/state/sm1.inbox\'; \'/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-git-strip-ai-trailers.sh\' env-file \'/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home/state/sm1.git-hooks\' \'/tmp/fm-sm1+5eb2b52314b6899b9932a611cac974dc8f763b1039726d4b6148a39be13e0e8f/git-config.s1792855108.96244.15279.sh\' && . \'/tmp/fm-sm1+5eb2b52314b6899b9932a611cac974dc8f763b1039726d4b6148a39be13e0e8f/git-config.s1792855108.96244.15279.sh\' || return 1 2>/dev/null || exit 1; FM_ROOT_OVERRIDE= FM_STATE_OVERRIDE= FM_DATA_OVERRIDE= FM_PROJECTS_OVERRIDE= FM_CONFIG_OVERRIDE= FM_PUBLIC_FOLLOWUP_PRIMARY_HOME=\'/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home\' FM_HOME=\'/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home\' FM_TRACE_CONTEXT=off FM_SUPERVISION_MODEL=extension env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI FM_PI_HARNESS=pi \'/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/fakebin/pi\' --tui-mode regular --model \'codex-native/gpt-6-astra\' --codex-effort \'ultra\' -e \'/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home/.pi/extensions/fm-primary-turnend-guard.ts\' -e \'/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/sm1-home/.pi/extensions/fm-primary-pi-watch.ts\' -e \'/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home/state/sm1.pi-ext.ts\' "$(\'/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-operational-input.sh\' encode launch-brief < \'/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-local-32712/home/data/sm1/brief.md\')"' '--codex-effort '\''ultra'\''' 'local restart dropped native launch flag'
++ case "$1" in
++ :
+++ new_case native-remote
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/home/state /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/home/data /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/home/config /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/fake
+++ printf 'claude\n'
+++ :
+++ :
+++ :
+++ printf claude
+++ printf claude
+++ make_stub /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944
+++ local fb=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/fakebin
+++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/fakebin
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/fakebin/tmux
+++ cat
+++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/fakebin/sleep
+++ printf '%s\n' /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944
++ dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944
++ setup_remote_case /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944 sm2 ok
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944 id=sm2 mode=ok
++ local fb=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/fakebin
++ mkdir -p /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/sm2-home
++ echo window=remote:sm2
++ echo endpoint_task_id=sm2
++ echo worktree=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/sm2-home
++ echo project=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/sm2-home
++ echo harness=claude
++ echo kind=secondmate
++ echo mode=secondmate
++ echo yolo=off
++ echo model=default
++ echo effort=default
++ echo home=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/sm2-home
++ echo remote_host=remote-mac
++ echo remote_backend=herdr
++ echo remote_target=fm-remote:2ndmate-sm2
++ printf -- '- %s - remote domain (host: remote-mac; root: /srv/fm; home: /srv/%s; scope: things; projects: p; added 2026-09-03)\n' sm2 sm2
++ cat
++ chmod +x /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/fakebin/fake-ssh
++ :
++ export FM_FAKE_SSH_LOG=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/ssh.log
++ FM_FAKE_SSH_LOG=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/ssh.log
++ export FM_FAKE_SSH_MODE=ok
++ FM_FAKE_SSH_MODE=ok
++ export FM_TEST_SSH_BIN=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/fakebin/fake-ssh
++ FM_TEST_SSH_BIN=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/fakebin/fake-ssh
++ export FM_FAKE_ANSWER_STATUS=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/home/state/sm2.status
++ FM_FAKE_ANSWER_STATUS=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/home/state/sm2.status
++ printf 'pi-signed codex-native/gpt-6-astra ultra\n'
+++ run_restart /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944 sm2
+++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944
+++ shift
+++ env PATH=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/fakebin:/Users/ayrton/.pi/agent/bin:/opt/homebrew/opt/node@24/bin:/opt/homebrew/bin:/opt/homebrew/sbin:/Users/ayrton/.local/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:/Users/ayrton/go/bin:/Users/ayrton/.cargo/bin:/Users/ayrton/bin:/usr/local/sbin:/Users/ayrton/.orbstack/bin FM_HOME=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/home FM_FAKE_DIR=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/fake FM_ROOT_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product FM_STATE_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/home/state FM_DATA_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/home/data FM_CONFIG_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/home/config FM_PROJECTS_OVERRIDE=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/home/projects FM_SPAWN_NO_GUARD=1 FM_SECONDMATE_PERSIST_POLL=1 FM_SECONDMATE_PERSIST_WAIT=30 FM_CONTROL_POLL=0.01 FM_CONTROL_EXIT_WAIT=0.05 FM_CONTROL_LAUNCH_WAIT=0.05 FM_SSH_BIN=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ/native-remote-12944/fakebin/fake-ssh /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/product/bin/fm-secondmate-restart.sh sm2
++ out=$'unreached: sm2: the request to write down its open work could not be delivered: ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━; the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached'
++ rc=3
++ unset FM_FAKE_ANSWER_STATUS
++ expect_code 0 3 $'native remote restart failed: unreached: sm2: the request to write down its open work could not be delivered: ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━; the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached'
++ local expected=0 actual=3 $'label=native remote restart failed: unreached: sm2: the request to write down its open work could not be delivered: ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━; the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached'
++ '[' 3 = 0 ']'
++ fail $'native remote restart failed: unreached: sm2: the request to write down its open work could not be delivered: ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━; the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached: expected exit 0, got 3'
++ printf 'not ok - %s\n' $'native remote restart failed: unreached: sm2: the request to write down its open work could not be delivered: ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━; the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nsummary: 0 of 1 restarted, 0 nudged, 1 unreached: expected exit 0, got 3'
+not ok - native remote restart failed: unreached: sm2: the request to write down its open work could not be delivered: ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━; the re-read message could not be delivered either: WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+summary: 0 of 1 restarted, 0 nudged, 1 unreached: expected exit 0, got 3
++ exit 1
++ fm_test_cleanup
++ local d
++ fm_test_reap_watchers
++ local state lock_home $'seen=\n'
++ '[' -f /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/.fm-test-watcher.63505.AGfavZ ']'
++ IFS=
++ read -r state
++ rm -f /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/.fm-test-watcher.63505.AGfavZ
++ fm_test_reap_procevent_homes
++ local home claim_root $'seen=\n'
++ '[' -f /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/.fm-test-procevent.63505.dLDAOW ']'
++ IFS=$'\t'
++ read -r home claim_root
++ rm -f /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/.fm-test-procevent.63505.dLDAOW
++ for d in "${FM_TEST_CLEANUP_DIRS[@]:-}"
++ '[' -n '' ']'
++ '[' -f /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/.fm-test-cleanup.63505.Z2zRmv ']'
++ IFS=
++ read -r d
++ '[' -n /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ ']'
++ fm_test_remove_tree /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ
++ local dir=/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ
++ '[' -d /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ ']'
++ '[' '!' -L /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ ']'
++ find /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ -type d -exec chmod u+rwx '{}' +
++ rm -rf /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/fm-secondmate-restart.xAPOIQ
++ IFS=
++ read -r d
++ rm -f /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/fixtures/.fm-test-cleanup.63505.Z2zRmv

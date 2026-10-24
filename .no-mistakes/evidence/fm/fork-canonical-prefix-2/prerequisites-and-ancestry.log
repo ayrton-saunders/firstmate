@@ -1,0 +1,10 @@
+Paseo CLI: not on PATH
+tmux: /opt/homebrew/bin/tmux
+claude: /Users/ayrton/.local/bin/claude
+
+Historical integration parents:
+73b0b182a9c6a613f0033e8367cd2f30fe14164c
+59e76ed694e177f1118060c9d8c0dfb686a5ca4d 83b70ef49e33eff529f574618415997c8ef67518
+Integrate second historical canonical prefix with preserved safety repairs
+landed base preserved
+historical canonical prefix preserved

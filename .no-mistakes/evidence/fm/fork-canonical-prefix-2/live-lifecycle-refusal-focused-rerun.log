@@ -1,0 +1,19 @@
+tested_head=09ec339702595abc542640c4b0d9678e84eccea2
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/lifecycle-home
+private_socket_directory=/tmp/fml.U5OObY
+PASS: real Pi agent completed nonce turn on permitted model and effort
+scenario=unreadable exit=1
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/lifecycle-home
+cat: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/lifecycle-home/config/secondmate-harness: Permission denied
+error: config/secondmate-harness cannot be read
+error: the configured secondmate runtime pin for prefix2mate cannot be read; fix config/secondmate-harness rather than relaunching onto an unresolved runtime
+PASS unreadable: refusal preceded stop; same live agent PID; metadata unchanged; no relaunch journal
+scenario=malformed exit=1
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/lifecycle-home
+error: config/secondmate-harness line 2: duplicate 'mate prefix2mate:' override (already set on line 1)
+error: the configured secondmate runtime pin for prefix2mate cannot be read; fix config/secondmate-harness rather than relaunching onto an unresolved runtime
+PASS malformed: refusal preceded stop; same live agent PID; metadata unchanged; no relaunch journal
+PASS: same real agent answered after both refusals
+cleanup: exact private tmux server and socket directory removed
+finished exit=0
+Post-cleanup: exact lab home and helper socket absent; no Pi/node process using lab session directory; worktree clean. No Herdr or default/fleet endpoint used.

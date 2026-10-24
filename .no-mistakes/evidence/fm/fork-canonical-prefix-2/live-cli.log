@@ -1,0 +1,79 @@
+
+== Per-mate profile preserves all three axes ==
+$ bin/fm-harness.sh secondmate demo
+claude
+$ bin/fm-harness.sh secondmate-model demo
+pinned-model
+$ bin/fm-harness.sh secondmate-effort demo
+medium
+$ bin/fm-harness.sh secondmate other
+codex
+$ bin/fm-harness.sh secondmate-model other
+default-model
+
+== Invalid duplicate override refuses even an unrelated mate ==
+$ bin/fm-harness.sh secondmate other
+error: config/secondmate-harness line 3: duplicate 'mate demo:' override (already set on line 2)
+exit=1
+$ bin/fm-harness.sh secondmate-model other
+error: config/secondmate-harness line 3: duplicate 'mate demo:' override (already set on line 2)
+exit=1
+$ bin/fm-harness.sh secondmate-effort other
+error: config/secondmate-harness line 3: duplicate 'mate demo:' override (already set on line 2)
+exit=1
+
+== Unreadable pin refuses every read ==
+$ bin/fm-harness.sh secondmate demo
+cat: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/live-home/config/secondmate-harness: Permission denied
+error: config/secondmate-harness cannot be read
+exit=1
+$ bin/fm-harness.sh secondmate-model demo
+cat: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/live-home/config/secondmate-harness: Permission denied
+error: config/secondmate-harness cannot be read
+exit=1
+$ bin/fm-harness.sh secondmate-effort demo
+cat: /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Q4KBXA4FE87Y7CZV7AG0QH/.validation-tmp/live-home/config/secondmate-harness: Permission denied
+error: config/secondmate-harness cannot be read
+exit=1
+
+== Inaccessible parent refuses rather than using crew fallback ==
+$ bin/fm-harness.sh secondmate demo
+error: config/secondmate-harness pathname cannot be accessed
+exit=1
+$ bin/fm-harness.sh secondmate-model demo
+error: config/secondmate-harness pathname cannot be accessed
+exit=1
+$ bin/fm-harness.sh secondmate-effort demo
+error: config/secondmate-harness pathname cannot be accessed
+exit=1
+
+== Genuine missing pin retains crew fallback and empty optional axes ==
+$ bin/fm-harness.sh secondmate demo
+codex
+$ bin/fm-harness.sh secondmate-model demo
+
+$ bin/fm-harness.sh secondmate-effort demo
+
+
+== Read-only capacity counts work separately from secondmates ==
+$ bin/fm-capacity.sh
+capacity: free_lanes=unknown reason=no-target lanes=2 target=none secondmates=1 load1=5.88 cores=14 mem_free_pct=48 disk_free_mb=69657
+Lanes: 2 running, no target set (config/lane-capacity absent).
+Secondmates: 1 (hold no lane).
+Host: load 5.88 on 14 cores, memory free 48%, disk free 69657 MB.
+$ bin/fm-capacity.sh (target=4)
+capacity: free_lanes=2 reason=ok lanes=2 target=4 secondmates=1 load1=5.88 cores=14 mem_free_pct=48 disk_free_mb=69657
+Lanes: 2 running of 4 target, 2 open.
+Secondmates: 1 (hold no lane).
+Host: load 5.88 on 14 cores, memory free 48%, disk free 69657 MB.
+
+== Invalid capacity is refused, never guessed ==
+$ bin/fm-capacity.sh
+capacity: free_lanes=unknown reason=invalid-target lanes=2 target=invalid secondmates=1 load1=5.88 cores=14 mem_free_pct=48 disk_free_mb=69657
+Lanes: 2 running, target unreadable (config/lane-capacity must hold one non-negative integer).
+Secondmates: 1 (hold no lane).
+Host: load 5.88 on 14 cores, memory free 48%, disk free 69657 MB.
+fm-capacity: config/lane-capacity must hold one non-negative integer
+exit=1
+
+All direct CLI assertions satisfied; disposable home removed on exit.
