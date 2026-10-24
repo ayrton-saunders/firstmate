@@ -349,8 +349,16 @@ make_wiring_case() {  # <name>
   printf '%s\n' "$case_dir"
 }
 
+polytoken_yaml_json() {
+  ruby -ryaml -rjson -e '
+    text = File.read(ARGV[0])
+    text = text.split(/^---\s*$\n/, 3)[1] if ARGV[1] == "facet"
+    puts JSON.generate(YAML.load(text))
+  ' "$@"
+}
+
 test_polytoken_write_config_enforces_the_unattended_posture() {
-  local rec case_dir home cfgdir mirrored out rc
+  local rec case_dir home cfgdir out rc
   rec=$(make_wiring_case config)
   case_dir=$rec
   home="$case_dir/home"
@@ -359,27 +367,24 @@ test_polytoken_write_config_enforces_the_unattended_posture() {
     > "$home/.config/polytoken/config.yaml"
   XDG_CONFIG_HOME="$home/.config" HOME="$home" fm_polytoken_write_config "$cfgdir" \
     || fail "a mirrorable global config must be mirrored"
-  mirrored=$(cat "$cfgdir/config.yaml")
-  assert_contains "$mirrored" "default_permission_matcher: bypass" \
-    "a standard global posture must be enforced to bypass for the worker"
-  assert_contains "$mirrored" "type: static_key" "the mirrored providers must survive"
+  polytoken_yaml_json "$cfgdir/config.yaml" | jq -e '
+    .default_permission_matcher == "bypass" and .providers.zai.auth.type == "static_key"
+  ' >/dev/null || fail "the worker config must enforce bypass and preserve provider authentication"
   # bypass_plus is the one strictly-safer value that is preserved.
   printf 'version: 4\ndefault_permission_matcher: bypass_plus\n' > "$home/.config/polytoken/config.yaml"
   rm -rf "$cfgdir"
   XDG_CONFIG_HOME="$home/.config" HOME="$home" fm_polytoken_write_config "$cfgdir" \
     || fail "a bypass_plus global config must be mirrored"
-  mirrored=$(cat "$cfgdir/config.yaml")
-  assert_contains "$mirrored" "default_permission_matcher: bypass_plus" \
-    "the bypass_plus posture must be preserved, not flattened to bypass"
+  polytoken_yaml_json "$cfgdir/config.yaml" | jq -e '.default_permission_matcher == "bypass_plus"' \
+    >/dev/null || fail "the bypass_plus posture must be preserved"
   # Quoted and commented YAML spellings of bypass_plus are the same value.
   for spelling in '"bypass_plus"' "'bypass_plus'" 'bypass_plus # keep deny rules'; do
     printf 'version: 4\ndefault_permission_matcher: %s\n' "$spelling" > "$home/.config/polytoken/config.yaml"
     rm -rf "$cfgdir"
     XDG_CONFIG_HOME="$home/.config" HOME="$home" fm_polytoken_write_config "$cfgdir" \
       || fail "a bypass_plus global config spelled $spelling must be mirrored"
-    mirrored=$(cat "$cfgdir/config.yaml")
-    assert_contains "$mirrored" "default_permission_matcher: $spelling" \
-      "the bypass_plus posture spelled $spelling must be preserved, not flattened to bypass"
+    polytoken_yaml_json "$cfgdir/config.yaml" | jq -e '.default_permission_matcher == "bypass_plus"' \
+      >/dev/null || fail "the bypass_plus posture spelled $spelling must be preserved"
   done
   # An absent key is appended, not silently inherited: the project layer
   # fully replaces the global config, so nothing can be inherited.
@@ -387,9 +392,8 @@ test_polytoken_write_config_enforces_the_unattended_posture() {
   rm -rf "$cfgdir"
   XDG_CONFIG_HOME="$home/.config" HOME="$home" fm_polytoken_write_config "$cfgdir" \
     || fail "a global config without the matcher key must still be mirrored"
-  mirrored=$(cat "$cfgdir/config.yaml")
-  assert_contains "$mirrored" "default_permission_matcher: bypass" \
-    "an absent matcher key must be appended as bypass"
+  polytoken_yaml_json "$cfgdir/config.yaml" | jq -e '.default_permission_matcher == "bypass"' \
+    >/dev/null || fail "an absent matcher key must become bypass"
   # A missing global config refuses rather than launching a worker with no
   # providers or credentials.
   rm -rf "$home/.config/polytoken" "$cfgdir"
@@ -398,6 +402,37 @@ test_polytoken_write_config_enforces_the_unattended_posture() {
   [ "$rc" -ne 0 ] || fail "a missing global config must refuse the mirror"
   assert_contains "$out" "polytoken global config" "the refusal must name the missing global config"
   pass "fm-polytoken-lib: the config mirror enforces the unattended posture"
+}
+
+test_polytoken_facet_writer_preserves_existing_destinations() {
+  local case_dir facet kind
+  case_dir=$(make_wiring_case facet-ownership)
+  facet=$(fm_polytoken_facet_file "$case_dir/wt")
+  mkdir -p "$(dirname "$facet")"
+  printf 'project-owned\n' > "$case_dir/target"
+  for kind in file symlink dangling; do
+    case "$kind" in
+      file) cp "$case_dir/target" "$facet" ;;
+      symlink) ln -s "$case_dir/target" "$facet" ;;
+      dangling) ln -s "$case_dir/missing" "$facet" ;;
+    esac
+    if fm_polytoken_write_facet "$case_dir/wt" "$case_dir/state/task.inbox" 2>/dev/null; then
+      fail "the facet writer accepted an existing $kind"
+    fi
+    if fm_polytoken_require_facet_free "$case_dir/wt" 2>/dev/null; then
+      fail "facet admission accepted an existing $kind"
+    fi
+    assert_equals "project-owned" "$(cat "$case_dir/target")" "symlink target preserved"
+    [ ! -e "$case_dir/missing" ] || fail "a dangling facet target was created"
+    if [ "$kind" = file ]; then
+      cmp "$case_dir/target" "$facet" || fail "project facet overwritten"
+    else
+      [ -L "$facet" ] || fail "facet symlink replaced"
+    fi
+    rm "$facet"
+  done
+  fm_polytoken_write_facet "$case_dir/wt" "$case_dir/state/task.inbox" || fail "a free facet must be writable"
+  pass "facet writer and admission preserve existing files and symlinks"
 }
 
 test_polytoken_write_facet_carries_the_role_contract_without_a_model_pin() {
@@ -409,9 +444,11 @@ test_polytoken_write_facet_carries_the_role_contract_without_a_model_pin() {
   facet="$case_dir/wt/.polytoken/facets/firstmate-worker.md"
   [ -f "$facet" ] || fail "the facet must exist at the project facet layer path"
   body=$(cat "$facet")
-  assert_contains "$body" "name: firstmate-worker" "the facet must be the firstmate-worker facet"
-  assert_contains "$body" "tools_deny: [switch_facet, handoff_plan, subagent, message_subagent]" \
-    "the facet must deny facet switching and delegation at the tool-registry level"
+  polytoken_yaml_json "$facet" facet | jq -e '
+    .name == "firstmate-worker" and
+    (.polytoken.tools_deny | sort) == (["switch_facet", "handoff_plan", "subagent", "message_subagent"] | sort) and
+    (has("model") | not) and (.polytoken | has("model") | not)
+  ' >/dev/null || fail "the facet must name the worker, deny delegation tools, and omit model pins"
   assert_contains "$body" 'transclude("polytoken://system_prompts/facet.md")' \
     "the facet must transclude the shipped base prompt to keep the tool-use framing"
   assert_contains "$body" "You are a crewmate" "the facet must carry the crewmate identity"
@@ -423,11 +460,6 @@ test_polytoken_write_facet_carries_the_role_contract_without_a_model_pin() {
     "the facet must name this task's instruction inbox path"
   assert_contains "$body" "does not grant merge, destructive, security-sensitive" \
     "the facet must carry the task-channel trust statement's authority boundary"
-  # A facet model pin outranks the launch --model, so the worker facet must
-  # never carry one.
-  if printf '%s\n' "$body" | grep -qE '^  model:'; then
-    fail "the worker facet must not pin a model"
-  fi
   pass "fm-polytoken-lib: the worker facet carries the role contract and no model pin"
 }
 
@@ -974,8 +1006,8 @@ test_polytoken_launch_carries_the_hybrid_contract() {
   [ -f "$WT_DIR/.polytoken/hooks.json" ] || fail "the worktree hook layer was not written"
   [ -f "$WT_DIR/.polytoken/facets/firstmate-worker.md" ] || fail "the worker facet was not written"
   [ -f "$HOME_DIR/state/$id.polytoken-busy.sh" ] || fail "the busy writer was not written"
-  cfg=$(cat "$HOME_DIR/state/$id.polytoken-config/config.yaml")
-  assert_contains "$cfg" "default_permission_matcher: bypass" \
+  cfg=$(polytoken_yaml_json "$HOME_DIR/state/$id.polytoken-config/config.yaml" | jq -r '.default_permission_matcher')
+  assert_equals "bypass" "$cfg" \
     "the mirrored worker config must enforce the unattended posture"
   pass "fm-spawn: the polytoken launch carries the hybrid contract end to end"
 }
@@ -1085,6 +1117,39 @@ test_polytoken_existing_project_hook_layer_refuses() {
     || fail "the refusal must close the window it opened so its slot returns to the pool"
   assert_absent "$HOME_DIR/state/$id.meta" "the refusal must not leave a task record"
   pass "fm-spawn: a project's own polytoken hook layer is refused, not clobbered"
+}
+
+test_polytoken_existing_project_facet_refuses_before_wiring() {
+  local id rec out kind facet
+  for kind in file symlink; do
+    id="pt-ownfacet-$kind-$$"
+    rec=$(make_polytoken_spawn_case "ownfacet-$kind" "$id")
+    read_polytoken_spawn_record "$rec"
+    mkdir -p "$PROJ_DIR/.polytoken/facets"
+    facet="$PROJ_DIR/.polytoken/facets/firstmate-worker.md"
+    printf 'project facet\n' > "$PROJ_DIR/facet-target"
+    if [ "$kind" = file ]; then
+      cp "$PROJ_DIR/facet-target" "$facet"
+    else
+      ln -s ../../facet-target "$facet"
+    fi
+    git -C "$PROJ_DIR" add .polytoken/facets/firstmate-worker.md facet-target
+    git -C "$PROJ_DIR" -c user.email=fixture@firstmate.test -c user.name=fixture \
+      commit -q -m "fixture: project facet"
+    git -C "$PROJ_DIR" push -q origin main
+    if out=$(run_polytoken_spawn "$CASE_DIR" "$HOME_DIR" "$PROJ_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$id"); then
+      fail "spawn accepted a project facet $kind without hooks"
+    fi
+    assert_contains "$out" "not firstmate's to clobber" "facet refusal"
+    assert_equals "project facet" "$(cat "$WT_DIR/.polytoken/facets/firstmate-worker.md")" "project facet preserved"
+    [ "$kind" != symlink ] || [ -L "$WT_DIR/.polytoken/facets/firstmate-worker.md" ] || fail "facet symlink replaced"
+    assert_absent "$HOME_DIR/state/$id.polytoken-config" "facet refusal must precede config generation"
+    assert_absent "$HOME_DIR/state/$id.polytoken-busy.sh" "facet refusal must precede busy wiring"
+    assert_absent "$HOME_DIR/state/$id.meta" "facet refusal must not leave a task"
+    [ ! -s "$CASE_DIR/launch-line.log" ] || fail "facet refusal launched a worker"
+    [ -z "$(git -C "$WT_DIR" status --porcelain)" ] || fail "facet refusal modified the project"
+  done
+  pass "spawn refuses project facets and symlinks without generating wiring"
 }
 
 test_polytoken_whitespace_state_dir_refuses() {
@@ -1202,6 +1267,7 @@ test_polytoken_composer_is_the_verified_separated_shape
 test_polytoken_busy_queued_enter_converts_like_opencode
 test_polytoken_tmux_submit_is_acknowledged_by_its_running_row
 test_polytoken_write_config_enforces_the_unattended_posture
+test_polytoken_facet_writer_preserves_existing_destinations
 test_polytoken_write_facet_carries_the_role_contract_without_a_model_pin
 test_polytoken_busy_writer_dispatches_without_argv_and_never_fails
 test_polytoken_write_hooks_binds_the_three_events
@@ -1216,6 +1282,7 @@ test_polytoken_missing_axes_refuse_before_pane_creation
 test_polytoken_unlisted_model_refuses_before_pane_creation
 test_polytoken_secondmate_is_refused
 test_polytoken_existing_project_hook_layer_refuses
+test_polytoken_existing_project_facet_refuses_before_wiring
 test_polytoken_whitespace_state_dir_refuses
 test_polytoken_readiness_failure_fails_loudly_and_cleans_up
 test_polytoken_post_launch_failure_drops_its_slot_claim

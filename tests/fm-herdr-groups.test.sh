@@ -39,7 +39,7 @@ case "$1 ${2:-}" in
   "status --json") printf '{"client":{"version":"0.9.3","protocol":%s},"server":{"running":true}}\n' "${FAKE_HERDR_PROTOCOL:-22}" ;;
   "workspace list") cat "$FAKE_DIR/workspaces.json" ;;
   "pane list") cat "$FAKE_DIR/panes.json" ;;
-  "session list") printf '{"sessions":[{"name":"s1","running":true,"socket_path":"/tmp/fm-groups-s1.sock"}]}\n' ;;
+  "session list") printf '{"sessions":[{"name":"s1","running":true,"socket_path":"%s/s1.sock"}]}\n' "$FAKE_DIR" ;;
   "pane report-metadata"|"workspace report-metadata") ;;
   *) exit 1 ;;
 esac
@@ -49,6 +49,7 @@ SH
   cat > "$fakebin/agent-view" <<'SH'
 #!/usr/bin/env bash
 printf '%s\t%s\n' "$1" "$2" >> "$FAKE_VIEW_LOG"
+[ ! -e "$FAKE_DIR/view-fails" ] || exit 1
 exit 0
 SH
   chmod +x "$fakebin/agent-view"
@@ -246,14 +247,15 @@ test_sync_reports_only_differences_and_sets_the_view() {
   assert_equals "1" "$(printf '%s\n' "$ws_reports" | grep -c 'report-metadata')" "workspace reports"
   assert_contains "$ws_reports" "workspace report-metadata w2 --source firstmate --token fm_group=storefront --token fm_state=running --token fm_group_order=000.storefront" \
     "only the exactly bound projected workspace gets workspace tokens"
-  assert_equals "/tmp/fm-groups-s1.sock	set" "$(cat "$FAKE_VIEW_LOG")" "agents view set once for the session"
+  assert_equals "$FAKE_DIR/s1.sock	set" "$(cat "$FAKE_VIEW_LOG")" "agents view set once for the session"
 
   : > "$FAKE_HERDR_LOG"; : > "$FAKE_VIEW_LOG"
   rm -f "$HOME_DIR/state/flat-task.meta"
   write_live_lists 1
   out=$(groups sync 2>&1) || fail "second sync failed: $out"
   assert_equals "" "$(reports pane)$(reports workspace)" "an unchanged layout reports nothing"
-  assert_equals "" "$(cat "$FAKE_VIEW_LOG")" "an unchanged layout leaves the agents view alone"
+  assert_equals "$FAKE_DIR/s1.sock	set" "$(cat "$FAKE_VIEW_LOG")" "an unchanged layout still installs the agents view"
+  : > "$FAKE_VIEW_LOG"
 
   printf 'needs-decision [key=q]: which\n' >> "$HOME_DIR/state/web-run.status"
   out=$(groups sync web-run 2>&1) || fail "status-change sync failed: $out"
@@ -261,11 +263,40 @@ test_sync_reports_only_differences_and_sets_the_view() {
     "$(reports pane)" "a status change reports only the changed pane tokens"
   assert_contains "$(reports workspace)" "--token fm_state=needs-captain --session s1" "workspace status token follows"
   assert_not_contains "$(reports workspace)" "fm_group=" "unchanged workspace tokens are not re-reported"
-  assert_equals "/tmp/fm-groups-s1.sock	set" "$(cat "$FAKE_VIEW_LOG")" "agents view re-set after a pane change"
+  assert_equals "$FAKE_DIR/s1.sock	set" "$(cat "$FAKE_VIEW_LOG")" "agents view re-set after a pane change"
   assert_not_contains "$(cat "$FAKE_HERDR_LOG")" $'\x1fmove' "sync never moves anything"
   assert_not_contains "$(cat "$FAKE_HERDR_LOG")" $'\x1fclose' "sync never closes anything"
   assert_not_contains "$(cat "$FAKE_HERDR_LOG")" $'\x1ffocus' "sync never changes focus"
-  pass "sync: reports only drifted tokens, workspace tokens only on the exact projection, view set on change"
+  pass "sync: reports only drifted tokens, workspace tokens only on the exact projection, view installed independently of token changes"
+}
+
+test_sync_retries_failed_view_with_converged_tokens() {
+  local out
+  new_home view-retry
+  printf 'on\n' > "$HOME_DIR/config/herdr-project-groups"
+  add_task web-run ship /p/storefront w2 'working: go'
+  add_v2_journal web-run w2
+  write_live_lists 1
+  touch "$FAKE_DIR/view-fails"
+  if out=$(groups sync 2>&1); then
+    fail "sync must report failed view installation even when tokens match"
+  fi
+  assert_contains "$out" "agents view set failed" "view failure reported"
+  assert_equals "" "$(reports pane)$(reports workspace)" "matching metadata is not rewritten"
+  rm "$FAKE_DIR/view-fails"
+  : > "$FAKE_VIEW_LOG"
+  out=$(groups sync 2>&1) || fail "view retry failed: $out"
+  assert_equals "$FAKE_DIR/s1.sock	set" "$(cat "$FAKE_VIEW_LOG")" "matching tokens do not suppress view retry"
+  write_live_lists 0
+  touch "$FAKE_DIR/view-fails"
+  if out=$(groups sync 2>&1); then
+    fail "sync must report failed view installation before publishing tokens"
+  fi
+  assert_equals "" "$(reports pane)$(reports workspace)" "view failure must not publish metadata"
+  rm "$FAKE_DIR/view-fails"
+  out=$(groups sync 2>&1) || fail "sync after view recovery failed: $out"
+  [ -n "$(reports pane)" ] || fail "view recovery must allow metadata publication"
+  pass "sync retries failed views independently of token convergence"
 }
 
 test_sync_skips_an_unverified_protocol_with_one_warning() {
@@ -291,12 +322,26 @@ test_clear_removes_tokens_and_the_view_even_when_off() {
   add_v2_journal web-run w2
   write_live_lists 1
   out=$(groups clear 2>&1) || fail "clear failed: $out"
-  assert_equals "/tmp/fm-groups-s1.sock	clear" "$(cat "$FAKE_VIEW_LOG")" "agents view cleared"
+  assert_equals "$FAKE_DIR/s1.sock	clear" "$(cat "$FAKE_VIEW_LOG")" "agents view cleared"
   assert_contains "$(reports pane)" "pane report-metadata w2:p2 --source firstmate --clear-token fm_group --clear-token fm_state --clear-token fm_task --clear-token fm_sort" \
     "pane tokens cleared"
   assert_contains "$(reports workspace)" "workspace report-metadata w2 --source firstmate --clear-token fm_group --clear-token fm_state --clear-token fm_group_order" \
     "projected workspace tokens cleared"
   pass "clear: removes this home's tokens and the agents view after the feature is turned off"
+}
+
+assert_sidebar_config() {
+  python3 - "$@" <<'PY'
+import sys, tomllib
+with open(sys.argv[1], "rb") as stream:
+    config = tomllib.load(stream)
+assert config["ui"]["sidebar"] == {
+    "spaces": {"rows": [["state_icon", "workspace"], [{"token": "$fm_group", "bold": True}, "$fm_state"]]},
+    "agents": {"rows": [["state_icon", {"token": "$fm_group", "bold": True}, "$fm_state", "$fm_task"]]},
+}, config
+if len(sys.argv) > 2:
+    assert config["ui"]["agent_panel_sort"] == "spaces", config
+PY
 }
 
 test_sidebar_config_apply_backs_up_and_refuses_twice() {
@@ -305,19 +350,19 @@ test_sidebar_config_apply_backs_up_and_refuses_twice() {
   cfg="$FAKE_DIR/config.toml"
   printf '[ui]\nagent_panel_sort = "spaces"\n' > "$cfg"
   out=$(groups sidebar-config 2>&1) || fail "sidebar-config print failed: $out"
-  assert_contains "$out" '[ui.sidebar.agents]' "printed rows"
+  printf '%s\n' "$out" > "$FAKE_DIR/printed.toml"
+  assert_sidebar_config "$FAKE_DIR/printed.toml" || fail "printed sidebar rows must parse with the intended meaning"
   assert_equals "" "$(cat "$FAKE_HERDR_LOG")" "printing the rows calls no Herdr command"
   out=$(groups sidebar-config --apply "$cfg" 2>&1) || fail "sidebar-config apply failed: $out"
   backups=$(find "$FAKE_DIR" -maxdepth 1 -name 'config.toml.bak-*')
   [ -n "$backups" ] || fail "apply made no backup"
   assert_equals $'[ui]\nagent_panel_sort = "spaces"' "$(cat "$backups")" "backup holds the original"
-  assert_contains "$(cat "$cfg")" '[ui.sidebar.spaces]' "rows appended"
-  assert_contains "$(cat "$cfg")" 'agent_panel_sort = "spaces"' "original content kept"
+  assert_sidebar_config "$cfg" applied || fail "applied sidebar rows must preserve the existing sort setting"
   if out=$(groups sidebar-config --apply "$cfg" 2>&1); then
     fail "a second apply must refuse"
   fi
   assert_contains "$out" "already defines Herdr sidebar rows" "refusal reason"
-  assert_equals "1" "$(grep -c '^\[ui.sidebar.spaces\]' "$cfg")" "rows appended exactly once"
+  assert_sidebar_config "$cfg" applied || fail "refused second apply must leave valid, unique sidebar tables"
   assert_equals "" "$(cat "$FAKE_HERDR_LOG")" "apply never reloads Herdr"
   pass "sidebar-config: prints rows; --apply backs up, appends once, never reloads Herdr"
 }
@@ -393,6 +438,7 @@ test_on_groups_by_project_and_sorts_by_status_rank
 test_rules_order_groups_and_prefer_task_over_repo_over_catch_all
 test_all_invalid_rules_leave_empty_rule_group_and_still_plan
 test_sync_reports_only_differences_and_sets_the_view
+test_sync_retries_failed_view_with_converged_tokens
 test_sync_skips_an_unverified_protocol_with_one_warning
 test_clear_removes_tokens_and_the_view_even_when_off
 test_sidebar_config_apply_backs_up_and_refuses_twice

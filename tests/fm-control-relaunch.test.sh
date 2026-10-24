@@ -678,7 +678,7 @@ test_harness_switch_moves_the_record_and_clears_prior_wiring() {
 }
 
 test_refused_relaunch_onto_polytoken_keeps_the_project_hook_layer() {
-  local dir out rc
+  local dir out rc kind facet
   dir=$(new_case polytokenownhooks rl45)
   add_ship_task "$dir" rl45 claude
   # The project's own polytoken hook layer and a same-named facet, neither
@@ -712,7 +712,34 @@ SH
     || fail "a refused relaunch must keep the prior record"
   [ -z "$(cat "$dir/fake/literal")" ] || fail "a refused relaunch onto polytoken must send nothing"
   [ "$(cat "$dir/fake/command")" = claude ] || fail "a refused relaunch onto polytoken must not stop the agent"
-  pass "fm-control relaunch: a refused relaunch onto polytoken keeps the project's own hook layer and the running agent"
+  rm "$dir/wt/.polytoken/hooks.json"
+  facet="$dir/wt/.polytoken/facets/firstmate-worker.md"
+  for kind in file symlink dangling; do
+    case "$kind" in
+      symlink)
+        rm "$facet"
+        printf '%s/rl45.inbox\n' "$dir/home/state" > "$dir/facet-target"
+        ln -s "$dir/facet-target" "$facet" ;;
+      dangling)
+        rm "$facet"
+        ln -s "$dir/missing-facet" "$facet" ;;
+    esac
+    out=$(run_control "$dir" rl45 relaunch --harness polytoken \
+      --model zai/glm-5.3-flash --effort low --note "switching runtime"); rc=$?
+    [ "$rc" -ne 0 ] || fail "relaunch accepted a project facet $kind without hooks"
+    assert_contains "$out" "not firstmate's to clobber" "facet admission refusal"
+    [ "$(cat "$dir/fake/command")" = claude ] || fail "facet refusal stopped the worker"
+    [ -z "$(cat "$dir/fake/literal")" ] || fail "facet refusal sent worker input"
+    [ "$(meta_field "$dir" rl45 harness)" = claude ] || fail "facet refusal changed harness"
+    if [ "$kind" = file ]; then
+      assert_contains "$(cat "$facet")" "project facet" "project facet preserved"
+    else
+      [ -L "$facet" ] || fail "facet symlink removed"
+    fi
+  done
+  [ ! -e "$dir/missing-facet" ] || fail "dangling facet target created"
+  assert_equals "$dir/home/state/rl45.inbox" "$(cat "$dir/facet-target")" "facet target preserved"
+  pass "fm-control relaunch: project hooks, facets, and symlinks refuse before stopping the worker"
 }
 
 test_refused_polytoken_profile_leaves_the_running_agent() {
