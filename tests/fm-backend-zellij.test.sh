@@ -813,7 +813,7 @@ test_kill_skips_recorded_tab_when_label_mismatches() {
   PATH="$fb:$PATH" FM_ZELLIJ_LOG="$dir/log" FM_ZELLIJ_RESPONSES="$dir/responses" \
     FM_ZELLIJ_SESSION_LIST="firstmate" \
     bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_kill firstmate:7 3 fm-zghost' "$ROOT"
-  expect_code 0 $? "kill must stay best-effort when the recorded tab id no longer belongs to the task"
+  expect_code 1 $? "kill must refuse when the recorded tab is present but its identity cannot be verified"
   zellij_assert_call_order "$dir/log" $'\x1f''list-panes'$'\x1f''--json' $'\x1f''list-tabs'$'\x1f''--json' \
     "kill did not verify the recorded tab id by label"
   assert_not_contains "$(cat "$dir/log")" $'\x1f''close-tab-by-id' \
@@ -821,6 +821,26 @@ test_kill_skips_recorded_tab_when_label_mismatches() {
   assert_not_contains "$(cat "$dir/log")" $'\x1f''close-pane' \
     "kill should not fall back to closing a pane once an expected task label is available"
   pass "fm_backend_zellij_kill: skips a stale recorded tab id whose label does not match"
+}
+
+test_kill_refuses_present_unverified_live_tab() {
+  local dir fb name rc
+  for name in "fm-firstmate-$(zellij_expected_root_hash "$ROOT")-legacy" foreign-name ''; do
+    dir="$TMP_ROOT/kill-unverified-live-${name:-empty}"
+    mkdir -p "$dir/responses" "$dir/home"
+    zellij_pane_response "$dir" 1 7 3
+    zellij_tab_response "$dir" 2 3 "$name"
+    fb=$(make_zellij_fakebin "$dir")
+    rc=0
+    PATH="$fb:$PATH" FM_HOME="$dir/home" FM_ZELLIJ_SESSION_LIST=firstmate \
+      FM_ZELLIJ_LOG="$dir/log" FM_ZELLIJ_RESPONSES="$dir/responses" \
+      bash -c '. "$0/bin/backends/zellij.sh"; fm_backend_zellij_kill firstmate:7 4 fm-legacy' "$ROOT" \
+      > "$dir/out" 2> "$dir/err" || rc=$?
+    [ "$rc" -ne 0 ] || fail "present unverified Zellij tab was reported closed: $name"
+    assert_not_contains "$(cat "$dir/log")" 'close-tab-by-id' "unverified live tab must not close"
+    assert_not_contains "$(cat "$dir/log")" 'close-pane' "identity mismatch must not fall back to closing a pane"
+  done
+  pass "Zellij cleanup refuses present unverified live tabs without falling back to another tab"
 }
 
 test_kill_is_noop_when_session_absent() {
@@ -1340,6 +1360,7 @@ test_kill_resolves_tab_and_closes_by_id
 test_kill_falls_back_to_close_pane_when_tab_lookup_empty
 test_kill_closes_recorded_tab_when_pane_already_gone
 test_kill_skips_recorded_tab_when_label_mismatches
+test_kill_refuses_present_unverified_live_tab
 test_kill_is_noop_when_session_absent
 test_teardown_passes_recorded_tab_id_to_zellij_kill
 test_forced_secondmate_teardown_kills_zellij_children_with_child_home_tag

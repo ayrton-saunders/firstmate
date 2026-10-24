@@ -307,10 +307,14 @@ fm_backend_zellij_tab_matches_label() {  # <session> <tab_id> <label>
   tabs=$(fm_backend_zellij_cli "$session" action list-tabs --json 2>/dev/null)
   printf '%s' "$tabs" | jq -e --argjson t "$tab_id" --arg want "$scoped" \
     '[.[]? | select(.tab_id == $t and .name == $want)] | length > 0' >/dev/null 2>&1 && return 0
-  printf '%s' "$tabs" | jq -e --argjson t "$tab_id" --arg want "$label" \
-    '[.[]? | select(.tab_id == $t and .name == $want)] | length > 0' >/dev/null 2>&1 || return 1
-  count=$(printf '%s' "$tabs" | jq -r --arg want "$label" '[.[]? | select(.name == $want)] | length' 2>/dev/null)
-  [ "$count" = "1" ]
+  if printf '%s' "$tabs" | jq -e --argjson t "$tab_id" --arg want "$label" \
+    '[.[]? | select(.tab_id == $t and .name == $want)] | length > 0' >/dev/null 2>&1; then
+    count=$(printf '%s' "$tabs" | jq -r --arg want "$label" '[.[]? | select(.name == $want)] | length' 2>/dev/null)
+    [ "$count" != "1" ] || return 0
+  fi
+  printf '%s' "$tabs" | jq -e --argjson t "$tab_id" \
+    '[.[]? | select(.tab_id == $t)] | length > 0' >/dev/null 2>&1 && return 2
+  return 1
 }
 
 # fm_backend_zellij_create_task: create the task's tab (one terminal pane) in
@@ -599,10 +603,16 @@ fm_backend_zellij_send_text_submit() {  # <target> <text> <retries> <enter-sleep
 fm_backend_zellij_kill() {  # <target> [tab_id] [expected_label]
   fm_backend_zellij_parse_target "$1" || return 0
   fm_backend_zellij_session_exists "$FM_BACKEND_ZELLIJ_SESSION" || return 0
-  local tab_id fallback_tab_id=${2:-} expected_label=${3:-}
+  local tab_id fallback_tab_id=${2:-} expected_label=${3:-} rc
   tab_id=$(fm_backend_zellij_tab_for_pane "$FM_BACKEND_ZELLIJ_SESSION" "$FM_BACKEND_ZELLIJ_PANE" 2>/dev/null)
-  if [ -n "$tab_id" ] && [ -n "$expected_label" ] && ! fm_backend_zellij_tab_matches_label "$FM_BACKEND_ZELLIJ_SESSION" "$tab_id" "$expected_label"; then
-    tab_id=
+  if [ -n "$tab_id" ] && [ -n "$expected_label" ]; then
+    if fm_backend_zellij_tab_matches_label "$FM_BACKEND_ZELLIJ_SESSION" "$tab_id" "$expected_label"; then
+      :
+    else
+      rc=$?
+      [ "$rc" -ne 2 ] || { echo "error: zellij tab identity does not match; refusing cleanup" >&2; return 1; }
+      tab_id=
+    fi
   fi
   case "$fallback_tab_id" in
     ''|*[!0-9]*) ;;
@@ -610,6 +620,9 @@ fm_backend_zellij_kill() {  # <target> [tab_id] [expected_label]
       if [ -z "$tab_id" ]; then
         if [ -z "$expected_label" ] || fm_backend_zellij_tab_matches_label "$FM_BACKEND_ZELLIJ_SESSION" "$fallback_tab_id" "$expected_label"; then
           tab_id=$fallback_tab_id
+        else
+          rc=$?
+          [ "$rc" -ne 2 ] || { echo "error: zellij recorded tab identity does not match; refusing cleanup" >&2; return 1; }
         fi
       fi
       ;;

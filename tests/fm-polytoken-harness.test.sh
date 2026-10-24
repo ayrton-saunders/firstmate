@@ -915,6 +915,41 @@ test_polytoken_interrupt_close_spares_a_reopened_turn() {
   pass "fm-polytoken-lib: the interrupt close lands after mid-turn rewrites and spares a reopened or running turn"
 }
 
+test_polytoken_interrupt_close_is_conditional_on_its_snapshot() {
+  local dir state mode gen out
+  for mode in prompt-after-sync rearm-during-cancel; do
+    dir=$(make_wiring_case "interrupt-race-$mode")
+    state="$dir/state"
+    gen=$("$ROOT/bin/fm-busy-event.sh" arm "$state" task) || fail "race fixture did not arm"
+    out=$(
+      fm_polytoken_interrupt() {
+        if [ "$mode" = rearm-during-cancel ]; then
+          "$ROOT/bin/fm-busy-event.sh" arm "$state" task >/dev/null || return 1
+        fi
+        printf cancelled
+      }
+      fm_polytoken_turn_settled() {
+        if [ "$mode" = prompt-after-sync ]; then
+          "$ROOT/bin/fm-busy-event.sh" apply "$state" task busy --current-gen \
+            --source polytoken-hook --event pre-user-prompt || return 1
+        fi
+        return 0
+      }
+      fm_polytoken_interrupt_task "$ROOT/bin" "$state" task 1 fixture-token
+    ) || fail "$mode interrupt failed"
+    assert_equals cancelled "$out" "$mode must preserve the cancellation acknowledgement"
+    if [ "$mode" = prompt-after-sync ]; then
+      assert_contains "$(fm_busy_record_read "$state" task)" 'busy polytoken-hook pre-user-prompt 2' \
+        "a prompt published after the final sync verdict must survive"
+    else
+      assert_not_equals "$gen" "$(fm_busy_current_gen "$state" task)" "fixture must replace the generation during cancel"
+      assert_contains "$(fm_busy_record_read "$state" task)" 'busy fm-spawn launch-brief 1' \
+        "an interrupt for the old incarnation must not close its replacement"
+    fi
+  done
+  pass "interrupt close preserves a newer prompt and a replacement incarnation at deterministic interleavings"
+}
+
 test_polytoken_turn_settled_reads_the_typed_sync_verdict() {
   local dir rec port pid token
   rec=$(make_wiring_case sync)
@@ -1402,6 +1437,7 @@ test_polytoken_model_ref_composes_and_refuses
 test_polytoken_model_ref_unreachable_listing_refuses
 test_polytoken_rest_interrupt_settles_the_turn
 test_polytoken_interrupt_close_spares_a_reopened_turn
+test_polytoken_interrupt_close_is_conditional_on_its_snapshot
 test_polytoken_turn_settled_reads_the_typed_sync_verdict
 test_polytoken_launch_carries_the_hybrid_contract
 test_polytoken_effort_maps_to_nearest_listed_level

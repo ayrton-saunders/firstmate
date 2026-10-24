@@ -557,10 +557,11 @@ fm_polytoken_interrupt() {  # <port> <credential-token> [wait-secs]
 fm_polytoken_interrupt_task() {  # <bin-dir> <state-dir> <id> <port> <credential-token> [wait-secs]
   local bin=$1 state=$2 id=$3 port=$4 token=$5 wait=${6:-10}
   local before now cancel gen before_seq now_event now_seq _s _src
+  gen=$(fm_busy_current_gen "$state" "$id" 2>/dev/null) || gen=
   before=$(fm_busy_record_read "$state" "$id" 2>/dev/null) || before=
   cancel=$(fm_polytoken_interrupt "$port" "$token" "$wait") || return 1
   printf '%s' "$cancel"
-  gen=$(fm_busy_current_gen "$state" "$id" 2>/dev/null) || return 0
+  [ -n "$gen" ] || return 0
   read -r _s _src _s before_seq <<<"$before"
   now=$(fm_busy_record_read "$state" "$id" 2>/dev/null) || now=
   read -r _s _src now_event now_seq <<<"$now"
@@ -571,5 +572,5 @@ fm_polytoken_interrupt_task() {  # <bin-dir> <state-dir> <id> <port> <credential
   fi
   fm_polytoken_turn_settled "$port" "$token" || return 0
   "$bin/fm-busy-event.sh" apply "$state" "$id" idle \
-    --gen "$gen" --source fm-interrupt --event interrupt >/dev/null 2>&1 || true
+    --gen "$gen" --expected-seq "$now_seq" --source fm-interrupt --event interrupt >/dev/null 2>&1 || true
 }

@@ -438,7 +438,7 @@ fm_backend_paseo_target_ready() { # <target> [expected-label]
   if [ -n "$entry" ]; then
     if [ -n "$expected_label" ]; then
       expected_name=$(fm_backend_paseo_scoped_name "$expected_label")
-      [ "$(printf '%s' "$entry" | jq -r '.name // empty' 2>/dev/null)" = "$expected_name" ] || return 1
+      [ "$(printf '%s' "$entry" | jq -r '.name // empty' 2>/dev/null)" = "$expected_name" ] || return 2
     fi
     wsid=$(printf '%s' "$entry" | jq -r '.workspaceId // empty' 2>/dev/null)
     [ -n "$wsid" ] && FM_BACKEND_PASEO_WORKSPACE=$wsid
@@ -593,9 +593,13 @@ fm_backend_paseo_send_text_submit() { # <target> <text> <retries> <enter-sleep> 
 # quiet but still retires its recorded workspace; retire holds back while
 # any tab, agent, other title, or Firstmate itself uses it.
 fm_backend_paseo_kill() { # <target> [unused] [expected-label]
-  local expected_label=${3:-}
+  local expected_label=${3:-} rc
   if [ -n "$expected_label" ]; then
-    if ! fm_backend_paseo_target_ready "$1" "$expected_label"; then
+    if fm_backend_paseo_target_ready "$1" "$expected_label"; then
+      :
+    else
+      rc=$?
+      [ "$rc" -ne 2 ] || { echo "error: paseo terminal identity does not match; refusing cleanup" >&2; return 1; }
       fm_backend_paseo_parse_target "$1" && fm_backend_paseo_retire_workspace "$FM_BACKEND_PASEO_WORKSPACE"
       return 0
     fi

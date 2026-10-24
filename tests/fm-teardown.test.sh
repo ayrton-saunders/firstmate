@@ -690,6 +690,62 @@ make_path_without_lsof() {  # <case-dir>
   printf '%s\n' "$path_dir"
 }
 
+test_unverified_present_endpoints_keep_teardown_records() {
+  local case_dir backend variant target a b rc legacy operation
+  a=aaaaaaaa-0000-0000-0000-000000000000
+  b=bbbbbbbb-1111-1111-1111-111111111111
+  legacy=$(FM_HOME="$ROOT" bash -c '. "$1/bin/fm-backend-hometag-lib.sh"; fm_backend_hometag' _ "$ROOT")
+  for variant in cmux zellij-live zellij-empty paseo; do
+    backend=${variant%%-*}
+    case_dir=$(make_case "unverified-endpoint-$variant")
+    mkdir -p "$case_dir/home"
+    case "$backend" in
+      cmux) target="$a:$b" ;;
+      zellij) target=firstmate:7 ;;
+      paseo) target="$a:wks_old" ;;
+    esac
+    fm_write_meta "$case_dir/state/task-x1.meta" \
+      "window=$target" "endpoint_task_id=task-x1" "worktree=$case_dir/wt" \
+      "project=$case_dir/project" kind=ship mode=local-only "backend=$backend" \
+      spawn_gen=teardown-test-task-x1
+    case "$backend" in
+      cmux) printf 'cmux_workspace_id=%s\ncmux_surface_id=%s\n' "$a" "$b" >> "$case_dir/state/task-x1.meta" ;;
+      zellij) printf 'zellij_session=firstmate\nzellij_pane_id=7\nzellij_tab_id=3\n' >> "$case_dir/state/task-x1.meta" ;;
+      paseo) printf 'paseo_terminal_id=%s\npaseo_workspace_id=wks_old\n' "$a" >> "$case_dir/state/task-x1.meta" ;;
+    esac
+    printf 'done: local result\n' > "$case_dir/state/task-x1.status"
+    cat > "$case_dir/fakebin/$backend" <<'SH'
+#!/usr/bin/env bash
+printf '%s %s\n' "$FM_FAKE_UNVERIFIED_BACKEND" "$*" >> "$FM_FAKE_UNVERIFIED_LOG"
+case "$FM_FAKE_UNVERIFIED_BACKEND:$*" in
+  cmux:*workspace\ list*) printf '{"workspaces":[{"id":"%s","title":"%s"}]}\n' "$FM_FAKE_UNVERIFIED_ID" "$FM_FAKE_UNVERIFIED_NAME" ;;
+  zellij:*list-sessions*) printf 'firstmate\n' ;;
+  zellij:*list-panes*)
+    if [ "$FM_FAKE_UNVERIFIED_VARIANT" = zellij-empty ]; then printf '[]\n'
+    else printf '[{"id":7,"tab_id":3,"is_plugin":false}]\n'; fi ;;
+  zellij:*list-tabs*) printf '[{"tab_id":3,"name":"%s"}]\n' "$FM_FAKE_UNVERIFIED_NAME" ;;
+  paseo:*terminal\ ls*) printf '[{"id":"%s","workspaceId":"wks_old","name":"%s"}]\n' "$FM_FAKE_UNVERIFIED_ID" "$FM_FAKE_UNVERIFIED_NAME" ;;
+esac
+SH
+    chmod +x "$case_dir/fakebin/$backend"
+    : > "$case_dir/runtime.log"
+    rc=0
+    FM_HOME="$case_dir/home" FM_FAKE_UNVERIFIED_BACKEND="$backend" \
+      FM_FAKE_UNVERIFIED_VARIANT="$variant" FM_FAKE_UNVERIFIED_LOG="$case_dir/runtime.log" \
+      FM_FAKE_UNVERIFIED_ID="$a" FM_FAKE_UNVERIFIED_NAME="fm-$legacy-task-x1" \
+      run_teardown "$case_dir" > "$case_dir/out" 2> "$case_dir/err" || rc=$?
+    [ "$rc" -ne 0 ] || fail "$variant teardown claimed to close an unverified present endpoint"
+    assert_grep 'could not be closed' "$case_dir/err" "$variant must reach the endpoint-close refusal"
+    [ -f "$case_dir/state/task-x1.meta" ] || fail "$variant erased the surviving endpoint's record"
+    [ -f "$case_dir/state/task-x1.status" ] || fail "$variant erased the task's status"
+    for operation in close-workspace close-tab close-pane 'terminal kill' 'workspace archive'; do
+      assert_no_grep "$operation" "$case_dir/runtime.log" "$variant must not close or adopt the legacy endpoint"
+    done
+    assert_no_grep 'teardown task-x1 complete' "$case_dir/out" "$variant must not report completed cleanup"
+  done
+  pass "teardown retains cmux, Zellij live/empty-tab and Paseo records when legacy identity verification refuses"
+}
+
 test_local_only_fork_remote_allows() {
   local case_dir rc
   case_dir=$(make_case fork-allow)
@@ -5718,6 +5774,7 @@ test_status_archive_nested_secondmate_children() {
   pass "forced secondmate retirement preserves two descendant levels and refuses linked child directories"
 }
 
+test_unverified_present_endpoints_keep_teardown_records
 test_status_archive_opt_in
 test_status_archive_nested_secondmate_children
 test_status_archive_missing_status_noop

@@ -878,6 +878,24 @@ test_send_text_submit_send_failed_when_target_absent() {
 
 # --- kill: best-effort whole-endpoint reclaim ---------------------------------
 
+test_kill_refuses_present_unverified_terminal() {
+  local dir fb name rc
+  for name in "fm-firstmate-$(paseo_expected_root_hash "$ROOT")-legacy" foreign-name ''; do
+    dir="$TMP_ROOT/kill-unverified-${name:-empty}"
+    mkdir -p "$dir/responses"
+    paseo_terminal_ls_response "$dir" 1 aaaaaaaa-0000-0000-0000-000000000000 wks_old "$name"
+    fb=$(make_paseo_fakebin "$dir")
+    rc=0
+    PATH="$fb:$PATH" FM_PASEO_LOG="$dir/log" FM_PASEO_RESPONSES="$dir/responses" \
+      bash -c '. "$0/bin/backends/paseo.sh"; fm_backend_paseo_kill "aaaaaaaa-0000-0000-0000-000000000000:wks_old" "" fm-legacy' "$ROOT" \
+      > "$dir/out" 2> "$dir/err" || rc=$?
+    [ "$rc" -ne 0 ] || fail "present unverified Paseo terminal was reported closed: $name"
+    assert_not_contains "$(cat "$dir/log")" $'\x1f''kill' "an unverified terminal must not be killed"
+    assert_not_contains "$(cat "$dir/log")" $'\x1f''archive' "refused cleanup must not retire a workspace"
+  done
+  pass "Paseo cleanup refuses present legacy, foreign and empty terminal identities"
+}
+
 test_kill_keeps_workspace_when_inventory_unreadable() {
   local dir fb
   dir="$TMP_ROOT/kill"
@@ -1180,6 +1198,7 @@ test_composer_state_real_text_is_pending
 test_composer_state_unknown_on_capture_failure
 test_send_text_submit_detects_landed_send
 test_send_text_submit_send_failed_when_target_absent
+test_kill_refuses_present_unverified_terminal
 test_kill_keeps_workspace_when_inventory_unreadable
 test_kill_retires_empty_firstmate_workspace_and_project
 test_kill_retires_workspace_when_tab_already_gone

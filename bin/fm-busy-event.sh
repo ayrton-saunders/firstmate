@@ -14,7 +14,7 @@
 #       the old gen are rejected as stale from then on.
 #
 #   apply <state-dir> <id> <busy|idle|unknown> (--gen G | --current-gen)
-#         --source S --event E [--turn-ended]
+#         --source S --event E [--turn-ended] [--expected-seq N]
 #       Append one lifecycle event: validate the gen against the armed
 #       sidecar, advance seq under the lock, atomically replace the record.
 #       --turn-ended also touches state/<id>.turn-ended, the watcher
@@ -48,7 +48,7 @@ usage() {
   cat >&2 <<'EOF'
 usage:
   fm-busy-event.sh arm <state-dir> <id> [--state busy|idle|unknown] [--source S] [--event E]
-  fm-busy-event.sh apply <state-dir> <id> <busy|idle|unknown> (--gen G | --current-gen) --source S --event E [--turn-ended]
+  fm-busy-event.sh apply <state-dir> <id> <busy|idle|unknown> (--gen G | --current-gen) --source S --event E [--turn-ended] [--expected-seq N]
   fm-busy-event.sh progress <state-dir> <id> --gen G
   fm-busy-event.sh retire <state-dir> <id> (--gen G | --current-gen)
 See the header comment for the full contract.
@@ -79,6 +79,7 @@ USE_CURRENT_GEN=0
 TURN_ENDED=0
 SOURCE=
 EVENT=
+EXPECTED_SEQ=
 if [ "$CMD" = apply ]; then
   NEW_STATE=${1:-}
   case "$NEW_STATE" in busy|idle|unknown) shift ;; *) usage ;; esac
@@ -95,6 +96,12 @@ while [ $# -gt 0 ]; do
     --source) SOURCE=${2:-}; shift 2 || usage ;;
     --event) EVENT=${2:-}; shift 2 || usage ;;
     --turn-ended) [ "$CMD" = apply ] || usage; TURN_ENDED=1; shift ;;
+    --expected-seq)
+      [ "$CMD" = apply ] || usage
+      EXPECTED_SEQ=${2:-}
+      case "$EXPECTED_SEQ" in ''|*[!0-9]*) usage ;; esac
+      shift 2 || usage
+      ;;
     *) usage ;;
   esac
 done
@@ -243,6 +250,12 @@ if [ -f "$REC" ]; then
       esac
       ;;
   esac
+fi
+if [ -n "$EXPECTED_SEQ" ] && [ "$OLD_SEQ" != "$EXPECTED_SEQ" ]; then
+  lock_release
+  umask "$old_umask"
+  echo "error: busy-state sequence changed for $ID (event rejected)" >&2
+  exit 1
 fi
 write_record "$GEN" $((OLD_SEQ + 1)) || {
   lock_release

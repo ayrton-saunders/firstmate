@@ -408,16 +408,17 @@ fm_backend_cmux_surface_exists() {  # <workspace_id> <surface_id>
 # header for the fresh-surface pitfall this avoids). When the caller knows
 # the owning firstmate task label, refresh stale workspace/surface ids by label.
 fm_backend_cmux_target_ready() {  # <target> [expected-label]
-  local expected_label=${2:-} expected_title title wsid sfid
+  local expected_label=${2:-} expected_title title wsid sfid entry
   fm_backend_cmux_parse_target "$1" || return 1
   if [ -n "$expected_label" ]; then
     expected_title=$(fm_backend_cmux_scoped_title "$expected_label")
-    title=$(fm_backend_cmux_cli workspace list --json --id-format uuids 2>/dev/null | jq -r --arg id "$FM_BACKEND_CMUX_WORKSPACE" '.workspaces[]? | select(.id == $id) | .title' 2>/dev/null)
+    entry=$(fm_backend_cmux_cli workspace list --json --id-format uuids 2>/dev/null | jq -c --arg id "$FM_BACKEND_CMUX_WORKSPACE" '.workspaces[]? | select(.id == $id)' 2>/dev/null)
+    title=$(printf '%s' "$entry" | jq -r '.title // empty' 2>/dev/null)
     if [ "$title" = "$expected_title" ]; then
       fm_backend_cmux_surface_exists "$FM_BACKEND_CMUX_WORKSPACE" "$FM_BACKEND_CMUX_SURFACE" && return 0
       wsid=$FM_BACKEND_CMUX_WORKSPACE
-    elif [ -n "$title" ]; then
-      return 1
+    elif [ -n "$entry" ]; then
+      return 2
     else
       wsid=$(fm_backend_cmux_workspace_id_for_label "$expected_title")
       [ -n "$wsid" ] || return 1
@@ -616,9 +617,15 @@ fm_backend_cmux_window_of_workspace() {  # <workspace_id> -> "<window_id> <count
 # leaving that window a fresh default workspace (never an fm-<home>- title, so
 # recovery/list_live ignore it) - cmux's own "closed the last tab" outcome.
 fm_backend_cmux_kill() {  # <target> [unused] [expected-label]
-  local expected_label=${3:-} wsid wininfo win count
+  local expected_label=${3:-} wsid wininfo win count rc
   if [ -n "$expected_label" ]; then
-    fm_backend_cmux_target_ready "$1" "$expected_label" || return 0
+    if fm_backend_cmux_target_ready "$1" "$expected_label"; then
+      :
+    else
+      rc=$?
+      [ "$rc" -ne 2 ] || { echo "error: cmux workspace identity does not match; refusing cleanup" >&2; return 1; }
+      return 0
+    fi
   else
     fm_backend_cmux_parse_target "$1" || return 0
   fi

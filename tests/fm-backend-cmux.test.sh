@@ -979,6 +979,24 @@ test_window_of_workspace_empty_when_not_found() {
 
 # The common case: the task workspace shares its window with at least one other
 # workspace, so cmux closes it directly with no sibling dance.
+test_kill_refuses_present_unverified_workspace() {
+  local dir fb title rc
+  for title in "fm-firstmate-$(cmux_expected_root_hash "$ROOT")-legacy" foreign-title ''; do
+    dir="$TMP_ROOT/kill-unverified-${title:-empty}"
+    mkdir -p "$dir/responses" "$dir/home"
+    cmux_workspace_list_response "$dir" 1 aaaaaaaa-0000-0000-0000-000000000000 "$title"
+    fb=$(make_cmux_fakebin "$dir")
+    rc=0
+    PATH="$fb:$PATH" FM_HOME="$dir/home" FM_CMUX_LOG="$dir/log" FM_CMUX_RESPONSES="$dir/responses" \
+      bash -c '. "$0/bin/backends/cmux.sh"; fm_backend_cmux_kill "aaaaaaaa-0000-0000-0000-000000000000:bbbbbbbb-1111-1111-1111-111111111111" "" fm-legacy' "$ROOT" \
+      > "$dir/out" 2> "$dir/err" || rc=$?
+    [ "$rc" -ne 0 ] || fail "present unverified cmux workspace was reported closed: $title"
+    assert_not_contains "$(cat "$dir/log")" 'close-workspace' "an unverified identity must not be closed"
+    assert_not_contains "$(cat "$dir/log")" 'new-workspace' "refused cleanup must create nothing"
+  done
+  pass "cmux cleanup refuses present legacy, foreign and empty workspace identities"
+}
+
 test_kill_closes_workspace_directly_when_not_last() {
   local dir fb
   dir="$TMP_ROOT/kill-workspace"; mkdir -p "$dir/responses"
@@ -1161,6 +1179,7 @@ test_send_text_submit_popup_autocomplete_requires_second_enter
 test_send_text_submit_send_failed_when_target_absent
 test_window_of_workspace_finds_window_and_count
 test_window_of_workspace_empty_when_not_found
+test_kill_refuses_present_unverified_workspace
 test_kill_closes_workspace_directly_when_not_last
 test_kill_adds_sibling_when_last_in_window
 test_kill_is_best_effort_when_close_workspace_fails
