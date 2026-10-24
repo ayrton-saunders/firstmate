@@ -937,6 +937,46 @@ test_control_exit_after_a_server_stop() {
   pass "fm-control exit on rex: a stopped server goes through the recorded-server absence proof, and refuses when it cannot prove absence"
 }
 
+test_same_code_root_homes_have_distinct_sessions() {
+  local dir home_a home_b out sid_a sid_b bid_a bid_b target_a target_b legacy sid_old bid_old target_old old_label
+  dir=$(new_case same-code-root-homes)
+  home_a="$dir/home-a"; home_b="$dir/home-b"
+  mkdir -p "$home_a/state" "$home_b/state"
+  out=$(rex_env "$dir" "FM_HOME=$home_a" "STATE=$home_a/state" "FM_ROOT_OVERRIDE=$ROOT" \
+    'fm_backend_rex_create_task fm-collision /tmp')
+  read -r sid_a _ bid_a <<< "$out"
+  out=$(rex_env "$dir" "FM_HOME=$home_b" "STATE=$home_b/state" "FM_ROOT_OVERRIDE=$ROOT" \
+    'fm_backend_rex_create_task fm-collision /tmp')
+  read -r sid_b _ bid_b <<< "$out"
+  [ -n "$sid_a" ] && [ -n "$sid_b" ] || fail "both homes must create a session"
+  assert_not_equals "$sid_a" "$sid_b" "same-code-root homes must not adopt each other's Rex session"
+  target_a="${sid_a#session:}:${bid_a#block:}"
+  target_b="${sid_b#session:}:${bid_b#block:}"
+  out=$(rex_env "$dir" "FM_HOME=$home_b" "STATE=$home_b/state" 'fm_backend_rex_list_live')
+  assert_equals "$target_b"$'\t''fm-collision' "$out" "Rex discovery must exclude the other home"
+  assert_not_equals "$target_a" "$target_b" "homes must have distinct immutable targets"
+  old_label=$(rex_env "$dir" "FM_HOME=$ROOT" 'fm_backend_rex_home_label')
+  legacy=$(fake_rex "$dir" new "$old_label" --window fm-legacy --cwd /tmp --json)
+  sid_old=$(printf '%s' "$legacy" | jq -r .session_id)
+  bid_old=$(printf '%s' "$legacy" | jq -r '.initial_windows[0].block_ids[0]')
+  target_old="${sid_old#session:}:${bid_old#block:}"
+  rex_env "$dir" "FM_HOME=$home_b" "STATE=$home_b/state" \
+    "fm_backend_rex_send_literal '$target_old' recorded-identity fm-legacy" \
+    || fail "an existing recorded immutable Rex identity must remain usable"
+  assert_equals recorded-identity "$(cat "$dir/fake/sent")" "recorded-ID steering must reach only that block"
+  rex_env "$dir" "FM_HOME=$home_b" "STATE=$home_b/state" \
+    'fm_backend_rex_send_literal ffffffff-0000-7000-8000-000000000000:eeeeeeee-0000-7000-8000-000000000000 wrong fm-collision' 2>/dev/null \
+    && fail "a missing Rex identity must not recover another home's equal task label"
+  assert_equals recorded-identity "$(cat "$dir/fake/sent")" "missing identity must not send anything"
+  rex_env "$dir" "FM_HOME=$home_b" "STATE=$home_b/state" "fm_backend_rex_kill '$target_b'" \
+    || fail "home B must reclaim its own recorded block"
+  assert_equals 2 "$(state_json "$dir" '.sessions | length')" "home B retirement must retain A and the legacy session"
+  fake_rex "$dir" block close -s "$sid_old" "$bid_old"
+  rex_env "$dir" "FM_HOME=$home_b" "STATE=$home_b/state" "fm_backend_rex_retire_session '$sid_old'"
+  assert_equals 2 "$(state_json "$dir" '.sessions | length')" "an empty legacy session must not be claimed for retirement"
+  pass "Rex same-code-root homes isolate session adoption, discovery and retirement while preserving recorded immutable IDs"
+}
+
 test_list_live_scopes_to_this_home() {
   local dir out sid bid label
   dir=$(new_case list-live)
@@ -979,6 +1019,7 @@ test_teardown_retires_the_secondmate_session
 test_absence_recheck
 test_control_absence_verdict_reads_rex_meta
 test_control_exit_after_a_server_stop
+test_same_code_root_homes_have_distinct_sessions
 test_list_live_scopes_to_this_home
 test_push_capability_gate
 test_push_blocked_edge_carries_kind_and_message

@@ -103,8 +103,8 @@ paseo_expected_root_hash() { # <root>
   fi
 }
 
-paseo_expected_home_label() { # [home] [root]
-  local home=${1:-$FM_HOME} root=${2:-$ROOT} marker id prefix
+paseo_expected_home_label() { # [home]
+  local home=${1:-$FM_HOME} marker id prefix
   marker="$home/.fm-secondmate-home"
   if [ -f "$marker" ]; then
     id=$(tr -d '[:space:]' <"$marker" 2>/dev/null)
@@ -116,16 +116,16 @@ paseo_expected_home_label() { # [home] [root]
   else
     prefix="firstmate"
   fi
-  printf '%s-%s' "$prefix" "$(paseo_expected_root_hash "$root")"
+  printf '%s-%s' "$prefix" "$(paseo_expected_root_hash "$home")"
 }
 
-paseo_expected_scoped_name() { # <fm-task-label> [home] [root]
-  local label=$1 home=${2:-$FM_HOME} root=${3:-$ROOT} rest
+paseo_expected_scoped_name() { # <fm-task-label> [home]
+  local label=$1 home=${2:-$FM_HOME} rest
   case "$label" in
   fm-*) rest=${label#fm-} ;;
   *) rest=$label ;;
   esac
-  printf 'fm-%s-%s' "$(paseo_expected_home_label "$home" "$root")" "$rest"
+  printf 'fm-%s-%s' "$(paseo_expected_home_label "$home")" "$rest"
 }
 
 paseo_assert_call_order() {
@@ -536,6 +536,63 @@ test_workspace_label_uses_secondmate_prefix() {
 }
 
 # --- target_ready / capture ---------------------------------------------------
+
+test_same_code_root_homes_cannot_cross_route() {
+  local dir home_a home_b name_a name_b old_name fb mode out rc a b
+  dir="$TMP_ROOT/two-home-routing"
+  home_a="$dir/home-a"; home_b="$dir/home-b"
+  mkdir -p "$home_a" "$home_b" "$dir/responses"
+  a=aaaaaaaa-0000-0000-0000-000000000000
+  b=bbbbbbbb-0000-0000-0000-000000000000
+  name_a=$(FM_HOME="$home_a" bash -c '. "$0/bin/backends/paseo.sh"; fm_backend_paseo_scoped_name fm-collision' "$ROOT")
+  name_b=$(FM_HOME="$home_b" bash -c '. "$0/bin/backends/paseo.sh"; fm_backend_paseo_scoped_name fm-collision' "$ROOT")
+  assert_not_equals "$name_a" "$name_b" "same-code-root Paseo homes must have distinct task names"
+  old_name="fm-firstmate-$(paseo_expected_root_hash "$ROOT")-collision"
+  fb=$(make_paseo_fakebin "$dir")
+  for mode in missing-record foreign-record legacy-record own-recovery admission discovery; do
+    rm -f "$dir/responses/"* "$dir/responses/.count" "$dir/log"
+    case "$mode" in
+      legacy-record) paseo_terminal_ls_response "$dir" 1 "$a" wks_a "$old_name" ;;
+      own-recovery|discovery)
+        paseo_terminal_ls_response "$dir" 1 "$a" wks_a "$name_a" "$b" wks_b "$name_b" ;;
+      *) paseo_terminal_ls_response "$dir" 1 "$a" wks_a "$name_a" ;;
+    esac
+    cp "$dir/responses/1.out" "$dir/responses/2.out"
+    cp "$dir/responses/1.out" "$dir/responses/3.out"
+    if [ "$mode" = admission ]; then
+      printf '[]' > "$dir/responses/2.out"
+      printf '{"workspaceId":"wks_b"}' > "$dir/responses/3.out"
+      printf '{"id":"%s"}' "$b" > "$dir/responses/4.out"
+    fi
+    rc=0
+    out=$(PATH="$fb:$PATH" FM_HOME="$home_b" STATE="$home_b/state" FM_STATE_OVERRIDE="$home_b/state" \
+      FM_PASEO_LOG="$dir/log" FM_PASEO_RESPONSES="$dir/responses" \
+      bash -c '. "$0/bin/backends/paseo.sh"
+        case "$1" in
+          missing-record|own-recovery) fm_backend_paseo_send_literal "cccccccc-0000-0000-0000-000000000000:wks_old" instructions fm-collision ;;
+          foreign-record|legacy-record) fm_backend_paseo_send_literal "$2:wks_a" instructions fm-collision ;;
+          admission) fm_backend_paseo_create_task fm-collision /tmp/proj ;;
+          discovery) fm_backend_paseo_list_live ;;
+        esac' "$ROOT" "$mode" "$a") || rc=$?
+    case "$mode" in
+      missing-record|foreign-record|legacy-record)
+        [ "$rc" -ne 0 ] || fail "$mode let home B send into home A or an ambiguous legacy name"
+        assert_not_contains "$(cat "$dir/log")" $'\x1f''send-keys' "$mode must not send any instructions" ;;
+      own-recovery)
+        expect_code 0 "$rc" "home B should recover its own task: $out"
+        assert_contains "$(cat "$dir/log")" $'\x1f''send-keys'$'\x1f'"$b" "recovery must send to home B's terminal"
+        assert_not_contains "$(cat "$dir/log")" $'\x1f''send-keys'$'\x1f'"$a" "recovery must not send to home A" ;;
+      admission)
+        expect_code 0 "$rc" "home A's equal task ID must not prevent admission in B"
+        assert_equals "$b wks_b" "$out" "home B creates its own terminal"
+        assert_contains "$(cat "$dir/log")" "$name_b" "admission must use home B's name" ;;
+      discovery)
+        expect_code 0 "$rc" "home B discovery failed"
+        assert_equals "$b:wks_b"$'\t''fm-collision' "$out" "discovery must exclude home A" ;;
+    esac
+  done
+  pass "Paseo same-code-root homes isolate admission, recovery, steering and discovery; ambiguous legacy names refuse"
+}
 
 test_target_ready_fails_when_target_absent() {
   local dir fb status
@@ -974,7 +1031,7 @@ test_list_live_filters_by_name_prefix() {
   other_root="$dir/other-root"
   mkdir -p "$other_root"
   name=$(paseo_expected_scoped_name fm-task1)
-  other_name=$(paseo_expected_scoped_name fm-task2 "$FM_HOME" "$other_root")
+  other_name=$(paseo_expected_scoped_name fm-task2 "$other_root")
   paseo_terminal_ls_response "$dir" 1 \
     "aaaaaaaa-0000-0000-0000-000000000000" "wks_bbbbbbbbbbbbbbbb" "$name" \
     "dddddddd-8888-8888-8888-888888888888" "wks_ffffffffffffffff" "$other_name" \
@@ -1106,6 +1163,7 @@ test_create_task_finds_agent_home_workspace
 test_workspace_ensure_adopts_logical_and_physical_cwd
 test_cli_json_keeps_stderr_out_of_parsed_output
 test_workspace_label_uses_secondmate_prefix
+test_same_code_root_homes_cannot_cross_route
 test_target_ready_fails_when_target_absent
 test_target_ready_checks_expected_label
 test_target_ready_rejects_label_mismatch

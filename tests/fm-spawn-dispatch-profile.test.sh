@@ -1123,6 +1123,25 @@ test_opencode2_delivery_gate_fails_when_turn_never_starts() {
   pass "opencode 2 delivery gate fails the spawn when the brief turn never starts"
 }
 
+test_opencode2_raw_launch_preserves_verbatim_escape_hatch() {
+  local rec id=profile-opencode2-raw-z8r enter_log out launch raw
+  rec=$(make_spawn_case profile-opencode2-raw opencode "$id")
+  read_case_record "$rec"
+  enter_log="$CASE_DIR/enter.log"
+  : > "$enter_log"
+  raw="opencode --prompt 'verbatim raw instructions'"
+  out=$(FM_TEST_OPENCODE_TURN=never FM_TEST_ENTER_LOG="$enter_log" FM_OPENCODE_DELIVERY_POLLS=2 \
+    run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR" "$raw")
+  expect_code 0 "$?" "raw OpenCode 2 must not wait for canonical standalone plugin proof: $out"
+  launch=$(cat "$LAUNCH_LOG")
+  [ "$launch" = "export COMPACT_ADVISER_DISABLE=1; $(task_inbox_export "$HOME_DIR" "$id")$(fm_test_launch_git_prefix "$launch")env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI $raw" ] \
+    || fail "raw OpenCode launch was rewritten: $launch"
+  assert_equals 1 "$(wc -l < "$enter_log" | tr -d ' ')" "raw launch must receive no delivery-gate Enter"
+  assert_not_contains "$(cat "$HOME_DIR/state/$id.status")" 'did not start the brief turn' "raw launch must not be marked failed by the canonical delivery gate"
+  assert_meta_profile "$HOME_DIR/state/$id.meta" opencode default default
+  pass "raw OpenCode 2 instructions launch verbatim without a template-dependent delivery gate"
+}
+
 test_opencode1_launch_has_no_delivery_gate() {
   local rec id=profile-opencode1-gate-z8d enter_log
   rec=$(make_spawn_case profile-opencode1-gate opencode "$id")
@@ -2754,6 +2773,7 @@ test_opencode2_delivery_gate_submits_prefilled_brief_once
 test_opencode2_delivery_gate_waits_out_unknown_composer_for_pending
 test_opencode2_delivery_gate_sends_enter_at_deadline_when_unknown
 test_opencode2_delivery_gate_fails_when_turn_never_starts
+test_opencode2_raw_launch_preserves_verbatim_escape_hatch
 test_opencode1_launch_has_no_delivery_gate
 test_opencode_busy_plugin_provisioned_for_every_major
 test_native_effort_validator_keeps_axes_separate
