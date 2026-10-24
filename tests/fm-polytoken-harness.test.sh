@@ -991,12 +991,14 @@ test_polytoken_interrupt_close_is_conditional_on_its_snapshot() {
     state="$dir/state"
     gen=$("$ROOT/bin/fm-busy-event.sh" arm "$state" task) || fail "race fixture did not arm"
     out=$(
+      # shellcheck disable=SC2329 # Invoked indirectly by fm_polytoken_interrupt_task.
       fm_polytoken_interrupt() {
         if [ "$mode" = rearm-during-cancel ]; then
           "$ROOT/bin/fm-busy-event.sh" arm "$state" task >/dev/null || return 1
         fi
         printf cancelled
       }
+      # shellcheck disable=SC2329 # Invoked indirectly by fm_polytoken_interrupt_task.
       fm_polytoken_turn_settled() {
         if [ "$mode" = prompt-after-sync ]; then
           "$ROOT/bin/fm-busy-event.sh" apply "$state" task busy --current-gen \
