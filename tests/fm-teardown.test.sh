@@ -2810,7 +2810,7 @@ test_secondmate_pr_ready_line_waits_for_green_when_opted_in() {
 # with text around the report, while one naming a PR whose number merely
 # starts with this PR's number does not.
 test_secondmate_pr_ready_line_follows_green_report_with_trailing_text() {
-  local case_dir channel url pr_head
+  local case_dir channel url pr_head note
   url=https://github.com/example/repo/pull/7
   case_dir=$(make_case mate-pr-ready-green-text)
   configure_secondmate_home "$case_dir" local "$case_dir/parent"
@@ -2832,7 +2832,20 @@ test_secondmate_pr_ready_line_follows_green_report_with_trailing_text() {
   [ ! -e "$channel" ] || ! grep -q 'child-pr-task-x1' "$channel" \
     || fail "mate-pr-ready-green-text: a report naming PR 70 released PR 7's ready line"
 
-  printf 'done [at=2]: PR %s checks green, held for captain merge.\n' "$url" >> "$case_dir/state/task-x1.status"
+  for note in \
+    "PR https://github.com/example/repo/pull/8 checks green; replacement $url still pending" \
+    "Replacement $url still pending; PR https://github.com/example/repo/pull/8 checks green" \
+    "PR $url checks pending; other checks green" \
+    "PR ${url}0 checks green; replacement $url still pending"; do
+    printf 'done [at=2]: %s\n' "$note" >> "$case_dir/state/task-x1.status"
+    run
+    [ ! -e "$channel" ] || ! grep -q 'child-pr-task-x1' "$channel" \
+      || fail "mate-pr-ready-green-text: an unrelated green clause released this PR: $note"
+    ! grep -q '^actionable:' "$case_dir/pr-check.err" \
+      || fail "mate-pr-ready-green-text: a withheld mixed-URL report caused a channel error"
+  done
+
+  printf 'done [at=3]: Verified: PR %s checks green, held for captain merge; replacement https://github.com/example/repo/pull/8 pending.\n' "$url" >> "$case_dir/state/task-x1.status"
   run
   assert_grep "done [key=child-pr-task-x1]: child task-x1 PR ready: $url mode=no-mistakes" <(sed -E 's/ \[at=[0-9]+\]//' "$channel") \
     "mate-pr-ready-green-text: a checks-green report with trailing text did not release the ready line"
