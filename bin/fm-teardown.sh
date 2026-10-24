@@ -1475,15 +1475,15 @@ meta_value() {
 # Remove only Polytoken's firstmate-generated worktree wiring, as named by
 # fm_control_harness_wiring_paths. Its tracked hook and facet layers belong to
 # the project. Other harnesses retain their existing worktree-return cleanup.
-remove_harness_worktree_wiring() {  # <worktree>
-  local wt=$1 path
-  [ "$(meta_value "$META" harness)" = polytoken ] || return 0
+remove_harness_worktree_wiring() {
+  local wt=$1 meta=$2 state=$3 id=$4 path
+  [ "$(meta_value "$meta" harness)" = polytoken ] || return 0
   while IFS= read -r path; do
     case "$path" in "$wt"/*) ;; *) continue ;; esac
     git -C "$wt" ls-files --error-unmatch -- "$path" >/dev/null 2>&1 && continue
     rm -f "$path"
   done <<EOF
-$(fm_control_harness_wiring_paths "$(meta_value "$META" harness)" "$wt" "$STATE" "$ID")
+$(fm_control_harness_wiring_paths "$(meta_value "$meta" harness)" "$wt" "$state" "$id")
 EOF
 }
 
@@ -3421,6 +3421,7 @@ cleanup_firstmate_home_children() {
     elif [ "$child_backend" = orca ]; then
       if [ -n "$child_wt" ] && [ -d "$child_wt" ]; then
         validate_child_worktree_for_removal "$child_wt" "$child_proj" >/dev/null || return 1
+        remove_harness_worktree_wiring "$child_wt" "$child_meta" "$sub_state" "$child_id" || return 1
         rm -f "$child_wt/.claude/settings.local.json" "$child_wt/.opencode/plugins/fm-turn-end.js" \
           "$child_wt/.fm-grok-turnend" "$child_wt/.fm-kimi-turnend"
       fi
@@ -3440,6 +3441,7 @@ cleanup_firstmate_home_children() {
         require_owned_worktree_slot_record "$child_id" "$child_wt" || return 1
       else
         validate_child_worktree_for_removal "$child_wt" "$child_proj" >/dev/null || return 1
+        remove_harness_worktree_wiring "$child_wt" "$child_meta" "$sub_state" "$child_id" || return 1
         rm -f "$child_wt/.claude/settings.local.json" "$child_wt/.opencode/plugins/fm-turn-end.js" \
           "$child_wt/.opencode/plugins/fm-busy-state.js" \
           "$child_wt/.fm-grok-turnend" "$child_wt/.fm-kimi-turnend"
@@ -3763,7 +3765,7 @@ if [ "$BACKEND" = orca ] && [ "$KIND" != secondmate ]; then
     rm -f "$WT/.claude/settings.local.json" "$WT/.opencode/plugins/fm-turn-end.js" \
       "$WT/.opencode/plugins/fm-busy-state.js" \
       "$WT/.fm-grok-turnend" "$WT/.fm-kimi-turnend"
-    remove_harness_worktree_wiring "$WT"
+    remove_harness_worktree_wiring "$WT" "$META" "$STATE" "$ID"
   fi
   if [ -n "$T_ORCA" ]; then
     fm_backend_kill "$BACKEND" "$T" "$(meta_value "$META" zellij_tab_id)" "fm-$ID" \
@@ -3782,7 +3784,7 @@ elif [ -d "$WT" ] && [ "$KIND" != secondmate ]; then
   # Remove our hook file so a reused pool worktree cannot fire signals for a dead task.
   rm -f "$WT/.claude/settings.local.json" "$WT/.opencode/plugins/fm-turn-end.js" \
     "$WT/.fm-grok-turnend" "$WT/.fm-kimi-turnend"
-  remove_harness_worktree_wiring "$WT"
+  remove_harness_worktree_wiring "$WT" "$META" "$STATE" "$ID"
   # Kills remaining processes in the worktree (including the agent), resets, returns
   # to pool. treehouse resolves the pool from the working directory, so run it from
   # the project. teardown_treehouse_return tolerates transient and stale git locks

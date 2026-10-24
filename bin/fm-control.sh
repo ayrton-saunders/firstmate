@@ -179,6 +179,7 @@ DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 . "$SCRIPT_DIR/fm-busy-lib.sh"
 # shellcheck source=bin/fm-control-lib.sh
 . "$SCRIPT_DIR/fm-control-lib.sh"
+. "$SCRIPT_DIR/fm-codex-config-lib.sh"
 # shellcheck source=bin/fm-polytoken-lib.sh
 . "$SCRIPT_DIR/fm-polytoken-lib.sh"
 # shellcheck source=bin/fm-pr-lib.sh
@@ -938,6 +939,7 @@ relaunch_rollback() {
 }
 
 resolve_relaunch_profile() {
+  fm_codex_resolve_modes "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}" || return 1
   PRIOR_HARNESS=$HARNESS
   PRIOR_RECORDED_HARNESS=$RECORDED_HARNESS
   PRIOR_MODEL=$(fm_meta_get "$META" model)
@@ -1043,6 +1045,7 @@ resolve_relaunch_profile() {
         | grep -qxF "$(fm_polytoken_facet_file "$WT")"; then
       fm_polytoken_require_facet_free "$WT" || return 1
     fi
+    fm_polytoken_config_source >/dev/null || return 1
   fi
   # Likewise config/crew-exclude-tools: a malformed file, or a replacement
   # runtime that cannot hide the listed tools, refuses here, before the old

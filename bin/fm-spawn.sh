@@ -741,57 +741,8 @@ case "$CLAUDE_PERMISSION_MODE" in
 auto) CLAUDE_PERM_FLAG='--permission-mode auto' ;;
 *) CLAUDE_PERM_FLAG='--dangerously-skip-permissions' ;;
 esac
-if ! CODEX_APPROVAL_PRESENT=$(fm_config_source_present "$CONFIG/codex-approval-mode"); then
-  exit 1
-fi
-CODEX_APPROVAL_MODE=bypass
-if [ "$CODEX_APPROVAL_PRESENT" = 1 ]; then
-  if [ ! -f "$CONFIG/codex-approval-mode" ] || [ ! -r "$CONFIG/codex-approval-mode" ]; then
-    echo "error: config/codex-approval-mode must be a readable regular file holding one of: bypass, approve-for-me" >&2
-    exit 1
-  fi
-  if ! CODEX_APPROVAL_MODE=$(perl -0777 -pe 's/\A\s+|\s+\z//g' <"$CONFIG/codex-approval-mode"); then
-    echo 'error: could not read config/codex-approval-mode' >&2
-    exit 1
-  fi
-  case "$CODEX_APPROVAL_MODE" in
-    bypass | approve-for-me) ;;
-    *)
-      echo "error: config/codex-approval-mode holds '$CODEX_APPROVAL_MODE'; accepted values are: bypass (the default), approve-for-me" >&2
-      exit 1
-      ;;
-  esac
-fi
-case "$CODEX_APPROVAL_MODE" in
-  approve-for-me) CODEX_APPROVAL_FLAG='--approve-for-me' ;;
-  *) CODEX_APPROVAL_FLAG='--dangerously-bypass-approvals-and-sandbox' ;;
-esac
-# Resolve the opt-in Codex posture before any spawn or relaunch mutation.
-# docs/configuration.md owns config/codex-permission-mode and its limits.
-CODEX_PERMISSION_MODE=bypass
-if ! CODEX_PERM_PRESENT=$(fm_config_source_present "$CONFIG/codex-permission-mode"); then
-  exit 1
-fi
-if [ "$CODEX_PERM_PRESENT" = 1 ]; then
-  if [ ! -f "$CONFIG/codex-permission-mode" ] || [ ! -r "$CONFIG/codex-permission-mode" ]; then
-    echo "error: config/codex-permission-mode must be a readable regular file holding bypass or restricted" >&2
-    exit 1
-  fi
-  CODEX_PERMISSION_MODE=$(cat "$CONFIG/codex-permission-mode") || exit 1
-  case "$CODEX_PERMISSION_MODE" in
-  bypass | restricted) ;;
-  *)
-    echo "error: config/codex-permission-mode must contain bypass or restricted" >&2
-    exit 1
-    ;;
-  esac
-fi
-# Restricted replaces whichever approval flag was selected above, and the task
-# record reports it so approval failover never treats the launch as bypass.
-if [ "$CODEX_PERMISSION_MODE" = restricted ]; then
-  CODEX_APPROVAL_MODE=restricted
-  CODEX_APPROVAL_FLAG='--sandbox workspace-write --ask-for-approval on-request'
-fi
+. "$SCRIPT_DIR/fm-codex-config-lib.sh"
+fm_codex_resolve_modes "$CONFIG" || exit 1
 # config/lavish-axi-host is the primary-owned per-machine address for the
 # shared Lavish server. Read it once per launch and refuse malformed values so
 # every worker reaches the same server instead of starting a second one.

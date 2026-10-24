@@ -154,13 +154,19 @@ fm_polytoken_shell_quote() {
 # bypasses while still honoring deny rules); every other value, including an
 # absent key, becomes `bypass`. A missing or unreadable global config refuses
 # rather than launching a worker with no models or credentials.
+fm_polytoken_config_source() {
+  local source
+  source="$(fm_polytoken_global_config_dir)/config.yaml"
+  if [ ! -f "$source" ] || [ ! -r "$source" ] || ! cat "$source" >/dev/null; then
+    echo "error: polytoken global config '$source' is missing or unreadable; a polytoken worker needs the operator's providers and credentials mirrored into its per-task config dir" >&2
+    return 1
+  fi
+  printf '%s\n' "$source"
+}
+
 fm_polytoken_write_config() {  # <config-dir>
   local cfgdir=$1 source matcher replace
-  source="$(fm_polytoken_global_config_dir)/config.yaml"
-  [ -f "$source" ] || {
-    echo "error: polytoken global config '$source' is missing; a polytoken worker needs the operator's providers and credentials mirrored into its per-task config dir, and none exists to mirror" >&2
-    return 1
-  }
+  source=$(fm_polytoken_config_source) || return 1
   mkdir -p "$cfgdir" || return 1
   chmod 700 "$cfgdir" 2>/dev/null || true
   matcher=$(sed -n 's/^default_permission_matcher:[[:space:]]*//p' "$source" | head -1 | sed 's/[[:space:]]#.*$//' | tr -d "[:space:]\"'")

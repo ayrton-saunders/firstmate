@@ -1645,6 +1645,62 @@ SH
   pass "a dirty return is reported even when a later teardown step refuses"
 }
 
+test_forced_secondmate_child_polytoken_wiring_ownership() {
+  local case_dir home child_wt ownership rc harness
+  for ownership in generated tracked project other-harness; do
+    case_dir=$(make_case "secondmate-polytoken-$ownership")
+    write_meta "$case_dir" local-only secondmate
+    home="$case_dir/secondmate-home"
+    mkdir -p "$home/state" "$home/data" "$home/config" "$home/projects" "$case_dir/pool/6"
+    printf '%s\n' task-x1 > "$home/.fm-secondmate-home"
+    printf 'home=%s\n' "$home" >> "$case_dir/state/task-x1.meta"
+    child_wt="$case_dir/pool/6/repo"
+    git -C "$case_dir/project" worktree add -q -b fm/child-polytoken "$child_wt" main
+    printf '{"worktrees":[{"name":"6","path":"%s"}]}\n' "$child_wt" > "$case_dir/pool/treehouse-state.json"
+    printf '.polytoken/\n' >> "$(git -C "$child_wt" rev-parse --git-path info/exclude)"
+    harness=polytoken
+    [ "$ownership" != other-harness ] || harness=claude
+    fm_write_meta "$home/state/child-polytoken.meta" \
+      "window=firstmate:fm-child-polytoken" "endpoint_task_id=child-polytoken" \
+      "worktree=$child_wt" "project=$case_dir/project" "kind=scout" \
+      "mode=local-only" "harness=$harness"
+    (
+      . "$ROOT/bin/fm-polytoken-lib.sh"
+      fm_polytoken_write_hooks "$child_wt" "$(fm_polytoken_busy_script "$home/state" child-polytoken)"
+      fm_polytoken_write_facet "$child_wt" "$home/state/child-polytoken.inbox"
+    ) || fail "could not generate child wiring"
+    printf 'user-owned facet\n' > "$child_wt/.polytoken/facets/custom.md"
+    if [ "$ownership" = tracked ]; then
+      git -C "$child_wt" add -f .polytoken/hooks.json .polytoken/facets/firstmate-worker.md
+      git -C "$child_wt" -c user.email=t@t -c user.name=t commit -qm "project wiring fixture"
+    elif [ "$ownership" = project ]; then
+      printf '[{"event":"stop","handler":{"bash":"/bin/true"}}]\n' > "$child_wt/.polytoken/hooks.json"
+      printf 'project facet\n' > "$child_wt/.polytoken/facets/firstmate-worker.md"
+    fi
+    cp "$child_wt/.polytoken/hooks.json" "$case_dir/hooks.before"
+    cp "$child_wt/.polytoken/facets/firstmate-worker.md" "$case_dir/facet.before"
+    add_treehouse_clean_fd "$case_dir"
+    rc=0
+    run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    expect_code 0 "$rc" "forced child cleanup failed ($ownership): $(cat "$case_dir/stderr")"
+    assert_absent "$home" "forced cleanup must retire the child home"
+    [ -d "$child_wt" ] || fail "the returned child pool copy must remain available"
+    assert_equals "user-owned facet" "$(cat "$child_wt/.polytoken/facets/custom.md")" "unrelated ignored facet preserved"
+    if [ "$ownership" = generated ]; then
+      assert_absent "$child_wt/.polytoken/hooks.json" "generated child hooks survived pool return"
+      assert_absent "$child_wt/.polytoken/facets/firstmate-worker.md" "generated child facet survived pool return"
+      (
+        . "$ROOT/bin/fm-polytoken-lib.sh"
+        fm_polytoken_require_hooks_free "$child_wt" && fm_polytoken_require_facet_free "$child_wt"
+      ) || fail "returned pool copy must admit another Polytoken task"
+    else
+      cmp "$case_dir/hooks.before" "$child_wt/.polytoken/hooks.json" || fail "non-owned child hooks changed ($ownership)"
+      cmp "$case_dir/facet.before" "$child_wt/.polytoken/facets/firstmate-worker.md" || fail "non-owned child facet changed ($ownership)"
+    fi
+  done
+  pass "forced child pool return retires only owned Polytoken wiring and preserves project bytes"
+}
+
 test_forced_secondmate_child_scout_nested_clone_returns_clean() {
   local case_dir home child_wt rc
   case_dir=$(make_case secondmate-child-nested-clean)
@@ -5677,6 +5733,7 @@ test_scout_nested_clone_returns_with_no_untracked_entries
 test_ship_nested_clone_is_refused_and_bytes_stay
 test_dirty_return_warns_which_slot_was_lost
 test_dirty_return_warns_even_when_a_later_step_refuses
+test_forced_secondmate_child_polytoken_wiring_ownership
 test_forced_secondmate_child_scout_nested_clone_returns_clean
 test_forced_secondmate_dirty_child_return_warns_and_completes
 test_return_that_removes_copy_warns_cannot_verify
