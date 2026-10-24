@@ -192,6 +192,8 @@ case "$cmd:$sub" in
     fi ;;
   kill:)
     has_session "$p0" || notfound "session"
+    [ ! -f "$D/after-kill-endpoint" ] || cp "$D/after-kill-endpoint" "$D/endpoint"
+    [ ! -f "$D/kill-noop" ] || exit 0
     save --arg s "$p0" '.sessions |= map(select(.session_id != $s))' ;;
   *) exit 2 ;;
 esac
@@ -919,6 +921,101 @@ SH
   pass "secondmate recovery binds Rex close and absence to recorded server for bootstrap and watcher paths"
 }
 
+test_afk_cleanup_requires_creation_server() {
+  local action mode dir out before before_state expected record
+  for action in reconcile stop; do
+    for mode in same missing wrong-present wrong-missing legacy empty unreadable kill-noop changed-server; do
+      dir=$(new_case "afk-$action-$mode")
+      rex_env "$dir" "FM_ROOT_OVERRIDE=$ROOT" "FM_STATE_OVERRIDE=$dir/home/state" FM_AFK_LAUNCH_ENTRY=/bin/true '
+        . "$0/bin/fm-afk-launch.sh"
+        fm_afk_launch_create_rex unused rex
+      ' >/dev/null || fail "could not create fake Rex daemon for $action $mode"
+      record="$dir/home/state/.afk-daemon-terminal"
+      assert_equals unix:///fake/rex.sock "$(cut -f4 "$record")" "daemon creation did not record actual server"
+      case "$mode" in
+        missing|wrong-missing) printf '{"sessions":[]}\n' > "$dir/fake/state.json" ;;
+        legacy) cut -f1-3 "$record" > "$record.legacy"; mv "$record.legacy" "$record" ;;
+        empty) cut -f1-3 "$record" | tr -d '\n' > "$record.empty"; printf '\t\n' >> "$record.empty"; mv "$record.empty" "$record" ;;
+        unreadable) : > "$dir/fake/whoami-fail" ;;
+        kill-noop) : > "$dir/fake/kill-noop" ;;
+        changed-server)
+          : > "$dir/fake/kill-noop"
+          printf 'unix:///server-b.sock\n' > "$dir/fake/after-kill-endpoint"
+          ;;
+      esac
+      case "$mode" in
+        wrong-present|wrong-missing) printf 'unix:///server-b.sock\n' > "$dir/fake/endpoint" ;;
+      esac
+      printf 'away\n' > "$dir/home/state/.afk"
+      before=$(cat "$record")
+      before_state=$(state_json "$dir" '.')
+      : > "$dir/fake/log"
+      expected=1
+      case "$mode" in same|missing) expected=0 ;; esac
+      out=$(rex_env "$dir" "FM_ROOT_OVERRIDE=$ROOT" "FM_STATE_OVERRIDE=$dir/home/state" "FM_AFK_TEST_ACTION=$action" '
+        . "$0/bin/fm-afk-launch.sh"
+        daemon_lock_held_by_live_daemon() { return 1; }
+        rc=0
+        fm_afk_launch_"$FM_AFK_TEST_ACTION" || rc=$?
+        printf "rc=%s\n" "$rc"
+      ') || fail "$action $mode fixture failed: $out"
+      assert_contains "$out" "rc=$expected" "$action $mode cleanup result"
+      if [ "$expected" = 0 ]; then
+        [ ! -e "$record" ] || fail "$action $mode left confirmed-gone daemon record"
+        assert_equals 0 "$(state_json "$dir" '.sessions | length')" "$action $mode leaked daemon session"
+      else
+        assert_equals "$before" "$(cat "$record")" "$action $mode replaced or discarded daemon record"
+        assert_equals "$before_state" "$(state_json "$dir" '.')" "$action $mode touched unverified endpoint"
+        case "$mode" in
+          kill-noop|changed-server) ;;
+          *) assert_not_contains "$(cat "$dir/fake/log")" 'rex kill' "$action $mode sent unverified session kill" ;;
+        esac
+      fi
+    done
+  done
+  pass "Rex daemon reconcile and stop require the recorded creation server and preserve ambiguous records"
+}
+
+test_afk_creation_failure_cleanup_is_server_bound() {
+  local mode dir out expected
+  for mode in unreadable send-fail send-wrong readiness-fail readiness-wrong writer-fail; do
+    dir=$(new_case "afk-create-$mode")
+    case "$mode" in
+      unreadable) : > "$dir/fake/whoami-fail" ;;
+      send-fail) : > "$dir/fake/send-fails" ;;
+      send-wrong)
+        printf '%s\n' 'printf "unix:///server-b.sock\\n" > "$1/endpoint"; exit 4' > "$dir/fake/on-send"
+        ;;
+    esac
+    out=$(rex_env "$dir" "FM_ROOT_OVERRIDE=$ROOT" "FM_STATE_OVERRIDE=$dir/home/state" "FM_AFK_TEST_MODE=$mode" FM_AFK_LAUNCH_ENTRY=/bin/true '
+      . "$0/bin/fm-afk-launch.sh"
+      case "$FM_AFK_TEST_MODE" in
+        readiness-fail) fm_afk_launch_wait_ready() { return 1; } ;;
+        readiness-wrong) fm_afk_launch_wait_ready() { printf "unix:///server-b.sock\n" > "$FM_REX_FAKE_DIR/endpoint"; return 1; } ;;
+        writer-fail) fm_afk_launch_record_write() { return 1; } ;;
+      esac
+      rc=0
+      fm_afk_launch_create_rex unused rex || rc=$?
+      printf "rc=%s\n" "$rc"
+    ') || fail "$mode create fixture failed: $out"
+    assert_contains "$out" 'rc=1' "$mode launch must fail"
+    expected=0
+    case "$mode" in
+      send-wrong|readiness-wrong)
+        expected=1
+        assert_equals unix:///fake/rex.sock "$(cut -f4 "$dir/home/state/.afk-daemon-terminal")" "$mode failure lost creation-server record"
+        assert_not_contains "$(cat "$dir/fake/log")" 'rex kill' "$mode cleanup killed on another server"
+        ;;
+      *) [ ! -e "$dir/home/state/.afk-daemon-terminal" ] || fail "$mode retained a confirmed-gone daemon record" ;;
+    esac
+    assert_equals "$expected" "$(state_json "$dir" '.sessions | length')" "$mode cleanup changed wrong server state"
+    if [ "$mode" = unreadable ]; then
+      assert_not_contains "$(cat "$dir/fake/log")" 'rex new' "creation without server identity must refuse before allocating a session"
+    fi
+  done
+  pass "Rex daemon creation records server identity before dispatch and binds all failed-launch cleanup paths"
+}
+
 test_kill_refuses_without_proof() {
   local dir out sid bid
   dir=$(new_case kill-noop)
@@ -1219,6 +1316,8 @@ test_kill_closes_and_retires_per_home_session
 test_kill_never_retires_a_foreign_session
 test_kill_requires_the_recorded_server
 test_secondmate_recovery_requires_recorded_rex_server
+test_afk_cleanup_requires_creation_server
+test_afk_creation_failure_cleanup_is_server_bound
 test_kill_refuses_without_proof
 test_teardown_retires_the_secondmate_session
 test_teardown_keeps_records_when_rex_server_is_unverified
