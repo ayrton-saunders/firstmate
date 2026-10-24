@@ -258,7 +258,7 @@ SH
     if [ "$major" = 2 ]; then expected=C-c; else expected=/exit; fi
     assert_equals "$expected" "$out" "$mode control action must follow its own recorded version"
     out=$(drive_oc_plugin "$WT_DIR/.opencode/plugins/fm-busy-state.js" \
-      "$(oc_status ses_raw idle)" "$(oc_exec_started ses_raw)") || fail "$mode plugin could not execute: $out"
+      "$(oc_status ses_raw busy)" "$(oc_status ses_raw idle)" "$(oc_exec_started ses_raw)") || fail "$mode plugin could not execute: $out"
     out=$(classify opencode "$id" "$HOME_DIR/state")
     if [ "$major" = 2 ]; then expected='busy opencode-plugin'; else expected='idle opencode-plugin'; fi
     assert_equals "$expected" "$out" "$mode plugin must implement the version-selected event protocol"
