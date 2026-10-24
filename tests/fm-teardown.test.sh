@@ -1169,6 +1169,56 @@ test_no_pr_recorded_discovers_merged_pr_by_branch_allows() {
   pass "teardown discovers a merged PR by branch name and tears down when no pr= was ever recorded"
 }
 
+test_branch_discovery_binds_teardown_to_the_publication_base() {
+  local case_dir state head rc expected
+  for state in MERGED OPEN FOREIGN; do
+    case_dir=$(make_case "branch-base-$state")
+    write_meta "$case_dir" no-mistakes ship
+    wt_commit_file "$case_dir" feature.txt unlanded
+    head=$(git -C "$case_dir/wt" rev-parse HEAD)
+    git -C "$case_dir/wt" remote add canonical https://github.com/canonical/repo.git
+    git -C "$case_dir/wt" remote add personal https://github.com/mine/repo.git
+    git -C "$case_dir/wt" config remote.personal.gh-resolved base
+    git -C "$case_dir/wt" config remote.origin.pushurl git@github.com:mine/repo.git
+    cat > "$case_dir/fakebin/gh" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_BOUND_BASE_LOG"
+case "${1:-} ${2:-}" in
+  'pr list')
+    repo=; previous=
+    for arg in "$@"; do
+      [ "$previous" != --repo ] || repo=$arg
+      previous=$arg
+    done
+    if [ "$repo" = github.com/mine/repo ]; then number=7; else number=8; fi
+    printf '[{"number":%s,"headRefName":"fm/task-x1","headRepository":{"name":"repo"},"headRepositoryOwner":{"login":"mine"}}]\n' "$number" ;;
+  'pr view')
+    if [ "$3" = https://github.com/mine/repo/pull/7 ] && [ "$FM_BOUND_BASE_STATE" != FOREIGN ]; then
+      printf '%s\t%s\t%s\n' "$FM_BOUND_BASE_STATE" "$FM_BOUND_BASE_HEAD" https://github.com/mine/repo/pull/7
+    else
+      printf '%s\t%s\t%s\n' MERGED "$FM_BOUND_BASE_HEAD" https://github.com/canonical/repo/pull/8
+    fi ;;
+  *) exit 1 ;;
+esac
+SH
+    chmod +x "$case_dir/fakebin/gh"
+    rc=0
+    GH_REPO=canonical/repo FM_BOUND_BASE_LOG="$case_dir/gh.log" \
+      FM_BOUND_BASE_STATE="$state" FM_BOUND_BASE_HEAD="$head" \
+      run_teardown "$case_dir" > "$case_dir/out" 2> "$case_dir/err" || rc=$?
+    if [ "$state" = MERGED ]; then expected=0; else expected=1; fi
+    expect_code "$expected" "$rc" "$state base binding: $(cat "$case_dir/err")"
+    assert_grep 'pr list --repo github.com/mine/repo ' "$case_dir/gh.log" "teardown discovery must bind its base"
+    assert_grep 'pr view https://github.com/mine/repo/pull/7 ' "$case_dir/gh.log" "teardown must read the discovered number through its full base URL"
+    if [ "$expected" = 1 ]; then
+      assert_refusal_retained_task_state "$case_dir" "$state base binding" "$head"
+    else
+      assert_absent "$case_dir/state/task-x1.meta" "a verified merged personal-base PR must complete teardown"
+    fi
+  done
+  pass 'teardown binds discovery and landing reads to the personal base despite canonical GH_REPO'
+}
+
 test_branch_discovery_requires_unique_publication_head() {
   local case_dir scenario head rc expected
   for scenario in two-forks wrong-only ambiguous wrong-ref; do
@@ -5921,6 +5971,7 @@ test_teardown_retains_v1_journal_when_workspace_query_ambiguous
 test_squash_merged_branch_deleted_allows
 test_squash_merged_pr_allows_when_head_ancestor_of_pr_head
 test_no_pr_recorded_discovers_merged_pr_by_branch_allows
+test_branch_discovery_binds_teardown_to_the_publication_base
 test_branch_discovery_requires_unique_publication_head
 test_squash_merged_pr_allows_replayed_unpushed_patch
 test_merged_pr_with_later_local_commit_refuses

@@ -315,7 +315,7 @@ fm_pr_number_from_branch() (  # <worktree> <branch> [open|closed|all]
   head=$(fm_role_remote_identity "$url" "$wt" nolocal) || return 1
   case "$head" in github.com/*) ;; *) return 1 ;; esac
   fm_pr_url_parse "https://$head/pull/1" || return 1
-  out=$(cd "$wt" && gh pr list --state "$state" --head "$branch" --limit 1000 \
+  out=$(cd "$wt" && gh pr list --repo "$base" --state "$state" --head "$branch" --limit 1000 \
     --json number,headRefName,headRepository,headRepositoryOwner 2>/dev/null) || return 1
   printf '%s' "$out" | jq -ser --arg head "${head#github.com/}" --arg branch "$branch" '
     if length == 1 then .[0] else error("invalid PR response") end

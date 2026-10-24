@@ -181,15 +181,19 @@ read_pr() { # url deadline output-directory -> rest.json gql.json
 }
 
 lookup_branch_pr() { # worktree branch deadline -> url
-  local wt=$1 branch=$2 deadline=$3 left number url
+  local wt=$1 branch=$2 deadline=$3 left number url base
   left=$((deadline - $(date +%s)))
   [ "$left" -gt 0 ] || return 1
   [ "$left" -le 5 ] || left=5
   number=$(fm_run_timed "$left" bash -c '. "$1/fm-pr-lib.sh"; fm_pr_number_from_branch "$2" "$3" open' \
     _ "$SCRIPT_DIR" "$wt" "$branch") || return 1
-  url=$(cd "$wt" && gh_read "$deadline" pr view "$number" --json url -q .url 2>/dev/null) || return 1
+  # shellcheck source=bin/fm-role-lib.sh
+  base=$(. "$SCRIPT_DIR/fm-role-lib.sh"; fm_role_publication_target "$wt") || return 1
+  fm_pr_url_parse "https://$base/pull/$number" && [ "$FM_PR_PROVIDER" = github ] || return 1
+  url=$(cd "$wt" && gh_read "$deadline" pr view "$number" --repo "$base" --json url -q .url 2>/dev/null) || return 1
   fm_pr_url_parse "$url" && [ "$FM_PR_PROVIDER" = github ] || return 1
   [ "$FM_PR_NUMBER" = "$number" ] || return 1
+  [ "$(printf '%s' "$FM_PR_HOST/$FM_PR_PATH" | tr '[:upper:]' '[:lower:]')" = "$base" ] || return 1
   printf '%s\n' "$url"
 }
 

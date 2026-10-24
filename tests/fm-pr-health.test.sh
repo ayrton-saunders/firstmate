@@ -60,8 +60,11 @@ case "$1 $2" in
              ($page | .data.repository.pullRequest.statusCheckRollup.contexts.nodes = $nodes[100:])]
         else . end' ;;
   'pr list')
-    branch=
-    while [ "$#" -gt 0 ]; do [ "$1" != --head ] || branch=$2; shift; done
+    branch=; repo=
+    while [ "$#" -gt 0 ]; do
+      case "$1" in --head) branch=$2 ;; --repo) repo=$2 ;; esac
+      shift
+    done
     if [ -f "$FORGE/branch-barrier-count" ]; then
       : > "$FORGE/branch-arrived-$(printf '%s' "$branch" | tr '/' '_')"
       for attempt in $(seq 1 100); do
@@ -71,8 +74,25 @@ case "$1 $2" in
       [ "$(find "$FORGE" -name 'branch-arrived-*' | wc -l)" -ge "$(cat "$FORGE/branch-barrier-count")" ] || exit 1
     fi
     file="$FORGE/branch-$(printf '%s' "$branch" | tr '/' '_')"
+    if [ -f "$FORGE/bound-base" ] && [ "$repo" != "$(cat "$FORGE/bound-base")" ]; then
+      file="$FORGE/foreign-branch"
+    fi
     if [ -f "$file" ]; then cat "$file"; else printf '[]\n'; fi ;;
   'pr view')
+    if [ -f "$FORGE/bound-base" ] && [[ " $* " = *' --json url '* ]]; then
+      repo=
+      previous=
+      for arg in "$@"; do
+        [ "$previous" != --repo ] || repo=$arg
+        previous=$arg
+      done
+      if [ "$repo" != "$(cat "$FORGE/bound-base")" ] || [ -f "$FORGE/foreign-view" ]; then
+        printf 'https://github.com/canonical/r/pull/%s\n' "$3"
+      else
+        printf 'https://github.com/o/r/pull/%s\n' "$3"
+      fi
+      exit 0
+    fi
     case "$*" in
       *headRefOid,reviewDecision*) model "${3##*/}" | jq '{headRefOid:.head,reviewDecision:""}' ;;
       *) printf 'https://github.com/o/r/pull/%s\n' "$3" ;;
@@ -289,6 +309,46 @@ test_branch_head_identity_is_unique_and_exact() {
       || fail "$scenario: unexpected ownership $out"
   done
   pass 'helper and health require a unique exact head ref and publication repository'
+}
+
+test_branch_base_overrides_ambient_gh_repo() {
+  local home wt response out
+  for response in correct foreign; do
+    home=$(new_home "publication-base-$response")
+    wt="$home/copy"
+    git init -q -b feature "$wt"
+    git -C "$wt" remote add origin https://github.com/canonical/r.git
+    git -C "$wt" remote add personal https://github.com/o/r.git
+    git -C "$wt" config remote.personal.gh-resolved base
+    git -C "$wt" remote add head git@github.com:mine/r.git
+    git -C "$wt" config remote.pushDefault head
+    printf 'github.com/o/r\n' > "$home/forge/bound-base"
+    branch_pr "$home" feature 12 mine
+    jq '.[0].number = 13' "$home/forge/branch-feature" > "$home/forge/foreign-branch"
+    task "$home" worker "worktree=$wt"
+    pr "$home" 12 "$HEAD_A" "$BASE_1" false false
+    pr "$home" 13 "$HEAD_A" "$BASE_1" false false
+    [ "$response" != foreign ] || : > "$home/forge/foreign-view"
+    out=$(GH_REPO=canonical/r with_home "$home" bash -c \
+      '. "$1/bin/fm-pr-lib.sh"; fm_pr_number_from_branch "$2" feature open' _ "$ROOT" "$wt") \
+      || fail "base-bound branch discovery refused"
+    assert_equals 12 "$out" "ambient GH_REPO selected the wrong base's PR"
+    arm "$home"
+    out=$(GH_REPO=canonical/r pass_once "$home")
+    if [ "$response" = correct ]; then
+      assert_contains "$out" 'https://github.com/o/r/pull/12 conflicts' "health must report the resolved base's PR"
+    else
+      [ -z "$out" ] || fail "a foreign numeric-view response was enrolled: $out"
+    fi
+    out=$(with_home "$home" "$ROOT/bin/fm-contributions.sh" owned)
+    printf '%s' "$out" | jq -e --arg response "$response" '
+      if $response == "foreign" then length == 0
+      else length == 1 and .[0].url == "https://github.com/o/r/pull/12" end' >/dev/null \
+      || fail "health enrolled a PR outside the resolved publication base: $out"
+    assert_grep 'pr list --repo github.com/o/r ' "$home/forge/calls.log" "discovery must bind the base selector"
+    assert_grep 'pr view 12 --repo github.com/o/r ' "$home/forge/calls.log" "numeric health reads must bind the base selector"
+  done
+  pass 'branch discovery and numeric health reads ignore ambient GH_REPO and reject foreign base URLs'
 }
 
 test_legacy_cached_branch_is_reverified_after_remote_and_ref_changes() {
@@ -733,7 +793,7 @@ test_all_owned_pr_reads_start_in_one_wave() {
 }
 
 failures=0
-for test_name in test_branch_head_identity_is_unique_and_exact \
+for test_name in test_branch_head_identity_is_unique_and_exact test_branch_base_overrides_ambient_gh_repo \
   test_legacy_cached_branch_is_reverified_after_remote_and_ref_changes \
   test_recorded_pr_overrides_legacy_branch_uncertainty \
   test_personal_fork_base_ignores_canonical_read_remote \

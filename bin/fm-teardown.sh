@@ -1661,11 +1661,15 @@ EOF
 # PR head, no PR is found, or any forge read error occurs - the caller then
 # falls back to the content check.
 pr_is_merged() {
-  local branch=$1 target view state remainder head resolved_url current landed=0
+  local branch=$1 target view state remainder head resolved_url current base landed=0
   if [ -n "$PR_URL" ]; then
     target=$PR_URL
   else
     target=$(fm_pr_number_from_branch "$WT" "$branch") || return 1
+    # shellcheck source=bin/fm-role-lib.sh
+    base=$(. "$SCRIPT_DIR/fm-role-lib.sh"; fm_role_publication_target "$WT") || return 1
+    target="https://$base/pull/$target"
+    fm_pr_url_parse "$target" && [ "$FM_PR_PROVIDER" = github ] || return 1
   fi
   [ -n "$target" ] || return 1
   if fm_pr_url_parse "$target" && [ "$FM_PR_PROVIDER" = forgejo ]; then
@@ -1688,6 +1692,9 @@ pr_is_merged() {
     esac
   fi
   [ -n "$head" ] || return 1
+  if [ -z "$PR_URL" ]; then
+    [ "$(printf '%s' "$resolved_url" | tr '[:upper:]' '[:lower:]')" = "$target" ] || return 1
+  fi
   ensure_commit_object "$target" "$head" || return 1
   current=$(git -C "$WT" rev-parse --verify HEAD 2>/dev/null) || return 1
   if git -C "$WT" merge-base --is-ancestor "$current" "$head" 2>/dev/null; then
