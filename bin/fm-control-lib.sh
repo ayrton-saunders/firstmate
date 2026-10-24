@@ -510,10 +510,18 @@ fm_control_harness_wiring_paths() {  # <harness> <worktree> <state-dir> <id> [ki
     # inbox); a project's own hook layer or facet is never firstmate's to
     # retire.
     polytoken)
-      if grep -qsF "/$id.polytoken-busy.sh" "$wt/.polytoken/hooks.json"; then
+      if ! declare -F fm_polytoken_destination_contained >/dev/null; then
+        # shellcheck source=bin/fm-polytoken-lib.sh
+        . "${BASH_SOURCE[0]%/*}/fm-polytoken-lib.sh" || return 1
+      fi
+      if [ ! -L "$wt/.polytoken/hooks.json" ] \
+        && fm_polytoken_destination_contained "$wt" "$wt/.polytoken/hooks.json" \
+        && grep -qsF "/$id.polytoken-busy.sh" "$wt/.polytoken/hooks.json"; then
         printf '%s\n' "$wt/.polytoken/hooks.json"
       fi
-      if grep -qsF "/$id.inbox" "$wt/.polytoken/facets/firstmate-worker.md"; then
+      if [ ! -L "$wt/.polytoken/facets/firstmate-worker.md" ] \
+        && fm_polytoken_destination_contained "$wt" "$wt/.polytoken/facets/firstmate-worker.md" \
+        && grep -qsF "/$id.inbox" "$wt/.polytoken/facets/firstmate-worker.md"; then
         printf '%s\n' "$wt/.polytoken/facets/firstmate-worker.md"
       fi
       printf '%s\n' "$state/$id.polytoken-busy.sh"

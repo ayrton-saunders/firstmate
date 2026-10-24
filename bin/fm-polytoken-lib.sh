@@ -273,9 +273,27 @@ EOF
   )
 }
 
+fm_polytoken_destination_contained() {
+  local wt=$1 destination=$2 root parent
+  root=$(cd -- "$wt" 2>/dev/null && pwd -P) || return 1
+  parent=$(dirname "$destination")
+  while [ ! -e "$parent" ] && [ ! -L "$parent" ]; do
+    parent=$(dirname "$parent")
+  done
+  parent=$(cd -- "$parent" 2>/dev/null && pwd -P) || return 1
+  case "$parent/" in
+    "$root/"*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
 fm_polytoken_require_facet_free() {
   local facet
   facet=$(fm_polytoken_facet_file "$1") || return 1
+  fm_polytoken_destination_contained "$1" "$facet" || {
+    echo "error: polytoken facet destination is not contained in the worktree: $facet" >&2
+    return 1
+  }
   if [ -e "$facet" ] || [ -L "$facet" ]; then
     echo "error: $facet already exists; a project's own polytoken facet is not firstmate's to clobber" >&2
     return 1
@@ -331,6 +349,10 @@ EOF
 fm_polytoken_require_hooks_free() {  # <worktree>
   local hooks
   hooks=$(fm_polytoken_hooks_file "$1") || return 1
+  fm_polytoken_destination_contained "$1" "$hooks" || {
+    echo "error: polytoken hooks destination is not contained in the worktree: $hooks" >&2
+    return 1
+  }
   if [ -e "$hooks" ] || [ -L "$hooks" ]; then
     echo "error: $hooks already exists; a project's own polytoken hook layer is not firstmate's to clobber, so this task cannot be launched on polytoken into this worktree. Select another harness for this task." >&2
     return 1

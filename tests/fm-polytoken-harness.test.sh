@@ -528,6 +528,73 @@ test_polytoken_config_requires_the_yaml_parser_in_preflight() {
   pass "read-only config preflight requires Ruby YAML before worker shutdown"
 }
 
+test_polytoken_project_destinations_stay_in_the_worktree() {
+  local alias placement dir wt target hooks facet files path
+  for alias in root facets; do
+    for placement in external contained dangling; do
+      dir=$(make_wiring_case "directory-$alias-$placement")
+      wt="$dir/wt"
+      target="$dir/operator"
+      [ "$placement" != contained ] || target="$wt/owned"
+      if [ "$placement" != dangling ]; then mkdir -p "$target"; fi
+      if [ "$alias" = root ]; then
+        [ "$placement" = dangling ] || mkdir -p "$target/facets"
+        ln -s "$target" "$wt/.polytoken"
+      else
+        mkdir -p "$wt/.polytoken"
+        ln -s "$target" "$wt/.polytoken/facets"
+      fi
+      hooks=$(fm_polytoken_hooks_file "$wt")
+      facet=$(fm_polytoken_facet_file "$wt")
+      if [ "$placement" = contained ]; then
+        fm_polytoken_require_hooks_free "$wt" && fm_polytoken_require_facet_free "$wt" \
+          || fail "contained $alias alias must be admitted"
+        fm_polytoken_write_hooks "$wt" "$dir/state/task.polytoken-busy.sh" \
+          && fm_polytoken_write_facet "$wt" "$dir/state/task.inbox" \
+          || fail "contained $alias alias must support generated wiring"
+        files=$(fm_control_harness_wiring_paths polytoken "$wt" "$dir/state" task)
+        assert_contains "$files" "$hooks" "contained hooks stay retirable"
+        assert_contains "$files" "$facet" "contained facet stays retirable"
+      else
+        if fm_polytoken_require_facet_free "$wt" 2>/dev/null \
+          || fm_polytoken_write_facet "$wt" "$dir/state/task.inbox" 2>/dev/null; then
+          fail "$placement $alias alias admitted an escaping facet"
+        fi
+        if [ "$alias" = root ]; then
+          if fm_polytoken_require_hooks_free "$wt" 2>/dev/null \
+            || fm_polytoken_write_hooks "$wt" "$dir/state/task.polytoken-busy.sh" 2>/dev/null; then
+            fail "$placement root alias admitted escaping hooks"
+          fi
+        else
+          fm_polytoken_write_hooks "$wt" "$dir/state/task.polytoken-busy.sh" \
+            || fail "a facets alias must not prevent contained hooks"
+        fi
+        if [ "$placement" = dangling ]; then
+          [ ! -e "$target" ] || fail "admission created the dangling directory target"
+        else
+          [ ! -e "$facet" ] || fail "the refused facet writer changed the operator directory"
+          if [ "$alias" = root ]; then
+            [ ! -e "$hooks" ] || fail "the refused hook writer changed the operator directory"
+            printf '/task.polytoken-busy.sh\n' > "$hooks"
+          fi
+          printf '/task.inbox\n' > "$facet"
+          files=$(fm_control_harness_wiring_paths polytoken "$wt" "$dir/state" task)
+          assert_not_contains "$files" "$facet" "an escaped facet must not be selected for deletion"
+          if [ "$alias" = root ]; then
+            assert_not_contains "$files" "$hooks" "escaped hooks must not be selected for deletion"
+          fi
+          while IFS= read -r path; do [ -z "$path" ] || rm -f -- "$path"; done <<< "$files"
+          assert_equals /task.inbox "$(cat "$facet")" "cleanup must preserve the operator's facet"
+          if [ "$alias" = root ]; then
+            assert_equals /task.polytoken-busy.sh "$(cat "$hooks")" "cleanup must preserve the operator's hooks"
+          fi
+        fi
+      fi
+    done
+  done
+  pass "Polytoken directory aliases preserve external destinations and permit contained wiring"
+}
+
 test_polytoken_facet_writer_preserves_existing_destinations() {
   local case_dir facet kind
   case_dir=$(make_wiring_case facet-ownership)
@@ -1429,6 +1496,7 @@ test_polytoken_write_config_enforces_the_unattended_posture
 test_polytoken_config_uses_yaml_key_and_value_meaning
 test_polytoken_config_parse_admission_preserves_source_and_destination
 test_polytoken_config_requires_the_yaml_parser_in_preflight
+test_polytoken_project_destinations_stay_in_the_worktree
 test_polytoken_facet_writer_preserves_existing_destinations
 test_polytoken_write_facet_carries_the_role_contract_without_a_model_pin
 test_polytoken_busy_writer_dispatches_without_argv_and_never_fails

@@ -742,6 +742,60 @@ SH
   pass "fm-control relaunch: project hooks, facets, and symlinks refuse before stopping the worker"
 }
 
+test_polytoken_directory_escape_refuses_before_stop() {
+  local dir alias prior content out rc hooks facet
+  for alias in root facets; do
+    for prior in claude polytoken; do
+      for content in empty matching; do
+        dir=$(new_case "poly-directory-$alias-$prior-$content" rl-alias)
+        add_ship_task "$dir" rl-alias "$prior"
+        printf '%s' "$prior" > "$dir/fake/command"
+        mkdir -p "$dir/operator/facets"
+        if [ "$alias" = root ]; then
+          ln -s "$dir/operator" "$dir/wt/.polytoken"
+        else
+          mkdir -p "$dir/wt/.polytoken"
+          ln -s "$dir/operator/facets" "$dir/wt/.polytoken/facets"
+        fi
+        hooks="$dir/wt/.polytoken/hooks.json"
+        facet="$dir/wt/.polytoken/facets/firstmate-worker.md"
+        if [ "$content" = matching ]; then
+          printf '/rl-alias.inbox\n' > "$facet"
+          if [ "$alias" = root ]; then printf '/rl-alias.polytoken-busy.sh\n' > "$hooks"; fi
+        fi
+        cp "$dir/home/state/rl-alias.meta" "$dir/meta.before"
+        cat > "$dir/fakebin/polytoken" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  'print models') printf '%s\n' 'zai/glm-5.3-flash' 'zai/glm-5.3-flash(low)' ;;
+  *) exit 1 ;;
+esac
+SH
+        chmod +x "$dir/fakebin/polytoken"
+        rc=0
+        out=$(run_control "$dir" rl-alias relaunch --harness polytoken \
+          --model zai/glm-5.3-flash --effort low --note "replace worker") || rc=$?
+        [ "$rc" -ne 0 ] || fail "$alias/$prior/$content directory escape was admitted"
+        assert_contains "$out" 'not contained in the worktree' "directory refusal must happen at admission: $out"
+        assert_equals "$prior" "$(cat "$dir/fake/command")" "refusal must not stop the running worker"
+        [ ! -s "$dir/fake/literal" ] || fail "directory refusal sent worker input"
+        [ ! -s "$dir/fake/keys" ] || fail "directory refusal sent worker keys"
+        cmp "$dir/meta.before" "$dir/home/state/rl-alias.meta" || fail "directory refusal changed task metadata"
+        if [ "$content" = matching ]; then
+          assert_equals /rl-alias.inbox "$(cat "$facet")" "refusal changed operator facet"
+          if [ "$alias" = root ]; then
+            assert_equals /rl-alias.polytoken-busy.sh "$(cat "$hooks")" "refusal changed operator hooks"
+          fi
+        else
+          [ ! -e "$facet" ] || fail "refusal created an operator facet"
+          [ ! -e "$hooks" ] || fail "refusal created hooks"
+        fi
+      done
+    done
+  done
+  pass "Polytoken parent aliases refuse before stopping either prior harness, even with matching generated content"
+}
+
 test_refused_polytoken_profile_leaves_the_running_agent() {
   local dir out rc config kind
   dir=$(new_case polytokenprofile rl47)
@@ -3079,6 +3133,7 @@ test_relaunch_note_inbox_listing_is_safe_on_empty_inbox
 test_relaunch_requires_a_note_for_a_ship_task
 test_harness_switch_moves_the_record_and_clears_prior_wiring
 test_refused_relaunch_onto_polytoken_keeps_the_project_hook_layer
+test_polytoken_directory_escape_refuses_before_stop
 test_refused_polytoken_profile_leaves_the_running_agent
 test_codex_modes_refuse_before_worker_shutdown
 test_relaunch_from_a_raw_polytoken_launch_keeps_the_project_layers
