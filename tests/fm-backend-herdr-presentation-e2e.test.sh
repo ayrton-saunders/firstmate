@@ -304,6 +304,9 @@ EOF
       "$HERDR_LAB_HELPER" teardown "$HERDR_LAB_SESSION" >/dev/null 2>&1 || true
     LAB_READY=0
   fi
+  # Spawn intentionally makes task hook directories read-only; release only
+  # these owned fixture directories before removing this private test root.
+  [ ! -d "$TMP_ROOT" ] || find "$TMP_ROOT" -type d -name '*.git-hooks' -exec chmod u+w {} +
   rm -rf "$TMP_ROOT"
 }
 trap cleanup_all EXIT
@@ -553,6 +556,47 @@ remember_meta_worktree "$ANCHOR_META" >/dev/null
 FIRSTMATE_WSID=$(grep '^herdr_workspace_id=' "$ANCHOR_META" | cut -d= -f2-)
 [ -n "$FIRSTMATE_WSID" ] || fail "anchor metadata did not record the firstmate workspace"
 
+# Explicit on retries an absent exact old workspace without flattening or
+# adopting a distinct agent-free attempt in the parent workspace.
+printf 'on\n' > "$HOME_DIR/config/herdr-presentation-spaces"
+write_ship_brief "$HOME_DIR" stale-retry 'Absent projected workspace retry fixture.'
+spawn_task stale-retry "$HOME_DIR" "$PROJECT_DIR" > "$TMP_ROOT/stale-first.out" 2> "$TMP_ROOT/stale-first.err" \
+  || fail "initial stale retry projection failed: $(cat "$TMP_ROOT/stale-first.err")"
+STALE_META="$HOME_DIR/state/stale-retry.meta"
+STALE_JOURNAL="$HOME_DIR/state/stale-retry.herdr-presentation"
+STALE_WT=$(remember_meta_worktree "$STALE_META")
+STALE_WS=$(grep '^herdr_workspace_id=' "$STALE_META" | cut -d= -f2-)
+STALE_PANE=$(grep '^herdr_pane_id=' "$STALE_META" | cut -d= -f2-)
+cp "$STALE_JOURNAL" "$TMP_ROOT/stale-original.receipt"
+lab pane close "$STALE_PANE" >/dev/null || fail "could not remove old fixture workspace"
+if lab workspace get "$STALE_WS" >/dev/null 2>&1; then
+  fail "stale fixture workspace still exists"
+fi
+rm "$STALE_META"
+FLAT_ATTEMPT=$(lab tab create --workspace "$FIRSTMATE_WSID" --cwd "$PROJECT_DIR" --label preserved-flat-attempt --no-focus)
+FLAT_ATTEMPT_TAB=$(printf '%s' "$FLAT_ATTEMPT" | jq -r '.result.tab.tab_id')
+if spawn_task stale-retry "$HOME_DIR" "$PROJECT_DIR" > "$TMP_ROOT/stale-retry.out" 2> "$TMP_ROOT/stale-retry.err"; then
+  remember_meta_worktree "$STALE_META" >/dev/null
+  STALE_NEW_WS=$(grep '^herdr_workspace_id=' "$STALE_META" | cut -d= -f2-)
+  [ "$STALE_NEW_WS" != "$FIRSTMATE_WSID" ] && [ "$STALE_NEW_WS" != "$STALE_WS" ] \
+    || fail "explicit on stale receipt retry spawned flat: $(cat "$TMP_ROOT/stale-retry.err")"
+  cmp "$TMP_ROOT/stale-original.receipt" "$HOME_DIR/state/stale-retry.herdr-presentation.quarantine/$(grep '^projection_id=' "$TMP_ROOT/stale-original.receipt" | cut -d= -f2-).receipt" \
+    || fail "retry did not preserve complete original receipt"
+  teardown_task stale-retry "$HOME_DIR" > "$TMP_ROOT/stale-teardown.out" 2> "$TMP_ROOT/stale-teardown.err" \
+    || fail "fresh retry teardown failed: $(cat "$TMP_ROOT/stale-teardown.err")"
+else
+  [ ! -e "$STALE_META" ] || fail "refused retry published worker metadata"
+  if [ -f "$STALE_JOURNAL" ]; then
+    cmp "$TMP_ROOT/stale-original.receipt" "$STALE_JOURNAL" || fail "refused retry changed original receipt"
+  else
+    cmp "$TMP_ROOT/stale-original.receipt" "$HOME_DIR/state/stale-retry.herdr-presentation.quarantine/$(grep '^projection_id=' "$TMP_ROOT/stale-original.receipt" | cut -d= -f2-).receipt" \
+      || fail "refused retry did not retain archived receipt"
+  fi
+fi
+lab tab get "$FLAT_ATTEMPT_TAB" >/dev/null || fail "retry touched distinct flat attempt"
+pass "real Herdr lab: explicit on absent-workspace retry preserves receipt and flat attempt without flat fallback"
+printf 'off\n' > "$HOME_DIR/config/herdr-presentation-spaces"
+
 # The same task id and project run once opted out and once projected, so
 # Treehouse commands and metadata can be compared after normalizing endpoint
 # IDs and the deliberately fresh per-spawn incarnation.
@@ -738,15 +782,11 @@ fi
 : > "$LOCK_CONTENTION_RELEASE"
 wait "$LOCK_CONTENTION_OWNER_PID" || fail "guarded lab presentation lock owner failed"
 LOCK_CONTENTION_OWNER_PID=
-[ "$LOCK_CONTENTION_STATUS" -eq 0 ] \
-  || fail "bounded presentation lock contention did not fall back to a successful flat spawn: $(cat "$TMP_ROOT/lock-contended.err")"
-grep -F "presentation focus lock unavailable; using the ordinary flat layout without projection" "$TMP_ROOT/lock-contended.err" >/dev/null 2>&1 \
-  || fail "bounded presentation lock contention did not warn about flat fallback"
-LOCK_CONTENTION_META="$HOME_DIR/state/lock-contended.meta"
-remember_meta_worktree "$LOCK_CONTENTION_META" >/dev/null
-LOCK_CONTENTION_WSID=$(grep '^herdr_workspace_id=' "$LOCK_CONTENTION_META" | cut -d= -f2-)
-[ "$LOCK_CONTENTION_WSID" = "$FIRSTMATE_WSID" ] \
-  || fail "bounded lock contention did not use the ordinary flat firstmate workspace"
+[ "$LOCK_CONTENTION_STATUS" -ne 0 ] \
+  || fail "explicit-on lock contention silently spawned flat"
+grep -F "refusing flat fallback before tab creation" "$TMP_ROOT/lock-contended.err" >/dev/null 2>&1 \
+  || fail "explicit-on lock contention did not explain refusal"
+[ ! -e "$HOME_DIR/state/lock-contended.meta" ] || fail "refused strict spawn published task metadata"
 [ ! -e "$HOME_DIR/state/lock-contended.herdr-presentation" ] \
   || fail "bounded lock contention published a projection journal"
 LOCK_CONTENTION_CALLS=$(sed -n "$((LOCK_CONTENTION_START + 1)),\$p" "$HERDR_CALL_LOG")
@@ -757,12 +797,9 @@ if printf '%s\n' "$LOCK_CONTENTION_CALLS" | grep -E $'^(workspace\tcreate|pane\t
 fi
 [ "$(wc -l < "$MOVE_CALL_LOG" | tr -d '[:space:]')" = "$LOCK_CONTENTION_MOVE_START" ] \
   || fail "bounded lock contention invoked workspace.move"
-assert_focus_is "$CAPTAIN_FOCUS" "bounded presentation lock flat fallback"
-assert_raw_presentation_mutations_preserved_since "$LOCK_CONTENTION_FOCUS_START" "bounded presentation lock flat fallback"
-teardown_task lock-contended "$HOME_DIR" > "$TMP_ROOT/lock-contended-teardown.out" 2> "$TMP_ROOT/lock-contended-teardown.err" \
-  || fail "flat lock-contention fixture teardown failed: $(cat "$TMP_ROOT/lock-contended-teardown.err")"
-assert_focus_is "$CAPTAIN_FOCUS" "bounded presentation lock flat fallback teardown"
-pass "real Herdr lab: bounded lock contention warns and falls back flat without projection or focus drift"
+assert_focus_is "$CAPTAIN_FOCUS" "bounded presentation lock refusal"
+assert_raw_presentation_mutations_preserved_since "$LOCK_CONTENTION_FOCUS_START" "bounded presentation lock refusal"
+pass "real Herdr lab: explicit-on lock contention refuses before flat tab or worker creation"
 PROJECTION_ORDER_START=$(log_line_count)
 
 [ "$OFF_WT" = "$ON_WT" ] || fail "Treehouse did not reuse the same fixture worktree, so byte comparison is inconclusive"
@@ -1107,7 +1144,10 @@ MULTI_EXPECTED=$(printf '%s\n' \
   || fail "multi-home topology was not owning-parent grouped: $MULTI_LABELS"
 pass "real Herdr lab: primary and two secondmate homes each own a top-level contiguous child block"
 
-# Concurrent cross-home wave under the one session lock.
+# Concurrent cross-home default-preference wave under the one session lock.
+# This compatibility case permits flat fallback; explicit-on refusal is tested
+# separately above and must not silently turn into this default behavior.
+rm "$HOME_DIR/config/herdr-presentation-spaces" "$SECOND_HOME_A/config/herdr-presentation-spaces" "$SECOND_HOME_B/config/herdr-presentation-spaces"
 mkdir -p "$HOME_DIR/data/pcw" "$SECOND_HOME_A/data/acw" "$SECOND_HOME_B/data/bcw"
 write_ship_brief "$HOME_DIR" pcw 'Cross-home concurrent primary.'
 write_ship_brief "$SECOND_HOME_A" acw 'Cross-home concurrent A.'
@@ -1122,6 +1162,9 @@ BCW_PID=$!
 wait "$PCW_PID" || fail "cross-home concurrent primary failed: $(cat "$TMP_ROOT/pcw.err")"
 wait "$ACW_PID" || fail "cross-home concurrent A failed: $(cat "$TMP_ROOT/acw.err")"
 wait "$BCW_PID" || fail "cross-home concurrent B failed: $(cat "$TMP_ROOT/bcw.err")"
+for CONFIG_HOME in "$HOME_DIR" "$SECOND_HOME_A" "$SECOND_HOME_B"; do
+  printf 'on\n' > "$CONFIG_HOME/config/herdr-presentation-spaces"
+done
 remember_meta_worktree "$HOME_DIR/state/pcw.meta" >/dev/null
 remember_meta_worktree "$SECOND_HOME_A/state/acw.meta" >/dev/null
 remember_meta_worktree "$SECOND_HOME_B/state/bcw.meta" >/dev/null
@@ -1160,6 +1203,8 @@ while [ ! -e "$CROSS_LOCK_READY" ] && kill -0 "$CROSS_LOCK_PID" 2>/dev/null; do 
 [ -e "$CROSS_LOCK_READY" ] || fail "could not hold the cross-home session presentation lock"
 mkdir -p "$SECOND_HOME_A/data/aflat"
 write_ship_brief "$SECOND_HOME_A" aflat 'Flat fallback under session lock contention.'
+# The unconfigured preference retains its supported legacy flat fallback.
+rm "$SECOND_HOME_A/config/herdr-presentation-spaces"
 if spawn_task aflat "$SECOND_HOME_A" "$PROJECT_DIR" > "$TMP_ROOT/aflat.out" 2> "$TMP_ROOT/aflat.err"; then
   AFLAT_STATUS=0
 else
@@ -1169,6 +1214,7 @@ fi
 wait "$CROSS_LOCK_PID" || fail "cross-home session lock owner failed"
 [ "$AFLAT_STATUS" -eq 0 ] \
   || fail "cross-home lock contention did not fall back flat: $(cat "$TMP_ROOT/aflat.err")"
+printf 'on\n' > "$SECOND_HOME_A/config/herdr-presentation-spaces"
 grep -F "presentation focus lock unavailable; using the ordinary flat layout without projection" "$TMP_ROOT/aflat.err" >/dev/null 2>&1 \
   || fail "cross-home lock contention did not warn about flat fallback"
 remember_meta_worktree "$SECOND_HOME_A/state/aflat.meta" >/dev/null
@@ -1305,8 +1351,9 @@ teardown_task "$CROSS_RESTART_ID" "$SECOND_HOME_A" > "$TMP_ROOT/cross-restart-te
 "$REAL_TREEHOUSE" return --force "$CROSS_NEW_WT" >/dev/null 2>&1 || true
 pass "real Herdr lab: secondmate restart binding and reclaim stay isolated to the exact child home and parent"
 
-# Two homes recovering concurrently serialize on the named session lock and
-# each replace only their own exact husk.
+# Two homes opting into recovery lock-wait serialize on the named session
+# lock and each replace only their own exact husk. Default bounded refusal
+# under lock contention remains independently tested below.
 PRIMARY_WAVE_ID=resume-wave-primary
 BRAVO_WAVE_ID=resume-wave-bravo
 mkdir -p "$HOME_DIR/data/$PRIMARY_WAVE_ID" "$SECOND_HOME_B/data/$BRAVO_WAVE_ID"
@@ -1329,9 +1376,9 @@ PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" stop "$HERDR_LAB_SESSION" >/dev/
 PATH="$HERDR_ORIGINAL_PATH" "$HERDR_LAB_HELPER" provision "$HERDR_LAB_SESSION" \
   || fail "could not reprovision the isolated session for concurrent recovery"
 CONCURRENT_RECOVERY_FOCUS=$(focus_snapshot)
-spawn_task "$PRIMARY_WAVE_ID" "$HOME_DIR" "$RECOVERY_PROJECT_DIR" > "$TMP_ROOT/primary-wave-resume.out" 2> "$TMP_ROOT/primary-wave-resume.err" &
+spawn_task "$PRIMARY_WAVE_ID" "$HOME_DIR" "$RECOVERY_PROJECT_DIR" --herdr-resume-lock-wait > "$TMP_ROOT/primary-wave-resume.out" 2> "$TMP_ROOT/primary-wave-resume.err" &
 PRIMARY_WAVE_PID=$!
-spawn_task "$BRAVO_WAVE_ID" "$SECOND_HOME_B" "$RECOVERY_PROJECT_DIR" > "$TMP_ROOT/bravo-wave-resume.out" 2> "$TMP_ROOT/bravo-wave-resume.err" &
+spawn_task "$BRAVO_WAVE_ID" "$SECOND_HOME_B" "$RECOVERY_PROJECT_DIR" --herdr-resume-lock-wait > "$TMP_ROOT/bravo-wave-resume.out" 2> "$TMP_ROOT/bravo-wave-resume.err" &
 BRAVO_WAVE_PID=$!
 wait "$PRIMARY_WAVE_PID" || fail "concurrent primary recovery failed: $(cat "$TMP_ROOT/primary-wave-resume.err")"
 wait "$BRAVO_WAVE_PID" || fail "concurrent secondmate recovery failed: $(cat "$TMP_ROOT/bravo-wave-resume.err")"

@@ -2936,11 +2936,15 @@ fm_backend_herdr_projection_reclaim_task() {  # <session> <journal> <task-id> <h
 # fm_backend_herdr_projection_recovery_allows_flat: inspect an existing
 # journal's exact token matches without adopting, reusing, renaming, closing,
 # or deleting anything.
-# Missing matches safely degrade to the normal flat workspace.
-# One or more matches allow flat fallback only when every pane is positively
-# dead or agent-free; a live or unknown pane refuses a duplicate launch.
-fm_backend_herdr_projection_recovery_allows_flat() {  # <session> <journal> <task-id>
-  local session=$1 journal=$2 id=$3 token list wsids count wsid panes pane_ids pane state
+# Missing matches safely degrade to the normal flat workspace unless the
+# optional strict home/meta pair selects explicit-on recovery. Under the
+# caller's task and session locks that path archives a complete absent v2
+# binding before fresh creation, or refuses; it never authorizes flat layout.
+# One or more matches allow legacy flat fallback only when every pane is
+# positively dead or agent-free; a live or unknown pane refuses duplication.
+fm_backend_herdr_projection_recovery_allows_flat() {  # <session> <journal> <task-id> [<strict-home> <meta>]
+  local session=$1 journal=$2 id=$3 strict_home=${4:-} meta=${5:-}
+  local token list wsids count wsid panes pane_ids pane state home archive receipt
   token=$(fm_backend_herdr_projection_journal_token "$journal" "$id") || {
     echo "error: malformed herdr presentation journal for $id; refusing duplicate launch" >&2
     return 1
@@ -2960,6 +2964,50 @@ fm_backend_herdr_projection_recovery_allows_flat() {  # <session> <journal> <tas
   wsids=$(printf '%s' "$list" | jq -r --arg suffix " · p:$token" \
     '.result.workspaces[]? | select((.label | type) == "string" and (.label | endswith($suffix))) | .workspace_id' 2>/dev/null)
   count=$(printf '%s\n' "$wsids" | awk 'NF { n += 1 } END { print n + 0 }')
+  if [ -n "$strict_home" ]; then
+    home=$(fm_backend_herdr_projection_home_identity "$strict_home") || return 1
+    fm_backend_herdr_projection_journal_snapshot "$journal" "$id" || return 1
+    if [ "$FM_BACKEND_HERDR_JOURNAL_VERSION" != 2 ] \
+      || [ "$FM_BACKEND_HERDR_JOURNAL_HOME" != "$home" ] \
+      || [ "$FM_BACKEND_HERDR_JOURNAL_SESSION" != "$session" ]; then
+      echo "error: explicit-on herdr recovery requires an exact same-home/session binding for $id" >&2
+      return 1
+    fi
+    if [ "$count" -eq 0 ] && [ -n "$meta" ] && [ ! -e "$meta" ] && [ ! -L "$meta" ]; then
+      # Token absence alone is not enough: a renamed old workspace is still
+      # foreign/live evidence, not permission to retire its receipt.
+      if ! printf '%s' "$list" | jq -e --arg old "$FM_BACKEND_HERDR_JOURNAL_WORKSPACE_ID" '
+        all(.result.workspaces[]; (.workspace_id | type == "string" and length > 0)
+          and (.label | type == "string") and .workspace_id != $old)
+        and ([.result.workspaces[].workspace_id] | length == (unique | length))
+      ' >/dev/null 2>&1 \
+        || [ "$(fm_backend_herdr_pane_presence_state "$session" "$FM_BACKEND_HERDR_JOURNAL_PANE_ID")" != dead ] \
+        || ! fm_backend_herdr_projection_token_workspace_gone "$session" "$journal" "$id"; then
+        echo "error: explicit-on herdr recovery could not prove the exact old endpoint absent for $id" >&2
+        return 1
+      fi
+      archive="$journal.quarantine"
+      receipt="$archive/$token.receipt"
+      [ ! -L "$archive" ] || return 1
+      (umask 077; mkdir -p "$archive") || return 1
+      [ -d "$archive" ] && [ ! -L "$archive" ] || return 1
+      # Link before unlink, with no overwrite. An interruption retains either
+      # both identical links or the complete archived receipt, never neither.
+      if [ -e "$receipt" ] || [ -L "$receipt" ]; then
+        [ -f "$receipt" ] && [ ! -L "$receipt" ] && cmp -s "$journal" "$receipt" || return 1
+      else
+        ln "$journal" "$receipt" || return 1
+      fi
+      [ ! -e "$meta" ] && [ ! -L "$meta" ] && cmp -s "$journal" "$receipt" || return 1
+      rm "$journal" || return 1
+      echo "herdr presentation archived exact absent binding for $id; retrying dedicated creation" >&2
+      return 0
+    fi
+    if [ "$count" -ne 1 ] || [ -z "$meta" ] || [ ! -f "$meta" ] || [ -L "$meta" ]; then
+      echo "error: explicit-on herdr recovery has missing or ambiguous identity/metadata for $id; refusing flat fallback" >&2
+      return 1
+    fi
+  fi
   if [ "$count" -eq 0 ]; then
     echo "warning: no exact herdr presentation token match for $id; leaving any stale space untouched and spawning flat" >&2
     return 0

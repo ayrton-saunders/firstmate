@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 # Behavior tests for bin/fm-herdr-lab.sh using a stateful fake Herdr client.
 set -u
+# This suite uses only fake Herdr metadata; ambient live protection selection
+# must not change its strict-default baseline fixtures.
+unset FM_HERDR_LAB_PROTECTED_SESSION
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -36,6 +39,13 @@ lab_state=absent
 
 case "$1 ${2:-}" in
   "session list")
+    if [ -f "$state/sessions.json" ]; then
+      jq --arg name "$session" --arg state "$lab_state" '
+        if $state == "absent" or $state == "deleted" then . else
+          .sessions += [{default:false,name:$name,running:($state == "running"),socket_path:("/tmp/" + $name + ".sock")}]
+        end' "$state/sessions.json"
+      exit 0
+    fi
     if [ "$lab_state" = absent ] || [ "$lab_state" = deleted ]; then
       jq -nc --arg socket "$default_socket" '{sessions:[{default:true,name:"default",running:true,socket_path:$socket}]}'
     else
@@ -534,6 +544,49 @@ test_viewer_launcher_refuses_unsafe_arguments() {
   pass "fm-herdr-lab: the viewer launcher refuses unsafe sessions and pidfiles"
 }
 
+test_named_protected_fleet() {
+  local name="fm-lab-named-$$" status=0 mode
+  local fixture="$FAKE_STATE/sessions.json" original="$TMP_ROOT/named-sessions.json"
+  # Recorded session metadata shape: stopped default, named running production.
+  printf '%s\n' '{"sessions":[{"default":true,"name":"default","running":false,"socket_path":"/fleet/default.sock"},{"default":false,"name":"firstmate-personal","running":true,"socket_path":"/fleet/personal.sock"}]}' > "$original"
+  cp "$original" "$fixture"
+  : > "$FAKE_LOG"
+  run_with_fake fm_herdr_lab_prepare "$name" >/dev/null 2>&1 || status=$?
+  expect_code 1 "$status" "unchanged default policy must refuse stopped default"
+  assert_no_grep '^server ' "$FAKE_LOG" "default refusal started a server"
+
+  FM_HERDR_LAB_PROTECTED_SESSION=firstmate-personal run_with_fake fm_herdr_lab_provision "$name" \
+    || fail "explicit named fleet with stopped default must provision"
+  for mode in stopped missing duplicate socket default-changed malformed; do
+    jq --arg mode "$mode" '
+      if $mode == "stopped" then .sessions[1].running = false
+      elif $mode == "missing" then .sessions |= map(select(.name != "firstmate-personal"))
+      elif $mode == "duplicate" then .sessions += [.sessions[1]]
+      elif $mode == "socket" then .sessions[1].socket_path = "/changed.sock"
+      elif $mode == "default-changed" then .sessions[0].running = true
+      else .sessions[1].running = "true" end' "$original" > "$fixture"
+    : > "$FAKE_LOG"
+    status=0
+    FM_HERDR_LAB_PROTECTED_SESSION=firstmate-personal run_with_fake fm_herdr_lab_stop "$name" >/dev/null 2>&1 || status=$?
+    expect_code 1 "$status" "changed/uncertain protected identity must refuse stop: $mode"
+    assert_no_grep '^session (stop|delete) ' "$FAKE_LOG" "unsafe metadata reached destructive operation: $mode"
+  done
+  cp "$original" "$fixture"
+  FM_HERDR_LAB_PROTECTED_SESSION=firstmate-personal run_with_fake fm_herdr_lab_teardown "$name" \
+    || fail "named fleet teardown with unchanged stopped default failed"
+  assert_absent "$TRIPWIRES/$name.fleet-state.json" "named teardown left tripwire"
+
+  # A protected session is forbidden even when it looks like a valid lab name.
+  : > "$FAKE_LOG"
+  status=0
+  FM_HERDR_LAB_PROTECTED_SESSION="$name" run_with_fake fm_herdr_lab_provision "$name" >/dev/null 2>&1 || status=$?
+  expect_code 1 "$status" "protected lab-shaped session must be independently rejected"
+  [ ! -s "$FAKE_LOG" ] || fail "protected target rejection reached Herdr"
+  rm -f "$fixture"
+  pass "fm-herdr-lab: explicit named fleet protects exact identity and stopped default before destruction"
+}
+
+test_named_protected_fleet
 test_refuses_unsafe_names
 test_provision_run_and_guarded_teardown
 test_run_scopes_session_before_double_dash

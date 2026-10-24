@@ -3655,6 +3655,64 @@ test_projection_recovery_is_read_only_and_refuses_live_duplicate_risk() {
   pass "herdr presentation recovery: duplicate-token inspection is read-only and live-agent risk refuses fallback"
 }
 
+test_projection_strict_absent_retry_preserves_receipt() {
+  local dir state home other log resp fb token journal receipt mode status
+  dir="$TMP_ROOT/strict-absent-retry"; state="$dir/state"; home="$dir/home"; other="$dir/other"
+  mkdir -p "$state" "$home" "$other" "$dir/responses"
+  home=$(cd "$home" && pwd -P)
+  log="$dir/log"; resp="$dir/responses"; fb=$(make_herdr_fakebin "$dir")
+  for mode in absent interrupted metadata live duplicate renamed unknown malformed foreign archive-conflict; do
+    rm -f "$state/task-p3.herdr-presentation" "$state/task-p3.meta" "$resp"/*.out "$resp"/*.exit "$resp/.count"
+    : > "$log"
+    token=$(bash -c '
+      . "$0/bin/backends/herdr.sh"
+      token=$(fm_backend_herdr_projection_journal_create "$1" task-p3) || exit 1
+      label=$(fm_backend_herdr_projection_workspace_label task-p3 "$token")
+      fm_backend_herdr_projection_journal_bind "$1/task-p3.herdr-presentation" task-p3 "$2" fmtest w2 w2:t2 w2:p2 w1 firstmate "$label" fm-task-p3 || exit 1
+      printf "%s" "$token"
+    ' "$ROOT" "$state" "$home") || fail "strict retry fixture receipt creation failed"
+    journal="$state/task-p3.herdr-presentation"
+    receipt="$journal.quarantine/$token.receipt"
+    cp "$journal" "$dir/original"
+    printf '%s\n' '{"result":{"workspaces":[{"workspace_id":"w1","label":"firstmate"}]}}' > "$resp/1.out"
+    printf '%s\n' '{"error":{"code":"pane_not_found"}}' > "$resp/2.out"
+    cp "$resp/1.out" "$resp/3.out"
+    case "$mode" in
+      interrupted) mkdir -p "$journal.quarantine"; ln "$journal" "$receipt" ;;
+      metadata) : > "$state/task-p3.meta" ;;
+      live) printf '{"result":{"workspaces":[{"workspace_id":"w2","label":"live · p:%s"}]}}\n' "$token" > "$resp/1.out" ;;
+      duplicate) printf '{"result":{"workspaces":[{"workspace_id":"w2","label":"one · p:%s"},{"workspace_id":"w3","label":"two · p:%s"}]}}\n' "$token" "$token" > "$resp/1.out" ;;
+      renamed) printf '%s\n' '{"result":{"workspaces":[{"workspace_id":"w2","label":"renamed"}]}}' > "$resp/1.out" ;;
+      unknown) printf '%s\n' '{"error":{"code":"read_failed"}}' > "$resp/1.out" ;;
+      malformed) printf '%s\n' '{"result":{"workspaces":[null]}}' > "$resp/1.out" ;;
+      archive-conflict) mkdir -p "$journal.quarantine"; printf 'different\n' > "$receipt" ;;
+    esac
+    status=0
+    PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" \
+      bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_projection_recovery_allows_flat fmtest "$1" task-p3 "$2" "$3"' \
+      "$ROOT" "$journal" "$([ "$mode" = foreign ] && printf '%s' "$other" || printf '%s' "$home")" "$state/task-p3.meta" \
+      > "$dir/$mode.out" 2>&1 || status=$?
+    case "$mode" in
+      absent|interrupted)
+        expect_code 0 "$status" "proven absent retry should archive: $mode"
+        assert_absent "$journal" "archived receipt still blocks fresh create"
+        cmp "$dir/original" "$receipt" || fail "quarantine lost original receipt"
+        status=0
+        PATH="$fb:$PATH" FM_HERDR_LOG="$log" FM_HERDR_RESPONSES="$resp" \
+          bash -c '. "$0/bin/backends/herdr.sh"; fm_backend_herdr_projection_recovery_allows_flat fmtest "$1" task-p3 "$2" "$3"' \
+          "$ROOT" "$journal" "$home" "$state/task-p3.meta" >/dev/null 2>&1 || status=$?
+        expect_code 1 "$status" "repeated retirement must not invent a new endpoint"
+        ;;
+      *) expect_code 1 "$status" "unsafe strict retry must refuse: $mode"
+        cmp "$dir/original" "$journal" || fail "unsafe strict retry changed original receipt: $mode" ;;
+    esac
+    assert_not_contains "$(cat "$log")" $'workspace\x1fcreate' "receipt recovery created a workspace"
+    assert_not_contains "$(cat "$log")" $'tab\x1fcreate' "receipt recovery adopted a flat tab"
+    assert_not_contains "$(cat "$log")" $'pane\x1fclose' "receipt recovery closed an endpoint"
+  done
+  pass "herdr strict retry: exact absence archives complete receipt; interruption converges and uncertain/foreign/live/duplicate identities refuse"
+}
+
 # --- workspace_find: scoped to THIS home's own label, not just any match ----
 
 test_workspace_find_matches_only_this_homes_own_label() {
@@ -6007,6 +6065,7 @@ test_projection_order_rejects_malformed_socket
 test_projection_reclaim_refusal_matrix_is_non_mutating
 test_projection_reclaim_replaces_only_exact_husk_and_advances_binding
 test_projection_recovery_is_read_only_and_refuses_live_duplicate_risk
+test_projection_strict_absent_retry_preserves_receipt
 test_workspace_find_matches_only_this_homes_own_label
 test_list_live_scoped_to_this_homes_workspace_only
 test_parse_target

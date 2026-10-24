@@ -4076,7 +4076,10 @@ else
     fi
     HERDR_PRESENTATION_JOURNAL=$(fm_backend_herdr_projection_journal_path "$STATE" "$ID")
     HERDR_PROJECTED=0
+    HERDR_PRESENTATION_REQUIRED=0
+    HERDR_PRESENTATION_RETRY_FRESH=0
     if [ "$KIND" != secondmate ] && fm_backend_herdr_presentation_enabled "$CONFIG" "$STATE"; then
+      [ "${FM_BACKEND_HERDR_PRESENTATION_PREFERENCE:-default}" != on ] || HERDR_PRESENTATION_REQUIRED=1
       HERDR_SES=$(fm_backend_herdr_session)
       HERDR_PARENT_LABEL=$(FM_HOME="$HERDR_LABEL_HOME" fm_backend_herdr_workspace_label)
       if [ -e "$HERDR_PRESENTATION_JOURNAL" ] || [ -L "$HERDR_PRESENTATION_JOURNAL" ]; then
@@ -4100,8 +4103,14 @@ else
         if [ -e "$STATE/$ID.meta" ] || [ -L "$STATE/$ID.meta" ]; then
           herdr_projection_existing_meta_allows_flat "$STATE/$ID.meta" || exit 1
         fi
-        fm_backend_herdr_projection_recovery_allows_flat \
-          "$HERDR_SES" "$HERDR_PRESENTATION_JOURNAL" "$ID" || exit 1
+        if [ "$HERDR_PRESENTATION_REQUIRED" = 1 ]; then
+          fm_backend_herdr_projection_recovery_allows_flat \
+            "$HERDR_SES" "$HERDR_PRESENTATION_JOURNAL" "$ID" "$HERDR_LABEL_HOME" "$STATE/$ID.meta" || exit 1
+          [ -e "$HERDR_PRESENTATION_JOURNAL" ] || HERDR_PRESENTATION_RETRY_FRESH=1
+        else
+          fm_backend_herdr_projection_recovery_allows_flat \
+            "$HERDR_SES" "$HERDR_PRESENTATION_JOURNAL" "$ID" || exit 1
+        fi
         if [ "${HERDR_RECOVERY_BACKEND:-}" = herdr ]; then
           set +e
           FM_HOME="$HERDR_LABEL_HOME" fm_backend_herdr_projection_reclaim_task \
@@ -4123,14 +4132,20 @@ else
             HERDR_PROJECTION_ABORT_SEEDED_PANE=""
             ;;
           2)
+            if [ "$HERDR_PRESENTATION_REQUIRED" = 1 ]; then
+              echo "error: explicit-on herdr presentation could not reclaim its exact binding; refusing flat fallback" >&2
+              exit 1
+            fi
             spawn_herdr_presentation_order_lock_release
             ;;
           *) exit 1 ;;
           esac
-        else
+        elif [ -e "$HERDR_PRESENTATION_JOURNAL" ] || [ -L "$HERDR_PRESENTATION_JOURNAL" ]; then
           spawn_herdr_presentation_order_lock_release
         fi
-      elif [ ! -e "$STATE/$ID.meta" ] && [ ! -L "$STATE/$ID.meta" ]; then
+      fi
+      if [ "$HERDR_PROJECTED" = 0 ] && [ ! -e "$HERDR_PRESENTATION_JOURNAL" ] \
+        && [ ! -L "$HERDR_PRESENTATION_JOURNAL" ] && [ ! -e "$STATE/$ID.meta" ] && [ ! -L "$STATE/$ID.meta" ]; then
         # Session lock path resolution and exact parent binding both need a
         # live named-session socket before journal publication.
         if ! fm_backend_herdr_server_ensure "$HERDR_SES"; then
@@ -4138,7 +4153,7 @@ else
         elif [ "${FM_BACKEND_HERDR_PRESENTATION_PREFERENCE:-default}" = default ] &&
           ! fm_backend_herdr_presentation_default_supported "$STATE" "$HERDR_SES"; then
           :
-        elif spawn_herdr_presentation_order_lock_acquire "$HERDR_SES"; then
+        elif [ "$HERDR_PRESENTATION_ORDER_LOCK_HELD" = 1 ] || spawn_herdr_presentation_order_lock_acquire "$HERDR_SES"; then
           # The projected child is placed and bound UNDER this launcher's exact
           # parent workspace. Its own herdr pane identity names that workspace
           # directly; the label lookup is only the fallback for a launcher with
@@ -4197,6 +4212,10 @@ else
                 "$HERDR_PARENT_WORKSPACE_ID" "$HERDR_PARENT_LABEL" "$HERDR_PROJECTION_LABEL" "$W"; then
               :
             else
+              if [ "$HERDR_PRESENTATION_RETRY_FRESH" = 1 ]; then
+                echo "error: explicit-on herdr presentation retry could not atomically publish its exact receipt; refusing worker launch" >&2
+                exit 1
+              fi
               echo "warning: herdr presentation could not publish an exact restart binding; this task will use flat fallback after a restart" >&2
             fi
           fi
@@ -4206,6 +4225,10 @@ else
       fi
     fi
     if [ "$HERDR_PROJECTED" -ne 1 ]; then
+      if [ "$HERDR_PRESENTATION_REQUIRED" = 1 ]; then
+        echo "error: explicit-on herdr presentation requires a dedicated workspace; refusing flat fallback before tab creation" >&2
+        exit 1
+      fi
       HERDR_CONTAINER_RAW=$(FM_HOME="$HERDR_LABEL_HOME" fm_backend_herdr_container_ensure "$PROJ_ABS" "$HERDR_LAUNCHER_RELATIONSHIP") || exit 1
       # fm_backend_herdr_container_ensure echoes "<session>:<workspace_id>\t<seeded_default_tab_id>"
       # (the second field empty when this call ADOPTED a pre-existing workspace
