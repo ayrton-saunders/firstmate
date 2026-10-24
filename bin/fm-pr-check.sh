@@ -271,7 +271,7 @@ fm_pr_check_ready_line_waits_for_green() {
   if [ -r "$STATE/$ID.status" ]; then
     while IFS= read -r line || [ -n "$line" ]; do
       status_line_verb "$line" verb
-      [ "$verb" != done ] || latest_done=$line
+      [ "$verb" != 'done' ] || latest_done=$line
     done < "$STATE/$ID.status"
   fi
   note=$(status_line_note "$latest_done")
