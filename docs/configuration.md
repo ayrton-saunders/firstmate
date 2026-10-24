@@ -63,8 +63,8 @@ Other transient consumers retain their existing shell-relative behavior.
 | Backend | Effect of the operational home |
 | --- | --- |
 | herdr | `FM_HOME` determines the adapter's workspace label. |
-| zellij | `FM_HOME` determines the readable home prefix in visible tab titles, but does not split containers; use `FM_ZELLIJ_SESSION` for a separate session; the full home label also includes a short hash of the resolved `FM_ROOT` path. |
-| cmux | `FM_HOME` determines the default config path and readable home prefix in workspace titles; `FM_CONFIG_OVERRIDE` overrides where `config/cmux-socket-password` is read; the full home label also includes a short hash of the resolved `FM_ROOT` path; there is no per-home container split. |
+| zellij | See [Zellij's home isolation](zellij-backend.md#task-shape-and-home-isolation) for label identity and [Zellij sessions](#zellij-sessions) for container selection. |
+| cmux | See [cmux workspaces](#cmux-workspaces) for home-scoped identity and socket configuration. |
 
 ## Operational home layout and state
 
@@ -512,14 +512,14 @@ Use the explicit guarded cleanup path described in [`docs/herdr-backend.md`](her
 ### Zellij sessions
 
 For normal zellij operations, `FM_ZELLIJ_SESSION` selects the named session and defaults to `firstmate`.
-Zellij has no per-home workspace split: primary and secondmate tasks share that one session, and visible tab titles are scoped by the active `FM_HOME` readable label plus a short hash of the resolved `FM_HOME` path as `fm-<home-label>-<id>`.
+[Zellij's task shape and home isolation](zellij-backend.md#task-shape-and-home-isolation) owns shared-session task placement and home-scoped title identity.
 
 Use the guarded cleanup path described in [`docs/zellij-backend.md`](zellij-backend.md) instead of `kill-all-sessions` or `delete-all-sessions`.
 
 ### cmux workspaces
 
 cmux has no session layer at all - one workspace per task, in whatever cmux window is open - and its socket password (when configured) is read from local, gitignored `config/cmux-socket-password` under the effective config directory, never committed.
-The caller-facing label remains `fm-<id>`, but the actual cmux workspace title is scoped by the active `FM_HOME` readable label plus a short hash of the resolved `FM_HOME` path as `fm-<home-label>-<id>`.
+[cmux's task shape and metadata](cmux-backend.md#task-shape-and-metadata) owns home-scoped workspace title identity.
 
 Test cleanup must use the guarded path in [`docs/cmux-backend.md`](cmux-backend.md#current-operation-and-safety), never enumerate-and-close every workspace.
 `config/backend` is inherited into secondmate homes under the primary-authoritative contract owned by [`secondmate-provisioning`](../.agents/skills/secondmate-provisioning/SKILL.md).
@@ -2529,7 +2529,7 @@ Runtime tuning via environment variables (defaults shown):
 
 ```sh
 FM_HOME=                 # optional operational home for most scripts, unset means this repo root; fm-send requires it explicitly
-FM_ROOT_OVERRIDE=        # override firstmate repo root, tangle-guard target, and zellij/cmux home-title hash; also legacy whole-root override when FM_HOME is unset
+FM_ROOT_OVERRIDE=        # override firstmate repo root and tangle-guard target; also legacy whole-root override when FM_HOME is unset; backend title identity follows the operational home (see Backend labels and containers)
 FM_STATE_OVERRIDE=       # alternate state dir, mainly for tests
 FM_DATA_OVERRIDE=        # alternate data dir, mainly for tests
 FM_PROJECTS_OVERRIDE=    # alternate projects dir, mainly for tests

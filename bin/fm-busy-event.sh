@@ -17,6 +17,9 @@
 #         --source S --event E [--turn-ended] [--expected-seq N]
 #       Append one lifecycle event: validate the gen against the armed
 #       sidecar, advance seq under the lock, atomically replace the record.
+#       --expected-seq rejects the event under that same lock unless the
+#       current sequence matches N, so a cancellation close cannot overwrite
+#       a newer lifecycle event from a reopened turn.
 #       --turn-ended also touches state/<id>.turn-ended, the watcher
 #       notification, under the same lock, so a writer whose gen was refused,
 #       or whose incarnation is replaced right after, never signals the
