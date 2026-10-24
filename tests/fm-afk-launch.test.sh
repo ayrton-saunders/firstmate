@@ -419,6 +419,7 @@ unit_mode_refresh_preserves_quiet() {
   lock="$st/state/.supervise-daemon.lock"
   mkdir -p "$lock"
   printf '%s' "$sleep_pid" > "$lock/pid"
+  # shellcheck source=/dev/null
   ( . "$ROOT/bin/fm-wake-lib.sh"; fm_pid_identity "$sleep_pid" > "$lock/pid-identity" 2>/dev/null ) || true
   # The exact real-entry shape: a bare direct re-write with no explicit mode,
   # simulating the terminal-side fm-afk-start.sh redundant write that would
@@ -451,6 +452,7 @@ unit_mode_quiet_daemon_to_away() {
     lock="$st/state/.supervise-daemon.lock"
     mkdir -p "$lock"
     printf '%s' "$sleep_pid" > "$lock/pid"
+    # shellcheck source=/dev/null
     ( . "$ROOT/bin/fm-wake-lib.sh"; fm_pid_identity "$sleep_pid" > "$lock/pid-identity" 2>/dev/null ) || true
 
     FM_HOME="$st" FM_STATE_OVERRIDE="$st/state" FM_SUPERVISOR_TARGET=unused \

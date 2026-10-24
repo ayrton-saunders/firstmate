@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2034 # Resolved mode and flag globals are consumed by launch/control callers.
 
+# shellcheck source=bin/fm-config-inherit-lib.sh
 . "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/fm-config-inherit-lib.sh"
 
 fm_codex_resolve_modes() {

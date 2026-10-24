@@ -251,6 +251,7 @@ SH
     fi
     major=${version%%.*}
     out=$(
+      # shellcheck source=/dev/null
       . "$ROOT/bin/fm-control-lib.sh"
       fm_control_exit_command opencode "$major"
     ) || fail "$mode could not resolve its control action"
