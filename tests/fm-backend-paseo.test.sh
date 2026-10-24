@@ -964,6 +964,59 @@ test_kill_retires_workspace_when_tab_already_gone() {
   pass "fm_backend_paseo_kill: retires the recorded workspace and project when the task tab was already closed"
 }
 
+test_kill_retirement_requires_proven_ownership() {
+  local dir fb path mode scenario agents terminals offset log
+  for mode in normal gone; do
+    for scenario in subdirectory subdirectory-no-owner outside-owned missing-cwd unknown-owner null-owner empty-owner invalid-owner malformed-row malformed-inventory invalid-json unreadable terminal-unknown unrelated; do
+      dir="$TMP_ROOT/retire-ownership-$mode-$scenario"
+      path="$dir/home/projects/demo"
+      mkdir -p "$dir/responses" "$dir/home"
+      offset=1
+      if [ "$mode" = gone ]; then
+        printf '[]' > "$dir/responses/1.out"
+        printf '[]' > "$dir/responses/2.out"
+        offset=2
+      fi
+      jq -n --arg cwd "$path" '[{workspaceId:"wks_ff",name:"firstmate",cwd:$cwd}]' > "$dir/responses/$((offset + 1)).out"
+      terminals='[]'
+      case "$scenario" in
+        subdirectory) agents=$(jq -n --arg cwd "$path/src" '[{workspaceId:"wks_ff",cwd:$cwd}]') ;;
+        subdirectory-no-owner) agents=$(jq -n --arg cwd "$path/src" '[{cwd:$cwd}]') ;;
+        outside-owned) agents='[{"workspaceId":"wks_ff","cwd":"/elsewhere"}]' ;;
+        missing-cwd) agents='[{"workspaceId":"wks_ff"}]' ;;
+        unknown-owner) agents='[{"cwd":"/elsewhere"}]' ;;
+        null-owner) agents='[{"workspaceId":null}]' ;;
+        empty-owner) agents='[{"workspaceId":""}]' ;;
+        invalid-owner) agents='[{"workspaceId":42}]' ;;
+        malformed-row) agents='[null]' ;;
+        malformed-inventory) agents='{}' ;;
+        invalid-json) agents='not json' ;;
+        unreadable) agents='[]'; printf '1' > "$dir/responses/$((offset + 3)).exit" ;;
+        terminal-unknown) terminals='[{"id":"other"}]'; agents='[]' ;;
+        unrelated) agents='[{"workspaceId":"wks_other","cwd":"/elsewhere"}]' ;;
+      esac
+      printf '%s' "$terminals" > "$dir/responses/$((offset + 2)).out"
+      printf '%s' "$agents" > "$dir/responses/$((offset + 3)).out"
+      jq -n --arg path "$path" '[{projectId:"prj_demo",path:$path}]' > "$dir/responses/$((offset + 5)).out"
+      fb=$(make_paseo_fakebin "$dir")
+      PATH="$fb:$PATH" FM_PASEO_LOG="$dir/log" FM_PASEO_RESPONSES="$dir/responses" FM_HOME="$dir/home" STATE="$dir/home/state" FM_STATE_OVERRIDE="$dir/home/state" \
+        bash -c 'unset PASEO_AGENT_ID PASEO_WORKSPACE_ID; . "$0/bin/backends/paseo.sh"; if [ "$1" = gone ]; then fm_backend_paseo_kill "tttttttt-0000-0000-0000-000000000000:wks_ff" "" fm-gone; else fm_backend_paseo_kill "tttttttt-0000-0000-0000-000000000000:wks_ff"; fi' "$ROOT" "$mode"
+      log=$(cat "$dir/log")
+      if [ "$scenario" = unrelated ]; then
+        assert_contains "$log" $'\x1fworkspace\x1farchive\x1fwks_ff' "$mode: proven unrelated ownership must allow retirement"
+        assert_contains "$log" $'\x1fproject\x1fdelete\x1fprj_demo' "$mode: empty workspace must allow project cleanup"
+      else
+        assert_not_contains "$log" $'\x1farchive' "$mode/$scenario: an owning or ambiguous agent must prevent archive"
+        assert_not_contains "$log" $'\x1fdelete' "$mode/$scenario: an owning or ambiguous agent must prevent project deletion"
+      fi
+      if [ "$mode" = gone ]; then
+        assert_not_contains "$log" $'\x1fterminal\x1fkill' "gone-terminal cleanup must not kill another terminal"
+      fi
+    done
+  done
+  pass "Paseo retirement proves agent and terminal ownership before archive and deletion on both close paths"
+}
+
 test_kill_retire_holds_back() {
   local dir ws case_name
   for case_name in sibling-tab human-title agent-in-folder own-workspace; do
@@ -1203,6 +1256,7 @@ test_kill_keeps_workspace_when_inventory_unreadable
 test_kill_retires_empty_firstmate_workspace_and_project
 test_kill_retires_workspace_when_tab_already_gone
 test_kill_retire_holds_back
+test_kill_retirement_requires_proven_ownership
 test_workspace_lock_serializes_spawn_and_retire
 test_kill_is_best_effort_when_terminal_kill_fails
 test_list_live_filters_by_name_prefix

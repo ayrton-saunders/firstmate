@@ -642,10 +642,13 @@ fm_backend_paseo_retire_workspace_locked() { # <workspace_id>
   *) return 0 ;;
   esac
   terminals=$(fm_backend_paseo_cli terminal ls --all --json 2>/dev/null) || return 0
-  printf '%s' "$terminals" | jq -e --arg id "$wsid" 'type == "array" and all(.[]; .workspaceId != $id)' >/dev/null 2>&1 || return 0
+  printf '%s' "$terminals" | jq -e --arg id "$wsid" \
+    'type == "array" and all(.[]; type == "object" and
+      (.workspaceId | type == "string" and length > 0) and .workspaceId != $id)' >/dev/null 2>&1 || return 0
   agents=$(fm_backend_paseo_cli ls --json 2>/dev/null) || return 0
-  printf '%s' "$agents" | jq -e --arg cwd "$cwd" --arg home "$HOME" \
-    'type == "array" and all(.[]; ((.cwd // "") | sub("^~"; $home)) != $cwd)' >/dev/null 2>&1 || return 0
+  printf '%s' "$agents" | jq -e --arg id "$wsid" \
+    'type == "array" and all(.[]; type == "object" and
+      (.workspaceId | type == "string" and length > 0) and .workspaceId != $id)' >/dev/null 2>&1 || return 0
   fm_backend_paseo_cli workspace archive "$wsid" >/dev/null 2>&1 || return 0
   printf '%s' "$list" | jq -e --arg id "$wsid" --arg cwd "$cwd" 'all(.[]; .workspaceId == $id or .cwd != $cwd)' >/dev/null 2>&1 || return 0
   projects=$(fm_backend_paseo_cli project ls --json 2>/dev/null) || return 0

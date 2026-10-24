@@ -265,6 +265,46 @@ ROWS
   pass "D2 malformed config/secondmate-harness refuses with its line number on every read verb"
 }
 
+test_secondmate_pin_path_access() {
+  local dir cfg blocked verb id out rc
+  dir="$TMP_ROOT/pin-path-access"
+  cfg="$dir/config"
+  mkdir -p "$cfg"
+  printf 'codex default-model high\nmate alpha: pi mate-model xhigh\n' > "$cfg/secondmate-harness"
+  for blocked in "$cfg" "$dir"; do
+    for id in alpha beta ''; do
+      for verb in secondmate secondmate-model secondmate-effort; do
+        chmod 000 "$blocked"
+        if [ -x "$blocked" ]; then
+          chmod 700 "$blocked"
+          echo "skip: directory access denial requires an unprivileged test user"
+          break 2
+        fi
+        out=$(PATH="$BLIND_BIN:$BASE_PATH" CLAUDECODE=1 FM_CONFIG_OVERRIDE="$cfg" \
+          "$ROOT/bin/fm-harness.sh" "$verb" "$id" 2>"$TMP_ROOT/path-access.err"); rc=$?
+        chmod 700 "$blocked"
+        [ "$rc" -ne 0 ] || fail "$verb '$id' accepted an inaccessible pin pathname"
+        [ -z "$out" ] || fail "$verb '$id' selected '$out' from an inaccessible pin pathname"
+        assert_contains "$(cat "$TMP_ROOT/path-access.err")" config/secondmate-harness "pathname refusal must identify the pin"
+      done
+    done
+  done
+  for cfg in "$dir/missing/nested/config" "$dir/config"; do
+    rm -f "$cfg/secondmate-harness"
+    for verb in secondmate secondmate-model secondmate-effort; do
+      out=$(PATH="$BLIND_BIN:$BASE_PATH" CLAUDECODE=1 FM_CONFIG_OVERRIDE="$cfg" \
+        "$ROOT/bin/fm-harness.sh" "$verb" alpha); rc=$?
+      expect_code 0 "$rc" "genuinely missing pin paths must retain defaults"
+      if [ "$verb" = secondmate ]; then
+        [ "$out" = claude ] || fail "missing pin must resolve own harness"
+      else
+        [ -z "$out" ] || fail "missing pin must not supply model or effort"
+      fi
+    done
+  done
+  pass "secondmate resolution distinguishes inaccessible ancestors from genuinely missing pin paths"
+}
+
 test_secondmate_pin_io_failures_refuse() {
   local dir cfg mode verb id out rc
   dir="$TMP_ROOT/pin-io"
@@ -3001,6 +3041,7 @@ test_secondmate_model_effort_tokens
 test_secondmate_per_mate_override_lines
 test_secondmate_malformed_pin_refuses_with_line_number
 test_secondmate_pin_io_failures_refuse
+test_secondmate_pin_path_access
 test_secondmate_legacy_pin_file_is_never_refused
 test_pi_signed_detection_and_session_lock_identity
 test_dash_leading_process_names_are_basename_operands

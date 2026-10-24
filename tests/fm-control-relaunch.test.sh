@@ -1507,18 +1507,24 @@ test_secondmate_relaunch_refuses_an_unreadable_configured_pin_before_stop() {
   cp "$home/state/smp3.meta" "$dir/prior.meta"
   printf 'codex\n' > "$home/config/crew-harness"
   mkdir -p "$dir/pin-directory"
-  for mode in open read permission; do
+  for mode in open read permission parent; do
     rm -f "$home/config/secondmate-harness"
     case "$mode" in
       open) ln -s secondmate-harness "$home/config/secondmate-harness" ;;
       read) ln -s "$dir/pin-directory" "$home/config/secondmate-harness" ;;
-      permission)
+      permission|parent)
         printf 'codex default-model high\nmate smp3: claude mate-model xhigh\n' > "$home/config/secondmate-harness"
-        chmod 000 "$home/config/secondmate-harness"
-        [ ! -r "$home/config/secondmate-harness" ] || continue
+        if [ "$mode" = parent ]; then
+          chmod 000 "$home/config"
+          if [ -x "$home/config" ]; then chmod 700 "$home/config"; continue; fi
+        else
+          chmod 000 "$home/config/secondmate-harness"
+          [ ! -r "$home/config/secondmate-harness" ] || continue
+        fi
         ;;
     esac
     out=$(run_control "$dir" smp3 relaunch); rc=$?
+    chmod 700 "$home/config"
     expect_code 1 "$rc" "$mode: an unreadable pin must refuse relaunch"$'\n'"$out"
     assert_contains "$out" "config/secondmate-harness" "I/O refusal must identify the pin file"
     [ "$(cat "$dir/fake/command")" = claude ] || fail "$mode: pin I/O failure stopped the agent"

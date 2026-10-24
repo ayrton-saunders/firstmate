@@ -488,7 +488,16 @@ secondmate_parse() {
   SM_MATE_IDS=()
   SM_MATE_VALS=()
   SM_MATE_LINES=()
-  [ -e "$file" ] || [ -L "$file" ] || return 0
+  if [ ! -e "$file" ] && [ ! -L "$file" ]; then
+    local parent
+    parent=$(dirname "$file")
+    while [ ! -e "$parent" ] && [ ! -L "$parent" ]; do
+      parent=$(dirname "$parent")
+    done
+    [ -d "$parent" ] && [ -x "$parent" ] && return 0
+    echo "error: config/secondmate-harness pathname cannot be accessed" >&2
+    return 1
+  fi
   local contents
   [ -f "$file" ] && contents=$(cat "$file") || {
     echo "error: config/secondmate-harness cannot be read" >&2
