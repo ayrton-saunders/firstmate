@@ -294,15 +294,34 @@ fm_secondmate_liveness_relaunch() {  # <meta> <id> [timeout-secs]
     FM_SM_LIVE_RC=1
     return 1
   fi
-  if [ "$FM_SM_LIVE_KILL" = 1 ]; then
-    local backend target window
-    backend=$(fm_backend_of_meta "$meta")
+  local backend target window
+  backend=$(fm_backend_of_meta "$meta")
+  if [ "$FM_SM_LIVE_KILL" = 1 ] || [ "$backend" = rex ]; then
     target=$(fm_backend_target_of_meta "$meta")
     if [ -z "$target" ]; then
       window=$(fm_meta_get "$meta" window)
       target=$window
     fi
-    [ -z "$target" ] || fm_backend_kill "$backend" "$target" 2>/dev/null || true
+    if [ "$backend" = rex ]; then
+      local home recorded_server
+      home=$(fm_meta_get "$meta" home)
+      [ -n "$home" ] || home=$(fm_meta_get "$meta" worktree)
+      recorded_server=$(fm_meta_get "$meta" rex_server)
+      if [ -z "$home" ] || ! FM_SM_LIVE_OUT=$(
+        unset FM_ROOT_OVERRIDE
+        FM_HOME="$home" FM_ROOT="$home" STATE="$home/state" FM_STATE_OVERRIDE="$home/state" \
+          fm_backend_kill "$backend" "$target" "$recorded_server" "fm-$id" 2>&1
+      ); then
+        FM_SM_LIVE_STATUS=skipped
+        FM_SM_LIVE_REASON="Rex endpoint closure or absence could not be verified; records preserved"
+        FM_SM_LIVE_RC=1
+        fm_secondmate_liveness_ledger_add "$id" failed || true
+        fm_lock_release "$relaunch_lock" || true
+        return 1
+      fi
+    elif [ -n "$target" ]; then
+      fm_backend_kill "$backend" "$target" 2>/dev/null || true
+    fi
   fi
   if [ -n "$timeout" ]; then
     FM_SM_LIVE_OUT=$(FM_SPAWN_NO_GUARD=1 fm_run_timed "$timeout" "$FM_ROOT/bin/fm-spawn.sh" "$id" --secondmate 2>&1) || rc=$?
