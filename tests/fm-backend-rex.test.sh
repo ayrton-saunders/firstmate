@@ -102,8 +102,9 @@ case "$cmd:$sub" in
       session.view)
         has_session "$sid" || notfound "session"
         jq -c --arg s "$sid" '.sessions[] | select(.session_id == $s)
-          | {session_id, label, windows: [.windows[] | {window_id, label,
-              layers: [{blocks: [.blocks[] | {block_id, label}]}]}]}' "$S" ;;
+          | if ((.windows // []) | length) == 0 then {session_id, label}
+            else {session_id, label, windows: [.windows[] | {window_id, label,
+              layers: [{blocks: [.blocks[] | {block_id, label}]}]}]} end' "$S" ;;
       *) exit 2 ;;
     esac ;;
   new:)

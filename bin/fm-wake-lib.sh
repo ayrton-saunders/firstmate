@@ -1318,9 +1318,31 @@ fm_lock_try_acquire() {
   return "$rc"
 }
 
+# A lock is created inside its parent directory, so once that directory is gone
+# (a removed home, state directory, or temporary test root) no retry can ever
+# succeed. Succeeds only when the parent is still missing after a 0.1s recheck,
+# so a directory being renamed into place is not mistaken for a removal.
+fm_lock_parent_gone() {  # <lockdir>
+  local parent
+  case "$1" in
+    */*) parent=${1%/*} ;;
+    *) parent=. ;;
+  esac
+  [ -n "$parent" ] || parent=/
+  [ -d "$parent" ] && return 1
+  sleep 0.1
+  [ ! -d "$parent" ]
+}
+
+# Wait for a lock. The 0.1s retry serves live contention on short critical
+# sections, where a wider interval would delay every handoff between the
+# watcher and its writers. The wait is unbounded only while the lock can still
+# be taken: it returns 1 within 0.2s of its parent directory's removal
+# (fm_lock_parent_gone) instead of polling for a lock that can never exist.
 fm_lock_acquire_wait() {
   local lockdir=$1
   while ! fm_lock_try_acquire "$lockdir"; do
+    ! fm_lock_parent_gone "$lockdir" || return 1
     sleep 0.1
   done
 }
@@ -1929,6 +1951,21 @@ fm_pid_descends_from() {  # <pid> <ancestor>
   return 1
 }
 
+fm_autoarm_session_holder_identity() {
+  local holder=$1 winpid command
+  case "$holder" in
+    win:*)
+      _fm_wake_require_session_lock
+      fm_session_pid_valid "$holder" || return 1
+      fm_harness_pid_alive "$holder" || return 1
+      winpid=$(fm_win_untag_pid "$holder") || return 1
+      command=$(fm_win_command "$winpid") || return 1
+      printf '%s %s\n' "$holder" "$command"
+      ;;
+    *) fm_pid_identity "$holder" ;;
+  esac
+}
+
 # True while the CURRENT ledger claim is open and healthy - the defer predicate
 # both Stop participants use. The generation-claim contract above owns the full
 # predicate and its reachability and stuck proofs. fm_path_age reports an
@@ -1951,15 +1988,13 @@ fm_autoarm_claim_open() {  # <state-dir> [grace]
   [ -n "$current" ] || return 1
   [ "$current" = "$FM_AUTOARM_IDENTITY" ] || return 1
   lock_pid=$(sed -n '1p' "$state/.lock" 2>/dev/null || true)
-  case "$lock_pid" in
-    ''|*[!0-9]*) return 1 ;;
-  esac
-  if ! fm_pid_descends_from "$FM_AUTOARM_OWNER" "$lock_pid"; then
+  _fm_wake_require_session_lock
+  fm_session_pid_valid "$lock_pid" || return 1
+  if [[ "$lock_pid" = win:* ]] || ! fm_pid_descends_from "$FM_AUTOARM_OWNER" "$lock_pid"; then
     [ -n "$FM_AUTOARM_OWNER_SESSION_ID" ] || return 1
     [ -n "$FM_AUTOARM_OWNER_LOCK_IDENTITY" ] || return 1
-    lock_identity=$(fm_pid_identity "$lock_pid" 2>/dev/null) || return 1
+    lock_identity=$(fm_autoarm_session_holder_identity "$lock_pid" 2>/dev/null) || return 1
     [ "$lock_identity" = "$FM_AUTOARM_OWNER_LOCK_IDENTITY" ] || return 1
-    _fm_wake_require_session_lock
     recorded=$(fm_session_lock_recorded_session_id "$state" 2>/dev/null || true)
     [ -n "$recorded" ] && [ "$recorded" = "$FM_AUTOARM_OWNER_SESSION_ID" ] || return 1
   fi
@@ -1995,7 +2030,13 @@ fm_autoarm_midturn_healthy() {  # <state-dir> [grace]
   [ "$FM_AUTOARM_OUTCOME" = rewake ] || return 1
   lock_pid=$(sed -n '1p' "$state/.lock" 2>/dev/null || true)
   [ -n "$FM_AUTOARM_SESSION" ] && [ "$FM_AUTOARM_SESSION" = "$lock_pid" ] || return 1
-  fm_pid_alive "$lock_pid" || return 1
+  case "$lock_pid" in
+    win:*)
+      _fm_wake_require_session_lock
+      fm_session_pid_valid "$lock_pid" && fm_harness_pid_alive "$lock_pid" || return 1
+      ;;
+    *) fm_pid_alive "$lock_pid" || return 1 ;;
+  esac
   fm_recovery_marker_read "$state/.watcher-down" || return 1
   recovery=${FM_RECOVERY_MARKER_TOKEN##*:}
   [ -n "$FM_AUTOARM_RECOVERY" ] && [ "$FM_AUTOARM_RECOVERY" = "$recovery" ] || return 1
@@ -2026,7 +2067,7 @@ fm_autoarm_claim_next() {  # <state-dir> [grace]
     *[![:alnum:]_.-]*) session_id= ;;
   esac
   lock_pid=$(sed -n '1p' "$state/.lock" 2>/dev/null || true)
-  lock_identity=$(fm_pid_identity "$lock_pid" 2>/dev/null || true)
+  lock_identity=$(fm_autoarm_session_holder_identity "$lock_pid" 2>/dev/null || true)
   [ -n "$lock_identity" ] || session_id=
   fm_lock_try_acquire "$lock" || return 1
   if fm_autoarm_claim_open "$state" "$grace"; then
@@ -2317,7 +2358,19 @@ fm_wake_append_locked() {
     case "$seq" in
       ''|*[!0-9]*) seq=0 ;;
     esac
-    seq=$((seq + 1))
+    # A lost or unreadable counter must not reuse a queued row's sequence: an
+    # outstanding sequence-bound acknowledgement would consume the new row.
+    # Compare and print the decimal text, never an awk number: awk floats lose
+    # exactness and may format large values in scientific notation.
+    seq=$(awk -F '\t' -v n="$seq" '
+      function digits(v) { sub(/^0+/, "", v); return v }
+      NF >= 5 && $2 ~ /^[0-9]+$/ {
+        a = digits($2); b = digits(n)
+        if (length(a) > length(b) || (length(a) == length(b) && ("" a) > ("" b))) n = $2
+      }
+      END { print n }
+    ' "$FM_WAKE_QUEUE" 2>/dev/null || printf '%s\n' "$seq")
+    seq=$((10#$seq + 1))
     printf '%s\n' "$seq" > "$seq_file" || status=$?
   fi
   if [ "$status" -eq 0 ]; then

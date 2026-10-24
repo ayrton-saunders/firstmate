@@ -746,6 +746,21 @@ ROWS
   pass "bootstrap: a session-provider backend gates its own CLI, never a false tmux requirement"
 }
 
+test_session_provider_cases_hide_installed_fallback_clis() {
+  local case_dir hostbin cli
+  case_dir="$TMP_ROOT/session-provider-host-installs"
+  hostbin="$case_dir/hostbin"
+  mkdir -p "$hostbin"
+  fm_fake_exit0 "$hostbin" tmux herdr zellij cmux paseo rex
+  for cli in tmux herdr zellij cmux paseo rex; do
+    [ "$(PATH="$hostbin:$BASE_PATH" command -v "$cli")" = "$hostbin/$cli" ] \
+      || fail "the installed-$cli contrast fixture is not resolvable"
+  done
+  BASE_PATH="$hostbin:$BASE_PATH" test_session_provider_backends_do_not_require_tmux
+  BASE_PATH="$hostbin:$BASE_PATH" test_session_provider_backends_gate_own_cli_not_tmux
+  pass "bootstrap: omitted session CLIs and tmux stay absent despite fallback installations"
+}
+
 test_herdr_install_requires_manual_action() {
   local out status
   out=$("$ROOT/bin/fm-bootstrap.sh" install herdr 2>&1)
@@ -1481,6 +1496,7 @@ test_git_is_required_with_supported_install_instruction
 test_orca_backend_gates_orca_tool_only_when_selected
 test_session_provider_backends_do_not_require_tmux
 test_session_provider_backends_gate_own_cli_not_tmux
+test_session_provider_cases_hide_installed_fallback_clis
 test_herdr_install_requires_manual_action
 test_cmux_bundled_cli_satisfies_dependency
 test_unknown_backend_reports_invalid_configuration

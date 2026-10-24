@@ -3370,7 +3370,7 @@ endpoint_close_refusal() {  # <subject> <backend> <target> <honors-force>
 }
 
 cleanup_firstmate_home_children() {
-  local home=$1 archive_parent=${2:-$ID} sub_state child_meta child_id child_t child_wt child_proj child_kind child_home child_backend child_orca_worktree_id child_return_rc child_busy_gen child_owner_rc child_pool_slot
+  local home=$1 archive_parent=${2:-$ID} sub_state child_meta child_id child_t child_wt child_proj child_kind child_home child_rex_home child_backend child_orca_worktree_id child_return_rc child_busy_gen child_owner_rc child_pool_slot
   sub_state="$home/state"
   [ -d "$sub_state" ] || return 0
   for child_meta in "$sub_state"/*.meta; do
@@ -3435,6 +3435,7 @@ cleanup_firstmate_home_children() {
     elif [ "$child_backend" = orca ]; then
       if [ -n "$child_wt" ] && [ -d "$child_wt" ]; then
         validate_child_worktree_for_removal "$child_wt" "$child_proj" >/dev/null || return 1
+        remove_harness_worktree_wiring "$child_wt" "$child_meta" "$sub_state" "$child_id" || return 1
         rm -f "$child_wt/.claude/settings.local.json" "$child_wt/.opencode/plugins/fm-turn-end.js" \
           "$child_wt/.fm-grok-turnend" "$child_wt/.fm-kimi-turnend"
       fi
