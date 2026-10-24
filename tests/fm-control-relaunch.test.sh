@@ -1575,7 +1575,13 @@ test_secondmate_relaunch_refuses_an_unreadable_configured_pin_before_stop() {
     out=$(run_control "$dir" smp3 relaunch); rc=$?
     chmod 700 "$home/config"
     expect_code 1 "$rc" "$mode: an unreadable pin must refuse relaunch"$'\n'"$out"
-    assert_contains "$out" "config/secondmate-harness" "I/O refusal must identify the pin file"
+    if [ "$mode" = parent ]; then
+      # Mode admission also reads this directory before resolving the mate pin.
+      # An inaccessible parent must still refuse before any lifecycle mutation.
+      assert_contains "$out" "$home/config/" "parent I/O refusal must identify the inaccessible configuration source"
+    else
+      assert_contains "$out" "config/secondmate-harness" "I/O refusal must identify the pin file"
+    fi
     [ "$(cat "$dir/fake/command")" = claude ] || fail "$mode: pin I/O failure stopped the agent"
     [ ! -s "$dir/fake/literal" ] || fail "$mode: pin I/O failure sent lifecycle text"
     [ ! -s "$dir/fake/keys" ] || fail "$mode: pin I/O failure sent lifecycle keys"
