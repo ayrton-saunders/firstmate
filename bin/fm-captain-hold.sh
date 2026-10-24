@@ -572,24 +572,35 @@ NL_SEP=$'\n'
 # named section, comments stripped. Prints "<key> <value>" lines.
 captain_toml_section_entries() {  # <toml-file> <section> <key-alternation>
   [ -f "$1" ] || return 0
-  LC_ALL=C awk -v section="[$2]" -v keys="^($3)[[:space:]]*=" '
-    function trim(v) { sub(/^[[:space:]]+/, "", v); sub(/[[:space:]]+$/, "", v); return v }
-    BEGIN { insection = 0 }
-    {
-      line = $0
-      sub(/[[:space:]]*#.*/, "", line)
-      line = trim(line)
-      if (line ~ /^\[[^]]+\]$/) { insection = (line == section); next }
-      if (!insection) next
-      if (line ~ keys) {
-        key = line
-        sub(/[[:space:]]*=.*/, "", key)
-        sub(/^[^=]*=[[:space:]]*/, "", line)
-        gsub(/^"|"$/, "", line); gsub(/^'\''|'\''$/, "", line)
-        printf "%s %s\n", key, line
-      }
-    }
-  ' "$1"
+  python3 - "$1" "$2" "$3" <<'PY'
+import sys
+
+try:
+    import tomllib
+except ImportError:
+    print("fm-captain-hold: python3 with tomllib is required to read TOML settings", file=sys.stderr)
+    raise SystemExit(1)
+
+try:
+    with open(sys.argv[1], "rb") as stream:
+        config = tomllib.load(stream)
+    section = config.get(sys.argv[2], {})
+    if not isinstance(section, dict):
+        raise ValueError("expected a table")
+    entries = []
+    for key in sys.argv[3].split("|"):
+        if key not in section:
+            continue
+        value = section[key]
+        if not isinstance(value, str) or "\n" in value or "\r" in value:
+            raise ValueError("expected a single-line string")
+        entries.append(f"{key} {value}")
+    for entry in entries:
+        print(entry)
+except (OSError, UnicodeError, tomllib.TOMLDecodeError, ValueError) as error:
+    print(f"fm-captain-hold: cannot read TOML settings from {sys.argv[1]}: {error}", file=sys.stderr)
+    raise SystemExit(1)
+PY
 }
 
 captain_beads_toml_entries() {  # <toml-file>
@@ -618,7 +629,7 @@ captain_migration_scan_load() {  # <resolved-data-dir>
     CAPTAIN_MIGRATION_SCAN_LOADED=1
     return 0
   fi
-  entries=$(captain_beads_toml_entries "$root/.tasks.toml")
+  entries=$(captain_beads_toml_entries "$root/.tasks.toml") || return 2
   bd_bin=$(captain_beads_setting "$entries" binary)
   bd_path=$(captain_beads_setting "$entries" path)
   bd_bin=${bd_bin:-bd}
@@ -716,7 +727,7 @@ resolve_migrated_entry() {  # <origin-or-empty> <entry>
   # No marker line anywhere: a mechanical migration keeps the legacy id under
   # the configured prefix, but that name alone is evidence of nothing, so only
   # a row still held for the captain - and only one of them - is accepted.
-  entries=$(captain_beads_toml_entries "$root/.tasks.toml")
+  entries=$(captain_beads_toml_entries "$root/.tasks.toml") || return 2
   prefix=$(captain_beads_setting "$entries" prefix)
   [ -n "$prefix" ] || return 1
   prefixed_matches=
@@ -886,10 +897,12 @@ refuse_self_inventory() {
 # value resolves against the backlog root wherever it was configured, the way
 # tasks-axi resolves it.
 captain_markdown_archive_setting() {  # <backlog-root>
-  local root=$1 archive
-  archive=$(captain_toml_section_entries "$root/.tasks.toml" markdown archive | sed -n 's/^archive //p' | head -1)
+  local root=$1 archive entries
+  entries=$(captain_toml_section_entries "$root/.tasks.toml" markdown archive) || return 1
+  archive=$(printf '%s\n' "$entries" | sed -n 's/^archive //p' | head -1)
   if [ -z "$archive" ] && [ -n "${HOME:-}" ]; then
-    archive=$(captain_toml_section_entries "$HOME/.tasks-axi/config.toml" markdown archive | sed -n 's/^archive //p' | head -1)
+    entries=$(captain_toml_section_entries "$HOME/.tasks-axi/config.toml" markdown archive) || return 1
+    archive=$(printf '%s\n' "$entries" | sed -n 's/^archive //p' | head -1)
   fi
   printf '%s\n' "$archive"
 }
@@ -903,7 +916,7 @@ captain_markdown_archive_path() {
   root=$(fm_backlog_root "$data") || return 1
   backend=$(fm_tasks_axi_backend "$root" 2>/dev/null) || return 1
   [ "$backend" = markdown ] || return 1
-  archive=$(captain_markdown_archive_setting "$root")
+  archive=$(captain_markdown_archive_setting "$root") || return 1
   case "$archive" in
     '')
       file=$(fm_backlog_file "$data") || return 1

@@ -4707,6 +4707,57 @@ test_archived_answered_hold_still_satisfies_the_gate() {
 # resolves a relative value against the backlog root. The completion gate must
 # resolve it the same way, or an answered call retention moved there reads as
 # absent and teardown is refused.
+test_archive_toml_semantics_preserve_paths_and_precedence() {
+  local home axi_home scope header index=0 archive id=sample-toml-review call=sample-toml-call
+  for scope in repository user; do
+    for header in '[markdown]' '["markdown"]' '[ "markdown" ]'; do
+      index=$((index + 1))
+      home=$(make_home "archive-toml-$index")
+      axi_home="$home/axi-home"
+      mkdir -p "$axi_home/.tasks-axi" "$home/data/$id"
+      printf 'backend = "markdown"\n%s\npath = "data/backlog.md"\ndone_keep = 10\n' "$header" > "$home/.tasks.toml"
+      if [ "$scope" = repository ]; then
+        printf 'archive = "data/done#archive.md" # retention destination\n' >> "$home/.tasks.toml"
+        printf '%s\narchive = "data/foreign#user.md"\n' "$header" > "$axi_home/.tasks-axi/config.toml"
+      else
+        printf '%s\narchive = "data/done#archive.md" # retention destination\n' "$header" > "$axi_home/.tasks-axi/config.toml"
+      fi
+      archive="$home/data/done#archive.md"
+      HOME="$axi_home" tasks_in "$home" add "$id" "Review archived decision" --kind scout --repo sample --start >/dev/null \
+        || fail "could not create TOML archive origin ($scope/$header)"
+      write_origin_meta "$home" "$id"
+      printf 'done: report complete\n' > "$home/state/$id.status"
+      printf '# Archive review\n\nOne decision was recorded.\n' > "$home/data/$id/report.md"
+      HOME="$axi_home" run_captain "$home" hold "$call" --title "Choose the archive option" \
+        --reason "captain choice pending" --repo sample --origin "$id" >/dev/null \
+        || fail "could not create TOML archive hold"
+      HOME="$axi_home" run_captain "$home" complete "$id" "$call" >/dev/null \
+        || fail "could not attest the TOML archive hold"
+      printf 'Choose the archived option.\n' > "$home/decision.txt"
+      HOME="$axi_home" run_captain "$home" answer "$call" --decision-file "$home/decision.txt" >/dev/null \
+        || fail "could not answer TOML archive hold"
+      perl -0pi -e 's/done_keep = 10/done_keep = 0/' "$home/.tasks.toml"
+      HOME="$axi_home" tasks_in "$home" add sample-toml-trigger "Trigger retention" --kind ship --repo sample >/dev/null
+      HOME="$axi_home" tasks_in "$home" done sample-toml-trigger >/dev/null || fail "could not trigger TOML archive retention"
+      assert_present "$archive" "tasks-axi did not preserve the quoted hash in the archive path"
+      assert_grep "$call" "$archive" "the answered call was not archived"
+      if HOME="$axi_home" tasks_in "$home" show "$call" >/dev/null 2>&1; then
+        fail "the call remains live, so this fixture did not exercise archive lookup"
+      fi
+      cp "$home/.tasks.toml" "$home/repo-config.before"
+      cp "$axi_home/.tasks-axi/config.toml" "$home/user-config.before"
+      HOME="$axi_home" run_captain "$home" verify "$id" >/dev/null 2> "$home/verify.err" \
+        || fail "$scope/$header archive verification failed: $(cat "$home/verify.err")"
+      HOME="$axi_home" run_captain "$home" complete "$id" "$call" >/dev/null 2> "$home/complete.err" \
+        || fail "$scope/$header archive completion failed: $(cat "$home/complete.err")"
+      cmp "$home/repo-config.before" "$home/.tasks.toml" || fail "archive lookup rewrote repository settings"
+      cmp "$home/user-config.before" "$axi_home/.tasks-axi/config.toml" || fail "archive lookup rewrote user settings"
+      assert_absent "$home/data/foreign#user.md" "user settings overrode the repository's explicit archive"
+    done
+  done
+  pass "archive completion and verification honor TOML hashes, normalized tables and repository/user precedence"
+}
+
 test_archived_answer_in_a_user_configured_archive_satisfies_the_gate() {
   local home axi_home archive id
   home=$(make_home archived-answer-userconfig)
@@ -4761,6 +4812,7 @@ EOF
   pass "an answered captain call archived to a user-configured location still satisfies the completion gate"
 }
 
+test_archive_toml_semantics_preserve_paths_and_precedence
 test_hold_reason_round_trips_awkward_characters
 test_hold_origins_precede_backend_holds
 test_historical_self_inventory_has_workable_repair

@@ -490,6 +490,82 @@ WIN_TABLE='  4201508       0       0       7204  ?              0 22:24:48 C:\Us
   4198625       0       0       4321  ?              0 22:24:48 C:\Windows\explorer.exe
   4199454       0       0       5150  ?              0 22:24:48 C:\tools\claude-notes\helper.exe'
 
+test_windows_autoarm_claim_and_midturn_health() {
+  local dir fakebin
+  dir="$TMP_ROOT/windows-autoarm"
+  fakebin=$(cygwin_fakebin "$dir")
+  if [ "$(uname)" = Darwin ]; then
+    printf '#!/usr/bin/env bash\nif [ "${1:-}" = -c ] && [ "${2:-}" = %%Y ]; then exec /usr/bin/stat -f %%m "$3"; fi\nexec /usr/bin/stat "$@"\n' > "$fakebin/stat"
+    chmod +x "$fakebin/stat"
+  fi
+  mkdir -p "$dir/state"
+  env -u CLAUDE_CODE_SESSION_ID -u CLAUDE_PID \
+    PATH="$fakebin:$PATH" FM_TEST_WIN_TABLE="$WIN_TABLE" \
+    CLAUDE_CODE_SESSION_ID=S1 CLAUDE_PID=7204 FM_PROC_ROOT_OVERRIDE="$dir/proc" \
+    bash -s -- "$ROOT" "$dir" <<'SH' || fail "Windows auto-arm session checks failed"
+set -eu
+root=$1; dir=$2
+. "$root/bin/fm-wake-lib.sh"
+owner=${BASHPID:-$$}
+mkdir -p "$dir/proc/$owner"
+{
+  printf '%s (autoarm-fixture) S' "$owner"
+  for _ in $(seq 1 18); do printf ' 0'; done
+  printf ' 100\n'
+} > "$dir/proc/$owner/stat"
+printf 'autoarm-fixture\0' > "$dir/proc/$owner/cmdline"
+kill() {
+  case " $* " in
+    *' 7204 '*|*' win:'*) : > "$dir/local-windows-probe"; return 1 ;;
+    *) builtin kill "$@" ;;
+  esac
+}
+printf 'win:7204\n' > "$dir/state/.lock"
+printf 'S1\n' > "$dir/state/.lock-session"
+: > "$dir/state/.last-watcher-beat"
+fm_autoarm_claim_next "$dir/state" || exit 81
+gen=$FM_AUTOARM_MY_GEN
+[ -n "$(sed -n '3p' "$dir/state/.claude-autoarm-epoch")" ] || exit 82
+fm_autoarm_claim_open "$dir/state" || exit 83
+cp "$dir/state/.claude-autoarm-epoch" "$dir/claim.before"
+rc=0
+fm_autoarm_claim_next "$dir/state" || rc=$?
+[ "$rc" = 2 ] || exit 84
+cmp "$dir/claim.before" "$dir/state/.claude-autoarm-epoch" || exit 85
+original=$FM_TEST_WIN_TABLE
+FM_TEST_WIN_TABLE='1 0 0 7204 ? 0 00:00:00 C:\tools\codex.exe'
+if fm_autoarm_claim_open "$dir/state"; then exit 86; fi
+FM_TEST_WIN_TABLE=$original
+printf 'S2\n' > "$dir/state/.lock-session"
+if fm_autoarm_claim_open "$dir/state"; then exit 87; fi
+printf 'S1\n' > "$dir/state/.lock-session"
+FM_TEST_WIN_PS_FAIL=1
+export FM_TEST_WIN_PS_FAIL
+if fm_autoarm_claim_open "$dir/state"; then exit 88; fi
+unset FM_TEST_WIN_PS_FAIL
+fm_autoarm_write_owned "$dir/state" "$gen" rewake '' win:7204 g1 || exit 89
+printf 'acked:handling:g1\n' > "$dir/state/.watcher-down"
+touch -t 201901010000 "$dir/state/.last-watcher-beat"
+touch -t 202001010000 "$dir/state/.claude-autoarm-epoch"
+fm_autoarm_midturn_healthy "$dir/state" 300 || exit 90
+for failure in missing nonharness unreadable changed-lock malformed; do
+  FM_TEST_WIN_TABLE=$original
+  unset FM_TEST_WIN_PS_FAIL
+  printf 'win:7204\n' > "$dir/state/.lock"
+  case "$failure" in
+    missing) FM_TEST_WIN_TABLE= ;;
+    nonharness) FM_TEST_WIN_TABLE='1 0 0 7204 ? 0 00:00:00 C:\Windows\explorer.exe' ;;
+    unreadable) export FM_TEST_WIN_PS_FAIL=1 ;;
+    changed-lock) printf 'win:4321\n' > "$dir/state/.lock" ;;
+    malformed) printf 'win:bad\n' > "$dir/state/.lock" ;;
+  esac
+  if fm_autoarm_midturn_healthy "$dir/state" 300; then exit 91; fi
+done
+[ ! -e "$dir/local-windows-probe" ] || exit 92
+SH
+  pass "Windows auto-arm claims defer competing Stops and long handling turns use Windows liveness without local PID probes"
+}
+
 test_windows_session_is_identified_from_its_published_pid() {
   local dir fakebin got
   dir="$TMP_ROOT/win-published"
@@ -1571,6 +1647,7 @@ test_harness_beyond_a_gap_never_owns_the_lock
 test_competing_version_named_session_is_seen_as_live
 test_same_session_id_owns_a_recycled_background_chain
 test_anchor_pid_is_the_model_loop_process_only_for_a_trusted_id
+test_windows_autoarm_claim_and_midturn_health
 test_windows_session_is_identified_from_its_published_pid
 test_windows_published_pid_is_confirmed_before_it_is_trusted
 test_windows_pid_is_never_resolved_as_a_cygwin_pid
