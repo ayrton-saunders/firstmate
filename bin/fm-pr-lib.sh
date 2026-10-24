@@ -20,6 +20,9 @@
 # The receipt binds the terminal observation to the canonical registration and
 # lets a restart finish fixed-path removal without executing state-file bytes.
 
+# shellcheck source=bin/fm-role-lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/fm-role-lib.sh"
+
 FM_PR_PROVIDER=
 FM_PR_URL=
 FM_PR_HOST=
@@ -302,8 +305,6 @@ fm_pr_head_valid() {
 fm_pr_number_from_branch() (  # <worktree> <branch> [open|closed|all]
   local wt=$1 branch=$2 state=${3:-all} out remote url head base
   [ -n "$branch" ] && [ "$branch" != HEAD ] || return 1
-  # shellcheck source=bin/fm-role-lib.sh
-  . "$(dirname "${BASH_SOURCE[0]}")/fm-role-lib.sh"
   base=$(fm_role_publication_target "$wt") || return 1
   case "$base" in github.com/*) ;; *) return 1 ;; esac
   fm_pr_url_parse "https://$base/pull/1" || return 1
