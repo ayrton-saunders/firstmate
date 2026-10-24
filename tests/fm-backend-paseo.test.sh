@@ -14,7 +14,12 @@ set -u
 
 command -v jq >/dev/null 2>&1 || { echo "skip: jq not found (required by the paseo adapter)"; exit 0; }
 
+BASE_PATH=${FM_TEST_BASE_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}
 TMP_ROOT=$(fm_test_tmproot fm-backend-paseo-tests)
+export FM_HOME="$TMP_ROOT/home" FM_ROOT_OVERRIDE="$ROOT" FM_ROOT="$ROOT"
+export FM_STATE_OVERRIDE="$TMP_ROOT/state" STATE="$TMP_ROOT/state"
+mkdir -p "$FM_HOME" "$STATE"
+unset PASEO_WORKSPACE_ID PASEO_AGENT_ID
 
 # make_paseo_fakebin: a `paseo` stub that logs every invocation (one line,
 # unit-separated args, to $FM_PASEO_LOG) and returns the canned response for
@@ -99,7 +104,7 @@ paseo_expected_root_hash() { # <root>
 }
 
 paseo_expected_home_label() { # [home] [root]
-  local home=${1:-$ROOT} root=${2:-$ROOT} marker id prefix
+  local home=${1:-$FM_HOME} root=${2:-$ROOT} marker id prefix
   marker="$home/.fm-secondmate-home"
   if [ -f "$marker" ]; then
     id=$(tr -d '[:space:]' <"$marker" 2>/dev/null)
@@ -115,7 +120,7 @@ paseo_expected_home_label() { # [home] [root]
 }
 
 paseo_expected_scoped_name() { # <fm-task-label> [home] [root]
-  local label=$1 home=${2:-$ROOT} root=${3:-$ROOT} rest
+  local label=$1 home=${2:-$FM_HOME} root=${3:-$ROOT} rest
   case "$label" in
   fm-*) rest=${label#fm-} ;;
   *) rest=$label ;;
@@ -175,7 +180,7 @@ test_version_check_refuses_missing_paseo() {
   local dir out status
   dir="$TMP_ROOT/version-missing"
   mkdir -p "$dir/empty-fakebin"
-  out=$(PATH="$dir/empty-fakebin:/usr/bin:/bin" FM_BACKEND_PASEO_BUNDLE_BIN="$dir/no-such-paseo" \
+  out=$(PATH="$dir/empty-fakebin:$(fm_test_base_path_sans "$BASE_PATH" paseo)" FM_BACKEND_PASEO_BUNDLE_BIN="$dir/no-such-paseo" \
     bash -c '. "$0/bin/backends/paseo.sh"; fm_backend_paseo_version_check' "$ROOT" 2>&1)
   status=$?
   [ "$status" -ne 0 ] || fail "version_check should refuse when paseo is not installed"
@@ -510,7 +515,7 @@ test_create_task_finds_agent_home_workspace() {
     fi
     jq -n '{id:"abababab-6666-6666-6666-666666666666"}' >"$dir/responses/3.out"
     fb=$(make_paseo_fakebin "$dir")
-    out=$(PATH="$fb:$PATH" FM_PASEO_LOG="$dir/log" FM_PASEO_RESPONSES="$dir/responses" FM_HOME="$home" PASEO_AGENT_ID=agent-1 \
+    out=$(PATH="$fb:$PATH" FM_PASEO_LOG="$dir/log" FM_PASEO_RESPONSES="$dir/responses" FM_HOME="$home" STATE="$dir/state" FM_STATE_OVERRIDE="$dir/state" PASEO_AGENT_ID=agent-1 \
       bash -c 'unset PASEO_WORKSPACE_ID; . "$0/bin/backends/paseo.sh"; fm_backend_paseo_create_task fm-agent /tmp/proj' "$ROOT")
     [ "$out" = "abababab-6666-6666-6666-666666666666 $want" ] \
       || fail "create_task from a Paseo agent ($case_name home workspace) should use $want, got '$out'"
@@ -843,7 +848,7 @@ paseo_retire_case() { # <dir> <workspace-ls-json> <terminal-ls-json> <agents-jso
   # 5: workspace archive (silent); 6: project ls; 7: project delete (silent)
   jq -n --arg path "$dir/home/projects/demo" '[{projectId:"prj_demo",name:"demo",path:$path}]' >"$dir/responses/6.out"
   fb=$(make_paseo_fakebin "$dir")
-  PATH="$fb:$PATH" FM_PASEO_LOG="$dir/log" FM_PASEO_RESPONSES="$dir/responses" FM_HOME="$dir/home" PASEO_WORKSPACE_ID="${5:-}" \
+  PATH="$fb:$PATH" FM_PASEO_LOG="$dir/log" FM_PASEO_RESPONSES="$dir/responses" FM_HOME="$dir/home" STATE="$dir/home/state" FM_STATE_OVERRIDE="$dir/home/state" PASEO_WORKSPACE_ID="${5:-}" \
     bash -c 'unset PASEO_AGENT_ID; [ -n "$PASEO_WORKSPACE_ID" ] || unset PASEO_WORKSPACE_ID; . "$0/bin/backends/paseo.sh"; fm_backend_paseo_kill "tttttttt-0000-0000-0000-000000000000:wks_ff"' "$ROOT"
 }
 
@@ -872,7 +877,7 @@ test_kill_retires_workspace_when_tab_already_gone() {
   # 6: workspace archive (silent); 7: project ls; 8: project delete (silent)
   jq -n --arg path "$dir/home/projects/demo" '[{projectId:"prj_demo",name:"demo",path:$path}]' >"$dir/responses/7.out"
   fb=$(make_paseo_fakebin "$dir")
-  PATH="$fb:$PATH" FM_PASEO_LOG="$dir/log" FM_PASEO_RESPONSES="$dir/responses" FM_HOME="$dir/home" \
+  PATH="$fb:$PATH" FM_PASEO_LOG="$dir/log" FM_PASEO_RESPONSES="$dir/responses" FM_HOME="$dir/home" STATE="$dir/home/state" FM_STATE_OVERRIDE="$dir/home/state" \
     bash -c 'unset PASEO_AGENT_ID PASEO_WORKSPACE_ID; . "$0/bin/backends/paseo.sh"; fm_backend_paseo_kill "tttttttt-0000-0000-0000-000000000000:wks_ff" "" fm-gone' "$ROOT"
   case "$(cat "$dir/log")" in
   *$'\x1f''terminal'$'\x1f''kill'*) fail "kill must not close a terminal it could not verify" ;;
@@ -910,14 +915,14 @@ test_kill_retire_holds_back() {
 
 # paseo_hold_workspace_lock: hold <home>'s paseo workspace lock from another
 # live process until the returned pid is killed.
-paseo_hold_workspace_lock() { # <home>
-  local home=$1
-  mkdir -p "$home/state"
-  FM_HOME="$home" bash -c '. "$0/bin/fm-wake-lib.sh"; fm_lock_try_acquire "$FM_HOME/state/.paseo-workspace.lock" || exit 1; printf "%s" "$$" >"$FM_HOME/state/.holder-pid"; touch "$FM_HOME/state/.held"; sleep 30' "$ROOT" >/dev/null 2>&1 &
+paseo_hold_workspace_lock() { # <home> [state]
+  local home=$1 state=${2:-$1/state}
+  mkdir -p "$state"
+  FM_HOME="$home" STATE="$state" FM_STATE_OVERRIDE="$state" bash -c '. "$0/bin/fm-wake-lib.sh"; fm_lock_try_acquire "$STATE/.paseo-workspace.lock" || exit 1; printf "%s" "$$" >"$STATE/.holder-pid"; touch "$STATE/.held"; sleep 30' "$ROOT" >/dev/null 2>&1 &
   local i=0
-  while [ ! -e "$home/state/.held" ] && [ "$i" -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
-  [ -e "$home/state/.held" ] || fail "could not take the paseo workspace lock for the test"
-  cat "$home/state/.holder-pid"
+  while [ ! -e "$state/.held" ] && [ "$i" -lt 50 ]; do sleep 0.1; i=$((i + 1)); done
+  [ -e "$state/.held" ] || fail "could not take the paseo workspace lock for the test"
+  cat "$state/.holder-pid"
 }
 
 test_workspace_lock_serializes_spawn_and_retire() {
@@ -934,7 +939,8 @@ test_workspace_lock_serializes_spawn_and_retire() {
   mkdir -p "$dir/responses"
   printf '[]' >"$dir/responses/1.out"
   fb=$(make_paseo_fakebin "$dir")
-  PATH="$fb:$PATH" FM_PASEO_LOG="$dir/log" FM_PASEO_RESPONSES="$dir/responses" FM_HOME="$TMP_ROOT/retire-locked/home" FM_BACKEND_PASEO_LOCK_ATTEMPTS=3 \
+  PATH="$fb:$PATH" FM_PASEO_LOG="$dir/log" FM_PASEO_RESPONSES="$dir/responses" FM_HOME="$TMP_ROOT/retire-locked/home" \
+    STATE="$TMP_ROOT/retire-locked/home/state" FM_STATE_OVERRIDE="$TMP_ROOT/retire-locked/home/state" FM_BACKEND_PASEO_LOCK_ATTEMPTS=3 \
     bash -c 'unset PASEO_WORKSPACE_ID PASEO_AGENT_ID; . "$0/bin/backends/paseo.sh"; fm_backend_paseo_create_task fm-locked /tmp/proj' "$ROOT" >/dev/null 2>&1
   status=$?
   kill "$holder" 2>/dev/null
@@ -968,7 +974,7 @@ test_list_live_filters_by_name_prefix() {
   other_root="$dir/other-root"
   mkdir -p "$other_root"
   name=$(paseo_expected_scoped_name fm-task1)
-  other_name=$(paseo_expected_scoped_name fm-task2 "$ROOT" "$other_root")
+  other_name=$(paseo_expected_scoped_name fm-task2 "$FM_HOME" "$other_root")
   paseo_terminal_ls_response "$dir" 1 \
     "aaaaaaaa-0000-0000-0000-000000000000" "wks_bbbbbbbbbbbbbbbb" "$name" \
     "dddddddd-8888-8888-8888-888888888888" "wks_ffffffffffffffff" "$other_name" \
@@ -979,6 +985,24 @@ test_list_live_filters_by_name_prefix() {
   [ "$out" = $'aaaaaaaa-0000-0000-0000-000000000000:wks_bbbbbbbbbbbbbbbb\tfm-task1' ] \
     || fail "list_live should list only the in-home task terminal with its plain label, got '$out'"
   pass "fm_backend_paseo_list_live: lists only this home's scoped task terminals using plain fm-<id> labels"
+}
+
+test_fixture_boundary_ignores_ambient_home_and_state() {
+  local dir holder out status variable
+  dir="$TMP_ROOT/ambient-isolation"
+  mkdir -p "$dir/home" "$dir/root"
+  printf 'ambient-home\n' >"$dir/home/.fm-secondmate-home"
+  for variable in STATE FM_STATE_OVERRIDE; do
+    holder=$(paseo_hold_workspace_lock "$dir/home" "$dir/$variable")
+    out=$(STATE= FM_STATE_OVERRIDE= FM_HOME="$dir/home" FM_ROOT_OVERRIDE="$dir/root" FM_ROOT="$dir/root" \
+      env "$variable=$dir/$variable" FM_BACKEND_PASEO_LOCK_ATTEMPTS=3 \
+      bash "$ROOT/tests/fm-backend-paseo.test.sh" --fixture-isolation-probe 2>&1)
+    status=$?
+    kill "$holder" 2>/dev/null
+    wait "$holder" 2>/dev/null
+    expect_code 0 "$status" "fixture calls inherited ambient $variable or home/root: $out"
+  done
+  pass "paseo fixtures ignore inherited home, root, STATE, and FM_STATE_OVERRIDE"
 }
 
 # --- fm-spawn.sh: --secondmate refuses an explicit backend=paseo --------------
@@ -1050,6 +1074,15 @@ test_branch_dispatch_claims_paseo_stale_wake() {
 # shellcheck source=/dev/null
 . "$ROOT/bin/fm-backend.sh"
 
+if [ "${1:-}" = --fixture-isolation-probe ]; then
+  test_create_task_creates_and_parses_ids
+  test_workspace_label_uses_secondmate_prefix
+  test_kill_retires_empty_firstmate_workspace_and_project
+  test_workspace_lock_serializes_spawn_and_retire
+  exit 0
+fi
+
+test_fixture_boundary_ignores_ambient_home_and_state
 test_version_check_accepts_current_version
 test_version_check_accepts_newer_version
 test_version_check_refuses_old_version

@@ -55,6 +55,9 @@ DAEMON_STATE=$(fm_backend_paseo_daemon_state)
 # workspace it creates (and the Paseo project registered for that path) can
 # be reclaimed without touching any real project in the captain's sidebar.
 PROJ_DIR=$(cd "$(mktemp -d "${TMPDIR:-/tmp}/fm-paseo-smoke.XXXXXX")" && pwd)
+export FM_HOME="$PROJ_DIR/home" FM_ROOT_OVERRIDE="$ROOT" FM_ROOT="$ROOT"
+export STATE="$PROJ_DIR/state" FM_STATE_OVERRIDE="$PROJ_DIR/state"
+mkdir -p "$FM_HOME" "$STATE"
 WS1=""
 CLEANED=""
 cleanup_all() {
@@ -118,28 +121,34 @@ pass "real paseo: expected task label verification accepts the matching terminal
 
 # --- send_literal + send_key(Enter), the two-step submit form ---------------
 
-fm_backend_paseo_send_literal "$TARGET" 'echo literal-then-key-captain' \
+LITERAL_MARKER="literal-then-key-captain-$$"
+fm_backend_paseo_send_literal "$TARGET" "printf '%s%s\\n' 'literal-then-' 'key-captain-$$'" \
   || fail "send_literal failed"
 sleep 0.3
+out=$(fm_backend_paseo_capture "$TARGET" 20) || fail "capture failed before send_key Enter"
+case "$out" in
+*"$LITERAL_MARKER"*) fail "real paseo: send_literal executed the command before Enter"$'\n'"$out" ;;
+esac
 fm_backend_paseo_send_key "$TARGET" Enter || fail "send_key Enter failed"
 sleep 0.5
 out=$(fm_backend_paseo_capture "$TARGET" 20) || fail "capture failed after send_literal+send_key"
-case "$out" in
-*literal-then-key-captain*) : ;;
-*) fail "real paseo: send_literal + send_key(Enter) did not submit and echo the line"$'\n'"$out" ;;
-esac
+printf '%s\n' "$out" | grep -Fx -- "$LITERAL_MARKER" >/dev/null \
+  || fail "real paseo: send_literal + send_key(Enter) did not execute the line"$'\n'"$out"
 pass "real paseo: send_literal (unsubmitted) + send_key Enter submit as two steps and the output is capturable"
 
 # --- send_text_line (the composed form) --------------------------------------
 
-fm_backend_paseo_send_text_line "$TARGET" "echo captain-on-deck-line" \
+LINE_MARKER="captain-on-deck-line-$$"
+out=$(fm_backend_paseo_capture "$TARGET" 20) || fail "capture failed before send_text_line"
+case "$out" in
+*"$LINE_MARKER"*) fail "real paseo: send_text_line marker was already present"$'\n'"$out" ;;
+esac
+fm_backend_paseo_send_text_line "$TARGET" "printf '%s%s\\n' 'captain-on-' 'deck-line-$$'" \
   || fail "send_text_line failed"
 sleep 0.5
 out=$(fm_backend_paseo_capture "$TARGET" 20) || fail "capture failed after send_text_line"
-case "$out" in
-*captain-on-deck-line*) : ;;
-*) fail "real paseo: send_text_line did not run and echo the line"$'\n'"$out" ;;
-esac
+printf '%s\n' "$out" | grep -Fx -- "$LINE_MARKER" >/dev/null \
+  || fail "real paseo: send_text_line did not execute the line"$'\n'"$out"
 pass "real paseo: send_text_line composes send-keys+Enter and its output is capturable"
 
 # --- current_path: verified creation-time-frozen cwd -------------------------
