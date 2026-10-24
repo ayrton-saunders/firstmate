@@ -1149,7 +1149,11 @@ spawn_remote_secondmate() {
   elif [ -n "$positional" ]; then
     harness=$positional
   else
-    harness=$("$FM_ROOT/bin/fm-harness.sh" secondmate "$id")
+    harness=$("$FM_ROOT/bin/fm-harness.sh" secondmate "$id") || {
+      fm_lock_release "$registry_lock" || true
+      fm_lock_release "$SPAWN_TASK_LOCK" || true
+      return 1
+    }
   fi
   case "$harness" in
   claude | codex | opencode | pi | pi-signed | grok | kimi | cursor) ;;
@@ -1175,11 +1179,19 @@ spawn_remote_secondmate() {
   effort=${EFFORT:--}
   if [ -z "$HARNESS_ARG" ] && [ -z "$positional" ]; then
     if [ "$MODEL_SET" -eq 0 ]; then
-      model=$("$SCRIPT_DIR/fm-harness.sh" secondmate-model "$id")
+      model=$("$SCRIPT_DIR/fm-harness.sh" secondmate-model "$id") || {
+        fm_lock_release "$registry_lock" || true
+        fm_lock_release "$SPAWN_TASK_LOCK" || true
+        return 1
+      }
       [ -n "$model" ] || model=-
     fi
     if [ "$EFFORT_SET" -eq 0 ]; then
-      effort=$("$SCRIPT_DIR/fm-harness.sh" secondmate-effort "$id")
+      effort=$("$SCRIPT_DIR/fm-harness.sh" secondmate-effort "$id") || {
+        fm_lock_release "$registry_lock" || true
+        fm_lock_release "$SPAWN_TASK_LOCK" || true
+        return 1
+      }
       [ -n "$effort" ] || effort=-
     fi
   fi

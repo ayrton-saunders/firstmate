@@ -265,6 +265,53 @@ ROWS
   pass "D2 malformed config/secondmate-harness refuses with its line number on every read verb"
 }
 
+test_secondmate_pin_io_failures_refuse() {
+  local dir cfg mode verb id out rc
+  dir="$TMP_ROOT/pin-io"
+  cfg="$dir/config"
+  mkdir -p "$cfg" "$dir/directory" "$dir/fakebin"
+  printf 'codex\n' > "$cfg/crew-harness"
+  cat > "$dir/fakebin/cat" <<'SH'
+#!/usr/bin/env bash
+if [ "$1" = "$FM_CONFIG_OVERRIDE/secondmate-harness" ]; then
+  printf 'claude default-model high\nmate alpha: pi mate-model xhigh\n'
+  exit 1
+fi
+exec /bin/cat "$@"
+SH
+  chmod +x "$dir/fakebin/cat"
+  for mode in open read partial permission; do
+    rm -f "$cfg/secondmate-harness"
+    case "$mode" in
+      open) ln -s secondmate-harness "$cfg/secondmate-harness" ;;
+      read) ln -s "$dir/directory" "$cfg/secondmate-harness" ;;
+      partial|permission)
+        printf 'claude default-model high\nmate alpha: pi mate-model xhigh\n' > "$cfg/secondmate-harness"
+        if [ "$mode" = permission ]; then
+          chmod 000 "$cfg/secondmate-harness"
+          [ ! -r "$cfg/secondmate-harness" ] || continue
+        fi
+        ;;
+    esac
+    for id in alpha beta ''; do
+      for verb in secondmate secondmate-model secondmate-effort; do
+        if [ "$mode" = partial ]; then
+          out=$(PATH="$dir/fakebin:$BLIND_BIN:$BASE_PATH" CLAUDECODE=1 FM_CONFIG_OVERRIDE="$cfg" \
+            "$ROOT/bin/fm-harness.sh" "$verb" "$id" 2>"$dir/err"); rc=$?
+        else
+          out=$(PATH="$BLIND_BIN:$BASE_PATH" CLAUDECODE=1 FM_CONFIG_OVERRIDE="$cfg" \
+            "$ROOT/bin/fm-harness.sh" "$verb" "$id" 2>"$dir/err"); rc=$?
+        fi
+        [ "$rc" -ne 0 ] || fail "$mode: $verb '$id' selected a pin after I/O failure"
+        [ -z "$out" ] || fail "$mode: $verb '$id' emitted '$out' after I/O failure"
+        assert_contains "$(cat "$dir/err")" config/secondmate-harness "I/O refusal must identify the pin file"
+      done
+    done
+  done
+  chmod 600 "$cfg/secondmate-harness"
+  pass "secondmate pin I/O failures refuse every resolution verb without fallback or partial tokens"
+}
+
 # The opt-in scope is the whole compatibility promise of this grammar: a file
 # that declares no "mate <id>:" line keeps the documented legacy rule - the
 # first non-empty, non-comment line is parsed and the rest is ignored. Nothing
@@ -2953,6 +3000,7 @@ test_cursor_marker_detection
 test_secondmate_model_effort_tokens
 test_secondmate_per_mate_override_lines
 test_secondmate_malformed_pin_refuses_with_line_number
+test_secondmate_pin_io_failures_refuse
 test_secondmate_legacy_pin_file_is_never_refused
 test_pi_signed_detection_and_session_lock_identity
 test_dash_leading_process_names_are_basename_operands

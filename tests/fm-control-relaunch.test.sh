@@ -1470,7 +1470,7 @@ test_secondmate_relaunch_uses_the_default_for_an_unpinned_mate() {
 # alternative is launching the mate onto whatever it happened to run last time -
 # the silent migration the override grammar exists to prevent.
 test_secondmate_relaunch_refuses_an_unreadable_configured_pin_before_stop() {
-  local dir home out rc
+  local dir home out rc mode
   dir=$(new_case smbadminpin smp3)
   home="$dir/home"
   mkdir -p "$home/config" "$home/data/smp3"
@@ -1504,7 +1504,30 @@ test_secondmate_relaunch_refuses_an_unreadable_configured_pin_before_stop() {
     || fail "a refused relaunch must not stop or replace the running agent"
   [ "$(meta_field "$dir" smp3 harness)" = claude ] \
     || fail "a refused relaunch must leave the durable record on the recorded harness"
-  pass "fm-control relaunch: an unparseable secondmate pin refuses before anything is stopped"
+  cp "$home/state/smp3.meta" "$dir/prior.meta"
+  printf 'codex\n' > "$home/config/crew-harness"
+  mkdir -p "$dir/pin-directory"
+  for mode in open read permission; do
+    rm -f "$home/config/secondmate-harness"
+    case "$mode" in
+      open) ln -s secondmate-harness "$home/config/secondmate-harness" ;;
+      read) ln -s "$dir/pin-directory" "$home/config/secondmate-harness" ;;
+      permission)
+        printf 'codex default-model high\nmate smp3: claude mate-model xhigh\n' > "$home/config/secondmate-harness"
+        chmod 000 "$home/config/secondmate-harness"
+        [ ! -r "$home/config/secondmate-harness" ] || continue
+        ;;
+    esac
+    out=$(run_control "$dir" smp3 relaunch); rc=$?
+    expect_code 1 "$rc" "$mode: an unreadable pin must refuse relaunch"$'\n'"$out"
+    assert_contains "$out" "config/secondmate-harness" "I/O refusal must identify the pin file"
+    [ "$(cat "$dir/fake/command")" = claude ] || fail "$mode: pin I/O failure stopped the agent"
+    [ ! -s "$dir/fake/literal" ] || fail "$mode: pin I/O failure sent lifecycle text"
+    [ ! -s "$dir/fake/keys" ] || fail "$mode: pin I/O failure sent lifecycle keys"
+    cmp -s "$dir/prior.meta" "$home/state/smp3.meta" || fail "$mode: pin I/O failure changed metadata"
+  done
+  chmod 600 "$home/config/secondmate-harness"
+  pass "fm-control relaunch: malformed and unreadable secondmate pins refuse before anything is stopped"
 }
 
 test_secondmate_relaunch_ignores_invalid_configured_effort_before_stop() {

@@ -488,7 +488,12 @@ secondmate_parse() {
   SM_MATE_IDS=()
   SM_MATE_VALS=()
   SM_MATE_LINES=()
-  [ -f "$file" ] || return 0
+  [ -e "$file" ] || [ -L "$file" ] || return 0
+  local contents
+  [ -f "$file" ] && contents=$(cat "$file") || {
+    echo "error: config/secondmate-harness cannot be read" >&2
+    return 1
+  }
   local line num=0 id rest i ntok
   local override_pattern='^mate[[:space:]]+([^:[:space:]]+)[[:space:]]*:[[:space:]]*(.*)$'
   # First pass: the legacy default line, and whether the file declares any
@@ -506,7 +511,7 @@ secondmate_parse() {
       declares_override=1
       break
     fi
-  done < "$file"
+  done <<< "$contents"
   if [ "$declares_override" -eq 0 ]; then
     SM_DEFAULT_LINE=$legacy_line
     SM_DEFAULT_LINE_NUM=$legacy_num
@@ -565,7 +570,7 @@ secondmate_parse() {
     fi
     SM_DEFAULT_LINE=$line
     SM_DEFAULT_LINE_NUM=$num
-  done < "$file"
+  done <<< "$contents"
 }
 
 # Echo the line that governs a secondmate id: its "mate <id>:" override when the
