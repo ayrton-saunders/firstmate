@@ -367,6 +367,93 @@ test_sidebar_config_apply_backs_up_and_refuses_twice() {
   pass "sidebar-config: prints rows; --apply backs up, appends once, never reloads Herdr"
 }
 
+test_sidebar_config_refuses_equivalent_tables_before_backup() {
+  local cfg out section document
+  new_home sidebar-equivalent
+  cfg="$FAKE_DIR/config.toml"
+  for section in spaces agents; do
+    for document in \
+      "[\"ui\".\"sidebar\".\"$section\"]" \
+      "[ 'ui' . 'sidebar' . '$section' ]" \
+      "[ ui . sidebar . $section ]" \
+      "ui.sidebar.$section.rows = []" \
+      "\"ui\" . \"sidebar\" . \"$section\" = { rows = [] }" \
+      "ui = { sidebar = { $section = { rows = [] } } }" \
+      $'[ui.sidebar]\n'"$section = { rows = [] }" \
+      "[[ui.sidebar.$section]]" \
+      $'[ui.sidebar]\n'"$section = false"; do
+      printf '%s\n' "$document" > "$cfg"
+      cp "$cfg" "$FAKE_DIR/original"
+      python3 - "$cfg" "$section" <<'PY' || fail "invalid equivalent-table fixture"
+import sys, tomllib
+with open(sys.argv[1], "rb") as stream:
+    config = tomllib.load(stream)
+assert sys.argv[2] in config["ui"]["sidebar"]
+PY
+      if out=$(groups sidebar-config --apply "$cfg" 2>&1); then
+        fail "apply accepted an existing logical sidebar $section declaration: $document"
+      fi
+      assert_contains "$out" "already defines Herdr sidebar rows" "semantic table refusal"
+      cmp "$cfg" "$FAKE_DIR/original" || fail "refusal changed original TOML"
+      [ -z "$(find "$FAKE_DIR" -maxdepth 1 -name 'config.toml.bak-*')" ] \
+        || fail "semantic table refusal created a backup"
+    done
+  done
+  assert_equals "" "$(cat "$FAKE_HERDR_LOG")" "refused apply calls no Herdr command"
+  pass "sidebar --apply refuses quoted, dotted, inline, and array declarations before backup"
+}
+
+test_sidebar_config_refuses_malformed_or_unappendable_toml() {
+  local cfg out document
+  new_home sidebar-invalid
+  cfg="$FAKE_DIR/config.toml"
+  for document in \
+    '[unclosed' \
+    'title = "unterminated' \
+    $'title = "one"\ntitle = "two"' \
+    $'[ui.sidebar.spaces]\nrows = [' \
+    'ui = { sidebar = {} }' \
+    'ui.sidebar = {}' \
+    'ui = false' \
+    $'[ui]\nsidebar = false'; do
+    printf '%s\n' "$document" > "$cfg"
+    cp "$cfg" "$FAKE_DIR/original"
+    if out=$(groups sidebar-config --apply "$cfg" 2>&1); then
+      fail "apply accepted malformed or unappendable TOML: $document"
+    fi
+    assert_contains "$out" "invalid TOML" "parse admission diagnostic"
+    cmp "$cfg" "$FAKE_DIR/original" || fail "parse refusal changed original TOML"
+    [ -z "$(find "$FAKE_DIR" -maxdepth 1 -name 'config.toml.bak-*')" ] \
+      || fail "parse refusal created a backup"
+  done
+  pass "sidebar --apply parses both original and proposed TOML before backup or append"
+}
+
+test_sidebar_config_preserves_unrelated_toml_meaning() {
+  local cfg out backups
+  new_home sidebar-siblings
+  cfg="$FAKE_DIR/config.toml"
+  printf '%s\n' '["ui.sidebar.spaces"]' 'rows = ["unrelated"]' \
+    '[ui.sidebar.space]' 'label = "sibling"' > "$cfg"
+  cp "$cfg" "$FAKE_DIR/original"
+  out=$(groups sidebar-config --apply "$cfg" 2>&1) || fail "safe sibling config refused: $out"
+  python3 - "$cfg" "$FAKE_DIR/original" <<'PY' || fail "apply changed unrelated TOML meaning"
+import sys, tomllib
+with open(sys.argv[1], "rb") as stream:
+    applied = tomllib.load(stream)
+with open(sys.argv[2], "rb") as stream:
+    original = tomllib.load(stream)
+sidebar = applied["ui"]["sidebar"]
+assert sidebar.pop("spaces")["rows"][0] == ["state_icon", "workspace"]
+assert sidebar.pop("agents")["rows"][0][-1] == "$fm_task"
+assert applied == original
+PY
+  backups=$(find "$FAKE_DIR" -maxdepth 1 -name 'config.toml.bak-*')
+  [ -n "$backups" ] || fail "safe apply omitted backup"
+  cmp "$backups" "$FAKE_DIR/original" || fail "backup changed original bytes"
+  pass "sidebar --apply distinguishes literal dotted names and preserves sibling tables"
+}
+
 test_agent_view_helper_sends_only_the_whitelisted_requests() {
   local dir sock server out status
   command -v python3 >/dev/null 2>&1 || { pass "agent view helper: skipped, python3 not found"; return 0; }
@@ -442,5 +529,8 @@ test_sync_retries_failed_view_with_converged_tokens
 test_sync_skips_an_unverified_protocol_with_one_warning
 test_clear_removes_tokens_and_the_view_even_when_off
 test_sidebar_config_apply_backs_up_and_refuses_twice
+test_sidebar_config_refuses_equivalent_tables_before_backup
+test_sidebar_config_refuses_malformed_or_unappendable_toml
+test_sidebar_config_preserves_unrelated_toml_meaning
 test_agent_view_helper_sends_only_the_whitelisted_requests
 test_watcher_poll_tags_tasks

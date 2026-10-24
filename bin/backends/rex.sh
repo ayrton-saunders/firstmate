@@ -868,30 +868,69 @@ fm_backend_rex_composer_state() {  # <target> [expected-label] -> empty|pending|
   printf '%s' "$verdict"
 }
 
-# fm_backend_rex_delivery_busy: busy|idle|unknown for the queued-Enter
-# conversion: a trusted native working state, else the rendered busy footer.
-fm_backend_rex_delivery_busy() {  # <target>
+fm_backend_rex_delivery_busy() {  # <target> [harness]
   [ "$(fm_backend_rex_busy_state "$1")" != busy ] || { printf 'busy'; return 0; }
-  fm_backend_rex_rendered_busy_state "$1"
+  fm_backend_rex_rendered_busy_state "$1" "${2:-}"
 }
 
-# fm_backend_rex_send_text_submit: type <text> once, then drive the shared
-# verify-and-retry-Enter loop (fm_composer_submit_retry_core) against the
-# shared composer verdict, and convert a still-pending composer whose agent is
-# visibly busy into a queued delivery (fm_composer_queued_enter_verdict).
 # Echoes empty|pending|pending-unproven|unknown|send-failed.
 fm_backend_rex_send_text_submit() {  # <target> <text> <retries> <enter-sleep> <settle> [expected-label]
   local target=$1 text=$2 retries=$3 sleep_s=$4 settle=$5 expected_label=${6:-} verdict
+  local baseline identity busy_harness='' i=0 j enter_sent=0
   fm_backend_rex_parse_target "$target" || { printf 'unknown'; return 0; }
+  identity=$(fm_backend_rex_composer_identity "$target") || identity=
+  [ "${identity%%$'\t'*}" != polytoken ] || busy_harness=polytoken
+  baseline=$(fm_backend_rex_delivery_busy "$target" "$busy_harness")
   fm_backend_rex_send_literal "$target" "$text" "$expected_label" || {
     printf 'send-failed'
     return 0
   }
   sleep "$settle"
-  verdict=$(fm_composer_submit_retry_core fm_backend_rex_send_key fm_backend_rex_composer_state \
-    "$target" "$retries" "$sleep_s" "$expected_label")
+  while :; do
+    if fm_backend_rex_send_key "$target" Enter "$expected_label"; then
+      enter_sent=1
+    elif [ "$enter_sent" -eq 0 ]; then
+      i=$((i + 1))
+      [ "$i" -lt "$retries" ] || { printf 'send-failed'; return 0; }
+      sleep "$sleep_s"
+      continue
+    fi
+    sleep "$sleep_s"
+    verdict=$(fm_backend_rex_composer_state "$target" "$expected_label")
+    if fm_composer_blocking_dialog_noted >/dev/null; then
+      printf 'unknown'
+      return 0
+    fi
+    case "$verdict" in
+      pending|pending-unproven) ;;
+      unknown)
+        if [ "$baseline" = idle ]; then
+          j=0
+          while [ "$j" -lt "$retries" ]; do
+            fm_backend_rex_screen_read "$target" 2>/dev/null || { printf 'unknown'; return 0; }
+            if fm_composer_note_blocking_dialog "$FM_BACKEND_REX_SCREEN"; then
+              printf 'unknown'
+              return 0
+            fi
+            if [ "$(fm_backend_rex_delivery_busy "$target" "$busy_harness")" = busy ]; then
+              printf 'empty'
+              return 0
+            fi
+            j=$((j + 1))
+            [ "$j" -lt "$retries" ] || break
+            sleep "$sleep_s"
+          done
+        fi
+        printf 'unknown'
+        return 0
+        ;;
+      *) printf '%s' "$verdict"; return 0 ;;
+    esac
+    i=$((i + 1))
+    [ "$i" -lt "$retries" ] || break
+  done
   if [ "$verdict" = pending ]; then
-    verdict=$(fm_composer_queued_enter_verdict "$verdict" "$(fm_backend_rex_delivery_busy "$target")")
+    verdict=$(fm_composer_queued_enter_verdict "$verdict" "$(fm_backend_rex_delivery_busy "$target" "$busy_harness")")
   fi
   printf '%s' "$verdict"
 }

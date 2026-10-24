@@ -163,11 +163,17 @@ case "$cmd:$sub" in
   send:)
     has_block "$sid" "$bid" || notfound "block"
     [ -n "$p0" ] || exit 2
-    printf '%s\n' "$p0" >>"$D/sent" ;;
+    [ ! -f "$D/send-fails" ] || exit 4
+    printf '%s\n' "$p0" >>"$D/sent"
+    [ ! -f "$D/on-send" ] || bash "$D/on-send" "$D" "${bid#block:}" ;;
   send-key:)
     has_block "$sid" "$bid" || notfound "block"
     case "$p0" in enter|escape|tab|ctrl+c|ctrl+u) ;; *) exit 2 ;; esac
-    printf '%s\n' "$p0" >>"$D/keys" ;;
+    [ ! -f "$D/key-fails" ] || exit 4
+    printf '%s\n' "$p0" >>"$D/keys"
+    if [ "$p0" = enter ] && [ -f "$D/on-enter" ]; then
+      bash "$D/on-enter" "$D" "${bid#block:}"
+    fi ;;
   do:)
     has_session "$sid" || notfound "session"
     [ ! -f "$D/do-fail" ] || exit 3
@@ -555,6 +561,77 @@ test_send_literal_and_keys() {
   pass "rex input: literal text after --, no call for empty input, verified key names only, line submit"
 }
 
+test_submit_confirms_turn_start_without_accepting_arbitrary_unknown() {
+  local scenario dir out sid bid t u owner expected presses rule
+  rule=$(printf '%.0s─' {1..24})
+  for scenario in pi-native polytoken-native polytoken-rendered already-busy unknown-baseline \
+    no-transition no-identity queued swallowed dialog literal-fails enter-fails retry; do
+    dir=$(new_case "submit-$scenario")
+    out=$(rex_env "$dir" 'fm_backend_rex_create_task fm-alpha /tmp')
+    read -r sid _ bid <<<"$out"
+    t="${sid#session:}:${bid#block:}"; u=${bid#block:}
+    owner=polytoken expected=empty presses=1
+    case "$scenario" in
+      pi-native) owner=pi ;;
+      no-identity) owner=zsh expected=unknown ;;
+      already-busy|unknown-baseline|no-transition|dialog) expected=unknown ;;
+      swallowed) expected=pending presses=3 ;;
+      queued|retry) presses=3 ;;
+      literal-fails) expected=send-failed presses=0 ;;
+      enter-fails) expected=send-failed presses=0 ;;
+    esac
+    : > "$dir/fake/keys"
+    write_process "$dir" "$bid" "{\"foreground\":{\"pid\":4242,\"name\":\"$owner\"},\"ancestors\":[],\"last_exit\":null}"
+    printf 'conversation\n%s\n\n%s\n' "$rule" "$rule" > "$dir/fake/idle"
+    printf 'conversation\n%s\nhello\n%s\n' "$rule" "$rule" > "$dir/fake/typed"
+    printf ' Running for 1.02s\n%s\n\n%s\n' "$rule" "$rule" > "$dir/fake/running"
+    cp "$dir/fake/idle" "$dir/fake/capture/$u.vt"
+    cp "$dir/fake/idle" "$dir/fake/capture/$u.txt"
+    cp "$dir/fake/running" "$dir/fake/submitted"
+    case "$scenario" in
+      pi-native|polytoken-native|dialog)
+        cp "$dir/fake/idle" "$dir/fake/submitted"
+        printf '{"records":[{"state":"working","owner":{"pid":4242}}]}\n' > "$dir/fake/submitted-status" ;;
+      no-transition) printf 'unrecognized viewport\n' > "$dir/fake/submitted" ;;
+      retry) cp "$dir/fake/idle" "$dir/fake/submitted" ;;
+      already-busy|queued)
+        cp "$dir/fake/running" "$dir/fake/capture/$u.vt"
+        cp "$dir/fake/running" "$dir/fake/capture/$u.txt" ;;
+      unknown-baseline) rm "$dir/fake/capture/$u.txt" ;;
+      literal-fails) touch "$dir/fake/send-fails" ;;
+      enter-fails) touch "$dir/fake/key-fails" ;;
+    esac
+    case "$scenario" in
+      queued|swallowed) cp "$dir/fake/typed" "$dir/fake/submitted" ;;
+      dialog)
+        printf 'Background work is running\n❯ 1. Exit and stop tasks\nEnter to confirm · Esc to cancel\n' \
+          > "$dir/fake/submitted" ;;
+    esac
+    if [ "$scenario" = queued ]; then
+      printf '{"records":[{"state":"working","owner":{"pid":4242}}]}\n' > "$dir/fake/status/$u.json"
+    fi
+    cat > "$dir/fake/on-send" <<'SH'
+d=$1 u=$2
+cp "$d/typed" "$d/capture/$u.vt"
+SH
+    cat > "$dir/fake/on-enter" <<'SH'
+d=$1 u=$2
+if [ -f "$d/retry" ] && [ "$(wc -l < "$d/keys")" -lt 3 ]; then exit 0; fi
+cp "$d/submitted" "$d/capture/$u.vt"
+cp "$d/submitted" "$d/capture/$u.txt"
+[ ! -f "$d/submitted-status" ] || cp "$d/submitted-status" "$d/status/$u.json"
+SH
+    [ "$scenario" != retry ] || touch "$dir/fake/retry"
+    out=$(rex_env "$dir" "fm_backend_send_text_submit rex '$t' hello 3 0.01 0")
+    assert_equals "$expected" "$out" "$scenario submission verdict"
+    assert_equals "$presses" "$(wc -l < "$dir/fake/keys" 2>/dev/null | tr -d ' ' || printf 0)" "$scenario Enter count"
+    if [ "$scenario" != literal-fails ]; then
+      assert_equals hello "$(cat "$dir/fake/sent")" "$scenario must type the payload exactly once"
+    fi
+  done
+  pass "rex submit confirms idle-to-working native/rendered turns, rejects unproven transitions, and preserves retry/queue paths"
+}
+
 # --- push events -------------------------------------------------------------
 
 # rex_event: one reader line for a status edge on <block-id>.
@@ -894,6 +971,7 @@ test_agent_state_from_process_view
 test_native_busy_trusts_live_owner_only
 test_current_path_follows_foreground
 test_send_literal_and_keys
+test_submit_confirms_turn_start_without_accepting_arbitrary_unknown
 test_kill_closes_and_retires_per_home_session
 test_kill_never_retires_a_foreign_session
 test_kill_refuses_without_proof

@@ -482,10 +482,37 @@ cmd_sidebar_config() {
     echo "fm-herdr-groups: $target is not a regular file" >&2
     return 1
   }
-  if grep -Eq '^[[:space:]]*\[ui\.sidebar\.(spaces|agents)\]' "$target"; then
-    echo "fm-herdr-groups: $target already defines Herdr sidebar rows; merge the suggested rows by hand (fm-herdr-groups.sh sidebar-config prints them)" >&2
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo "fm-herdr-groups: python3 with tomllib is required to validate sidebar config" >&2
     return 1
   fi
+  python3 - "$target" "$(sidebar_rows)" <<'PY' || return 1
+import sys
+
+try:
+    import tomllib
+except ImportError:
+    print("fm-herdr-groups: python3 with tomllib is required to validate sidebar config", file=sys.stderr)
+    raise SystemExit(1)
+
+try:
+    with open(sys.argv[1], "rb") as stream:
+        text = stream.read().decode("utf-8")
+    config = tomllib.loads(text)
+    ui = config.get("ui", {})
+    sidebar = ui.get("sidebar", {}) if isinstance(ui, dict) else None
+    if isinstance(sidebar, dict) and any(key in sidebar for key in ("spaces", "agents")):
+        print(
+            f"fm-herdr-groups: {sys.argv[1]} already defines Herdr sidebar rows; "
+            "merge the suggested rows by hand (fm-herdr-groups.sh sidebar-config prints them)",
+            file=sys.stderr,
+        )
+        raise SystemExit(1)
+    tomllib.loads(text + "\n" + sys.argv[2] + "\n")
+except (OSError, UnicodeError, tomllib.TOMLDecodeError):
+    print("fm-herdr-groups: invalid TOML or sidebar rows cannot be appended safely", file=sys.stderr)
+    raise SystemExit(1)
+PY
   backup="$target.bak-$(date +%s)"
   cp -p "$target" "$backup" || {
     echo "fm-herdr-groups: could not back up $target" >&2

@@ -299,20 +299,35 @@ fm_pr_head_valid() {
   [[ "$head" =~ ^[0-9a-f]{40}$|^[0-9a-f]{64}$ ]]
 }
 
-# Resolve the PR number for a task copy's branch via gh-axi, run inside that
-# copy so gh-axi resolves the copy's own repository. Echoes the number on a
-# single match and returns 0; returns non-zero on no match or any lookup
-# failure, so callers treat it as "no PR found" (fail-safe). bin/fm-teardown.sh
-# reads any state for its landed check; bin/fm-pr-health.sh reads open PRs to
-# enroll a branch whose PR was never recorded.
-fm_pr_number_from_branch() {  # <worktree> <branch> [open|closed|all]
-  local wt=$1 branch=$2 state=${3:-all} out n
+fm_pr_number_from_branch() (  # <worktree> <branch> [open|closed|all]
+  local wt=$1 branch=$2 state=${3:-all} out remote url head base
   [ -n "$branch" ] && [ "$branch" != HEAD ] || return 1
-  out=$( cd "$wt" && gh-axi pr list --state "$state" --head "$branch" --limit 1 2>/dev/null ) || return 1
-  n=$(printf '%s\n' "$out" | sed -n 's/^[[:space:]]*\([0-9][0-9]*\),.*/\1/p' | head -1)
-  [ -n "$n" ] || return 1
-  printf '%s' "$n"
-}
+  # shellcheck source=bin/fm-role-lib.sh
+  . "$(dirname "${BASH_SOURCE[0]}")/fm-role-lib.sh"
+  base=$(fm_role_publication_target "$wt") || return 1
+  case "$base" in github.com/*) ;; *) return 1 ;; esac
+  fm_pr_url_parse "https://$base/pull/1" || return 1
+  remote=$(git -C "$wt" config --get "branch.$branch.pushRemote" 2>/dev/null || true)
+  [ -n "$remote" ] || remote=$(git -C "$wt" config --get remote.pushDefault 2>/dev/null || true)
+  [ -n "$remote" ] || remote=$(git -C "$wt" config --get "branch.$branch.remote" 2>/dev/null || true)
+  [ -n "$remote" ] || remote=origin
+  url=$(git -C "$wt" remote get-url --push --all "$remote" 2>/dev/null) || return 1
+  head=$(fm_role_remote_identity "$url" "$wt" nolocal) || return 1
+  case "$head" in github.com/*) ;; *) return 1 ;; esac
+  fm_pr_url_parse "https://$head/pull/1" || return 1
+  out=$(cd "$wt" && gh pr list --state "$state" --head "$branch" --limit 1000 \
+    --json number,headRefName,headRepository,headRepositoryOwner 2>/dev/null) || return 1
+  printf '%s' "$out" | jq -ser --arg head "${head#github.com/}" --arg branch "$branch" '
+    if length == 1 then .[0] else error("invalid PR response") end
+    | if type == "array" and length < 1000 then
+      [.[] | select(.headRefName == $branch)
+        | select((.headRepositoryOwner.login | type) == "string" and (.headRepository.name | type) == "string")
+        | select(((.headRepositoryOwner.login + "/" + .headRepository.name) | ascii_downcase) == $head)]
+      | if length == 1 and (.[0].number | type) == "number"
+          and .[0].number > 0 and (.[0].number | floor) == .[0].number
+        then .[0].number else error("no unique head") end
+    else error("incomplete PR list") end' 2>/dev/null
+)
 
 # The one reading of a GitHub pull request's draft state. Prints "true" or
 # "false" for a boolean isDraft and nothing for anything else, so a caller can

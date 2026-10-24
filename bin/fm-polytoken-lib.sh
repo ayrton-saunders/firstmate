@@ -161,27 +161,79 @@ fm_polytoken_config_source() {
     echo "error: polytoken global config '$source' is missing or unreadable; a polytoken worker needs the operator's providers and credentials mirrored into its per-task config dir" >&2
     return 1
   fi
+  fm_polytoken_config_yaml "$source" || return 1
   printf '%s\n' "$source"
 }
 
+fm_polytoken_config_yaml() {  # <source> [<destination>]
+  if ! command -v ruby >/dev/null 2>&1; then
+    echo "error: polytoken config mirroring requires Ruby with the YAML parser" >&2
+    return 1
+  fi
+  ruby - "$@" <<'RUBY'
+begin
+  require "yaml"
+  require "date"
+rescue LoadError
+  warn "error: polytoken config mirroring requires Ruby with the YAML parser"
+  exit 1
+end
+
+begin
+  text = File.read(ARGV[0])
+  stream = YAML.parse_stream(text)
+  raise ArgumentError unless stream.children.length == 1
+  root = stream.children[0].root
+  raise ArgumentError unless root.is_a?(Psych::Nodes::Mapping)
+  keys = root.children.each_slice(2).map(&:first)
+  raise ArgumentError unless keys.all? { |key| key.is_a?(Psych::Nodes::Scalar) }
+  raise ArgumentError unless keys.map(&:value).uniq.length == keys.length
+  load_yaml = lambda do |data|
+    if YAML.method(:safe_load).parameters.any? { |kind, name| kind == :key && name == :permitted_classes }
+      YAML.safe_load(data, permitted_classes: [Date, Time], aliases: true)
+    else
+      YAML.safe_load(data, [Date, Time], [], true)
+    end
+  end
+  config = load_yaml.call(text)
+  raise ArgumentError unless config.is_a?(Hash) && config.keys.all? { |key| key.is_a?(String) }
+  matcher = "default_permission_matcher"
+  if config[matcher] == "bypass_plus"
+    output = text
+  else
+    index = keys.index { |key| key.value == matcher }
+    value = Psych::Nodes::Scalar.new("bypass")
+    if index
+      root.children[index * 2 + 1] = value
+    else
+      root.children << Psych::Nodes::Scalar.new(matcher) << value
+    end
+    output = stream.to_yaml
+    expected = config.merge(matcher => "bypass")
+    raise ArgumentError unless load_yaml.call(output) == expected
+  end
+rescue StandardError => error
+  warn "error: polytoken global config is invalid or cannot be mirrored safely (#{error.class})"
+  exit 1
+end
+
+if ARGV[1]
+  begin
+    File.open(ARGV[1], "w", 0600) { |file| file.write(output) }
+  rescue SystemCallError, IOError
+    warn "error: could not write polytoken worker config"
+    exit 1
+  end
+end
+RUBY
+}
+
 fm_polytoken_write_config() {  # <config-dir>
-  local cfgdir=$1 source matcher replace
+  local cfgdir=$1 source
   source=$(fm_polytoken_config_source) || return 1
   mkdir -p "$cfgdir" || return 1
   chmod 700 "$cfgdir" 2>/dev/null || true
-  matcher=$(sed -n 's/^default_permission_matcher:[[:space:]]*//p' "$source" | head -1 | sed 's/[[:space:]]#.*$//' | tr -d "[:space:]\"'")
-  case "$matcher" in
-    bypass_plus) replace=keep ;;
-    *) replace=enforce ;;
-  esac
-  if [ "$replace" = keep ]; then
-    cat "$source" >"$cfgdir/config.yaml" || return 1
-  else
-    sed 's/^default_permission_matcher:.*/default_permission_matcher: bypass/' "$source" >"$cfgdir/config.yaml" || return 1
-    if ! grep -q '^default_permission_matcher:' "$cfgdir/config.yaml"; then
-      printf '\ndefault_permission_matcher: bypass\n' >>"$cfgdir/config.yaml" || return 1
-    fi
-  fi
+  fm_polytoken_config_yaml "$source" "$cfgdir/config.yaml" || return 1
   chmod 600 "$cfgdir/config.yaml" || return 1
 }
 

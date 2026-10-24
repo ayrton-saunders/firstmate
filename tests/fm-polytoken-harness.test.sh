@@ -404,6 +404,130 @@ test_polytoken_write_config_enforces_the_unattended_posture() {
   pass "fm-polytoken-lib: the config mirror enforces the unattended posture"
 }
 
+assert_polytoken_config_meaning() {
+  ruby -ryaml -rdate - "$@" <<'RUBY'
+source, destination, matcher = ARGV
+load_config = lambda do |path|
+  text = File.read(path)
+  if YAML.method(:safe_load).parameters.any? { |kind, name| kind == :key && name == :permitted_classes }
+    YAML.safe_load(text, permitted_classes: [Date, Time], aliases: true)
+  else
+    YAML.safe_load(text, [Date, Time], [], true)
+  end
+end
+original = load_config.call(source)
+worker = load_config.call(destination)
+raise "config values changed" unless worker == original.merge("default_permission_matcher" => matcher)
+keys = YAML.parse_file(destination).root.children.each_slice(2).map { |key, _| key.value }
+raise "duplicate logical keys" unless keys.uniq == keys
+RUBY
+}
+
+test_polytoken_config_uses_yaml_key_and_value_meaning() {
+  local case_dir source cfgdir declaration expected out
+  case_dir=$(make_wiring_case config-semantics)
+  source="$case_dir/home/.config/polytoken/config.yaml"
+  cfgdir="$case_dir/state/task.polytoken-config"
+  for declaration in \
+    '"default_permission_matcher": standard' \
+    '"\u0064efault_permission_matcher": standard' \
+    'default_permission_matcher: bypass_ plus' \
+    "'default_permission_matcher' : bypass_plus" \
+    'default_permission_matcher : bypass_plus' \
+    '"default_permission_matcher": "bypass_plus" # deny rules' \
+    $'"default_permission_matcher": >-\n  bypass_plus' \
+    '"default_permission_matcher": null' \
+    '"default_permission_matcher": [standard]' \
+    '"default_permission_matcher": {mode: standard}'; do
+    printf '%s\n' 'version: 4' 'providers:' '  first: &provider' \
+      '    auth: {type: static_key, key: "00123:on:# secret"}' \
+      '    endpoint: https://example.invalid/api' '  second: *provider' \
+      'notes: |' '  default_permission_matcher: bypass_plus' "$declaration" > "$source"
+    cp "$source" "$case_dir/original.yaml"
+    expected=bypass
+    case "$declaration" in *bypass_plus*) expected=bypass_plus ;; esac
+    out=$(XDG_CONFIG_HOME="$case_dir/home/.config" fm_polytoken_config_source) \
+      || fail "read-only preflight refused valid YAML"
+    assert_equals "$source" "$out" "read-only preflight returns only the config source path"
+    XDG_CONFIG_HOME="$case_dir/home/.config" fm_polytoken_write_config "$cfgdir" \
+      || fail "valid YAML matcher declaration refused: $declaration"
+    assert_polytoken_config_meaning "$source" "$cfgdir/config.yaml" "$expected" \
+      || fail "matcher or unrelated provider values changed: $declaration"
+    cmp "$source" "$case_dir/original.yaml" || fail "config source was modified"
+  done
+  for declaration in \
+    '{providers: {test: {auth: {key: "on"}}}, "default_permission_matcher": standard}' \
+    $'defaults: &defaults\n  default_permission_matcher: bypass_plus\n<<: *defaults\nproviders: {test: {auth: {key: "00123"}}}' \
+    $'defaults: &defaults\n  default_permission_matcher: standard\n<<: *defaults\nproviders: {test: {auth: {key: "00123"}}}'; do
+    printf '%s\n' "$declaration" > "$source"
+    expected=bypass
+    case "$declaration" in *bypass_plus*) expected=bypass_plus ;; esac
+    XDG_CONFIG_HOME="$case_dir/home/.config" fm_polytoken_write_config "$cfgdir" \
+      || fail "flow or merged YAML config refused"
+    assert_polytoken_config_meaning "$source" "$cfgdir/config.yaml" "$expected" \
+      || fail "flow or merged YAML config changed meaning"
+  done
+  pass "config mirror parses quoted keys, whitespace, structured values, aliases, and merges"
+}
+
+test_polytoken_config_parse_admission_preserves_source_and_destination() {
+  local case_dir source cfgdir document out
+  case_dir=$(make_wiring_case config-admission)
+  source="$case_dir/home/.config/polytoken/config.yaml"
+  cfgdir="$case_dir/state/task.polytoken-config"
+  mkdir -p "$cfgdir"
+  printf 'existing destination\n' > "$cfgdir/config.yaml"
+  cp "$cfgdir/config.yaml" "$case_dir/destination-before"
+  for document in \
+    'providers: [' \
+    $'default_permission_matcher: standard\n"default_permission_matcher": bypass_plus' \
+    $'providers: {}\n"providers": {other: {}}' \
+    $'version: 4\n---\nproviders: {}' \
+    '- version: 4' '' 'providers: *missing' \
+    'providers: !ruby/object:Object {}'; do
+    printf '%s\n' "$document" > "$source"
+    cp "$source" "$case_dir/source-before"
+    if out=$(XDG_CONFIG_HOME="$case_dir/home/.config" fm_polytoken_config_source 2>&1); then
+      fail "read-only config preflight admitted malformed or ambiguous YAML"
+    fi
+    assert_contains "$out" "cannot be mirrored safely" "parse admission diagnostic"
+    if XDG_CONFIG_HOME="$case_dir/home/.config" fm_polytoken_write_config "$cfgdir" 2>/dev/null; then
+      fail "writer admitted malformed or ambiguous YAML"
+    fi
+    cmp "$source" "$case_dir/source-before" || fail "refusal changed config source"
+    cmp "$cfgdir/config.yaml" "$case_dir/destination-before" || fail "refusal changed destination"
+    if XDG_CONFIG_HOME="$case_dir/home/.config" fm_polytoken_write_config "$case_dir/absent" 2>/dev/null; then
+      fail "writer admitted malformed YAML into a new config directory"
+    fi
+    assert_absent "$case_dir/absent" "parse admission must precede destination creation"
+  done
+  pass "read-only config preflight and writer refuse malformed YAML before any writes"
+}
+
+test_polytoken_config_requires_the_yaml_parser_in_preflight() {
+  local case_dir source cfgdir out
+  case_dir=$(make_wiring_case config-parser)
+  source="$case_dir/home/.config/polytoken/config.yaml"
+  cfgdir="$case_dir/state/task.polytoken-config"
+  printf 'version: 4\nproviders: {}\n' > "$source"
+  cp "$source" "$case_dir/source-before"
+  mkdir -p "$case_dir/no-parser" "$cfgdir"
+  ln -s "$(command -v cat)" "$case_dir/no-parser/cat"
+  printf 'existing destination\n' > "$cfgdir/config.yaml"
+  cp "$cfgdir/config.yaml" "$case_dir/destination-before"
+  if out=$(PATH="$case_dir/no-parser" XDG_CONFIG_HOME="$case_dir/home/.config" fm_polytoken_config_source 2>&1); then
+    fail "read-only preflight accepted an unavailable YAML parser"
+  fi
+  assert_contains "$out" "requires Ruby with the YAML parser" "missing parser diagnostic"
+  if out=$(PATH="$case_dir/no-parser" XDG_CONFIG_HOME="$case_dir/home/.config" fm_polytoken_write_config "$cfgdir" 2>&1); then
+    fail "writer accepted an unavailable YAML parser"
+  fi
+  assert_contains "$out" "requires Ruby with the YAML parser" "writer parser diagnostic"
+  cmp "$source" "$case_dir/source-before" || fail "missing parser changed source"
+  cmp "$cfgdir/config.yaml" "$case_dir/destination-before" || fail "missing parser changed destination"
+  pass "read-only config preflight requires Ruby YAML before worker shutdown"
+}
+
 test_polytoken_facet_writer_preserves_existing_destinations() {
   local case_dir facet kind
   case_dir=$(make_wiring_case facet-ownership)
@@ -1267,6 +1391,9 @@ test_polytoken_composer_is_the_verified_separated_shape
 test_polytoken_busy_queued_enter_converts_like_opencode
 test_polytoken_tmux_submit_is_acknowledged_by_its_running_row
 test_polytoken_write_config_enforces_the_unattended_posture
+test_polytoken_config_uses_yaml_key_and_value_meaning
+test_polytoken_config_parse_admission_preserves_source_and_destination
+test_polytoken_config_requires_the_yaml_parser_in_preflight
 test_polytoken_facet_writer_preserves_existing_destinations
 test_polytoken_write_facet_carries_the_role_contract_without_a_model_pin
 test_polytoken_busy_writer_dispatches_without_argv_and_never_fails

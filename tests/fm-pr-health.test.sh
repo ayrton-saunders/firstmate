@@ -59,6 +59,19 @@ case "$1 $2" in
                    | .data.repository.pullRequest.statusCheckRollup.contexts.pageInfo = {hasNextPage:true,endCursor:"page2"},
              ($page | .data.repository.pullRequest.statusCheckRollup.contexts.nodes = $nodes[100:])]
         else . end' ;;
+  'pr list')
+    branch=
+    while [ "$#" -gt 0 ]; do [ "$1" != --head ] || branch=$2; shift; done
+    if [ -f "$FORGE/branch-barrier-count" ]; then
+      : > "$FORGE/branch-arrived-$(printf '%s' "$branch" | tr '/' '_')"
+      for attempt in $(seq 1 100); do
+        [ "$(find "$FORGE" -name 'branch-arrived-*' | wc -l)" -ge "$(cat "$FORGE/branch-barrier-count")" ] && break
+        sleep 0.02
+      done
+      [ "$(find "$FORGE" -name 'branch-arrived-*' | wc -l)" -ge "$(cat "$FORGE/branch-barrier-count")" ] || exit 1
+    fi
+    file="$FORGE/branch-$(printf '%s' "$branch" | tr '/' '_')"
+    if [ -f "$file" ]; then cat "$file"; else printf '[]\n'; fi ;;
   'pr view')
     case "$*" in
       *headRefOid,reviewDecision*) model "${3##*/}" | jq '{headRefOid:.head,reviewDecision:""}' ;;
@@ -80,26 +93,15 @@ case "$1 $2" in
   *) printf 'unexpected gh fixture call: %s\n' "$*" >&2; exit 1 ;;
 esac
 SH
-  # gh-axi resolves the open PR for a branch, as fm-teardown.sh's lookup reads it.
   cat > "$home/fakebin/gh-axi" <<'SH'
 #!/usr/bin/env bash
 printf 'gh-axi %s\n' "$*" >> "$FORGE/calls.log"
+[ "${1:-} ${2:-}" = 'pr list' ] || exit 1
 branch=
-while [ "$#" -gt 0 ]; do [ "$1" = --head ] && branch=$2; shift; done
-if [ -f "$FORGE/branch-barrier-count" ]; then
-  : > "$FORGE/branch-arrived-$(printf '%s' "$branch" | tr '/' '_')"
-  for attempt in $(seq 1 100); do
-    [ "$(find "$FORGE" -name 'branch-arrived-*' | wc -l)" -ge "$(cat "$FORGE/branch-barrier-count")" ] && break
-    sleep 0.02
-  done
-  [ "$(find "$FORGE" -name 'branch-arrived-*' | wc -l)" -ge "$(cat "$FORGE/branch-barrier-count")" ] || exit 1
-fi
+while [ "$#" -gt 0 ]; do [ "$1" != --head ] || branch=$2; shift; done
 file="$FORGE/branch-$(printf '%s' "$branch" | tr '/' '_')"
-if [ -f "$file" ]; then
-  printf '%s\n' 'count: 1' 'pull_requests[1]{number,title,state,author,draft,review}:' "  $(cat "$file"),\"t\",open,author,yes,none"
-else
-  printf '%s\n' 'count: 0' 'pull_requests: []'
-fi
+[ -f "$file" ] || exit 0
+jq -r '.[] | "  \(.number),\"t\",open,author,yes,none"' "$file"
 SH
   chmod +x "$home/fakebin/"* "$home/root/bin/fm-guard.sh"
   : > "$home/forge/calls.log"
@@ -117,6 +119,12 @@ pr() { # home number head base mergeable(true|false|null) draft(true|false)
   jq -n --arg head "$3" --arg base "$4" --argjson mergeable "$5" --argjson draft "$6" \
     '{state:"open",head:$head,base:$base,mergeable:$mergeable,draft:$draft,requests:1,reviews:0,checks:[]}' \
     > "$1/forge/pr-$2.json"
+}
+
+branch_pr() { # home branch number [head-owner head-repo head-ref]
+  jq -n --argjson n "$3" --arg owner "${4:-o}" --arg repo "${5:-r}" --arg ref "${6:-$2}" \
+    '[{number:$n,headRefName:$ref,headRepository:{name:$repo},headRepositoryOwner:{login:$owner}}]' \
+    > "$1/forge/branch-$(printf '%s' "$2" | tr '/' '_')"
 }
 
 set_pr() { # home number jq-update
@@ -208,7 +216,7 @@ test_adopted_draft_red_required_check_after_pause_wakes_once() {
   git -C "$wt" remote add origin git@github.com:o/r.git
   # The recorded branch does not match the adopted branch the PR uses.
   task "$home" slot9999 "worktree=$wt" branch=fm/artemis-slot-art-9999
-  printf '5\n' > "$home/forge/branch-ART-9999-infer-tree-diameter"
+  branch_pr "$home" ART-9999-infer-tree-diameter 5
   pr "$home" 5 "$HEAD_A" "$BASE_1" true true
   set_pr "$home" 5 '.checks = [{name:"CI Status",conclusion:null,required:true},
     {name:"Backend",conclusion:null,required:true},{name:"E2E Tests (independent)",conclusion:null,required:false}]'
@@ -226,6 +234,129 @@ test_adopted_draft_red_required_check_after_pause_wakes_once() {
   set_pr "$home" 5 '.checks[1].conclusion = "FAILURE"'
   expect_silent "$home" 'a check already reported at this commit must not repeat when it fails again'
   pass 'each required check that fails on an adopted draft wakes once per latest commit'
+}
+
+test_branch_head_identity_is_unique_and_exact() {
+  local home wt scenario out expected rc
+  for scenario in two-forks wrong-only wrong-repo ambiguous wrong-ref; do
+    home=$(new_home "branch-head-$scenario")
+    wt="$home/copy"
+    git init -q -b feature "$wt"
+    git -C "$wt" remote add origin git@github.com:o/r.git
+    git -C "$wt" remote add fork ssh://git@github.com/mine/r.git
+    git -C "$wt" config remote.pushDefault fork
+    task "$home" early "worktree=$wt"
+    branch_pr "$home" feature 12 mine
+    case "$scenario" in
+      two-forks)
+        jq '[ (.[0] | .number = 13 | .headRepositoryOwner.login = "other"), .[0]]' \
+          "$home/forge/branch-feature" > "$home/forge/next.json"
+        expected=12 ;;
+      wrong-only)
+        jq '.[0].headRepositoryOwner.login = "other"' "$home/forge/branch-feature" > "$home/forge/next.json"
+        expected= ;;
+      wrong-repo)
+        jq '.[0].headRepository.name = "other-repository"' "$home/forge/branch-feature" > "$home/forge/next.json"
+        expected= ;;
+      ambiguous)
+        jq '. + [ (.[0] | .number = 13)]' "$home/forge/branch-feature" > "$home/forge/next.json"
+        expected= ;;
+      wrong-ref)
+        jq '.[0].headRefName = "feature-other"' "$home/forge/branch-feature" > "$home/forge/next.json"
+        expected= ;;
+    esac
+    mv "$home/forge/next.json" "$home/forge/branch-feature"
+    rc=0
+    out=$(with_home "$home" bash -c '. "$1/bin/fm-pr-lib.sh"; fm_pr_number_from_branch "$2" feature open' _ "$ROOT" "$wt") || rc=$?
+    [ "$out" = "$expected" ] || fail "$scenario: helper returned $out instead of $expected"
+    if [ -n "$expected" ]; then
+      [ "$rc" = 0 ] || fail "$scenario: unique helper match failed"
+    else
+      [ "$rc" != 0 ] || fail "$scenario: helper accepted an unverified head"
+    fi
+    pr "$home" 12 "$HEAD_A" "$BASE_1" false false
+    pr "$home" 13 "$HEAD_A" "$BASE_1" false false
+    arm "$home"
+    if [ -n "$expected" ]; then
+      expect_one "$home" '^pr-health: https://github.com/o/r/pull/12 conflicts' 'the matching fork must own the notification'
+    else
+      expect_silent "$home" "$scenario must not claim a PR"
+      expect_silent "$home" "$scenario must not become owned on a later poll"
+    fi
+    out=$(with_home "$home" "$ROOT/bin/fm-contributions.sh" owned)
+    printf '%s' "$out" | jq -e --arg n "$expected" '
+      if $n == "" then length == 0 else length == 1 and .[0].url == "https://github.com/o/r/pull/12" end' >/dev/null \
+      || fail "$scenario: unexpected ownership $out"
+  done
+  pass 'helper and health require a unique exact head ref and publication repository'
+}
+
+test_legacy_cached_branch_is_reverified_after_remote_and_ref_changes() {
+  local home wt out
+  home=$(new_home legacy-cache)
+  wt="$home/copy"
+  git init -q -b feature "$wt"
+  git -C "$wt" remote add origin git@github.com:o/r.git
+  task "$home" early "worktree=$wt"
+  with_home "$home" "$ROOT/bin/fm-contributions.sh" enroll early https://github.com/o/r/pull/12 >/dev/null \
+    || fail 'could not seed legacy branch ownership'
+  printf '%s\n' '{"schema":"fm-pr-health.v1","prs":{},"branches":{"early":{"branch":"feature","url":"https://github.com/o/r/pull/12"}}}' \
+    > "$home/state/pr-health.json"
+  git -C "$wt" config remote.origin.pushurl git@github.com:mine/r.git
+  branch_pr "$home" feature 12 o
+  pr "$home" 12 "$HEAD_A" "$BASE_1" false false
+  arm "$home"
+  expect_silent "$home" 'a legacy cache must not override the changed publication remote'
+  expect_silent "$home" 'durable enrollment from the legacy cache must remain quarantined'
+  if grep -E 'pulls/12$|number=12( |$)' "$home/forge/calls.log" >/dev/null; then
+    fail 'the unverified legacy PR was read'
+  fi
+  git -C "$wt" symbolic-ref HEAD refs/heads/adopted
+  branch_pr "$home" adopted 14 mine r feature
+  pr "$home" 14 "$HEAD_B" "$BASE_1" false false
+  expect_silent "$home" 'the cached PR must not override a changed exact head ref'
+  branch_pr "$home" adopted 14 mine
+  expect_one "$home" 'pull/14 conflicts.*bbbbbbb' 'a newly verified head must still enroll'
+  expect_silent "$home" 'the verified replacement must deduplicate without admitting the legacy PR'
+  out=$(pass_once "$home")
+  [ -z "$out" ] || fail "legacy ownership returned: $out"
+  pass 'legacy branch ownership stays unverified across cache, publication remote and ref changes'
+}
+
+test_recorded_pr_overrides_legacy_branch_uncertainty() {
+  local home
+  home=$(new_home recorded-cache)
+  task "$home" early pr=https://github.com/o/r/pull/12
+  printf '%s\n' '{"schema":"fm-pr-health.v1","prs":{},"branches":{"early":{"branch":"feature","url":"https://github.com/o/r/pull/12"}}}' \
+    > "$home/state/pr-health.json"
+  pr "$home" 12 "$HEAD_A" "$BASE_1" false false
+  arm "$home"
+  expect_one "$home" 'pull/12 conflicts' 'an explicitly recorded PR must retain ownership'
+  rm "$home/state/early.meta"
+  set_pr "$home" 12 ".head = \"$HEAD_B\""
+  expect_one "$home" 'pull/12 conflicts.*bbbbbbb' 'explicit recorded ownership must remain durable'
+  pass 'explicitly recorded ownership survives legacy cache migration and cleanup'
+}
+
+test_personal_fork_base_ignores_canonical_read_remote() {
+  local home wt out
+  home=$(new_home personal-fork)
+  wt="$home/copy"
+  git init -q -b feature "$wt"
+  git -C "$wt" remote add origin ssh://git@github.com/o/r.git
+  git -C "$wt" remote add canonical https://github.com/parent/r.git
+  git -C "$wt" config remote.pushDefault canonical
+  git -C "$wt" config remote.origin.gh-resolved base
+  git -C "$wt" config branch.feature.pushRemote origin
+  task "$home" early "worktree=$wt"
+  branch_pr "$home" feature 12
+  pr "$home" 12 "$HEAD_A" "$BASE_1" false false
+  arm "$home"
+  expect_one "$home" 'pull/12 conflicts' 'the selected personal fork must remain discoverable'
+  out=$(with_home "$home" "$ROOT/bin/fm-contributions.sh" owned)
+  printf '%s' "$out" | jq -e 'length == 1 and .[0].url == "https://github.com/o/r/pull/12"' >/dev/null \
+    || fail "personal fork ownership changed: $out"
+  pass 'a personal fork remains the publication base beside a canonical read remote'
 }
 
 test_reported_failure_does_not_hide_a_later_required_failure() {
@@ -292,7 +423,7 @@ test_other_homes_red_check_is_silent() {
   git init -q -b mate-branch "$home/mate-copy"
   git -C "$home/mate-copy" remote add origin git@github.com:o/r.git
   printf 'kind=secondmate\nworktree=%s\n' "$home/mate-copy" > "$home/state/mate.meta"
-  printf '20\n' > "$home/forge/branch-mate-branch"
+  branch_pr "$home" mate-branch 20
   arm "$home"
   arm "$other"
   out=$(pass_once "$other")
@@ -316,7 +447,7 @@ test_enrolled_before_ready_and_after_cleanup_still_wake() {
   git -C "$wt" remote add origin git@github.com:o/r.git
   # The task opened its PR but has recorded no pr= yet.
   task "$home" early "worktree=$wt"
-  printf '12\n' > "$home/forge/branch-feature-12"
+  branch_pr "$home" feature-12 12
   pr "$home" 12 "$HEAD_A" "$BASE_1" true false
   set_pr "$home" 12 '.checks = [{name:"CI Status",conclusion:null,required:true}]'
   arm "$home"
@@ -338,17 +469,16 @@ test_open_pr_replacing_a_closed_one_on_the_same_branch_is_discovered() {
   git init -q -b feature-12 "$wt"
   git -C "$wt" remote add origin git@github.com:o/r.git
   task "$home" early "worktree=$wt"
-  printf '12\n' > "$home/forge/branch-feature-12"
+  branch_pr "$home" feature-12 12
   pr "$home" 12 "$HEAD_A" "$BASE_1" true false
   set_pr "$home" 12 '.checks = [{name:"CI Status",conclusion:null,required:true}]'
   arm "$home"
   expect_silent "$home" 'running checks must not wake'
   # Still before any ready report, the worker closes PR 12 and opens PR 13 from the unchanged branch.
   set_pr "$home" 12 '.state = "closed"'
-  printf '13\n' > "$home/forge/branch-feature-12"
+  branch_pr "$home" feature-12 13
   pr "$home" 13 "$HEAD_B" "$BASE_1" true false
   set_pr "$home" 13 '.checks = [{name:"CI Status",conclusion:"FAILURE",required:true}]'
-  expect_silent "$home" 'closing the cached PR must not wake'
   expect_one "$home" '^pr-health: https://github.com/o/r/pull/13 has failing required checks at latest commit bbbbbbb: CI Status \(task early\)$' \
     'the open PR on the unchanged branch must replace the closed one'
   expect_silent "$home" 'the replacement PR must dedupe like any other'
@@ -403,7 +533,7 @@ test_retired_contribution_is_not_reclaimed_from_the_cached_branch() {
   git init -q -b feature-12 "$wt"
   git -C "$wt" remote add origin git@github.com:o/r.git
   task "$home" early "worktree=$wt"
-  printf '12\n' > "$home/forge/branch-feature-12"
+  branch_pr "$home" feature-12 12
   pr "$home" 12 "$HEAD_A" "$BASE_1" true false
   set_pr "$home" 12 '.checks = [{name:"CI Status",conclusion:null,required:true}]'
   arm "$home"
@@ -425,7 +555,7 @@ test_retired_contribution_is_not_reclaimed_by_a_fresh_branch_lookup() {
   git init -q -b feature-12 "$wt"
   git -C "$wt" remote add origin git@github.com:o/r.git
   task "$home" early "worktree=$wt"
-  printf '12\n' > "$home/forge/branch-feature-12"
+  branch_pr "$home" feature-12 12
   pr "$home" 12 "$HEAD_A" "$BASE_1" false false
   set_pr "$home" 12 '.checks = [{name:"CI Status",conclusion:"FAILURE",required:true}]'
   with_home "$home" "$ROOT/bin/fm-contributions.sh" enroll early https://github.com/o/r/pull/12 >/dev/null || fail 'could not enroll the PR'
@@ -589,7 +719,7 @@ test_all_owned_pr_reads_start_in_one_wave() {
       git init -q -b "feature$n" "$home/copy$n"
       git -C "$home/copy$n" remote add origin git@github.com:o/r.git
       task "$home" "ship$n" "worktree=$home/copy$n"
-      printf '%s\n' "$n" > "$home/forge/branch-feature$n"
+      branch_pr "$home" "feature$n" "$n"
     fi
     pr "$home" "$n" "$HEAD_A" "$BASE_1" false false
   done
@@ -603,7 +733,11 @@ test_all_owned_pr_reads_start_in_one_wave() {
 }
 
 failures=0
-for test_name in test_unknown_then_dirty_wakes_once test_dirty_again_at_same_commits_is_silent \
+for test_name in test_branch_head_identity_is_unique_and_exact \
+  test_legacy_cached_branch_is_reverified_after_remote_and_ref_changes \
+  test_recorded_pr_overrides_legacy_branch_uncertainty \
+  test_personal_fork_base_ignores_canonical_read_remote \
+  test_unknown_then_dirty_wakes_once test_dirty_again_at_same_commits_is_silent \
   test_conflict_once_per_latest_commit test_adopted_draft_red_required_check_after_pause_wakes_once \
   test_reported_failure_does_not_hide_a_later_required_failure \
   test_replaced_cancelled_run_is_not_failing test_latest_commit_moving_between_reads_waits \

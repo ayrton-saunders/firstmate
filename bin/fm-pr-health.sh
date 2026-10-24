@@ -72,7 +72,6 @@ fail() { printf 'fm-pr-health: %s\n' "$*" >&2; exit 1; }
 usage() { sed -n '2,/^set -eu$/s/^# \{0,1\}//p' "$0"; }
 case "${1:-}" in -h|--help) usage; exit 0 ;; esac
 
-PR_URL_RE='https://github\.com/[A-Za-z0-9-]+/[A-Za-z0-9._-]+/pull/[1-9][0-9]*'
 HEALTH="$STATE/pr-health.json"
 LOCK_HELD=0
 TMP=
@@ -182,25 +181,34 @@ read_pr() { # url deadline output-directory -> rest.json gql.json
 }
 
 lookup_branch_pr() { # worktree branch deadline -> url
-  local wt=$1 branch=$2 deadline=$3 left number url remote
-  remote=$(git -C "$wt" remote get-url origin 2>/dev/null) || return 1
-  case "$remote" in
-    git@github.com:*) remote="https://github.com/${remote#git@github.com:}" ;;
-    ssh://git@github.com/*) remote="https://github.com/${remote#ssh://git@github.com/}" ;;
-  esac
-  fm_pr_url_parse "${remote%.git}/pull/1" && [ "$FM_PR_PROVIDER" = github ] || return 1
+  local wt=$1 branch=$2 deadline=$3 left number url
   left=$((deadline - $(date +%s)))
   [ "$left" -gt 0 ] || return 1
   [ "$left" -le 5 ] || left=5
   number=$(fm_run_timed "$left" bash -c '. "$1/fm-pr-lib.sh"; fm_pr_number_from_branch "$2" "$3" open' \
     _ "$SCRIPT_DIR" "$wt" "$branch") || return 1
   url=$(cd "$wt" && gh_read "$deadline" pr view "$number" --json url -q .url 2>/dev/null) || return 1
-  printf '%s\n' "$url" | grep -Ex "$PR_URL_RE"
+  fm_pr_url_parse "$url" && [ "$FM_PR_PROVIDER" = github ] || return 1
+  [ "$FM_PR_NUMBER" = "$number" ] || return 1
+  printf '%s\n' "$url"
 }
 
 enroll_new() { # deadline : enroll recorded and branch PRs not yet durably owned
-  local deadline=$1 id wt url branch default cached pid
+  local deadline=$1 id wt url branch default result pid
   local pids=()
+  "$SCRIPT_DIR/fm-fleet-snapshot.sh" --contribution-input > "$TMP/input.json"
+  jq '[((.tasks // [])[] | select(.kind != "secondmate") | {task:.id,url:.pr.url}),
+       ((.backlog.records // [])[] | select(.structured == true) | .id as $id
+        | (.links // [])[] | {task:$id,url:.})]' "$TMP/input.json" > "$TMP/explicit.json"
+  jq --slurpfile explicit "$TMP/explicit.json" '
+    .branches |= with_entries(select(. as $entry
+      | any($explicit[0][]; .task == $entry.key and .url == $entry.value.url) | not))' "$TMP/health.json" > "$TMP/next.json" \
+    && mv "$TMP/next.json" "$TMP/health.json"
+  jq --slurpfile health "$TMP/health.json" '
+    map(.url as $url | .tasks |= map(. as $task
+      | select(any($health[0].branches | to_entries[]; .key == $task and .value.url == $url) | not)))
+    | map(select(.tasks | length > 0))' "$TMP/owned.json" > "$TMP/next.json" \
+    && mv "$TMP/next.json" "$TMP/owned.json"
   : > "$TMP/enroll.tsv"
   jq -r --slurpfile health "$TMP/health.json" '
     .[] | select($health[0].prs[.url] == null) | .url as $url | .tasks[] | [., $url] | @tsv' \
@@ -212,25 +220,18 @@ enroll_new() { # deadline : enroll recorded and branch PRs not yet durably owned
     default=$(git -C "$wt" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null || true)
     [ "$branch" != "${default#origin/}" ] || continue
     [ "$branch" != "$(meta_value "$STATE/$id.meta" base_branch)" ] || continue
-    cached=$(jq -r --arg id "$id" --arg branch "$branch" --slurpfile owned "$TMP/owned.json" '
-      .prs as $prs | .branches[$id] | select(.branch == $branch) | .url
-      | select(($prs[.].final // false) | not)
-      | select(. as $url | any($owned[0][]; .url == $url and .final) | not)' "$TMP/health.json")
-    if [ -n "$cached" ]; then
-      printf '%s\t%s\n' "$id" "$cached" >> "$TMP/enroll.tsv"
-      continue
-    fi
     (
       url=$(lookup_branch_pr "$wt" "$branch" "$deadline") || exit 0
-      printf '%s\t%s\t%s\n' "$id" "$url" "$branch" > "$TMP/branches/$id"
+      printf '%s\t%s\n' "$id" "$url" > "$TMP/branches/$id"
     ) &
     pids+=("$!")
   done < <(live_tasks)
   for pid in ${pids[@]+"${pids[@]}"}; do wait "$pid" || true; done
-  for cached in "$TMP/branches/"*; do
-    [ -f "$cached" ] || continue
-    IFS=$'\t' read -r id url branch < "$cached"
-    jq --arg id "$id" --arg branch "$branch" --arg url "$url" '.branches[$id] = {branch:$branch,url:$url}' \
+  for result in "$TMP/branches/"*; do
+    [ -f "$result" ] || continue
+    IFS=$'\t' read -r id url < "$result"
+    jq --arg id "$id" --arg url "$url" '
+      .branches |= with_entries(select(.key != $id or .value.url != $url))' \
       "$TMP/health.json" > "$TMP/next.json" && mv "$TMP/next.json" "$TMP/health.json"
     printf '%s\t%s\n' "$id" "$url" >> "$TMP/enroll.tsv"
   done
@@ -278,12 +279,10 @@ poll() {
     exit 0
   fi
   enroll_new "$deadline"
-  # Keep fingerprints and branch lookups only for what this home still owns.
-  jq --slurpfile owned "$TMP/owned.json" --arg live "$(live_tasks | cut -f1 | paste -sd ' ' -)" '
-    ($owned[0] | map(.url)) as $urls | ($live | split(" ")) as $ids
+  jq --slurpfile owned "$TMP/owned.json" '
+    ($owned[0] | map(.url)) as $urls
     | .ownership_error = false
-    | .prs |= with_entries(select(.key | IN($urls[])))
-    | .branches |= with_entries(select(.key | IN($ids[])))' "$TMP/health.json" > "$TMP/next.json"
+    | .prs |= with_entries(select(.key | IN($urls[])))' "$TMP/health.json" > "$TMP/next.json"
   save_health "$TMP/next.json"
   cp "$TMP/next.json" "$TMP/health.json"
   jq -r --slurpfile health "$TMP/health.json" '

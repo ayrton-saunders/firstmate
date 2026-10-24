@@ -119,6 +119,7 @@ SH
   cat > "$fakebin/gh" <<'SH'
 #!/usr/bin/env bash
 case "${1:-} ${2:-}" in
+  "pr list") printf '[]\n'; exit 0 ;;
   "pr view") echo "error: pull request not found" >&2 ; exit 1 ;;
 esac
 exit 0
@@ -271,6 +272,8 @@ land_on_origin_main() {
 # Override GitHub lookups to report PR 7 as merged with the supplied head.
 add_gh_pr_merged_for_head() {
   local case_dir=$1 head=$2
+  jq -n '[{number:7,headRefName:"fm/task-x1",headRepository:{name:"repo"},headRepositoryOwner:{login:"example"}}]' \
+    > "$case_dir/pr-list.json"
   cat > "$case_dir/fakebin/gh-axi" <<'SH'
 #!/usr/bin/env bash
 case "${1:-} ${2:-}" in
@@ -284,6 +287,7 @@ SH
   cat > "$case_dir/fakebin/gh" <<SH
 #!/usr/bin/env bash
 case "\${1:-} \${2:-}" in
+  "pr list") cat '$case_dir/pr-list.json'; exit 0 ;;
   "pr view")
     case " \$* " in
       *"state,headRefOid,url"*) printf '%s\t%s\t%s\n' 'MERGED' '$head' 'https://github.com/example/repo/pull/7' ; exit 0 ;;
@@ -984,6 +988,8 @@ test_squash_merged_pr_allows_when_head_ancestor_of_pr_head() {
 test_no_pr_recorded_discovers_merged_pr_by_branch_allows() {
   local case_dir rc local_head pr_head
   case_dir=$(make_case no-pr-branch-discovery)
+  git -C "$case_dir/wt" remote add github https://github.com/example/repo.git
+  git -C "$case_dir/wt" config remote.origin.pushurl git@github.com:example/repo.git
   write_meta "$case_dir" no-mistakes ship
   # Reproduces the real false-refusal report exactly, with NO pr=/pr_head=
   # recorded in meta at all (fm-pr-check.sh was never run, e.g. a yolo merge on
@@ -1014,6 +1020,46 @@ test_no_pr_recorded_discovers_merged_pr_by_branch_allows() {
   assert_grep 'https://github.com/example/repo/pull/7' "$case_dir/data/backlog.md" \
     "no-pr-branch-discovery: resolved PR URL was not recorded on completion"
   pass "teardown discovers a merged PR by branch name and tears down when no pr= was ever recorded"
+}
+
+test_branch_discovery_requires_unique_publication_head() {
+  local case_dir scenario head rc expected
+  for scenario in two-forks wrong-only ambiguous wrong-ref; do
+    case_dir=$(make_case "branch-head-$scenario")
+    write_meta "$case_dir" no-mistakes ship
+    wt_commit_file "$case_dir" feature.txt hello
+    head=$(git -C "$case_dir/wt" rev-parse HEAD)
+    git -C "$case_dir/wt" remote add github https://github.com/example/repo.git
+    git -C "$case_dir/wt" config remote.origin.pushurl ssh://git@github.com/mine/repo.git
+    add_gh_pr_merged_for_head "$case_dir" "$head"
+    case "$scenario" in
+      two-forks)
+        jq '.[0].headRepositoryOwner.login = "mine" | . = [ (.[0] | .number = 8 | .headRepositoryOwner.login = "other"), .[0]]' \
+          "$case_dir/pr-list.json" > "$case_dir/list-next.json"
+        expected=0 ;;
+      wrong-only)
+        cp "$case_dir/pr-list.json" "$case_dir/list-next.json"
+        expected=1 ;;
+      ambiguous)
+        jq '.[0].headRepositoryOwner.login = "mine" | . + [ (.[0] | .number = 8)]' \
+          "$case_dir/pr-list.json" > "$case_dir/list-next.json"
+        expected=1 ;;
+      wrong-ref)
+        jq '.[0].headRepositoryOwner.login = "mine" | .[0].headRefName = "other-branch"' \
+          "$case_dir/pr-list.json" > "$case_dir/list-next.json"
+        expected=1 ;;
+    esac
+    mv "$case_dir/list-next.json" "$case_dir/pr-list.json"
+    rc=0
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    expect_code "$expected" "$rc" "branch-head-$scenario: $(cat "$case_dir/stderr")"
+    if [ "$expected" = 1 ]; then
+      assert_refusal_retained_task_state "$case_dir" "$scenario" "$head"
+    else
+      [ ! -e "$case_dir/state/task-x1.meta" ] || fail 'verified branch PR did not complete teardown'
+    fi
+  done
+  pass 'teardown discovers only a unique exact publication head across forks'
 }
 
 test_squash_merged_pr_allows_replayed_unpushed_patch() {
@@ -5713,6 +5759,7 @@ test_teardown_retains_v1_journal_when_workspace_query_ambiguous
 test_squash_merged_branch_deleted_allows
 test_squash_merged_pr_allows_when_head_ancestor_of_pr_head
 test_no_pr_recorded_discovers_merged_pr_by_branch_allows
+test_branch_discovery_requires_unique_publication_head
 test_squash_merged_pr_allows_replayed_unpushed_patch
 test_merged_pr_with_later_local_commit_refuses
 test_squash_merged_rebased_branch_allows
