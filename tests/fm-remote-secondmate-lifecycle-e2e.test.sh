@@ -1316,11 +1316,11 @@ FM_SECONDMATE_LIVENESS_TIMEOUT="$watch_relaunch_timeout" \
 watch_pid=$!
 watch_deadline=$((SECONDS + 2 * watch_relaunch_timeout + 30))
 while kill -0 "$watch_pid" 2>/dev/null && [ "$SECONDS" -lt "$watch_deadline" ]; do
-  sleep 0.02
+  sleep 0.1
 done
 if kill -0 "$watch_pid" 2>/dev/null; then
   kill "$watch_pid" 2>/dev/null || true
-  fail "the watcher did not exit on its auto-relaunch wake within the bound: $(cat "$TMP_ROOT/watch-liveness.out" "$TMP_ROOT/watch-liveness.err" 2>/dev/null)"
+  fail "the watcher did not exit on its auto-relaunch wake within its ${watch_relaunch_timeout}s relaunch bound: $(cat "$TMP_ROOT/watch-liveness.out" "$TMP_ROOT/watch-liveness.err" 2>/dev/null)"
 fi
 wait "$watch_pid" \
   || fail "the liveness watcher leg exited non-zero: $(cat "$TMP_ROOT/watch-liveness.err")"
