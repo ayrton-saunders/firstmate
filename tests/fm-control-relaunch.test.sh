@@ -611,6 +611,35 @@ test_relaunch_appends_the_progress_note_to_the_instructions() {
   pass "fm-control relaunch: progress and the Firstmate-worktree worker identity reach the replacement"
 }
 
+test_relaunch_note_inbox_listing_is_safe_on_empty_inbox() {
+  local dir out rc brief cmd inbox shell_name status
+  dir=$(new_case notelist rl2b)
+  add_ship_task "$dir" rl2b claude
+  out=$(run_control "$dir" rl2b relaunch --note "resume"); rc=$?
+  expect_code 0 "$rc" "relaunch should succeed"$'\n'"$out"
+  brief="$dir/home/data/rl2b/brief.md"
+  # shellcheck disable=SC2016
+  cmd=$(sed -n 's/^`\(find [^`]*\)`.*/\1/p' "$brief" | head -1)
+  [ -n "$cmd" ] || fail "the progress note does not give a find-based inbox listing command"
+  inbox="$dir/home/state/rl2b.inbox"
+  for shell_name in bash zsh; do
+    command -v "$shell_name" >/dev/null 2>&1 || continue
+    rm -rf "$inbox"
+    status=0
+    out=$("$shell_name" -c "$cmd" 2>&1) || status=$?
+    [ "$status" -eq 0 ] && [ -z "$out" ] || fail "$shell_name: absent inbox listing was not silent success (exit $status): $out"
+    mkdir -p "$inbox"
+    status=0
+    out=$("$shell_name" -c "$cmd" 2>&1) || status=$?
+    [ "$status" -eq 0 ] && [ -z "$out" ] || fail "$shell_name: empty inbox listing was not silent success (exit $status): $out"
+    : > "$inbox/1000.msg"
+    : > "$inbox/999.msg"
+    out=$("$shell_name" -c "$cmd" 2>&1 | sed 's#.*/##' | tr '\n' ' ')
+    [ "$out" = "999.msg 1000.msg " ] || fail "$shell_name: messages not listed in numeric order: $out"
+  done
+  pass "fm-control relaunch: the progress note's inbox listing is silent on an empty inbox"
+}
+
 test_relaunch_requires_a_note_for_a_ship_task() {
   local dir out rc before
   dir=$(new_case nonote rl3)
@@ -1271,6 +1300,48 @@ test_secondmate_relaunch_picks_up_the_configured_harness_pin() {
   pass "fm-control relaunch: a secondmate relaunch re-resolves its durable configured harness pin"
 }
 
+# The relaunch half of the opt-in scope: a pin file that declares no
+# "mate <id>:" line is read exactly as it was before that grammar existed, so a
+# second default line and a fourth token must not stop the relaunch. The mate
+# still lands on the first line's runtime.
+test_secondmate_relaunch_with_a_legacy_pin_file_uses_the_first_line() {
+  local dir home out rc
+  dir=$(new_case smlegacy sml2)
+  home="$dir/home"
+  mkdir -p "$home/config" "$home/data/sml2"
+  printf 'codex some-model high extra\ngrok other-model low\n' > "$home/config/secondmate-harness"
+  printf '# secondmate brief\n' > "$home/data/sml2/brief.md"
+  fm_git_worktree "$dir/proj" "$dir/smhome" sm-branch
+  mkdir -p "$dir/smhome/state" "$dir/smhome/data" "$dir/smhome/bin"
+  printf 'sml2\n' > "$dir/smhome/.fm-secondmate-home"
+  printf '# agents\n' > "$dir/smhome/AGENTS.md"
+  {
+    echo "window=fmses:fm-sml2"
+    echo "endpoint_task_id=sml2"
+    echo "worktree=$dir/smhome"
+    echo "project=$dir/smhome"
+    echo "harness=claude"
+    echo "kind=secondmate"
+    echo "mode=secondmate"
+    echo "yolo=off"
+    echo "model=default"
+    echo "effort=default"
+    echo "home=$dir/smhome"
+  } > "$home/state/sml2.meta"
+  printf '%s\n' "fm-sml2" > "$dir/fake/windows"
+  printf '%s' "$dir/smhome" > "$dir/fake/cwd"
+  printf 'codex' > "$dir/fake/becomes"
+  out=$(run_control "$dir" sml2 relaunch); rc=$?
+  expect_code 0 "$rc" "a legacy pin file must not refuse a secondmate relaunch"$'\n'"$out"
+  [ "$(journal_field "$dir" sml2 to_harness)" = codex ] \
+    || fail "the relaunch should take the first line's harness, got '$(journal_field "$dir" sml2 to_harness)'"
+  [ "$(journal_field "$dir" sml2 to_model)" = some-model ] \
+    || fail "the relaunch should take the first line's model token, got '$(journal_field "$dir" sml2 to_model)'"
+  [ "$(journal_field "$dir" sml2 to_effort)" = high ] \
+    || fail "the relaunch should take the first line's effort token, got '$(journal_field "$dir" sml2 to_effort)'"
+  pass "fm-control relaunch: a legacy secondmate pin file still relaunches the mate onto its first line"
+}
+
 test_secondmate_claude_relaunch_keeps_local_settings() {
   local dir home prior settings out rc
   dir=$(new_case smlocal sml)
@@ -1312,6 +1383,157 @@ test_secondmate_claude_relaunch_keeps_local_settings() {
   [ ! -e "$dir/smhome/.fm-busy-stop" ] \
     || fail "relaunch left the retired Stop pointer in the mate home"
   pass "fm-control relaunch: a claude secondmate keeps settings.local.json and retires the state settings file and the Stop pointer"
+}
+
+# The captain's per-mate override line must win at the relaunch decision, so a
+# later change to the default pin cannot migrate a mate that has its own runtime
+# ruling onto the default. Synthetic mate ids only - no real home's pin values.
+test_secondmate_relaunch_lands_on_the_per_mate_pin() {
+  local dir home out rc
+  dir=$(new_case smpinmate smp1)
+  home="$dir/home"
+  mkdir -p "$home/config" "$home/data/smp1"
+  printf 'codex default-model high\nmate smp1: claude mate-model xhigh\n' > "$home/config/secondmate-harness"
+  printf '# secondmate brief\n' > "$home/data/smp1/brief.md"
+  fm_git_worktree "$dir/proj" "$dir/smhome" sm-branch
+  mkdir -p "$dir/smhome/state" "$dir/smhome/data" "$dir/smhome/bin"
+  printf 'smp1\n' > "$dir/smhome/.fm-secondmate-home"
+  printf '# agents\n' > "$dir/smhome/AGENTS.md"
+  {
+    echo "window=fmses:fm-smp1"
+    echo "endpoint_task_id=smp1"
+    echo "worktree=$dir/smhome"
+    echo "project=$dir/smhome"
+    echo "harness=codex"
+    echo "kind=secondmate"
+    echo "mode=secondmate"
+    echo "yolo=off"
+    echo "model=default"
+    echo "effort=default"
+    echo "home=$dir/smhome"
+  } > "$home/state/smp1.meta"
+  printf '%s\n' "fm-smp1" > "$dir/fake/windows"
+  printf '%s' "$dir/smhome" > "$dir/fake/cwd"
+  printf 'claude' > "$dir/fake/becomes"
+  out=$(run_control "$dir" smp1 relaunch); rc=$?
+  expect_code 0 "$rc" "a per-mate pin should relaunch that mate onto its own runtime"$'\n'"$out"
+  [ "$(journal_field "$dir" smp1 to_harness)" = claude ] \
+    || fail "the mate's own override should win over the default pin, got '$(journal_field "$dir" smp1 to_harness)'"
+  [ "$(journal_field "$dir" smp1 to_model)" = mate-model ] \
+    || fail "the override's model token should be used, got '$(journal_field "$dir" smp1 to_model)'"
+  [ "$(journal_field "$dir" smp1 to_effort)" = xhigh ] \
+    || fail "the override's effort token should be used, got '$(journal_field "$dir" smp1 to_effort)'"
+  pass "fm-control relaunch: a mate with a per-mate override line lands on that override, not the default pin"
+}
+
+# A mate with no override line keeps resolving through the default line, so
+# adding the override grammar cannot change any other mate's resolution.
+test_secondmate_relaunch_uses_the_default_for_an_unpinned_mate() {
+  local dir home out rc
+  dir=$(new_case smdefault smp2)
+  home="$dir/home"
+  mkdir -p "$home/config" "$home/data/smp2"
+  printf 'codex default-model high\nmate some-other-mate: claude opus max\n' > "$home/config/secondmate-harness"
+  printf '# secondmate brief\n' > "$home/data/smp2/brief.md"
+  fm_git_worktree "$dir/proj" "$dir/smhome" sm-branch
+  mkdir -p "$dir/smhome/state" "$dir/smhome/data" "$dir/smhome/bin"
+  printf 'smp2\n' > "$dir/smhome/.fm-secondmate-home"
+  printf '# agents\n' > "$dir/smhome/AGENTS.md"
+  {
+    echo "window=fmses:fm-smp2"
+    echo "endpoint_task_id=smp2"
+    echo "worktree=$dir/smhome"
+    echo "project=$dir/smhome"
+    echo "harness=codex"
+    echo "kind=secondmate"
+    echo "mode=secondmate"
+    echo "yolo=off"
+    echo "model=default"
+    echo "effort=default"
+    echo "home=$dir/smhome"
+  } > "$home/state/smp2.meta"
+  printf '%s\n' "fm-smp2" > "$dir/fake/windows"
+  printf '%s' "$dir/smhome" > "$dir/fake/cwd"
+  printf 'codex' > "$dir/fake/becomes"
+  out=$(run_control "$dir" smp2 relaunch); rc=$?
+  expect_code 0 "$rc" "an unpinned mate should relaunch onto the default pin"$'\n'"$out"
+  [ "$(journal_field "$dir" smp2 to_harness)" = codex ] \
+    || fail "a mate with no override must take the default harness, got '$(journal_field "$dir" smp2 to_harness)'"
+  [ "$(journal_field "$dir" smp2 to_model)" = default-model ] \
+    || fail "the default model token should be used, got '$(journal_field "$dir" smp2 to_model)'"
+  [ "$(journal_field "$dir" smp2 to_effort)" = high ] \
+    || fail "the default effort token should be used, got '$(journal_field "$dir" smp2 to_effort)'"
+  pass "fm-control relaunch: a mate with no override line still resolves the default pin"
+}
+
+# A pin file this home cannot parse must stop the relaunch, because the
+# alternative is launching the mate onto whatever it happened to run last time -
+# the silent migration the override grammar exists to prevent.
+test_secondmate_relaunch_refuses_an_unreadable_configured_pin_before_stop() {
+  local dir home out rc mode
+  dir=$(new_case smbadminpin smp3)
+  home="$dir/home"
+  mkdir -p "$home/config" "$home/data/smp3"
+  printf 'codex default-model high\nmate smp3: claude mate-model xhigh\nmate smp3: grok other-model max\n' > "$home/config/secondmate-harness"
+  printf '# secondmate brief\n' > "$home/data/smp3/brief.md"
+  fm_git_worktree "$dir/proj" "$dir/smhome" sm-branch
+  mkdir -p "$dir/smhome/state" "$dir/smhome/data" "$dir/smhome/bin"
+  printf 'smp3\n' > "$dir/smhome/.fm-secondmate-home"
+  printf '# agents\n' > "$dir/smhome/AGENTS.md"
+  {
+    echo "window=fmses:fm-smp3"
+    echo "endpoint_task_id=smp3"
+    echo "worktree=$dir/smhome"
+    echo "project=$dir/smhome"
+    echo "harness=claude"
+    echo "kind=secondmate"
+    echo "mode=secondmate"
+    echo "yolo=off"
+    echo "model=default"
+    echo "effort=default"
+    echo "home=$dir/smhome"
+  } > "$home/state/smp3.meta"
+  printf '%s\n' "fm-smp3" > "$dir/fake/windows"
+  printf '%s' "$dir/smhome" > "$dir/fake/cwd"
+  out=$(run_control "$dir" smp3 relaunch); rc=$?
+  expect_code 1 "$rc" "an unparseable configured pin must refuse the relaunch"$'\n'"$out"
+  assert_contains "$out" "config/secondmate-harness" \
+    "the refusal should name the pin file the mate cannot be resolved from"
+  assert_contains "$out" "line 3" "the refusal should name the offending line"
+  [ "$(cat "$dir/fake/command")" = claude ] \
+    || fail "a refused relaunch must not stop or replace the running agent"
+  [ "$(meta_field "$dir" smp3 harness)" = claude ] \
+    || fail "a refused relaunch must leave the durable record on the recorded harness"
+  cp "$home/state/smp3.meta" "$dir/prior.meta"
+  printf 'codex\n' > "$home/config/crew-harness"
+  mkdir -p "$dir/pin-directory"
+  for mode in open read permission parent; do
+    rm -f "$home/config/secondmate-harness"
+    case "$mode" in
+      open) ln -s secondmate-harness "$home/config/secondmate-harness" ;;
+      read) ln -s "$dir/pin-directory" "$home/config/secondmate-harness" ;;
+      permission|parent)
+        printf 'codex default-model high\nmate smp3: claude mate-model xhigh\n' > "$home/config/secondmate-harness"
+        if [ "$mode" = parent ]; then
+          chmod 000 "$home/config"
+          if [ -x "$home/config" ]; then chmod 700 "$home/config"; continue; fi
+        else
+          chmod 000 "$home/config/secondmate-harness"
+          [ ! -r "$home/config/secondmate-harness" ] || continue
+        fi
+        ;;
+    esac
+    out=$(run_control "$dir" smp3 relaunch); rc=$?
+    chmod 700 "$home/config"
+    expect_code 1 "$rc" "$mode: an unreadable pin must refuse relaunch"$'\n'"$out"
+    assert_contains "$out" "config/secondmate-harness" "I/O refusal must identify the pin file"
+    [ "$(cat "$dir/fake/command")" = claude ] || fail "$mode: pin I/O failure stopped the agent"
+    [ ! -s "$dir/fake/literal" ] || fail "$mode: pin I/O failure sent lifecycle text"
+    [ ! -s "$dir/fake/keys" ] || fail "$mode: pin I/O failure sent lifecycle keys"
+    cmp -s "$dir/prior.meta" "$home/state/smp3.meta" || fail "$mode: pin I/O failure changed metadata"
+  done
+  chmod 600 "$home/config/secondmate-harness"
+  pass "fm-control relaunch: malformed and unreadable secondmate pins refuse before anything is stopped"
 }
 
 test_secondmate_relaunch_ignores_invalid_configured_effort_before_stop() {
@@ -1426,6 +1648,36 @@ test_explicit_secondmate_harness_ignores_configured_profile_axes() {
     || fail "an explicit secondmate harness must not inherit the configured model"
   [ "$(meta_field "$dir" sm4 effort)" = default ] \
     || fail "an explicit secondmate harness must not inherit the configured effort"
+  printf 'claude opus high\nmate sm4: claude opus high\nmate sm4: codex other-model max\n' > "$home/config/secondmate-harness"
+  out=$(run_control "$dir" sm4 relaunch --harness codex --model explicit-model --effort xhigh); rc=$?
+  expect_code 0 "$rc" "an explicit profile must ignore an unreadable configured pin"$'\n'"$out"
+  [ "$(meta_field "$dir" sm4 harness)" = codex ] \
+    || fail "the explicit harness must be published"
+  [ "$(meta_field "$dir" sm4 model)" = explicit-model ] \
+    || fail "the explicit model must be published"
+  [ "$(meta_field "$dir" sm4 effort)" = xhigh ] \
+    || fail "the explicit effort must be published"
+  # The same explicit profile must succeed whatever the file holds, including a
+  # legacy file whose later lines and fourth token the strict rules would have
+  # rejected, and a file with no usable line at all.
+  printf 'claude opus high extra\ngrok other-model low\n' > "$home/config/secondmate-harness"
+  out=$(run_control "$dir" sm4 relaunch --harness codex --model explicit-model --effort xhigh); rc=$?
+  expect_code 0 "$rc" "an explicit profile must ignore a legacy configured pin"$'\n'"$out"
+  [ "$(meta_field "$dir" sm4 harness)" = codex ] \
+    || fail "the explicit harness must be published"
+  [ "$(meta_field "$dir" sm4 model)" = explicit-model ] \
+    || fail "the explicit model must be published"
+  [ "$(meta_field "$dir" sm4 effort)" = xhigh ] \
+    || fail "the explicit effort must be published"
+  printf '# only a comment\n' > "$home/config/secondmate-harness"
+  out=$(run_control "$dir" sm4 relaunch --harness codex --model explicit-model --effort xhigh); rc=$?
+  expect_code 0 "$rc" "an explicit profile must ignore a configured pin with no usable line"$'\n'"$out"
+  [ "$(meta_field "$dir" sm4 harness)" = codex ] \
+    || fail "the explicit harness must be published"
+  [ "$(meta_field "$dir" sm4 model)" = explicit-model ] \
+    || fail "the explicit model must be published"
+  [ "$(meta_field "$dir" sm4 effort)" = xhigh ] \
+    || fail "the explicit effort must be published"
   pass "fm-control relaunch: explicit secondmate harness resets unnamed profile axes"
 }
 
@@ -2857,6 +3109,7 @@ test_relaunch_preserves_durable_task_metadata
 test_relaunch_serializes_concurrent_durable_metadata_publication
 test_disabled_relaunch_clears_prior_trace_context
 test_relaunch_appends_the_progress_note_to_the_instructions
+test_relaunch_note_inbox_listing_is_safe_on_empty_inbox
 test_relaunch_requires_a_note_for_a_ship_task
 test_harness_switch_moves_the_record_and_clears_prior_wiring
 test_refused_relaunch_onto_polytoken_keeps_the_project_hook_layer
@@ -2880,6 +3133,10 @@ test_wiring_removal_failure_refuses_before_replacement_arm
 test_turnend_auth_paths_are_owned_by_the_control_adapter
 test_secondmate_relaunch_picks_up_the_configured_harness_pin
 test_secondmate_claude_relaunch_keeps_local_settings
+test_secondmate_relaunch_lands_on_the_per_mate_pin
+test_secondmate_relaunch_uses_the_default_for_an_unpinned_mate
+test_secondmate_relaunch_with_a_legacy_pin_file_uses_the_first_line
+test_secondmate_relaunch_refuses_an_unreadable_configured_pin_before_stop
 test_secondmate_relaunch_ignores_invalid_configured_effort_before_stop
 test_secondmate_relaunch_onto_a_crewmate_only_adapter_refuses_before_stop
 test_explicit_secondmate_harness_ignores_configured_profile_axes
