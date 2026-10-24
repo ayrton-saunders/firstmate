@@ -191,7 +191,7 @@ oc_exec_terminal() {  # <sessionID> <succeeded|interrupted|failed>
 
 test_raw_opencode_version_owns_plugin_and_control() {
   local rec mode id out raw version major expected probe launch
-  for mode in explicit-v1 relative-v1 explicit-v2 bare ambiguous canonical; do
+  for mode in explicit-v1 relative-v1 explicit-v2 bare bare-path-drift ambiguous canonical; do
     id="raw-oc-$mode"
     rec=$(make_spawn_case "$id" opencode "$id")
     read_case_record "$rec"
@@ -213,10 +213,23 @@ SH
       explicit-v1) raw="$CASE_DIR/v1/opencode --prompt fixture"; expected=1.18.32; probe="$CASE_DIR/v1/opencode" ;;
       relative-v1) raw='../v1/opencode --prompt fixture'; expected=1.18.32; probe="$CASE_DIR/v1/opencode" ;;
       explicit-v2) raw="$FAKEBIN_DIR/opencode --prompt fixture"; expected=2.0.21; probe="$FAKEBIN_DIR/opencode" ;;
-      bare) raw='opencode --prompt fixture'; expected=2.0.21; probe="$FAKEBIN_DIR/opencode" ;;
+      bare|bare-path-drift) raw='opencode --prompt fixture'; expected=; probe= ;;
       ambiguous) raw="PATH=$CASE_DIR/v1 opencode --prompt fixture"; expected=; probe= ;;
       canonical) raw=opencode; expected=2.0.21; probe="$FAKEBIN_DIR/opencode" ;;
     esac
+    if [ "$mode" = bare-path-drift ]; then
+      cp "$CASE_DIR/v1/opencode" "$FAKEBIN_DIR/opencode"
+      mkdir -p "$CASE_DIR/destination"
+      cat > "$CASE_DIR/destination/opencode" <<'SH'
+#!/usr/bin/env bash
+case "${1:-}" in
+  --version) printf '2.0.21\n' ;;
+  --prompt) printf 'destination-opencode-2\n' ;;
+  *) exit 1 ;;
+esac
+SH
+      chmod +x "$CASE_DIR/destination/opencode"
+    fi
     : > "$CASE_DIR/probes"
     launch="$CASE_DIR/launch"
     out=$(FM_RAW_OC_PROBE_LOG="$CASE_DIR/probes" FM_FAKE_LAUNCH_LOG="$launch" \
@@ -227,6 +240,14 @@ SH
     assert_equals "$probe" "$(cat "$CASE_DIR/probes")" "$mode probed an unrelated PATH executable"
     if [ "$mode" != canonical ]; then
       assert_contains "$(cat "$launch")" "$raw" "$mode must preserve the raw launch verbatim"
+    fi
+    if [ "$mode" = bare-path-drift ]; then
+      out=$(FM_RAW_OC_PROBE_LOG="$CASE_DIR/caller-check" "$FAKEBIN_DIR/opencode" --version)
+      assert_equals 1.18.32 "$out" "drift fixture must expose OpenCode 1 to the caller"
+      out=$(PATH="$CASE_DIR/destination:$PATH" bash -c 'opencode --version')
+      assert_equals 2.0.21 "$out" "drift fixture must expose OpenCode 2 to the destination"
+      out=$(PATH="$CASE_DIR/destination:$PATH" bash -c "$raw")
+      assert_equals destination-opencode-2 "$out" "the preserved bare launch must execute the destination's OpenCode"
     fi
     major=${version%%.*}
     out=$(

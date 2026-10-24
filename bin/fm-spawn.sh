@@ -5437,7 +5437,7 @@ OPENCODE_VERSION=
 if [ "$HARNESS" = opencode ]; then
   if [ "$RAW_LAUNCH" = 0 ]; then
     OPENCODE_BIN=$(resolve_pi_executable opencode) || OPENCODE_BIN=
-  elif [[ "$RAW_COMMAND" =~ ^([[:alnum:]_./+-]+)[[:space:]] ]]; then
+  elif [[ "$RAW_COMMAND" =~ ^([[:alnum:]_./+-]*/[[:alnum:]_.+-]+)[[:space:]] ]]; then
     OPENCODE_BIN=$(cd "$WT" && resolve_pi_executable "${BASH_REMATCH[1]}") || OPENCODE_BIN=
   fi
   if [ -n "$OPENCODE_BIN" ]; then
