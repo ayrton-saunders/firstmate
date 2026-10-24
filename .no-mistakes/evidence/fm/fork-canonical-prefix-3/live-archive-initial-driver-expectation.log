@@ -1,0 +1,42 @@
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-lab-home.sh create /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/archive-live-31axcpkw/repository
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/archive-live-31axcpkw/repository
+exit=0
+$ tasks-axi add lab-archive-review Review archive semantics --kind scout --repo sample --start
+ok: added lab-archive-review (scout, repo sample) -> In flight
+task:
+  id: lab-archive-review
+  title: Review archive semantics
+  state: in_flight
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: scout
+  repo: sample
+  priority: "-"
+  created: 2026-10-24
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+help[2]:
+  - Run `tasks-axi done lab-archive-review --pr <url>` when it ships
+  - Run `tasks-axi block lab-archive-review --by <other>` to record a dependency
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh hold lab-archive-call --title Choose archive option --reason local disposable decision --repo sample --origin lab-archive-review
+lab-archive-call
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh complete lab-archive-review lab-archive-call
+complete: lab-archive-review captain-call inventory reviewed (lab-archive-call)
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh verify lab-archive-review
+verified: lab-archive-review captain-call inventory
+exit=0
+CLEANUP: disposable archive world removed
+Traceback (most recent call last):
+  File "/Users/ayrton/.no-mistakes/evidence/01M5QJK8MQN7KBDSV20562KTDP/live-archive-driver.py", line 29, in <module>
+    assert run([hold,'verify',id],e,ok=False).returncode!=0, 'unanswered hold accepted'
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+AssertionError: unanswered hold accepted

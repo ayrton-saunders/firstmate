@@ -1,0 +1,26 @@
+Test retry at 910cccfbc84ab8b4780cb161437f976e8e604926
+
+Independent live execution this invocation:
+- Re-executed preserved live-cli-driver.py against newly minted private homes and local Git origin. Ownership, idempotence, retirement, invalid URLs/IDs, cross-home isolation, disabled/empty health monitoring, expected-head refusal, fast-forward/idempotent updates and dirty preservation passed.
+- Re-executed preserved live-archive-driver.py with real tasks-axi. Repository/user config precedence, literal hash paths, supported semantic TOML table forms, recorded archived answers and unanswered-closure refusal passed. Both private worlds were removed by finally blocks.
+- New retry-readiness-driver.py drove actual fm-pr-check.sh without gh on its curated real-tool PATH. A locally reachable Git head enabled real local registration and parent-channel publication. All four keyed/spaced forms withheld earlier green after pending, rejected PR 70 for PR 7, then published the exact URL's latest green with surrounding text. No forge request or fake forge executable was used. Its private world was removed.
+- Opted into fm-watch-wedge-cap-live.test.sh: real watcher and private tmux server, synthetic wedged worker process, no real harness/model certification. Five unceiled escalations; ceiling at three; one terminal notification; two silent probes; natural release after 300 seconds. Test-owned teardown completed; its exact local lab path was absent afterward. The helper minted/removed its short private socket directory; no default tmux/Herdr server operation was performed.
+
+Focused executable regressions:
+TMPDIR="$PWD/.test-tmp" bash bin/fm-test-run.sh tests/fm-backend-rex.test.sh tests/fm-teardown.test.sh tests/fm-pr-health.test.sh tests/fm-dod-lib.test.sh --json <retry-targeted-timing.json>
+- PR-health and DoD completed successfully; external forge answers are fixtures, not live forge evidence.
+- Rex and teardown initially refused fixtures nested inside the source repository, correctly exercising the production containment guard, not demonstrating a product regression.
+env -u TMPDIR bash bin/fm-test-run.sh tests/fm-backend-rex.test.sh tests/fm-teardown.test.sh --json <retry-external-fixture-timing.json>
+- Corrected only the test temporary-root environment. Rex completed successfully.
+- Teardown advanced through the new readiness regressions and many later cases but the enclosing command reached its 420-second tool bound. No final suite/timing receipt exists; this is explicitly incomplete, not a passing suite. Read-only process inspection afterward found no exact suite processes. No unknown external temporary root/PID was inferred or swept.
+- Prior exact-head complete teardown and lifecycle receipts are retained as separately named prior-supplemental-* artifacts only. The earlier incomplete remote receipt remains incomplete, not a pass. Original first-test evidence was not modified.
+
+Unavailable live certifications:
+- Rex/Paseo/cmux/zellij/Polytoken absent on PATH; optional vendor installation/permission expansion was expressly excluded. No host tool search or install attempted.
+- Real Herdr remains unavailable after the preserved pre-provision tripwire refusal. Per the recorded decision, no provisioning retry, helper change, bypass, or live fleet operation was attempted.
+- No authorized external forge/merge target or disposable remote host. Hermetic forge/transport receipts are not live certification. No production records or credentials were used.
+
+Custody/cleanup:
+Read-only Git consumer checks confirmed the integration's ordinary two parents are fork base bf03745e... and historical U3 f0fb8aac..., and the protected final commit remains outside candidate ancestry. No publication, merge, activation, source repair, linter, formatter, full suite or extra agent was run. Source status stayed clean. All newly created worktree-local disposable data was removed, including empty .test-tmp. Unknown normal-temp leftovers from interrupted fixtures are not claimed absent. Evidence is CLI/log based: this change does not alter a rendered UI, so no screenshot is claimed.
+
+Assessment: targeted independent live behaviors passed; optional vendor, external forge and remote-host certifications remain explicitly unavailable. This is preparatory-prefix validation, not current-default activation certification. Continue to the outer executor's next configured phase; no merge or activation is authorized by this result.

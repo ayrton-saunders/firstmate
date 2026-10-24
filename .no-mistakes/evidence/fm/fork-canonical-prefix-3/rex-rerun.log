@@ -1,0 +1,97 @@
+FM_TEST_BEGIN 2026-10-24T19:21:17Z tests/fm-backend-rex.test.sh family=rex expected_gate_skip=optional-binary
+ok - Rex fixtures override inherited operational selectors without replacing explicit case roots
+ok - fm_backend_rex_bin: REX_BIN_DIR, then PATH, then the server bundle path
+ok - fm_backend_rex_version_check: accepts API revision 5 and refuses an older CLI, older server, or missing CLI
+ok - fm_backend_rex_parse_target: <session-uuid>:<block-uuid> only, prefixes restored
+ok - fm_backend_rex_create_task: one per-home session created once then adopted, one tab per task, scoped block label, 200x50
+ok - fm_backend_rex_create_task: confirmed launcher session gets the tab focus-safe; unconfirmed claims refuse; nested tmux and other-home use the per-home session
+ok - fm_backend_rex_create_task: refuses an unreadable inventory, ambiguous per-home sessions, and duplicates; a gone session returns 2
+ok - fm_backend_rex_create_task_in_session: closes a bare-shell husk carrying the task label, refuses over a live one
+ok - fm_backend_rex_create_task reclaim: the fallback placement closes a bare-shell husk, refuses a live one, and spawn still refuses duplicates
+ok - rex capture: CR stripped and tailed; viewport derived from the last size.rows styled rows, implicit empty bottom row restored
+ok - fm_backend_composer_state rex: the composer holding the cursor decides; a cursor outside any composer falls back to the cursorless read
+ok - fm_backend_agent_state rex: alive/dead/ambiguous from the process view, missing on not-found, unreadable without starting a server
+ok - fm_backend_busy_state rex: OSC 7501 records count only while their owner is the foreground process or an ancestor
+ok - fm_backend_rex_current_path: the foreground process cwd
+ok - rex input: literal text after --, no call for empty input, verified key names only, line submit
+ok - rex submit confirms idle-to-working native/rendered turns, rejects unproven transitions, and preserves retry/queue paths
+ok - fm_backend_kill rex: closes exactly its tab, treats a gone block as done, retires the emptied per-home session
+ok - fm_backend_kill rex: never kills a session this home does not own, even when it is empty
+ok - Rex close requires recorded-server identity before mutation and absence proof
+ok - secondmate recovery binds Rex close and absence to recorded server for bootstrap and watcher paths
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: reconciling leaked daemon terminal rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: reconciling leaked daemon terminal rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: terminal close command failed, but exact absence was confirmed
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: reconciling leaked daemon terminal rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: reconciling leaked daemon terminal rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: daemon terminal record is malformed; refusing to act on it
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: daemon terminal record is malformed; refusing to act on it
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: reconciling leaked daemon terminal rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: reconciling leaked daemon terminal rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: reconciling leaked daemon terminal rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: away mode stopped; daemon terminal torn down, .afk cleared, and the posture record archived
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: terminal close command failed, but exact absence was confirmed
+fm-afk-launch: away mode stopped; daemon terminal torn down, .afk cleared, and the posture record archived
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: rex server identity is unverified; preserving daemon endpoint and record
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: rex server identity is unverified; preserving daemon endpoint and record
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: daemon terminal record is malformed; refusing to act on it
+fm-afk-launch: malformed daemon terminal record; refusing to stop away mode
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: daemon terminal record is malformed; refusing to act on it
+fm-afk-launch: malformed daemon terminal record; refusing to stop away mode
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: rex server identity is unverified; preserving daemon endpoint and record
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: away mode stopped; terminal teardown or the record archive remains recorded for retry
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: away mode stopped; terminal teardown or the record archive remains recorded for retry
+ok - Rex daemon reconcile and stop require the recorded creation server and preserve ambiguous records
+fm-afk-launch: rex server identity is unreadable
+fm-afk-launch: failed to run daemon in rex block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003; closing its session
+fm-afk-launch: failed to run daemon in rex block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003; closing its session
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: daemon did not become ready; closing rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: daemon did not become ready; closing rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: failed to persist rex daemon terminal record; closing session:00000001-0000-7000-8000-000000000001
+ok - Rex daemon creation records server identity before dispatch and binds all failed-launch cleanup paths
+ok - fm_backend_kill rex: refuses success unless the block is proven gone
+ok - fm-teardown rex: retiring a secondmate closes its crew and its own tab and retires its per-home session
+ok - ordinary, secondmate and descendant teardown retain records when recorded Rex server identity cannot be verified
+ok - fm_backend_rex_endpoint_absence_recheck: proof only from the recorded server; missing/dead/unproven
+ok - fm_control_endpoint_absence_verdict rex: gone only on a not-found from the recorded server
+ok - fm-control exit on rex: a stopped server goes through the recorded-server absence proof, and refuses when it cannot prove absence
+ok - Rex same-code-root homes isolate session adoption, discovery and retirement while preserving recorded immutable IDs
+ok - fm_backend_rex_list_live: home-scoped blocks only, nothing when unreachable
+ok - fm_backend_events_capable rex: API revision 5 on both ends, read without starting a server
+ok - fm_backend_wait_transition rex: a trusted blocked edge returns its record with Rex's app, kind, and message
+ok - fm_backend_wait_transition rex: a blocked edge counts only while its owner is the foreground process or an ancestor
+ok - fm_backend_wait_transition rex: level reconcile returns a blocked block once; working and cleanup clear the marker
+ok - fm_backend_wait_transition rex: a watched block's exit or close ends the wait at once for an immediate poll
+ok - fm_backend_wait_transition rex: a reader that cannot start or ends early falls back to polling
+FM_TEST_END 2026-10-24T19:22:28Z tests/fm-backend-rex.test.sh exit=0 duration_ms=70733 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=70844
+FM_TEST_SUMMARY_FAMILY family=rex count=1 duration_ms=70733 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-backend-rex.test.sh duration_ms=70733
+fm-test-run: wrote timing artifact: /Users/ayrton/.no-mistakes/evidence/01M5QJK8MQN7KBDSV20562KTDP/rex-rerun-timing.json

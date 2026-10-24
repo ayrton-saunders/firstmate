@@ -1,0 +1,253 @@
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-lab-home.sh create /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/archive-live-25ehzccn/repository
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/archive-live-25ehzccn/repository
+exit=0
+$ tasks-axi add lab-archive-review Review archive semantics --kind scout --repo sample --start
+ok: added lab-archive-review (scout, repo sample) -> In flight
+task:
+  id: lab-archive-review
+  title: Review archive semantics
+  state: in_flight
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: scout
+  repo: sample
+  priority: "-"
+  created: 2026-10-24
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+help[2]:
+  - Run `tasks-axi done lab-archive-review --pr <url>` when it ships
+  - Run `tasks-axi block lab-archive-review --by <other>` to record a dependency
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh hold lab-archive-call --title Choose archive option --reason local disposable decision --repo sample --origin lab-archive-review
+lab-archive-call
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh complete lab-archive-review lab-archive-call
+complete: lab-archive-review captain-call inventory reviewed (lab-archive-call)
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh verify lab-archive-review
+verified: lab-archive-review captain-call inventory
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh answer lab-archive-call --decision-file /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/archive-live-25ehzccn/repository/decision.txt
+answered: lab-archive-call
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-tasks-axi.sh add lab-retention Trigger real retention --kind ship --repo sample
+ok: added lab-retention (ship, repo sample) -> Queued
+task:
+  id: lab-retention
+  title: Trigger real retention
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: ship
+  repo: sample
+  priority: "-"
+  created: 2026-10-24
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+help[2]:
+  - Run `tasks-axi start lab-retention` to move it to in flight
+  - Run `tasks-axi block lab-retention --by <other>` to record a dependency
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-tasks-axi.sh done lab-retention
+ok: done lab-retention -> Done; pruned 2
+help[1]:
+  - Run `tasks-axi ready` to dispatch work unblocked by this
+exit=0
+GENERATED ARCHIVE:
+
+## Archived 2026-10-24
+- [x] lab-retention - Trigger real retention (repo: sample) (kind: ship) (done 2026-10-24)
+- [x] lab-archive-call - Choose archive option (repo: sample) (kind: captain) (done 2026-10-24) (hold: fm-hold-v1:bG9jYWwgZGlzcG9zYWJsZSBkZWNpc2lvbg==) (hold-kind: captain)
+  Resolution recorded by fm-captain-hold.
+  Decision digest: 12221a93c2d46fe66a6dd856344e865821c14566e72479d4722b4252ea1fb9e7
+  Resolution mode: answered
+
+  Captain decision:
+  Use the disposable archive option.
+
+  Captain hold origin: lab-archive-review
+
+  Origin: lab-archive-review
+
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-tasks-axi.sh show lab-archive-call
+error: "Task \"lab-archive-call\" not found in this backlog"
+code: NOT_FOUND
+help[1]: Run `tasks-axi list` to see existing tasks
+exit=1
+SCENARIO repository archive reader header [markdown]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh verify lab-archive-review
+verified: lab-archive-review captain-call inventory
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh complete lab-archive-review lab-archive-call
+complete: lab-archive-review captain-call inventory reviewed (lab-archive-call)
+exit=0
+SCENARIO repository archive reader header ["markdown"]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh verify lab-archive-review
+verified: lab-archive-review captain-call inventory
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh complete lab-archive-review lab-archive-call
+complete: lab-archive-review captain-call inventory reviewed (lab-archive-call)
+exit=0
+SCENARIO repository archive reader header [ "markdown" ]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh verify lab-archive-review
+verified: lab-archive-review captain-call inventory
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh complete lab-archive-review lab-archive-call
+complete: lab-archive-review captain-call inventory reviewed (lab-archive-call)
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh hold lab-unanswered-call --title Unanswered archive option --reason must not invent an answer --repo sample --origin lab-archive-review
+lab-unanswered-call
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh complete lab-archive-review lab-archive-call lab-unanswered-call
+complete: lab-archive-review captain-call inventory reviewed (lab-archive-call,lab-unanswered-call)
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-tasks-axi.sh done lab-unanswered-call
+ok: done lab-unanswered-call -> Done; pruned 1
+help[1]:
+  - Run `tasks-axi ready` to dispatch work unblocked by this
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh verify lab-archive-review
+fm-captain-hold: captain-held task lab-unanswered-call is neither held for the captain nor closed with a recorded captain answer
+exit=1
+SCENARIO PASS: repository archive lookup preserves hash paths, TOML semantics and config; archived unanswered closure refuses
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-lab-home.sh create /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/archive-live-25ehzccn/user
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/archive-live-25ehzccn/user
+exit=0
+$ tasks-axi add lab-archive-review Review archive semantics --kind scout --repo sample --start
+ok: added lab-archive-review (scout, repo sample) -> In flight
+task:
+  id: lab-archive-review
+  title: Review archive semantics
+  state: in_flight
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: scout
+  repo: sample
+  priority: "-"
+  created: 2026-10-24
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+help[2]:
+  - Run `tasks-axi done lab-archive-review --pr <url>` when it ships
+  - Run `tasks-axi block lab-archive-review --by <other>` to record a dependency
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh hold lab-archive-call --title Choose archive option --reason local disposable decision --repo sample --origin lab-archive-review
+lab-archive-call
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh complete lab-archive-review lab-archive-call
+complete: lab-archive-review captain-call inventory reviewed (lab-archive-call)
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh verify lab-archive-review
+verified: lab-archive-review captain-call inventory
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh answer lab-archive-call --decision-file /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/archive-live-25ehzccn/user/decision.txt
+answered: lab-archive-call
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-tasks-axi.sh add lab-retention Trigger real retention --kind ship --repo sample
+ok: added lab-retention (ship, repo sample) -> Queued
+task:
+  id: lab-retention
+  title: Trigger real retention
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: "-"
+  hold_kind: "-"
+  hold_until: "-"
+  kind: ship
+  repo: sample
+  priority: "-"
+  created: 2026-10-24
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+help[2]:
+  - Run `tasks-axi start lab-retention` to move it to in flight
+  - Run `tasks-axi block lab-retention --by <other>` to record a dependency
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-tasks-axi.sh done lab-retention
+ok: done lab-retention -> Done; pruned 2
+help[1]:
+  - Run `tasks-axi ready` to dispatch work unblocked by this
+exit=0
+GENERATED ARCHIVE:
+
+## Archived 2026-10-24
+- [x] lab-retention - Trigger real retention (repo: sample) (kind: ship) (done 2026-10-24)
+- [x] lab-archive-call - Choose archive option (repo: sample) (kind: captain) (done 2026-10-24) (hold: fm-hold-v1:bG9jYWwgZGlzcG9zYWJsZSBkZWNpc2lvbg==) (hold-kind: captain)
+  Resolution recorded by fm-captain-hold.
+  Decision digest: 12221a93c2d46fe66a6dd856344e865821c14566e72479d4722b4252ea1fb9e7
+  Resolution mode: answered
+
+  Captain decision:
+  Use the disposable archive option.
+
+  Captain hold origin: lab-archive-review
+
+  Origin: lab-archive-review
+
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-tasks-axi.sh show lab-archive-call
+error: "Task \"lab-archive-call\" not found in this backlog"
+code: NOT_FOUND
+help[1]: Run `tasks-axi list` to see existing tasks
+exit=1
+SCENARIO user archive reader header [markdown]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh verify lab-archive-review
+verified: lab-archive-review captain-call inventory
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh complete lab-archive-review lab-archive-call
+complete: lab-archive-review captain-call inventory reviewed (lab-archive-call)
+exit=0
+SCENARIO user archive reader header ["markdown"]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh verify lab-archive-review
+verified: lab-archive-review captain-call inventory
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh complete lab-archive-review lab-archive-call
+complete: lab-archive-review captain-call inventory reviewed (lab-archive-call)
+exit=0
+SCENARIO user archive reader header [ "markdown" ]
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh verify lab-archive-review
+verified: lab-archive-review captain-call inventory
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh complete lab-archive-review lab-archive-call
+complete: lab-archive-review captain-call inventory reviewed (lab-archive-call)
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh hold lab-unanswered-call --title Unanswered archive option --reason must not invent an answer --repo sample --origin lab-archive-review
+lab-unanswered-call
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh complete lab-archive-review lab-archive-call lab-unanswered-call
+complete: lab-archive-review captain-call inventory reviewed (lab-archive-call,lab-unanswered-call)
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-tasks-axi.sh done lab-unanswered-call
+ok: done lab-unanswered-call -> Done; pruned 1
+help[1]:
+  - Run `tasks-axi ready` to dispatch work unblocked by this
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-captain-hold.sh verify lab-archive-review
+fm-captain-hold: captain-held task lab-unanswered-call is neither held for the captain nor closed with a recorded captain answer
+exit=1
+SCENARIO PASS: user archive lookup preserves hash paths, TOML semantics and config; archived unanswered closure refuses
+CLEANUP: disposable archive world removed

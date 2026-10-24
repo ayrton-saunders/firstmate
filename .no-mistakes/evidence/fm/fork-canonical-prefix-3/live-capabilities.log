@@ -1,0 +1,24 @@
+Optional live backend tools on PATH (no host filesystem search):
+rex: unavailable on PATH
+paseo: unavailable on PATH
+cmux: unavailable on PATH
+zellij: unavailable on PATH
+polytoken: unavailable on PATH
+herdr: /opt/homebrew/bin/herdr
+tmux: /opt/homebrew/bin/tmux
+tasks-axi: /Users/ayrton/.local/bin/tasks-axi
+
+Repository-local backend executables / build sources:
+cmux.sh
+herdr-agent-view.py
+herdr-eventwait.py
+herdr-workspace-move.py
+herdr.sh
+orca.sh
+paseo.sh
+rex-eventwait.lua
+rex.sh
+tmux.sh
+zellij.sh
+
+Live Herdr provisioning not attempted: helper tripwire protects only literal default; no named-fleet protection or repository-local session state redirection is provided. No fleet lifecycle invoked.

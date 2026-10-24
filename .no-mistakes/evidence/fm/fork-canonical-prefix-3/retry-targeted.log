@@ -1,0 +1,169 @@
+FM_TEST_BEGIN 2026-10-24T19:34:02Z tests/fm-dod-lib.test.sh family=pure-contract-unit expected_gate_skip=none
+ok - scout done: is not gated
+ok - unpushed ship done: is refused
+ok - no-mistakes pre-validation done: is not gated
+ok - named head on a remote-tracking ref is accepted
+ok - a moved remote branch that lacks the named head is refused
+ok - a 40-hex token in the note is not the named head
+ok - a recorded merged PR satisfies the gate after prune
+ok - the merged-PR short-circuit applies only to the recorded PR the done line names
+ok - a forge-recorded head for the named PR is accepted without a local object
+ok - a direct-PR recorded head does not cover a later unpushed commit
+ok - CI-ready notes require checks green and an actual PR reference
+ok - URL-bound readiness requires that exact PR's green clause and preserves surrounding text
+ok - no-mistakes CI-ready done: with extra text is gated
+ok - keyed and spaced ship done: lines are gated
+ok - local-only linked named branch is reachable from the project clone
+ok - local-only detached HEAD only in the disposable copy is refused
+ok - standalone local-only done: requires the named head in the project clone
+ok - non-done lines are not gated
+ok - fenced and indented Captain lines are not authorized intent
+ok - PR-based DoD draft check uses gh-axi
+ok - promotion keeps a scout's recorded base branch and refuses local-only for it
+ok - forge=external composes with direct-PR only and refuses a base branch
+ok - external rule one forbids origin and task-prefixed pushes and names only the backup copy
+ok - external DoD renders the contract, the review grammar, and the adapter, and refuses without one
+ok - external review done: accepted on a canonical URL alone without a backup; PR, non-https, query, fragment, forge, and pattern mismatches refused
+ok - external review done with a backup: refused until HEAD is under refs/remotes/backup/backup/, then accepted
+ok - worker role names the skill and its fallback skill file
+all fm-dod-lib tests passed
+FM_TEST_END 2026-10-24T19:34:07Z tests/fm-dod-lib.test.sh exit=0 duration_ms=4916 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T19:34:07Z tests/fm-teardown.test.sh family=pr-forge expected_gate_skip=none
+FM_TEST_BEGIN 2026-10-24T19:34:07Z tests/fm-pr-health.test.sh family=pr-forge expected_gate_skip=none
+ok - teardown leaves opencode's busy plugin in the returned pool worktree as on main
+ok - status archival is opt-in and preserves the complete log
+not ok - nested secondmate status archive: ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 0s ago).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REFUSED: unsafe secondmate home removal target /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/fm-test-run.fjWyCN/w2/tmp/fm-teardown-tests.LCAJfZ/status-archive-nested-none/secondmate-home is inside the active firstmate home: expected exit 0, got 1
+FM_TEST_END 2026-10-24T19:34:15Z tests/fm-teardown.test.sh exit=1 duration_ms=8208 gate_skip=false
+ok - helper and health require a unique exact head ref and publication repository
+ok - branch discovery and numeric health reads ignore ambient GH_REPO and reject foreign base URLs
+ok - legacy branch ownership stays unverified across cache, publication remote and ref changes
+ok - explicitly recorded ownership survives legacy cache migration and cleanup
+ok - a personal fork remains the publication base beside a canonical read remote
+ok - UNKNOWN then DIRTY wakes once
+ok - DIRTY seen again at the same commits wakes nothing
+ok - a conflict notifies once per latest commit despite recovery or base movement
+ok - each required check that fails on an adopted draft wakes once per latest commit
+ok - a fallback notification does not hide a later required failure at the same commit
+ok - each check is judged by its newest run
+ok - a latest commit that moves between the two reads waits for the next pass
+ok - a red check on another home's PR wakes nothing in this home
+ok - a PR enrolled before any ready report, and one kept after cleanup, both still wake
+ok - an open PR that replaces a closed one on the same task branch is discovered
+ok - a green PR without a reviewer never notifies
+ok - a base with no required checks counts a failing reported check
+ok - a retired contribution is not reclaimed through the cached branch lookup
+ok - a retired contribution is not reclaimed by a fresh branch lookup
+ok - an unreadable durable record pauses the monitor once and keeps its fingerprints
+ok - nothing prints while nothing changed
+ok - a merged PR leaves the monitor
+ok - an absent flag leaves the home untouched
+ok - the watcher turns one conflict into one durable wake
+ok - check notifications survive cleanup and repeat only at a new latest commit
+ok - all owned PR reads start in one wave without rotating a backlog
+ok - all check pages contribute to required-check classification
+ok - GitLab ownership and branch discovery make no GitHub reads
+FM_TEST_END 2026-10-24T19:35:11Z tests/fm-pr-health.test.sh exit=0 duration_ms=64201 gate_skip=false
+FM_TEST_BEGIN 2026-10-24T19:35:11Z tests/fm-backend-rex.test.sh family=rex expected_gate_skip=optional-binary
+ok - Rex fixtures override inherited operational selectors without replacing explicit case roots
+ok - fm_backend_rex_bin: REX_BIN_DIR, then PATH, then the server bundle path
+ok - fm_backend_rex_version_check: accepts API revision 5 and refuses an older CLI, older server, or missing CLI
+ok - fm_backend_rex_parse_target: <session-uuid>:<block-uuid> only, prefixes restored
+ok - fm_backend_rex_create_task: one per-home session created once then adopted, one tab per task, scoped block label, 200x50
+ok - fm_backend_rex_create_task: confirmed launcher session gets the tab focus-safe; unconfirmed claims refuse; nested tmux and other-home use the per-home session
+ok - fm_backend_rex_create_task: refuses an unreadable inventory, ambiguous per-home sessions, and duplicates; a gone session returns 2
+ok - fm_backend_rex_create_task_in_session: closes a bare-shell husk carrying the task label, refuses over a live one
+ok - fm_backend_rex_create_task reclaim: the fallback placement closes a bare-shell husk, refuses a live one, and spawn still refuses duplicates
+ok - rex capture: CR stripped and tailed; viewport derived from the last size.rows styled rows, implicit empty bottom row restored
+ok - fm_backend_composer_state rex: the composer holding the cursor decides; a cursor outside any composer falls back to the cursorless read
+ok - fm_backend_agent_state rex: alive/dead/ambiguous from the process view, missing on not-found, unreadable without starting a server
+ok - fm_backend_busy_state rex: OSC 7501 records count only while their owner is the foreground process or an ancestor
+ok - fm_backend_rex_current_path: the foreground process cwd
+ok - rex input: literal text after --, no call for empty input, verified key names only, line submit
+ok - rex submit confirms idle-to-working native/rendered turns, rejects unproven transitions, and preserves retry/queue paths
+ok - fm_backend_kill rex: closes exactly its tab, treats a gone block as done, retires the emptied per-home session
+ok - fm_backend_kill rex: never kills a session this home does not own, even when it is empty
+ok - Rex close requires recorded-server identity before mutation and absence proof
+ok - secondmate recovery binds Rex close and absence to recorded server for bootstrap and watcher paths
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: reconciling leaked daemon terminal rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: reconciling leaked daemon terminal rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: terminal close command failed, but exact absence was confirmed
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: reconciling leaked daemon terminal rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: reconciling leaked daemon terminal rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: daemon terminal record is malformed; refusing to act on it
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: daemon terminal record is malformed; refusing to act on it
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: reconciling leaked daemon terminal rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: reconciling leaked daemon terminal rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: reconciling leaked daemon terminal rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: away mode stopped; daemon terminal torn down, .afk cleared, and the posture record archived
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: terminal close command failed, but exact absence was confirmed
+fm-afk-launch: away mode stopped; daemon terminal torn down, .afk cleared, and the posture record archived
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: rex server identity is unverified; preserving daemon endpoint and record
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: rex server identity is unverified; preserving daemon endpoint and record
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: daemon terminal record is malformed; refusing to act on it
+fm-afk-launch: malformed daemon terminal record; refusing to stop away mode
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: daemon terminal record is malformed; refusing to act on it
+fm-afk-launch: malformed daemon terminal record; refusing to stop away mode
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: rex server identity is unverified; preserving daemon endpoint and record
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: away mode stopped; terminal teardown or the record archive remains recorded for retry
+fm-afk-launch: daemon launched in dedicated rex session session:00000001-0000-7000-8000-000000000001 (block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003), supervising unused
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: away mode stopped; terminal teardown or the record archive remains recorded for retry
+ok - Rex daemon reconcile and stop require the recorded creation server and preserve ambiguous records
+fm-afk-launch: rex server identity is unreadable
+fm-afk-launch: failed to run daemon in rex block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003; closing its session
+fm-afk-launch: failed to run daemon in rex block 00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003; closing its session
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: daemon did not become ready; closing rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: daemon did not become ready; closing rex:00000001-0000-7000-8000-000000000001:00000003-0000-7000-8000-000000000003
+fm-afk-launch: recorded terminal teardown is unconfirmed; preserving exact id
+fm-afk-launch: failed to persist rex daemon terminal record; closing session:00000001-0000-7000-8000-000000000001
+ok - Rex daemon creation records server identity before dispatch and binds all failed-launch cleanup paths
+ok - fm_backend_kill rex: refuses success unless the block is proven gone
+not ok - teardown of a rex secondmate must succeed: ●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+REFUSED: unsafe secondmate home removal target /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/fm-backend-rex-tests.yfSfAo/teardown-secondmate/mate is inside the firstmate repo: expected exit 0, got 1
+FM_TEST_END 2026-10-24T19:35:59Z tests/fm-backend-rex.test.sh exit=1 duration_ms=48210 gate_skip=false
+FM_TEST_SUMMARY total=4 failed=2 skipped_gate=0 duration_ms=117752
+FM_TEST_SUMMARY_FAMILY family=pr-forge count=2 duration_ms=72409 failed=1
+FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=4916 failed=0
+FM_TEST_SUMMARY_FAMILY family=rex count=1 duration_ms=48210 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-pr-health.test.sh duration_ms=64201
+FM_TEST_SLOWEST rank=2 script=tests/fm-backend-rex.test.sh duration_ms=48210
+FM_TEST_SLOWEST rank=3 script=tests/fm-teardown.test.sh duration_ms=8208
+FM_TEST_SLOWEST rank=4 script=tests/fm-dod-lib.test.sh duration_ms=4916
+fm-test-run: wrote timing artifact: /Users/ayrton/.no-mistakes/evidence/01M5QJK8MQN7KBDSV20562KTDP/retry-targeted-timing.json

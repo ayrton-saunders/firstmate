@@ -1,0 +1,70 @@
+{
+  "families": [
+    {
+      "count": 2,
+      "duration_ms": 72409,
+      "failed": 1,
+      "name": "pr-forge"
+    },
+    {
+      "count": 1,
+      "duration_ms": 4916,
+      "failed": 0,
+      "name": "pure-contract-unit"
+    },
+    {
+      "count": 1,
+      "duration_ms": 48210,
+      "failed": 1,
+      "name": "rex"
+    }
+  ],
+  "finished_at": "2026-10-24T19:35:59Z",
+  "run_id": "fm-test-run-1792870442044-72963",
+  "scripts": [
+    {
+      "duration_ms": 4916,
+      "exit": 0,
+      "expected_gate_skip": "none",
+      "family": "pure-contract-unit",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-dod-lib.test.sh"
+    },
+    {
+      "duration_ms": 8208,
+      "exit": 1,
+      "expected_gate_skip": "none",
+      "family": "pr-forge",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-teardown.test.sh"
+    },
+    {
+      "duration_ms": 64201,
+      "exit": 0,
+      "expected_gate_skip": "none",
+      "family": "pr-forge",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-pr-health.test.sh"
+    },
+    {
+      "duration_ms": 48210,
+      "exit": 1,
+      "expected_gate_skip": "optional-binary",
+      "family": "rex",
+      "gate_skip": false,
+      "gate_skip_reason": "",
+      "path": "tests/fm-backend-rex.test.sh"
+    }
+  ],
+  "selection": "scripts;jobs=4",
+  "started_at": "2026-10-24T19:34:02Z",
+  "summary": {
+    "duration_ms": 117752,
+    "failed": 2,
+    "skipped_gate": 0,
+    "total": 4
+  }
+}

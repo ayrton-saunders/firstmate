@@ -1,0 +1,167 @@
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-lab-home.sh create /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/cli-live-ydcch2q5/home
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/cli-live-ydcch2q5/home
+exit=0
+SCENARIO ownership is home-local, idempotent, canonical and retirement is irreversible
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-contributions.sh enroll lab-task https://github.com/disposable-lab/example/pull/7
+
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-contributions.sh enroll lab-task https://github.com/disposable-lab/example/pull/7
+
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-contributions.sh owned
+[
+  {
+    "url": "https://github.com/disposable-lab/example/pull/7",
+    "tasks": [
+      "lab-task"
+    ],
+    "final": false
+  }
+]
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-contributions.sh retire lab-task https://github.com/disposable-lab/example/pull/7 captain Disposable test record only
+
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-contributions.sh owned
+[]
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-contributions.sh enroll lab-task https://github.com/disposable-lab/example/pull/7
+fm-contributions: contribution is retired for this task; enrollment refused
+exit=1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-contributions.sh enroll lab-task https://github.com.evil.invalid/o/r/pull/1
+fm-contributions: enroll needs a canonical github.com PR URL
+exit=1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-contributions.sh enroll lab-task https://github.com/o/r/pull/1?next=2
+fm-contributions: enroll needs a canonical github.com PR URL
+exit=1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-contributions.sh enroll lab-task https://github.com/o/r/issues/1
+fm-contributions: enroll needs a canonical github.com PR URL
+exit=1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-contributions.sh enroll ../escape https://github.com/disposable-lab/example/pull/7
+fm-contributions: invalid contribution task
+exit=1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-lab-home.sh create /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/cli-live-ydcch2q5/other
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/cli-live-ydcch2q5/other
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-contributions.sh owned
+[]
+exit=0
+SCENARIO PASS: ownership and retirement
+SCENARIO health opt-in disabled performs no state mutation; empty opted-in home polls safely
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-pr-health.sh poll
+
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-pr-health.sh arm
+fm-pr-health: config/pr-health-monitor is absent; the PR health monitor stays off
+exit=1
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-pr-health.sh poll
+
+exit=0
+{"branches": {}, "ownership_error": false, "prs": {}, "schema": "fm-pr-health.v1"}
+SCENARIO PASS: health opt-in
+SCENARIO updater consumes only exact local fork default and preserves dirty or moved targets
+$ git init --bare /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/cli-live-ydcch2q5/fork.git
+hint: Using 'master' as the name for the initial branch. This default branch name
+hint: will change to "main" in Git 3.0. To configure the initial branch name
+hint: to use in all of your new repositories, which will suppress this warning,
+hint: call:
+hint:
+hint: 	git config --global init.defaultBranch <name>
+hint:
+hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+hint: 'development'. The just-created branch can be renamed via this command:
+hint:
+hint: 	git branch -m <name>
+hint:
+hint: Disable this message with "git config set advice.defaultBranchName false"
+Initialized empty Git repository in /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/cli-live-ydcch2q5/fork.git/
+exit=0
+$ git symbolic-ref HEAD refs/heads/main
+
+exit=0
+$ git clone /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/cli-live-ydcch2q5/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/cli-live-ydcch2q5/seed
+Cloning into '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/cli-live-ydcch2q5/seed'...
+warning: You appear to have cloned an empty repository.
+done.
+exit=0
+$ git add README.md
+
+exit=0
+$ git commit -m initial
+[main (root-commit) 5a9e587] initial
+ 1 file changed, 1 insertion(+)
+ create mode 100644 README.md
+exit=0
+$ git push origin main
+To /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/cli-live-ydcch2q5/fork.git
+ * [new branch]      main -> main
+exit=0
+$ git clone /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/cli-live-ydcch2q5/fork.git /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/cli-live-ydcch2q5/checkout
+Cloning into '/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/cli-live-ydcch2q5/checkout'...
+done.
+exit=0
+$ git rev-parse HEAD
+5a9e58774e5d83e3ac9afb196b06ef88e6a19e9b
+exit=0
+$ git commit -am advance
+[main f5c029c] advance
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+exit=0
+$ git push origin main
+To /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/cli-live-ydcch2q5/fork.git
+   5a9e587..f5c029c  main -> main
+exit=0
+$ git rev-parse HEAD
+f5c029cfe8ed49d6c3aa57ab23f29dff2c9ccb2b
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-update.sh --consume-origin 5a9e58774e5d83e3ac9afb196b06ef88e6a19e9b
+firstmate: skipped: origin moved or does not equal expected commit
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+exit=1
+$ git rev-parse HEAD
+5a9e58774e5d83e3ac9afb196b06ef88e6a19e9b
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-update.sh --consume-origin f5c029cfe8ed49d6c3aa57ab23f29dff2c9ccb2b
+firstmate: updated 5a9e587..f5c029c
+no watches registered
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+exit=0
+$ git rev-parse HEAD
+f5c029cfe8ed49d6c3aa57ab23f29dff2c9ccb2b
+exit=0
+$ git show -s --format=%P HEAD
+5a9e58774e5d83e3ac9afb196b06ef88e6a19e9b
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-update.sh --consume-origin f5c029cfe8ed49d6c3aa57ab23f29dff2c9ccb2b
+firstmate: already current
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+exit=0
+$ git commit -am advance again
+[main 087f94c] advance again
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+exit=0
+$ git push origin main
+To /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/cli-live-ydcch2q5/fork.git
+   f5c029c..087f94c  main -> main
+exit=0
+$ git rev-parse HEAD
+087f94cc94cc9adbc5bda70d32380345a947af10
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-update.sh --consume-origin 087f94cc94cc9adbc5bda70d32380345a947af10
+firstmate: skipped: dirty working tree
+reread-firstmate: no
+restart-secondmates: none
+nudge-secondmates: none
+exit=1
+$ git rev-parse HEAD
+f5c029cfe8ed49d6c3aa57ab23f29dff2c9ccb2b
+exit=0
+Preserved working copy content: UNLANDED LOCAL EDIT
+SCENARIO PASS: exact-head updater, single-parent fast forward, idempotence, dirty refusal
+CLEANUP: disposable CLI world removed

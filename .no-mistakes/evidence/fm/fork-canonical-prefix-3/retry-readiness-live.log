@@ -1,0 +1,102 @@
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-lab-home.sh create /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/readiness-live-wcquiwgy/parent
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/readiness-live-wcquiwgy/parent
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-lab-home.sh create /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/readiness-live-wcquiwgy/mate
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/readiness-live-wcquiwgy/mate
+exit=0
+$ git init /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/readiness-live-wcquiwgy/repo
+hint: Using 'master' as the name for the initial branch. This default branch name
+hint: will change to "main" in Git 3.0. To configure the initial branch name
+hint: to use in all of your new repositories, which will suppress this warning,
+hint: call:
+hint:
+hint: 	git config --global init.defaultBranch <name>
+hint:
+hint: Names commonly chosen instead of 'master' are 'main', 'trunk' and
+hint: 'development'. The just-created branch can be renamed via this command:
+hint:
+hint: 	git branch -m <name>
+hint:
+hint: Disable this message with "git config set advice.defaultBranchName false"
+Initialized empty Git repository in /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/readiness-live-wcquiwgy/repo/.git/
+exit=0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/readiness-live-wcquiwgy/repo commit --allow-empty -m disposable head
+[master (root-commit) 6777792] disposable head
+exit=0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/readiness-live-wcquiwgy/repo rev-parse HEAD
+677779295baacefd3d6f73aefb7cae3f53449ab9
+exit=0
+$ git -C /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.test-tmp/readiness-live-wcquiwgy/repo update-ref refs/remotes/origin/lab 677779295baacefd3d6f73aefb7cae3f53449ab9
+exit=0
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-pr-check.sh child https://github.com/disposable-lab/example/pull/7
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+armed: state/child.check.sh
+exit=0
+WITHHELD: latest done [key=fix]: pending supersedes earlier green
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-pr-check.sh child https://github.com/disposable-lab/example/pull/7
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/child.check.sh
+exit=0
+WITHHELD: PR 70 cannot authorize PR 7
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-pr-check.sh child https://github.com/disposable-lab/example/pull/7
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/child.check.sh
+exit=0
+PARENT OUTPUT: done [key=child-pr-child] [at=1792871283]: child child PR ready: https://github.com/disposable-lab/example/pull/7 mode=no-mistakes
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-pr-check.sh child https://github.com/disposable-lab/example/pull/7
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/child.check.sh
+exit=0
+WITHHELD: latest done :  pending supersedes earlier green
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-pr-check.sh child https://github.com/disposable-lab/example/pull/7
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/child.check.sh
+exit=0
+WITHHELD: PR 70 cannot authorize PR 7
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-pr-check.sh child https://github.com/disposable-lab/example/pull/7
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/child.check.sh
+exit=0
+PARENT OUTPUT: done [key=child-pr-child] [at=1792871286]: child child PR ready: https://github.com/disposable-lab/example/pull/7 mode=no-mistakes
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-pr-check.sh child https://github.com/disposable-lab/example/pull/7
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/child.check.sh
+exit=0
+WITHHELD: latest done [at=10:30] [key=fix]: pending supersedes earlier green
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-pr-check.sh child https://github.com/disposable-lab/example/pull/7
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/child.check.sh
+exit=0
+WITHHELD: PR 70 cannot authorize PR 7
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-pr-check.sh child https://github.com/disposable-lab/example/pull/7
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/child.check.sh
+exit=0
+PARENT OUTPUT: done [key=child-pr-child] [at=1792871288]: child child PR ready: https://github.com/disposable-lab/example/pull/7 mode=no-mistakes
+
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-pr-check.sh child https://github.com/disposable-lab/example/pull/7
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/child.check.sh
+exit=0
+WITHHELD: latest done: [key=fix] pending supersedes earlier green
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-pr-check.sh child https://github.com/disposable-lab/example/pull/7
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/child.check.sh
+exit=0
+WITHHELD: PR 70 cannot authorize PR 7
+$ /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5QJK8MQN7KBDSV20562KTDP/bin/fm-pr-check.sh child https://github.com/disposable-lab/example/pull/7
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+armed: state/child.check.sh
+exit=0
+PARENT OUTPUT: done [key=child-pr-child] [at=1792871291]: child child PR ready: https://github.com/disposable-lab/example/pull/7 mode=no-mistakes
+
+PASS: real local registration honors latest keyed/spaced exact-URL reports without any forge access
+CLEANUP: private readiness world removed
