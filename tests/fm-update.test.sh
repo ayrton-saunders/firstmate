@@ -134,10 +134,12 @@ bump_origin() {
 }
 
 run_update() {
-  local w=$1
+  local w=$1; shift
   PATH="$w/fakebin:$PATH" FM_FAKE_DIR="$w/fake" \
     FM_SSH_BIN="${FM_TEST_SSH_BIN:-ssh}" \
-    FM_ROOT_OVERRIDE="$w/main" FM_HOME="$w/home" "$UPDATE" 2>/dev/null
+    FM_STATE_OVERRIDE="$w/home/state" FM_DATA_OVERRIDE="$w/home/data" \
+    FM_CONFIG_OVERRIDE="$w/home/config" FM_PROJECTS_OVERRIDE="$w/home/projects" \
+    FM_ROOT_OVERRIDE="$w/main" FM_HOME="$w/home" "$UPDATE" "$@" 2>/dev/null
 }
 
 # --- T1: main + secondmate behind, instruction change; FF, not a merge ------
@@ -556,6 +558,463 @@ test_primary_update_rebinds_local_watch() {
   pass "T12 a self-update rebinds a locally armed watch on the primary"
 }
 
+# New operations run on real miniature histories; publication and lifecycle stay local.
+test_pinned_consumption() {
+  local w old local_before target out rc mode
+  for mode in moved dirty branch detached operation shallow default malformed diverged redundant success; do
+    w=$(new_world "pin-$mode")
+    add_sm "$w" sm1
+    old=$(git -C "$w/main" rev-parse HEAD)
+    bump_origin "$w" readme
+    target=$(git -C "$w/seed" rev-parse HEAD)
+    case "$mode" in
+      moved) target=$old ;;
+      dirty) printf 'keep\n' > "$w/main/untracked" ;;
+      branch) git -C "$w/main" checkout -qb feature ;;
+      detached) git -C "$w/main" checkout -q --detach ;;
+      operation) git -C "$w/main" rev-parse HEAD > "$(git -C "$w/main" rev-parse --absolute-git-dir)/MERGE_HEAD" ;;
+      shallow) printf '%s\n' "$old" > "$(git -C "$w/main" rev-parse --absolute-git-dir)/shallow" ;;
+      default)
+        git -C "$w/origin.git" update-ref refs/heads/replacement "$target"
+        git -C "$w/origin.git" symbolic-ref HEAD refs/heads/replacement ;;
+      malformed) target=abc ;;
+      diverged|redundant)
+        if [ "$mode" = redundant ]; then
+          cp "$w/seed/README.md" "$w/main/README.md"
+        else
+          printf 'unique primary content\n' > "$w/main/local"
+        fi
+        git -C "$w/main" add -A
+        git -C "$w/main" commit -qm independently-local
+        ;;
+    esac
+    local_before=$(git -C "$w/main" rev-parse HEAD)
+    rc=0
+    out=$(run_update "$w" --consume-origin "$target") || rc=$?
+    if [ "$mode" = success ]; then
+      [ "$rc" -eq 0 ] || fail 'pinned success refused'
+      [ "$(git -C "$w/main" rev-parse HEAD)" = "$target" ] || fail 'pin not consumed'
+      assert_contains "$out" 'restart-secondmates: fm-sm1' 'successful pin includes settled mate'
+    else
+      [ "$rc" -ne 0 ] || fail "unsafe pinned $mode succeeded"
+      [ "$(git -C "$w/main" rev-parse HEAD)" = "$local_before" ] || fail "unsafe pinned $mode moved primary"
+      [ "$(git -C "$w/sm1" rev-parse HEAD)" = "$old" ] || fail "unsafe pinned $mode moved mate"
+      case "$out" in *'restart-secondmates: fm-'*|*'nudge-secondmates: fm-'*) fail 'refusal emitted actions' ;; esac
+    fi
+  done
+  pass 'pinned consumption rejects moving/unsafe targets before all secondmate effects'
+}
+
+prepare_world() {
+  local w=$1
+  git clone -q --bare "$w/origin.git" "$w/canonical.git"
+  git clone -q "$w/canonical.git" "$w/upstream"
+  git -C "$w/main" worktree add -qb integration "$w/candidate" main
+  git -C "$w/candidate" remote add canonical "$w/canonical.git"
+}
+
+run_prepare() {
+  local w=$1 o=$2 u=$3
+  FM_ROOT_OVERRIDE="$w/candidate" FM_HOME="$w/home" FM_STATE_OVERRIDE="$w/home/state" \
+    FM_DATA_OVERRIDE="$w/home/data" FM_CONFIG_OVERRIDE="$w/home/config" \
+    FM_PROJECTS_OVERRIDE="$w/home/projects" "$UPDATE" --prepare-upstream \
+    "$w/origin.git" main "$o" "$w/canonical.git" main "$u" "$w/attempt" 2>&1
+}
+
+test_upstream_preparation() {
+  local w o u h out rc mode main_before
+  for mode in contained ff divergent conflict empty interrupted; do
+    w=$(new_world "prepare-$mode")
+    prepare_world "$w"
+    o=$(git -C "$w/main" rev-parse HEAD)
+    main_before=$o
+    if [ "$mode" != contained ]; then
+      printf 'canonical\n' > "$w/upstream/README.md"
+      git -C "$w/upstream" add -A
+      git -C "$w/upstream" commit -qm upstream
+      if [ "$mode" = empty ]; then
+        git -C "$w/upstream" revert --no-edit HEAD >/dev/null
+      fi
+      git -C "$w/upstream" push -q origin main
+    fi
+    u=$(git -C "$w/upstream" rev-parse HEAD)
+    case "$mode" in
+      divergent|conflict|interrupted)
+        if [ "$mode" = conflict ]; then
+          printf 'fork\n' > "$w/seed/README.md"
+        else
+          printf '#!/usr/bin/env bash\nprintf "personal behavior\\n"\n' > "$w/seed/personal.sh"
+        fi
+        git -C "$w/seed" add -A
+        git -C "$w/seed" commit -qm personal
+        git -C "$w/seed" push -q origin main
+        o=$(git -C "$w/seed" rev-parse HEAD)
+        git -C "$w/candidate" fetch -q origin
+        git -C "$w/candidate" merge -q --ff-only "$o"
+        ;;
+    esac
+    if [ "$mode" = interrupted ]; then
+      mkdir -p "$w/attempt"
+      printf 'unrecognized interrupted evidence\n' > "$w/attempt/events"
+    fi
+    rc=0
+    out=$(run_prepare "$w" "$o" "$u") || rc=$?
+    [ "$(git -C "$w/main" rev-parse HEAD)" = "$main_before" ] || fail 'preparation moved active primary'
+    case "$out" in *restart-secondmates:*|*nudge-secondmates:*) fail 'preparation emitted lifecycle actions' ;; esac
+    case "$mode" in
+      conflict)
+        [ "$rc" -ne 0 ] || fail 'conflict returned success'
+        git -C "$w/candidate" ls-files -u | grep -q . || fail 'conflict not retained'
+        printf 'resolved\n' > "$w/candidate/README.md"
+        git -C "$w/candidate" add -A
+        git -C "$w/candidate" commit -qm resolution
+        out=$(run_prepare "$w" "$o" "$u") || fail 'resolved candidate not inspectable'
+        assert_contains "$out" 'conflict-history: conflicted' 'clean resolution retains conflict provenance'
+        ;;
+      interrupted)
+        [ "$rc" -ne 0 ] || fail 'unknown prior attempt accepted'
+        [ "$(git -C "$w/candidate" rev-parse HEAD)" = "$o" ] || fail 'unknown attempt mutated'
+        ;;
+      *)
+        [ "$rc" -eq 0 ] || fail "preparation $mode refused: $out"
+        h=$(git -C "$w/candidate" rev-parse HEAD)
+        git -C "$w/candidate" merge-base --is-ancestor "$o" "$h" || fail 'fork ancestry lost'
+        git -C "$w/candidate" merge-base --is-ancestor "$u" "$h" || fail 'canonical ancestry lost'
+        [ "$mode" != divergent ] || [ "$(bash "$w/candidate/personal.sh")" = 'personal behavior' ] || fail 'fork behavior lost'
+        out=$(run_prepare "$w" "$o" "$u") || fail 'repeated preparation refused'
+        [ "$(git -C "$w/candidate" rev-parse HEAD)" = "$h" ] || fail 'repeat changed candidate'
+        ;;
+    esac
+  done
+  pass 'contained/FF/divergent/conflicted/empty histories preserve ancestry, behavior and interrupted evidence'
+}
+
+run_proof() {
+  local w=$1; shift
+  FM_ROOT_OVERRIDE="$w/candidate" FM_HOME="$w/home" FM_STATE_OVERRIDE="$w/home/state" \
+    FM_DATA_OVERRIDE="$w/home/data" FM_CONFIG_OVERRIDE="$w/home/config" \
+    FM_PROJECTS_OVERRIDE="$w/home/projects" "$UPDATE" "$@" 2>&1
+}
+
+test_published_qualification_and_landing() {
+  local w o u h t m base review tested history mode rc out lost
+  for mode in valid review-repair test-repair ancestry head-race base-race landed-race tested-tree empty unknown conflict; do
+    w=$(new_world "proof-$mode")
+    prepare_world "$w"
+    o=$(git -C "$w/main" rev-parse HEAD)
+    printf 'canonical change\n' >> "$w/upstream/README.md"
+    git -C "$w/upstream" add -A
+    git -C "$w/upstream" commit -qm canonical
+    if [ "$mode" = empty ]; then git -C "$w/upstream" revert --no-edit HEAD >/dev/null; fi
+    git -C "$w/upstream" push -q origin main
+    u=$(git -C "$w/upstream" rev-parse HEAD)
+    run_prepare "$w" "$o" "$u" >/dev/null || fail 'proof preparation failed'
+    h=$(git -C "$w/candidate" rev-parse HEAD)
+    printf 'fixture normal Review/Test evidence\n' > "$w/evidence"
+    if [ "$mode" = ancestry ]; then
+      lost=$(printf 'pipeline replay losing canonical identity\n' | git -C "$w/candidate" commit-tree "$h^{tree}" -p "$o")
+      # Model a pipeline replacement as a separate object, retaining the
+      # prepared candidate under integration; no reset/force operation is used.
+      git -C "$w/candidate" checkout -q --detach "$lost"
+      rc=0
+      out=$(run_proof "$w" --qualify-upstream "$w/attempt" "$lost" "$lost" "$lost" "$o" "$lost" clean "$w/evidence") || rc=$?
+      [ "$rc" -ne 0 ] || fail 'rewritten ancestry qualified'
+      assert_contains "$out" 'lost fork or canonical ancestry' 'actual pipeline replay cannot qualify'
+      git -C "$w/candidate" merge-base --is-ancestor "$u" integration || fail 'original candidate not preserved'
+      continue
+    fi
+    git -C "$w/candidate" push -q origin integration
+    base=$o
+    t=$(printf 'tested synthetic merge\n' | git -C "$w/candidate" commit-tree "$h^{tree}" -p "$base" -p "$h")
+    review=$h; tested=$h; history=clean
+    # This is intercepted pipeline evidence, never a real attestation or PR.
+    printf 'fixture normal Review/Test evidence\n' > "$w/evidence"
+    case "$mode" in
+      review-repair) review=$o ;;
+      test-repair) tested=$o ;;
+      unknown) printf 'conflicted\n' >> "$w/attempt/events"; history=unknown ;;
+      tested-tree)
+        t=$(printf 'different tested tree\n' | git -C "$w/candidate" commit-tree "$(git -C "$w/candidate" mktree < /dev/null)" -p "$base" -p "$h") ;;
+      conflict) history=conflicted ;;
+      head-race)
+        # A pipeline lane moves the published branch while the retained caller
+        # still holds H. Only a fresh publication read can catch this race.
+        lost=$(printf 'later published pipeline head\n' | git -C "$w/candidate" commit-tree "$h^{tree}" -p "$h")
+        git -C "$w/candidate" push -q origin "$lost:refs/heads/integration"
+        ;;
+      base-race)
+        bump_origin "$w" readme
+        ;;
+    esac
+    rc=0
+    out=$(run_proof "$w" --qualify-upstream "$w/attempt" "$h" "$review" "$tested" "$base" "$t" "$history" "$w/evidence") || rc=$?
+    case "$mode" in
+      valid|landed-race|conflict)
+        [ "$rc" -eq 0 ] || fail "valid qualification refused: $out"
+        if [ "$mode" = conflict ]; then
+          assert_contains "$out" "approval-required: conflict resolution bound to $h" 'conflict approval candidate bound'
+          out=$(run_proof "$w" --qualify-upstream "$w/attempt" "$h" "$review" "$tested" "$base" "$t" clean "$w/evidence")
+          assert_contains "$out" 'conflict-history: conflicted' 'later clean evidence cannot erase known conflict'
+        fi
+        m=$(printf 'actual landed commit\n' | git -C "$w/candidate" commit-tree "$h^{tree}" -p "$base" -p "$h")
+        if [ "$mode" = landed-race ]; then
+          bump_origin "$w" readme
+          git -C "$w/candidate" fetch -q origin
+          base=$(git -C "$w/candidate" rev-parse origin/main)
+          m=$(printf 'merge after base moved\n' | git -C "$w/candidate" commit-tree "$h^{tree}" -p "$base" -p "$h")
+        fi
+        git -C "$w/candidate" push -q origin "$m:refs/heads/main"
+        rc=0
+        out=$(run_proof "$w" --verify-landed "$w/attempt" "$m") || rc=$?
+        if [ "$mode" = landed-race ]; then
+          [ "$rc" -ne 0 ] || fail 'last-moment base movement consumed'
+        else
+          [ "$rc" -eq 0 ] || fail "landed proof refused: $out"
+          assert_contains "$out" "verified-origin: $m" 'actual published merge proved'
+          run_proof "$w" --verify-landed "$w/attempt" "$m" >/dev/null || fail 'repeat landing proof failed'
+        fi
+        [ "$(git -C "$w/main" rev-parse HEAD)" = "$o" ] || fail 'proof moved active source'
+        ;;
+      *)
+        [ "$rc" -ne 0 ] || fail "unsafe qualification $mode accepted"
+        [ ! -e "$w/attempt/qualifications" ] || fail 'unsafe candidate got qualification'
+        [ "$mode" != head-race ] || assert_contains "$out" 'published head moved' 'fresh published-head equality closes the retained-caller race'
+        if [ "$mode" = unknown ]; then
+          for history in clean conflicted clean; do
+            rc=0
+            out=$(run_proof "$w" --qualify-upstream "$w/attempt" "$h" "$h" "$h" "$base" "$t" "$history" "$w/evidence") || rc=$?
+            [ "$rc" -ne 0 ] || fail 'unknown history cleared by later clean/conflicted evidence'
+            assert_contains "$out" 'unknown conflict history' 'unknown provenance remains unknown after known conflict'
+          done
+        fi
+        ;;
+    esac
+  done
+  pass 'final ancestry, actual Review/Test heads, conflict provenance, publication/head/base races and actual landed tree are checked'
+}
+
+test_unknown_provenance_survives_interrupted_conflicted_retry() {
+  local w o u h t m out rc retained history mode
+  for mode in pipeline preparation; do
+  w=$(new_world "proof-interrupted-unknown-$mode")
+  prepare_world "$w"
+  o=$(git -C "$w/main" rev-parse HEAD)
+  printf 'canonical change\n' >> "$w/upstream/README.md"
+  git -C "$w/upstream" add -A
+  git -C "$w/upstream" commit -qm canonical
+  git -C "$w/upstream" push -q origin main
+  u=$(git -C "$w/upstream" rev-parse HEAD)
+  if [ "$mode" = preparation ]; then
+    cat > "$w/interrupt-prepare.bash" <<'SH'
+set -T
+interrupt_after_merge() {
+  if [ -f "$INTERRUPT_EVENTS" ] && [ "$(< "$INTERRUPT_EVENTS")" = unknown ] \
+    && [ "$(git -C "$INTERRUPT_ROOT" rev-parse HEAD)" != "$INTERRUPT_HEAD" ]; then
+    trap - DEBUG
+    kill -KILL "$$"
+  fi
+}
+trap interrupt_after_merge DEBUG
+SH
+    rc=0
+    out=$(BASH_ENV="$w/interrupt-prepare.bash" INTERRUPT_EVENTS="$w/attempt/events" \
+      INTERRUPT_ROOT="$w/candidate" INTERRUPT_HEAD="$o" run_prepare "$w" "$o" "$u") || rc=$?
+    [ "$rc" -eq 137 ] || fail "preparation was not interrupted after merge: $rc $out"
+    [ "$(< "$w/attempt/events")" = unknown ] || fail 'interrupted preparation classified its result'
+    git -C "$w/candidate" merge-base --is-ancestor "$u" HEAD || fail 'preparation interrupted before merge'
+  else
+    run_prepare "$w" "$o" "$u" >/dev/null || fail 'interruption preparation failed'
+  fi
+  h=$(git -C "$w/candidate" rev-parse HEAD)
+  git -C "$w/candidate" push -q origin integration
+  t=$(printf 'tested merge\n' | git -C "$w/candidate" commit-tree "$h^{tree}" -p "$o" -p "$h")
+  printf 'fixture normal Review/Test evidence\n' > "$w/evidence"
+  if [ "$mode" = pipeline ]; then
+    run_proof "$w" --qualify-upstream "$w/attempt" "$h" "$h" "$h" "$o" "$t" clean "$w/evidence" >/dev/null \
+      || fail 'initial qualification failed'
+    history=unknown
+  else
+    history=conflicted
+  fi
+  retained=$(< "$w/attempt/events")
+  rc=0
+  out=$(run_proof "$w" --qualify-upstream "$w/attempt" "$h" "$h" "$h" "$o" "$t" "$history" "$w/evidence") || rc=$?
+  [ "$rc" -ne 0 ] || fail 'unknown provenance accepted'
+  if [ "$mode" = preparation ]; then
+    assert_contains "$out" 'unknown conflict history' 'interrupted preparation cannot qualify'
+    [ "$(< "$w/attempt/events")" = "$(printf '%s\nunknown\nconflicted' "$retained")" ] \
+      || fail 'qualification did not retain initial unknown before recording conflict'
+  fi
+  retained=$(< "$w/attempt/events")
+  cat > "$w/interrupt.bash" <<'SH'
+set -T
+interrupt_after_conflict() {
+  if [ "$(tail -1 "$INTERRUPT_EVENTS")" = conflicted ] \
+    && [ "$(< "$INTERRUPT_EVENTS")" != "$INTERRUPT_BEFORE" ]; then
+    trap - DEBUG
+    kill -KILL "$$"
+  fi
+}
+trap interrupt_after_conflict DEBUG
+SH
+  rc=0
+  out=$(BASH_ENV="$w/interrupt.bash" INTERRUPT_EVENTS="$w/attempt/events" INTERRUPT_BEFORE="$retained" \
+    run_proof "$w" --qualify-upstream "$w/attempt" "$h" "$h" "$h" "$o" "$t" conflicted "$w/evidence") || rc=$?
+  [ "$rc" -eq 137 ] || fail "conflicted retry was not interrupted after its persisted event: $rc $out"
+  [ "$(< "$w/attempt/events")" = "$(printf '%s\nunknown\nconflicted' "$retained")" ] \
+    || fail 'interruption did not preserve full history with the new conflict event'
+  rc=0
+  out=$(run_prepare "$w" "$o" "$u") || rc=$?
+  [ "$rc" -eq 0 ] || fail "preparation retry failed: $out"
+  assert_contains "$out" 'conflict-history: unknown' 'preparation retry must preserve unknown provenance'
+  for history in clean conflicted; do
+    rc=0
+    out=$(run_proof "$w" --qualify-upstream "$w/attempt" "$h" "$h" "$h" "$o" "$t" "$history" "$w/evidence") || rc=$?
+    [ "$rc" -ne 0 ] || fail 'interrupted unknown provenance became eligible'
+    assert_contains "$out" 'unknown conflict history' 'qualification retry must retain unknown provenance'
+  done
+  m=$(printf 'landed merge\n' | git -C "$w/candidate" commit-tree "$h^{tree}" -p "$o" -p "$h")
+  git -C "$w/candidate" push -q origin "$m:refs/heads/main"
+  rc=0
+  out=$(run_proof "$w" --verify-landed "$w/attempt" "$m") || rc=$?
+  [ "$rc" -ne 0 ] || fail 'interrupted unknown provenance permitted landed verification'
+  if [ "$mode" = pipeline ]; then
+    assert_contains "$out" 'unknown conflict provenance' 'old qualification must not bypass unknown provenance'
+  else
+    assert_absent "$w/attempt/qualifications" 'interrupted preparation gained a qualification'
+  fi
+  assert_absent "$w/attempt/landings" 'unknown provenance recorded a verified landing'
+  done
+  pass 'unknown provenance survives interrupted preparation and conflicted retries across preparation, qualification and landing'
+}
+
+test_preparation_refusals_preserve_active_sources() {
+  local w o u before out rc mode
+  for mode in fork-moved canonical-moved dirty detached operation shallow mismatch primary; do
+    w=$(new_world "prepare-refusal-$mode")
+    prepare_world "$w"
+    o=$(git -C "$w/main" rev-parse HEAD)
+    printf 'canonical advance\n' > "$w/upstream/README.md"
+    git -C "$w/upstream" add -A
+    git -C "$w/upstream" commit -qm canonical
+    git -C "$w/upstream" push -q origin main
+    u=$(git -C "$w/upstream" rev-parse HEAD)
+    case "$mode" in
+      fork-moved) bump_origin "$w" readme ;;
+      canonical-moved)
+        printf 'moving canonical\n' >> "$w/upstream/README.md"
+        git -C "$w/upstream" add -A
+        git -C "$w/upstream" commit -qm later
+        git -C "$w/upstream" push -q origin main ;;
+      dirty) printf 'keep local\n' > "$w/candidate/unsaved" ;;
+      detached) git -C "$w/candidate" checkout -q --detach ;;
+      operation) printf '%s\n' "$o" > "$(git -C "$w/candidate" rev-parse --absolute-git-dir)/MERGE_HEAD" ;;
+      shallow) printf '%s\n' "$o" > "$(git -C "$w/main" rev-parse --absolute-git-dir)/shallow" ;;
+      mismatch) git -C "$w/candidate" remote set-url canonical "$w/origin.git" ;;
+    esac
+    before=$(git -C "$w/candidate" rev-parse HEAD)
+    rc=0
+    if [ "$mode" = primary ]; then
+      out=$(FM_ROOT_OVERRIDE="$w/main" FM_HOME="$w/home" FM_STATE_OVERRIDE="$w/home/state" \
+        FM_DATA_OVERRIDE="$w/home/data" FM_CONFIG_OVERRIDE="$w/home/config" FM_PROJECTS_OVERRIDE="$w/home/projects" \
+        "$UPDATE" --prepare-upstream "$w/origin.git" main "$o" "$w/canonical.git" main "$u" "$w/attempt" 2>&1) || rc=$?
+    else
+      out=$(run_prepare "$w" "$o" "$u") || rc=$?
+    fi
+    [ "$rc" -ne 0 ] || fail "unsafe preparation $mode succeeded: $out"
+    [ "$(git -C "$w/main" rev-parse HEAD)" = "$o" ] || fail "unsafe preparation $mode moved active primary"
+    [ "$(git -C "$w/candidate" rev-parse HEAD)" = "$before" ] || fail "unsafe preparation $mode moved candidate"
+    case "$out" in *restart-secondmates:*|*nudge-secondmates:*) fail 'preparation refusal emitted lifecycle actions' ;; esac
+  done
+  pass 'moving identities, dirty/detached/active/shallow/mismatched and primary preparation refuse without active-source effects'
+}
+
+test_semantic_repair_requires_final_evidence_not_approval() {
+  local w o u h repaired t out rc
+  w=$(new_world semantic-repair)
+  prepare_world "$w"
+  # Fork behavior depends on a shared runtime input. Upstream changes that input
+  # without touching the new fork script, so Git reports no textual conflict.
+  cat > "$w/seed/personal.sh" <<'SH'
+#!/usr/bin/env bash
+cd "$(dirname "$0")"
+[ "$(head -1 README.md)" = r1 ] || exit 7
+printf 'personal behavior\n'
+SH
+  git -C "$w/seed" add -A
+  git -C "$w/seed" commit -qm personal
+  git -C "$w/seed" push -q origin main
+  o=$(git -C "$w/seed" rev-parse HEAD)
+  git -C "$w/candidate" fetch -q origin
+  git -C "$w/candidate" merge -q --ff-only "$o"
+  [ "$(bash "$w/candidate/personal.sh")" = 'personal behavior' ] || fail 'original customization does not work'
+  printf 'changed runtime input\n' > "$w/upstream/README.md"
+  git -C "$w/upstream" add -A
+  git -C "$w/upstream" commit -qm upstream
+  git -C "$w/upstream" push -q origin main
+  u=$(git -C "$w/upstream" rev-parse HEAD)
+  out=$(run_prepare "$w" "$o" "$u") || fail 'semantic fixture unexpectedly textually conflicted'
+  assert_contains "$out" 'conflict-history: clean' 'semantic regression is textually clean'
+  h=$(git -C "$w/candidate" rev-parse HEAD)
+  rc=0
+  bash "$w/candidate/personal.sh" >/dev/null || rc=$?
+  [ "$rc" -eq 7 ] || fail 'focused behavior test missed semantic regression'
+  git -C "$w/candidate" push -q origin integration
+  t=$(printf 'tested broken merge\n' | git -C "$w/candidate" commit-tree "$h^{tree}" -p "$o" -p "$h")
+  printf 'intercepted normal Test rejects lost customization\n' > "$w/evidence"
+  rc=0
+  out=$(run_proof "$w" --qualify-upstream "$w/attempt" "$h" "$h" "$o" "$o" "$t" clean "$w/evidence") || rc=$?
+  [ "$rc" -ne 0 ] || fail 'failed semantic Test qualified'
+  # Model the existing pipeline's in-scope repair, not a second manual review.
+  printf '#!/usr/bin/env bash\nprintf "personal behavior\\n"\n' > "$w/candidate/personal.sh"
+  git -C "$w/candidate" add -A
+  git -C "$w/candidate" commit -qm 'pipeline semantic preservation repair'
+  repaired=$(git -C "$w/candidate" rev-parse HEAD)
+  [ "$(bash "$w/candidate/personal.sh")" = 'personal behavior' ] || fail 'repair did not preserve customization'
+  git -C "$w/candidate" push -q origin integration
+  t=$(printf 'tested repaired merge\n' | git -C "$w/candidate" commit-tree "$repaired^{tree}" -p "$o" -p "$repaired")
+  rc=0
+  out=$(run_proof "$w" --qualify-upstream "$w/attempt" "$repaired" "$h" "$h" "$o" "$t" clean "$w/evidence") || rc=$?
+  [ "$rc" -ne 0 ] || fail 'green ancestor evidence accepted for semantic repair'
+  printf 'intercepted normal Review/Test at repaired head\n' > "$w/evidence"
+  out=$(run_proof "$w" --qualify-upstream "$w/attempt" "$repaired" "$repaired" "$repaired" "$o" "$t" clean "$w/evidence") || fail 'final normal repair evidence refused'
+  assert_contains "$out" "qualified-head: $repaired" 'repaired candidate qualifies normally'
+  case "$out" in *approval-required:*) fail 'in-scope semantic repair created a needless human approval' ;; esac
+  [ "$(git -C "$w/main" rev-parse HEAD)" != "$repaired" ] || fail 'semantic preparation moved active home'
+  pass 'textually clean semantic regression fails behavior testing; final normal repair evidence qualifies without another human approval'
+}
+
+test_standalone_secondmate_keeps_own_origin() {
+  local w target own out
+  w=$(new_world distinct-origin)
+  git clone -q --bare "$w/origin.git" "$w/independent.git"
+  git clone -q "$w/independent.git" "$w/own-seed"
+  git clone -q "$w/independent.git" "$w/sm2"
+  printf 'sm2\n' > "$w/sm2/.fm-secondmate-home"
+  printf 'window=main:fm-sm2\nendpoint_task_id=sm2\nkind=secondmate\nharness=claude\nhome=%s/sm2\nworktree=%s/sm2\nproject=%s/sm2\n' "$w" "$w" "$w" > "$w/home/state/sm2.meta"
+  printf 'fm-sm2\n' >> "$w/fake/windows"
+  printf 'independent origin\n' >> "$w/own-seed/README.md"
+  git -C "$w/own-seed" add -A
+  git -C "$w/own-seed" commit -qm independent
+  git -C "$w/own-seed" push -q origin main
+  own=$(git -C "$w/own-seed" rev-parse HEAD)
+  bump_origin "$w" instr
+  target=$(git -C "$w/seed" rev-parse HEAD)
+  out=$(run_update "$w" --consume-origin "$target") || fail 'mixed-origin consumption refused'
+  [ "$(git -C "$w/main" rev-parse HEAD)" = "$target" ] || fail 'primary pin not consumed'
+  [ "$(git -C "$w/sm2" rev-parse HEAD)" = "$own" ] || fail 'standalone mate did not consume its own origin'
+  [ "$(git -C "$w/sm2" remote get-url origin)" = "$w/independent.git" ] || fail 'standalone origin rewritten'
+  assert_contains "$out" 'restart-secondmates: fm-sm2' 'independently settled mate still restarts'
+  pass 'pinned primary consumption preserves a standalone secondmate distinct origin and source result'
+}
+
+test_upstream_preparation
+test_preparation_refusals_preserve_active_sources
+test_pinned_consumption
+test_published_qualification_and_landing
+test_unknown_provenance_survives_interrupted_conflicted_retry
+test_semantic_repair_requires_final_evidence_not_approval
+test_standalone_secondmate_keeps_own_origin
 test_updates_main_and_secondmate
 test_reread_gate_is_instruction_only
 test_bin_only_advance_restarts

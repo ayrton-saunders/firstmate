@@ -576,7 +576,7 @@ See [`fleet-ledger.md`](fleet-ledger.md) for the opt-in setup, record contract, 
 ## Firstmate role (config/firstmate-role)
 
 The optional local, gitignored `config/firstmate-role` declares this home's relationship to the firstmate repository itself.
-Every home defaults to **user/operator** with no firstmate-upstream publication authority: ordinary project work and `/updatefirstmate` pulls are unaffected, but without an explicit grant no ship task on the firstmate repository may carry a publishing contract.
+Every home defaults to **user/operator** with no firstmate-upstream publication authority: ordinary project work and origin consumption are unaffected, but without an explicit grant no ship task on the firstmate repository may carry a publishing contract.
 For the agent's local diagnosis, workaround, and draft-only response to a firstmate bug, see [`firstmate-self-repo`](../.agents/skills/firstmate-self-repo/SKILL.md#when-a-firstmate-bug-surfaces-in-ordinary-use).
 
 The file holds exactly one directive line, with blank lines and `#` comment lines ignored:
@@ -645,6 +645,12 @@ With the flag absent the wedge timer spends no fold or current-state read for it
 The flag is a home-local supervision-noise preference and is not inherited by secondmate homes, which supervise their own crew and own that trade separately.
 
 [`architecture.md`](architecture.md) owns the wait-evidence contract and which records may take the ladder away; `bin/fm-watch.sh`'s `wedge_wait_evidence` owns the exact derivation and its fail-closed boundaries.
+
+## Fork updates
+
+[`updatefirstmate`](../.agents/skills/updatefirstmate/SKILL.md) owns integration authority, qualification, per-origin consumption and the human-owned primary activation handover.
+[`bin/fm-update.sh`](../bin/fm-update.sh)'s header and help own exact interfaces and record mechanics.
+Changing a shared remote name or refreshing gate registration has shared effects and requires concrete setup approval; updater invocation itself grants neither operation.
 
 ## Gate defaults (.no-mistakes.yaml)
 

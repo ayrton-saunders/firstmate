@@ -1,9 +1,8 @@
 ---
 name: updatefirstmate
 description: >-
-  Self-update a running firstmate and its secondmates to the latest from origin.
-  Use when the captain invokes /updatefirstmate (e.g. "/updatefirstmate", "update firstmate", "pull the latest firstmate").
-  Updates this firstmate repo's default branch and every local or remote secondmate through its guarded convergence path (never forced, never disruptive), then re-reads AGENTS.md and restarts every live second mate through the persist-gated restart, with a fallback re-read nudge only where a restart cannot be proven.
+  Update Firstmate when the captain invokes /updatefirstmate or asks to update Firstmate.
+  On the personal fork, prepare and qualify original-upstream integration separately from verified origin consumption; preserve independent secondmate origins and finish primary activation by human-owned fresh-process handover.
 user-invocable: true
 metadata:
   internal: true
@@ -11,98 +10,122 @@ metadata:
 
 # updatefirstmate
 
-Self-update firstmate in place.
-Firstmate is its own repo, behind the same no-mistakes gate as any project, so new tracked material (`AGENTS.md`, `bin/`, `.agents/skills/`, and public `skills/`) reaches `main` and then sits there until each running firstmate pulls it.
-Only `AGENTS.md`, `bin/`, and `.agents/skills/` are a running firstmate instruction surface; public `skills/` is installer-facing and is not loaded by firstmate.
-This skill performs that pull for the running main firstmate and every secondmate, without disturbing any in-flight work.
-Updating is consumption, not publication: it only pulls from upstream, so every home runs it regardless of role, and the firstmate-repository publication boundary (`firstmate-self-repo`) never applies to it.
+Keep preparation, checked publication, consumption and loaded activation distinct.
+`bin/fm-update.sh --help` and its header own exact interfaces and task-record mechanics.
+No-argument callers retain origin-only consumption; they never integrate or publish upstream changes.
+Consumption needs no contributor role, but any integration publication loads `firstmate-self-repo` and uses normal task consent and delivery ownership.
 
-Pulling the files is only half of it.
-A running agent holds `AGENTS.md` and every skill it has already loaded frozen from the moment it launched, and no verified harness offers a reload, so new bytes on disk change nothing for it until it starts a fresh conversation.
-A re-read cannot substitute: it appends a second copy of the mate's own job description with no defined precedence, and it cannot reach a skill that is already loaded.
-Replacing the agent is also the only thing that re-resolves the launch-time wiring - turn-end hooks, harness flags, per-harness feature switches - which the mate froze when it started and which nothing on disk describes.
+## 1. Choose the bounded target
 
-That is why **every live second mate is restarted after a successful update, including one that was already on the target commit.**
-Launch-time wiring is not derivable from a file diff, so an unchanged tracked surface is not evidence the running agent is already on the current behavior.
-The only live mates that do not restart are the ones whose home the update pass had to skip, and the ones whose runtime cannot prove a restart; the updater keeps both cases honest and neither is reported as a reload.
+On personal fork `github.com/ayrton-saunders/firstmate`, read the advertised default branches and exact fork O and original-upstream U (`github.com/kunchenguid/firstmate`).
+Confirm configured identities rather than trusting remote names.
+Canonical is read/fetch only; publication, push and evidence destinations must all be the personal fork.
+The selected setup uses canonical's read remote named `canonical`, with fork `origin` unchanged and no higher-precedence publication remote selecting the parent.
+If role resolution or actual installed no-mistakes routing disagrees, stop with the concrete mismatch; do not reinitialize, change shared routing/settings, broaden consent or migrate origins.
+Other installations retain their existing origin-only operation unless their operator separately authorized integration.
 
-**One-time rollout note:** the update that carries this change is still executed by the previous release, which restarts only the mates whose `AGENTS.md` or `.agents/skills/` moved on that pass. After it completes, run `bin/fm-secondmate-restart.sh <fm-id>...` once with every live second mate ID, not only the ones that release named; later updates follow the normal flow below.
+If O contains U, skip integration and consume the freshly verified intended fork revision.
+If it does not, dispatch an ordinary isolated integration task at exact O under the accepted intent, with normal no-mistakes delivery and fork-only consent.
+Use that already-dispatched copy; the updater never allocates a copy or manages pool slots.
+A new upstream target after this bounded attempt is a later update, not a reason for an endless catch-up loop.
 
-The primary update is fast-forward only, while each secondmate uses the same guarded convergence path plus one narrow recovery for squash-merged local history.
-For a remote route, it updates the configured Firstmate code root on that host from its own origin, then guardedly fast-forwards the persistent home to that code-root commit.
-It never forces, never creates a merge commit, and never stashes.
-A clean secondmate divergence advances with `reset --keep` only when a three-way tree proof shows its complete local result is already present at the target, which recognizes squash-merged contributions without discarding unique content.
-Every other dirty, diverged, offline, or wrong-branch target is skipped and reported, and a genuine divergence leaves a durable `state/.secondmate-update-reconcile/<id>.pending` record that future bootstrap and update passes surface until convergence clears it.
-A tracked-files fast-forward leaves the gitignored operational dirs (data/, state/, config/, projects/, .no-mistakes/) untouched, so a secondmate's in-flight work is never disrupted.
-This touches only the firstmate repo and its own worktrees, never anything under `projects/`.
+## 2. Prepare without touching active homes
 
-## What it does
+The integration worker invokes `--prepare-upstream` with the observed identities/defaults/O/U and a new private directory under its existing task report.
+It classifies contained, fast-forward or divergent history, preserves both ancestries, and retains its conflict/unknown record even across interruptions and a later clean index.
+A preparation refusal preserves the index and existing task material; inspect it rather than resetting, stashing, aborting or overwriting an occupied attempt.
+Repeated preparation requires the same identities and a retained candidate containing O and U.
+If refs moved, retain this attempt and reclassify before starting a newly authorized one.
+Preparation emits no restart actions, runs no validator and publishes nothing.
 
-1. **Run the updater:**
-   ```sh
-   bin/fm-update.sh
-   ```
-   It fast-forwards this firstmate repo's default branch from origin, then updates every registered local or remote secondmate home through its placement-specific guarded path.
-   It prints one status line per target (`updated <old>..<new>` / `reconciled redundant divergence <old>..<new>` / `already current` / `skipped: <reason>`), followed by three action lines that tell you exactly what to do next:
-   - `reread-firstmate: yes|no`
-   - `restart-secondmates: fm-<id>...|none`
-   - `nudge-secondmates: fm-<id>...|none`
+Record the deliberate fork delta `merge-base(O,U)..O`, including skill behavior, in this task's qualification evidence.
+A textual no-conflict result is not semantic preservation.
+Normal no-mistakes review and focused behavior tests must exercise those customizations against the combined result, including subsequent pipeline repairs.
+Repair an in-scope semantic defect through that normal path without inventing another human approval or a parallel manual review.
+Changing deliberate behavior, expanding scope, destructive changes and security-sensitive choices still escalate.
+For prose-only behavior, retain real evaluation evidence; file/source-string presence does not prove the instruction is obeyed.
 
-   The two second-mate sets are disjoint and the script owns the split; do not re-derive it.
-   `restart-secondmates:` carries every live mate the pass left on the latest commit, whether it advanced or was already there.
-   A mate reaches neither set only because its home was skipped, because it has no live endpoint recorded here, or because its endpoint was positively classified as dead or missing.
-   A skipped genuine divergence still requires attention through its durable reconciliation record; the other two cases need no update action from you.
+## 3. Qualify the actual published head
 
-2. **Re-read AGENTS.md if your own instructions changed.**
-   When the updater printed `reread-firstmate: yes`, the tracked instruction surface (`AGENTS.md`, `bin/`, or `.agents/skills/`) just advanced under you.
-   **Read `AGENTS.md` now** (CLAUDE.md is a real `@AGENTS.md` pointer to it) to refresh your operating instructions before doing anything else, so you are acting on the new instructions rather than the stale ones you were started with.
-   When it printed `reread-firstmate: no`, nothing changed for you - skip the re-read.
+Use the existing no-mistakes pipeline as the sole review/test/docs/push/PR/CI owner.
+Recheck actual fork-only destinations immediately before entering it.
+The initial updater implementation and unrelated PRs retain their own merge approval; this skill's scoped automatic authority covers only future qualified upstream integrations.
 
-3. **Restart every second mate the updater named.**
-   Pass the whole `restart-secondmates:` list to one command (skip this step entirely when it says `none`):
-   ```sh
-   FM_HOME=<this-firstmate-home> bin/fm-secondmate-restart.sh <fm-id>...
-   ```
-   Include `FM_HOME=<this-firstmate-home>` unless `FM_HOME` is already set to the active firstmate home.
-   This is automatic and needs no per-mate confirmation from the captain.
-   Local and remote mates go in the same list; the command owns the transport, the profile each replacement runs on, and the wait.
+Keep one qualification package in the existing integration task:
 
-   It asks every listed mate first to write down the open work it holds only in its conversation, and restarts one only after that mate's own answer comes back.
-   A mate that is mid-turn queues the request behind that turn.
-   That is the whole point of the step, so do not work around it: it is what keeps a captain call the mate had formed but never registered from being lost with the conversation.
-   Its header owns the request, the bound, and the two knobs that change them.
+- O/U, original candidate and deliberate fork behavior evidence.
+- Actual final published H/tree and real recorded PR URL, current fork base B and the actual tested merge T with exact B,H parents.
+- Actual normal Review/Test evidence heads, every later repair delta and evidence artifact, plus current required checks at H.
+- Preparation and every pipeline round's conflict provenance, resolved paths/diff/rationale, applicable authority or explicit conflict-resolution approval bound to H.
+- Actual landed M/parents/tree, publication outcome, consumption results and outstanding activation.
 
-   Read its per-mate lines and its closing `summary:` line as the outcome:
-   - `restarted: <id>` - that mate is now genuinely running the current instructions and launch-time settings.
-   - `nudged: <id>: <reason>` - the restart was not safe, so the mate got the older re-read message instead and is still running the conversation and launch-time settings it started with.
-     Never report one of these as a clean reload.
-   - `unreached: <id>: <reason>` - no safe running outcome could be confirmed, including an ambiguous relaunch result.
+Obtain evidence from the installed tool's supported status/log/evidence interfaces, not from an ancestor's green label or a fabricated compliance body.
+`--qualify-upstream` checks the supplied normal evidence heads, both final ancestries, published task branch, fresh base/upstream identities and tested-merge provenance.
+Supply its pipeline-history input only from actual complete pipeline provenance, including later repair rounds; absent or uncertain provenance is `unknown`, never inferred clean from an index.
+The checker is a local proof check, not an attestation of how its caller obtained evidence and not merge authority.
+Its strict supported evidence path requires the current base in H, T's tree equal to H's reviewed tree, Review at H and Test at H or that actual tested merge T.
+A later repair with different evidence heads stops until supported narrow normal revalidation supplies final-head coverage; do not enable global/trusted defaults or substitute another audit.
+An ancestry-only/empty-tree-diff candidate currently stops qualification: skipped pipeline phases or absence of a real checked PR cannot prove publication.
 
-4. **Send the re-read message to the rest.**
-   For every target on the `nudge-secondmates:` line (do nothing when it says `none`), send the one-line re-read steer:
-   ```sh
-   FM_HOME=<this-firstmate-home> bin/fm-send.sh <id> 'firstmate was updated to the latest - please re-read your AGENTS.md to pick up the new instructions.'
-   ```
-   These are the mates that are on the latest bytes but could not be restarted provably, so the steer is the most this pass can honestly do for them.
-   It is a gentle steer, not an interruption: the mate already got a safe tracked-files fast-forward, and the steer never forces, tears down, or discards its work.
-   Never describe one of these as reloaded; its agent is still running the wiring it launched with.
+If the pipeline lost O/U ancestry, preserve its fixes and original conflict evidence.
+Regain exclusive custody only through a supported terminal/custody handoff, then append an integration retaining both histories and run normal validation again.
+A green CI-ready return alone is not exclusive custody: a monitor may still publish repairs.
+If the installed tool cannot establish custody, final evidence, tested-base provenance or conflict history through a supported bounded route, record that exact compatibility blocker and stop before merge/consumption.
+Do not hand-edit an active pipeline, change dependency code/settings, force its branch or loop through the same unsupported rebase path.
 
-5. **Report to the captain in plain outcomes, in one line where you can.**
-   Summarize what landed under `AGENTS.md` section 9 without firstmate's internal vocabulary: which parts of the fleet are now on the latest, and which were left as-is and why.
-   For example: "Captain, firstmate and both second mates are now on the latest."
-   Say plainly when a mate got the message rather than a clean reload, and why - never let a partial reload read as a full one.
-   Surface any skipped target whose reason needs the captain's attention - for instance a home with its own un-landed changes (diverged) or local edits (dirty), which were left untouched on purpose.
+## 4. Land exactly what qualified
 
-## Safety
+Future conflict-free upstream integrations need no separate human merge approval once normal review/tests, preservation evidence, qualification and every current required check pass.
+Any integration that required conflict resolution returns for explicit approval of exact H with its resolution evidence, even if the final index is clean.
+Unknown history cannot use the conflict-free exception.
+Any changed H returns to normal qualification, not automatically to another human call for an ordinary in-scope repair.
 
-- **Guarded convergence only.**
-  A dirty, offline, non-default, or uniquely diverged target is skipped and reported, never forced or stashed.
-  Only a clean secondmate divergence whose complete local result is already present upstream may move without ancestry, and `reset --keep` still refuses conflicting working-tree changes.
-  Nothing with unlanded work is ever discarded - this is prime directive #3.
-- **Only the firstmate repo and its worktrees** are touched, never `projects/`.
-  It is the same sanctioned self-write as the fleet sync.
-- **Nothing with work in it is disrupted.**
-  A local or remote second mate gets a tracked-files fast-forward only when its own checkout is safe to advance, and a mate whose home was skipped is not restarted either.
-  A restart replaces that mate's agent in the same home and endpoint after its open work is written down; it is never a teardown and never forced.
-  Its crewmates keep running in their own endpoints, and every durable record - backlog, held captain calls, unread status, unhandled instructions - is re-presented to the replacement at startup.
-  A restart refused before it is attempted leaves that mate on the re-read path; once a relaunch is attempted, any failed or ambiguous result is reported as unknown rather than attributed to either incarnation.
+Use only the existing `bin/fm-pr-merge.sh` checked merge owner, with `--expected-head H` before its separator and explicit `-- --merge` to preserve ancestry.
+The expected-head input must be the same full H just qualified; the helper compares its fresh live head and passes that identical H to backend head matching.
+Squash/rebase landing is unsuitable for preserving canonical identity.
+Never merge red or missing required checks or treat this integration policy as approval of the initial implementation PR.
+
+Head matching does not freeze a non-strict base.
+If observed base content changes, revalidate it before landing.
+After a merge response, independently read the actual PR's merged state and actual landed M from the forge; queued, timed-out and unreadable responses remain unproved until reconciled.
+Then invoke `--verify-landed` in the retained integration copy to check actual fork M, exact qualified B,H parents/tree and H/U ancestry.
+This is Git correspondence proof, not a replacement for the forge merge record or normal checked-publication evidence.
+A discrepancy is an already-published partial outcome: stop consumption, preserve history and report it without rewinding.
+
+## 5. Consume only the verified origin
+
+Run `--consume-origin M` in the intended primary source with the active explicit `FM_HOME` after all publication proof is complete.
+Verify the physical source/home and clear stale task/root/path overrides or set their intended values explicitly; current directory alone does not override inherited paths.
+For the contained case, pin the independently verified intended landed origin instead.
+The primary must safely advance to that exact advertised origin commit; movement, dirty/wrong-branch/active-operation/shallow/divergent conditions refuse before any secondmate action.
+Never silently substitute a newer origin revision; reconcile it first.
+No-argument origin-only callers retain their older best-effort skip behavior and are not a substitute for this pinned path.
+
+Read actual per-home results and only the emitted action sets.
+Linked and standalone local homes retain their own origin semantics; remote routes update their configured code root from its own origin, then sync the persistent home.
+Parent-targeted startup convergence is different from origin consumption and does not migrate an origin.
+Dirty, unique-divergent, unsafe and unreachable homes stay preserved; retain their durable reconciliation records.
+No successful primary update implies every home reached the same revision.
+
+For the entire emitted restart list, use `fm-secondmate-restart.sh` with the active `FM_HOME`; skip an empty list.
+Its existing persistence replies, ownership checks and current-incarnation reconciliation remain authoritative, including concurrent automatic relaunch and interrupted operations.
+Timeout never authorizes killing a mate; reconcile the current incarnation before retrying an old list.
+Already-current live mates can still need restart because a file diff cannot prove loaded wiring.
+Read actual `restarted`, `nudged` and `unreached` results; only the first proves replacement.
+Use `fm-send.sh` only for emitted nudge targets; a reread is not a reload.
+Do not restart skipped homes or reconstruct an unreachable remote locally.
+
+## 6. Finish activation truthfully
+
+If the updater reports changed instructions, reread `AGENTS.md` before further decisions, but do not claim this reloads skills/extensions.
+Persist open work and a handover containing intended source/head/home and remaining per-home actions.
+Primary activation is a separate human-owned fresh-process handover: the human quits the old primary normally, proves it exited, then launches a fresh ordinary process from the intended source with the same explicit home and no stale source/task overrides.
+Do not self-restart the primary or launch a concurrent replacement.
+
+After that fresh launch, verify source/head/home, new process ownership, intended loaded resource paths and source/turnend/watch hashes.
+A branch marker is PID evidence only; child capability probes or arbitrary marker writes cannot establish primary activation.
+Keep the original home and its current private work/journals rather than rolling back operational records.
+
+Report published revision, source-on-disk result, loaded activation and per-home skips/unknowns separately.
+A PR alone means review/checks/publication remain pending, not that the fleet updated.
+Repeated/interrupted operations resume from exact recorded identities and actual outcomes, never duplicate an unproved merge/restart or erase partial success to look atomic.

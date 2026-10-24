@@ -4438,6 +4438,53 @@ test_allow_missing_refused_on_forgejo() {
   pass "fm-pr-merge refuses --allow-missing on Forgejo"
 }
 
+test_expected_qualified_head() {
+  local case_dir rc mode expected head provider url
+  head=deadbeefcafefeed0000000000000000deadbeef
+  for provider in github gitlab forgejo; do
+    for mode in matching moved malformed; do
+      case "$provider" in
+        github)
+          case_dir=$(make_case "expected-$provider-$mode")
+          add_gh_mocks "$case_dir" "$head"
+          url=https://github.com/example/repo/pull/9 ;;
+        gitlab)
+          case_dir=$(make_gitlab_case "expected-$provider-$mode")
+          head=$MR_HEAD; url=$MR_URL ;;
+        forgejo)
+          case_dir=$(make_forgejo_case "expected-$provider-$mode")
+          head=$FJ_HEAD; url=$FJ_URL ;;
+      esac
+      : > "$case_dir/glab.log"
+      : > "$case_dir/tea.log"
+      expected=$head
+      case "$mode" in
+        moved) expected=1111111111111111111111111111111111111111 ;;
+        malformed) expected=abc ;;
+      esac
+      rc=0
+      run_pr_merge "$case_dir" task-x1 "$url" --expected-head "$expected" \
+        > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+      if [ "$mode" = matching ]; then
+        expect_code 0 "$rc" "expected $provider matching head should merge"
+        case "$provider" in
+          github) assert_logged_gh_merge "$case_dir" 9 example/repo --squash ;;
+          gitlab) assert_grep "--sha $expected" "$case_dir/glab.log" 'GitLab receives identical qualified head' ;;
+          forgejo) assert_grep "head_commit_id=$expected" "$case_dir/tea.log" 'Forgejo receives identical qualified head' ;;
+        esac
+      else
+        [ "$rc" -ne 0 ] || fail "expected $provider $mode merged"
+        [ "$mode" != moved ] || assert_grep 'differs from expected qualified head' "$case_dir/stderr" 'moving head requires requalification'
+        assert_no_grep 'pr merge' "$case_dir/gh.log" 'GitHub must not merge unqualified replacement'
+        assert_no_grep 'mr merge' "$case_dir/glab.log" 'GitLab must not merge unqualified replacement'
+        assert_no_grep 'Do=' "$case_dir/tea.log" 'Forgejo must not merge unqualified replacement'
+      fi
+    done
+  done
+  pass 'optional expected qualified head is enforced and passed identically through every existing backend'
+}
+
+test_expected_qualified_head
 test_gitlab_head_override_args_refuse_before_recording
 test_secondmate_merge_reports_upward_once
 test_secondmate_merge_reports_on_the_local_route

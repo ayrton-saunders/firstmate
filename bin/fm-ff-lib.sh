@@ -378,12 +378,14 @@ live_secondmate_meta_records() {
 # Guards are identical in both modes: never force/merge/stash; skip a dirty or
 # wrong-branch target and leave its work untouched. An optional secondmate id
 # enables the content-equivalent divergence proof and durable marker described
-# in this file's header.
+# in this file's header. Optional eighth argument expected_origin is a full SHA:
+# origin mode must freshly fetch and equal it, then use that immutable commit.
+# This opt-in also refuses shallow history and active Git operations.
 FF_STATUS=""
 FF_INSTR=""
 ff_target() {
   local dir=$1 label=$2 base_mode=$3 allow_detached=${4:-no} ignore_seed_marker=${5:-no}
-  local secondmate_id=${6:-} reconciliation_state=${7:-}
+  local secondmate_id=${6:-} reconciliation_state=${7:-} expected_origin=${8:-} operation
   FF_STATUS="skipped"
   FF_INSTR=""
 
@@ -394,6 +396,23 @@ ff_target() {
   if ! git -C "$dir" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     echo "$label: skipped: not a git repo"
     return 0
+  fi
+
+  if [ -n "$expected_origin" ]; then
+    if [ "$base_mode" != origin ] || ! [[ "$expected_origin" =~ ^[0-9a-f]{40}$ ]]; then
+      echo "$label: skipped: expected origin must be a full commit SHA in origin mode"
+      return 0
+    fi
+    if [ "$(git -C "$dir" rev-parse --is-shallow-repository)" != false ]; then
+      echo "$label: skipped: shallow or unknown ancestry"
+      return 0
+    fi
+    for operation in MERGE_HEAD CHERRY_PICK_HEAD REVERT_HEAD rebase-merge rebase-apply sequencer BISECT_LOG; do
+      if [ -e "$(git -C "$dir" rev-parse --path-format=absolute --git-path "$operation")" ]; then
+        echo "$label: skipped: active Git operation"
+        return 0
+      fi
+    done
   fi
 
   local default base cur instr local_rev base_rev before after out
@@ -413,6 +432,20 @@ ff_target() {
       return 0
     fi
     base="origin/$default"
+    if [ -n "$expected_origin" ]; then
+      if [ "$(git -C "$dir" rev-parse --verify "$base^{commit}" 2>/dev/null)" != "$expected_origin" ]; then
+        echo "$label: skipped: origin moved or does not equal expected commit"
+        return 0
+      fi
+      local advertised
+      advertised=$(git -C "$dir" ls-remote --symref origin HEAD 2>/dev/null) || advertised=
+      if ! printf '%s\n' "$advertised" | grep -Fx "$(printf 'ref: refs/heads/%s\tHEAD' "$default")" >/dev/null \
+        || ! printf '%s\n' "$advertised" | grep -Fx "$(printf '%s\tHEAD' "$expected_origin")" >/dev/null; then
+        echo "$label: skipped: advertised origin default or head changed"
+        return 0
+      fi
+      base=$expected_origin
+    fi
   else
     base="$base_mode"
   fi
