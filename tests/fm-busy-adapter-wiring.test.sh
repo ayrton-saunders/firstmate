@@ -189,6 +189,61 @@ oc_exec_terminal() {  # <sessionID> <succeeded|interrupted|failed>
   printf '{"type":"session.execution.%s","properties":{"sessionID":"%s"}}' "$2" "$1"
 }
 
+test_raw_opencode_version_owns_plugin_and_control() {
+  local rec mode id out raw version major expected probe launch
+  for mode in explicit-v1 relative-v1 explicit-v2 bare ambiguous canonical; do
+    id="raw-oc-$mode"
+    rec=$(make_spawn_case "$id" opencode "$id")
+    read_case_record "$rec"
+    mkdir -p "$CASE_DIR/v1"
+    cat > "$CASE_DIR/v1/opencode" <<'SH'
+#!/usr/bin/env bash
+[ "${1:-}" = --version ] || exit 1
+printf '%s\n' "$0" >> "$FM_RAW_OC_PROBE_LOG"
+printf '1.18.32\n'
+SH
+    cat > "$FAKEBIN_DIR/opencode" <<'SH'
+#!/usr/bin/env bash
+[ "${1:-}" = --version ] || exit 1
+printf '%s\n' "$0" >> "$FM_RAW_OC_PROBE_LOG"
+printf '2.0.21\n'
+SH
+    chmod +x "$CASE_DIR/v1/opencode" "$FAKEBIN_DIR/opencode"
+    case "$mode" in
+      explicit-v1) raw="$CASE_DIR/v1/opencode --prompt fixture"; expected=1.18.32; probe="$CASE_DIR/v1/opencode" ;;
+      relative-v1) raw='../v1/opencode --prompt fixture'; expected=1.18.32; probe="$CASE_DIR/v1/opencode" ;;
+      explicit-v2) raw="$FAKEBIN_DIR/opencode --prompt fixture"; expected=2.0.21; probe="$FAKEBIN_DIR/opencode" ;;
+      bare) raw='opencode --prompt fixture'; expected=2.0.21; probe="$FAKEBIN_DIR/opencode" ;;
+      ambiguous) raw="PATH=$CASE_DIR/v1 opencode --prompt fixture"; expected=; probe= ;;
+      canonical) raw=opencode; expected=2.0.21; probe="$FAKEBIN_DIR/opencode" ;;
+    esac
+    : > "$CASE_DIR/probes"
+    launch="$CASE_DIR/launch"
+    out=$(FM_RAW_OC_PROBE_LOG="$CASE_DIR/probes" FM_FAKE_LAUNCH_LOG="$launch" \
+      run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$id" "$PROJ_DIR" "$raw")
+    expect_code 0 "$?" "$mode spawn failed: $out"
+    version=$(awk -F= '$1 == "opencode_version" { print $2 }' "$HOME_DIR/state/$id.meta")
+    assert_equals "$expected" "$version" "$mode recorded another executable's version"
+    assert_equals "$probe" "$(cat "$CASE_DIR/probes")" "$mode probed an unrelated PATH executable"
+    if [ "$mode" != canonical ]; then
+      assert_contains "$(cat "$launch")" "$raw" "$mode must preserve the raw launch verbatim"
+    fi
+    major=${version%%.*}
+    out=$(
+      . "$ROOT/bin/fm-control-lib.sh"
+      fm_control_exit_command opencode "$major"
+    ) || fail "$mode could not resolve its control action"
+    if [ "$major" = 2 ]; then expected=C-c; else expected=/exit; fi
+    assert_equals "$expected" "$out" "$mode control action must follow its own recorded version"
+    out=$(drive_oc_plugin "$WT_DIR/.opencode/plugins/fm-busy-state.js" \
+      "$(oc_status ses_raw idle)" "$(oc_exec_started ses_raw)") || fail "$mode plugin could not execute: $out"
+    out=$(classify opencode "$id" "$HOME_DIR/state")
+    if [ "$major" = 2 ]; then expected='busy opencode-plugin'; else expected='idle opencode-plugin'; fi
+    assert_equals "$expected" "$out" "$mode plugin must implement the version-selected event protocol"
+  done
+  pass "raw OpenCode version, plugin and control follow the named executable; ambiguous launches stay unknown"
+}
+
 test_opencode_plugin_semantic_lifecycle() {
   local rec id=busy-oc-1 out state plugin
   rec=$(make_spawn_case oc-lifecycle opencode "$id")
@@ -958,6 +1013,7 @@ test_pi_extension_semantic_lifecycle
 test_pi_extension_serializes_settle_before_next_start
 test_pi_extension_stale_incarnation_rejected
 test_kimi_and_grok_install_no_unverified_wiring
+test_raw_opencode_version_owns_plugin_and_control
 test_opencode_plugin_semantic_lifecycle
 test_opencode_plugin_v2_execution_lifecycle
 test_claude_hooks_semantic_lifecycle

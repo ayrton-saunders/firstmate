@@ -690,6 +690,97 @@ make_path_without_lsof() {  # <case-dir>
   printf '%s\n' "$path_dir"
 }
 
+test_descendant_close_uses_owning_home_and_state() {
+  local backend depth identity case_dir home owner parent tag legacy a b target rc
+  a=aaaaaaaa-0000-0000-0000-000000000000
+  b=bbbbbbbb-1111-1111-1111-111111111111
+  for backend in cmux paseo; do
+    for depth in direct nested; do
+      for identity in current legacy; do
+        case_dir=$(make_case "child-scope-$backend-$depth-$identity")
+        parent="$case_dir/parent"
+        home="$case_dir/secondmate-home"
+        mkdir -p "$parent" "$home/state" "$home/data" "$home/config" "$home/projects"
+        write_meta "$case_dir" local-only secondmate
+        printf 'home=%s\n' "$home" >> "$case_dir/state/task-x1.meta"
+        printf 'task-x1\n' > "$home/.fm-secondmate-home"
+        owner=$home
+        if [ "$depth" = nested ]; then
+          owner="$case_dir/nested-home"
+          mkdir -p "$owner/state" "$owner/data" "$owner/config" "$owner/projects"
+          printf 'nested\n' > "$owner/.fm-secondmate-home"
+          fm_write_meta "$home/state/nested.meta" window=firstmate:fm-nested endpoint_task_id=nested \
+            "worktree=$owner" "project=$case_dir/project" \
+            kind=secondmate mode=local-only "home=$owner" spawn_gen=fixture-nested
+        fi
+        mkdir -p "$owner/projects/repo"
+        tag=$(FM_HOME="$owner" bash -c '. "$1/bin/fm-backend-hometag-lib.sh"; fm_backend_hometag' _ "$ROOT")
+        legacy=$(FM_HOME="$ROOT" bash -c '. "$1/bin/fm-backend-hometag-lib.sh"; fm_backend_hometag' _ "$ROOT")
+        if [ "$backend" = cmux ]; then target="$a:$b"; else target="$a:wks_child"; fi
+        fm_write_meta "$owner/state/leaf.meta" "window=$target" endpoint_task_id=leaf kind=ship mode=local-only \
+          "worktree=$case_dir/gone-leaf" "project=$case_dir/project" "backend=$backend" spawn_gen=fixture-leaf
+        if [ "$backend" = cmux ]; then
+          printf 'cmux_workspace_id=%s\ncmux_surface_id=%s\n' "$a" "$b" >> "$owner/state/leaf.meta"
+        else
+          printf 'paseo_terminal_id=%s\npaseo_workspace_id=wks_child\n' "$a" >> "$owner/state/leaf.meta"
+        fi
+        printf 'done: fixture result\n' > "$owner/state/leaf.status"
+        cat > "$case_dir/fakebin/$backend" <<'SH'
+#!/usr/bin/env bash
+printf 'home=%s state=%s %s\n' "$FM_HOME" "${STATE:-}" "$*" >> "$FM_CHILD_LOG"
+case "$FM_CHILD_BACKEND:$*" in
+  cmux:*workspace\ list*) printf '{"workspaces":[{"id":"%s","title":"%s"},{"id":"other","title":"other"}]}\n' "$FM_CHILD_ID" "$FM_CHILD_NAME" ;;
+  cmux:*list-panes*) printf '{"panes":[{"surface_ids":["%s"]}]}\n' "$FM_CHILD_SURFACE" ;;
+  cmux:*list-windows*) printf '[{"id":"fixture-window"}]\n' ;;
+  cmux:*close-workspace*) : > "$FM_CHILD_CLOSED" ;;
+  paseo:*terminal\ ls*)
+    if [ -f "$FM_CHILD_CLOSED" ]; then printf '[]\n'
+    else printf '[{"id":"%s","workspaceId":"wks_child","name":"%s"}]\n' "$FM_CHILD_ID" "$FM_CHILD_NAME"; fi ;;
+  paseo:*terminal\ kill*) : > "$FM_CHILD_CLOSED" ;;
+  paseo:*workspace\ ls*)
+    [ -d "$FM_CHILD_OWNER/state/.paseo-workspace.lock" ] || exit 1
+    [ ! -e "$FM_CHILD_PARENT_STATE/.paseo-workspace.lock" ] || exit 1
+    : > "$FM_CHILD_LOCK_SEEN"
+    printf '[{"workspaceId":"wks_child","name":"%s","cwd":"%s/projects/repo"}]\n' "$FM_CHILD_WORKSPACE_NAME" "$FM_CHILD_OWNER" ;;
+  paseo:ls\ *|paseo:project\ ls*) printf '[]\n' ;;
+esac
+SH
+        chmod +x "$case_dir/fakebin/$backend"
+        : > "$case_dir/runtime.log"
+        rc=0
+        FM_HOME="$parent" FM_CHILD_BACKEND="$backend" FM_CHILD_OWNER="$owner" \
+          FM_CHILD_PARENT_STATE="$case_dir/state" FM_CHILD_LOG="$case_dir/runtime.log" \
+          FM_CHILD_CLOSED="$case_dir/closed" FM_CHILD_LOCK_SEEN="$case_dir/lock-seen" \
+          FM_CHILD_ID="$a" FM_CHILD_SURFACE="$b" FM_CHILD_WORKSPACE_NAME="${tag%-*}" \
+          FM_CHILD_NAME="fm-$(if [ "$identity" = current ]; then printf '%s' "$tag"; else printf '%s' "$legacy"; fi)-leaf" \
+          FM_BACKEND_PASEO_LOCK_ATTEMPTS=1 \
+          run_teardown "$case_dir" --force > "$case_dir/out" 2> "$case_dir/err" || rc=$?
+        assert_grep "home=$owner state=$owner/state" "$case_dir/runtime.log" "$backend/$depth did not close as the owner"
+        assert_no_grep "home=$parent " "$case_dir/runtime.log" "$backend/$depth used the parent's namespace"
+        assert_no_grep "state=$case_dir/state " "$case_dir/runtime.log" "$backend/$depth used the parent's state"
+        if [ "$identity" = current ]; then
+          expect_code 0 "$rc" "$backend/$depth owning-home cleanup failed: $(cat "$case_dir/err")"
+          assert_present "$case_dir/closed" "$backend/$depth never closed the verified endpoint"
+          assert_absent "$home" "$backend/$depth did not retire the isolated secondmate fixture"
+          assert_absent "$case_dir/state/task-x1.meta" "$backend/$depth left the completed parent's record"
+          if [ "$backend" = paseo ]; then
+            assert_present "$case_dir/lock-seen" "Paseo retirement did not hold the child's workspace lock"
+            assert_grep 'workspace archive wks_child' "$case_dir/runtime.log" "Paseo did not retire the empty child workspace"
+          fi
+        else
+          [ "$rc" -ne 0 ] || fail "$backend/$depth accepted a legacy identity under --force"
+          assert_present "$owner/state/leaf.meta" "$backend/$depth discarded the refused endpoint record"
+          assert_present "$owner/state/leaf.status" "$backend/$depth discarded the refused task status"
+          assert_present "$case_dir/state/task-x1.meta" "$backend/$depth discarded the parent record"
+          assert_absent "$case_dir/closed" "$backend/$depth closed a legacy endpoint"
+        fi
+        assert_absent "$case_dir/state/.paseo-workspace.lock" "descendant cleanup touched the parent's workspace lock"
+      done
+    done
+  done
+  pass "direct and nested cmux/Paseo closes use their owning home/state and retain unmatched legacy records"
+}
+
 test_unverified_present_endpoints_keep_teardown_records() {
   local case_dir backend variant target a b rc legacy operation
   a=aaaaaaaa-0000-0000-0000-000000000000
@@ -5774,6 +5865,7 @@ test_status_archive_nested_secondmate_children() {
   pass "forced secondmate retirement preserves two descendant levels and refuses linked child directories"
 }
 
+test_descendant_close_uses_owning_home_and_state
 test_unverified_present_endpoints_keep_teardown_records
 test_status_archive_opt_in
 test_status_archive_nested_secondmate_children

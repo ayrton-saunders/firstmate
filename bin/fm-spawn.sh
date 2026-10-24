@@ -5435,7 +5435,11 @@ fi
 OPENCODE_BIN=
 OPENCODE_VERSION=
 if [ "$HARNESS" = opencode ]; then
-  OPENCODE_BIN=$(resolve_pi_executable opencode) || OPENCODE_BIN=
+  if [ "$RAW_LAUNCH" = 0 ]; then
+    OPENCODE_BIN=$(resolve_pi_executable opencode) || OPENCODE_BIN=
+  elif [[ "$RAW_COMMAND" =~ ^([[:alnum:]_./+-]+)[[:space:]] ]]; then
+    OPENCODE_BIN=$(cd "$WT" && resolve_pi_executable "${BASH_REMATCH[1]}") || OPENCODE_BIN=
+  fi
   if [ -n "$OPENCODE_BIN" ]; then
     OPENCODE_VERSION=$("$OPENCODE_BIN" --version 2>/dev/null \
       | grep -oE '[0-9]+\.[0-9]+\.[0-9]+' | head -1 || true)
