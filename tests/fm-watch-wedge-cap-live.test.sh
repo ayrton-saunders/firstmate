@@ -217,6 +217,10 @@ printf 'v1 gen=g1 seq=1 state=busy source=fm-spawn event=turn_start ts=%s\n' "$(
 touch -d '5 seconds ago' "$STATE/$TASK.meta" 2>/dev/null \
   || perl -e 'utime(time()-5, time()-5, $ARGV[0])' "$STATE/$TASK.meta"
 
+file_mtime() {
+  if [ "$(uname)" = Darwin ]; then stat -f %m "$1" 2>/dev/null; else stat -c %Y "$1" 2>/dev/null; fi
+}
+
 # watcher_cycle <label>: one real watcher cycle against the lab home, run with
 # the cap bound in $MAX and the tmux socket pointed at the lab. Records its exit
 # status and the reason line it printed, then drains and acknowledges what it
@@ -228,6 +232,8 @@ CYCLE_REASON=''
 CYCLE_ESCALATION=''
 watcher_cycle() {
   local label=$1 out rc drain_out drain_err
+  local beat="$STATE/.last-watcher-beat" i=0 first_beat='' current_beat polled=0
+  rm -f "$beat" || fail "$label could not clear the prior heartbeat"
   cycle=$((cycle + 1))
   mkdir -p "$TMP_ROOT/$ARM" || fail "could not create the $ARM output directory"
   out="$TMP_ROOT/$ARM/cycle-$cycle.out"
@@ -250,20 +256,28 @@ watcher_cycle() {
   # Both bounds are tight because a real lab watcher spends tens of seconds on
   # startup alone, and every second here is a second of the horizon the silence
   # probes must fit inside.
-  local beat="$STATE/.last-watcher-beat" i=0
   while [ "$i" -lt 200 ]; do
     kill -0 "$pid" 2>/dev/null || break
-    [ -s "$beat" ] && break
+    first_beat=$(file_mtime "$beat")
+    [ -n "$first_beat" ] && break
     sleep 0.1
     i=$((i + 1))
   done
   i=0
   while kill -0 "$pid" 2>/dev/null && [ "$i" -lt $(( CYCLE_BOUND * 10 )) ]; do
+    current_beat=$(file_mtime "$beat")
+    if [ -n "$current_beat" ]; then
+      if [ -z "$first_beat" ]; then
+        first_beat=$current_beat
+      elif [ "$current_beat" != "$first_beat" ]; then
+        polled=1
+      fi
+    fi
     sleep 0.1
     i=$((i + 1))
   done
   if kill -0 "$pid" 2>/dev/null; then
-    if [ ! -s "$beat" ]; then
+    if [ "$polled" -ne 1 ]; then
       kill "$pid" 2>/dev/null || true
       wait "$pid" 2>/dev/null || true
       fail "$label never completed a poll"
