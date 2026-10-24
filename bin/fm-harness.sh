@@ -475,9 +475,10 @@ resolve_crew() {
 # Preserve first-line-wins parsing unless the file declares a mate override.
 # A file that declares no "mate <secondmate-id>:" line is read exactly as it
 # was before this grammar existed: the first non-empty, non-comment line
-# supplies the default, later lines and extra tokens are ignored, and nothing
-# is refused. A file that does declare an override validates completely before
-# selecting a mate, so an invalid override cannot silently migrate that mate
+# supplies the default, and later lines and extra tokens are ignored; file
+# access and read failures still refuse. A file that does declare an override
+# validates completely before selecting a mate, so an invalid override cannot
+# silently migrate that mate
 # onto the default runtime.
 # Fills SM_DEFAULT_LINE and the parallel SM_MATE_IDS, SM_MATE_VALS and
 # SM_MATE_LINES arrays for the reader below.
@@ -586,8 +587,8 @@ secondmate_parse() {
 # file names one, otherwise the file's default line. Nothing is echoed when the
 # file is absent or holds neither. A malformed override file errors on every
 # read path, whether or not an id was passed, so the refusal never depends on
-# the caller asking about the right mate. A file that declares no override is
-# never malformed here: it keeps the legacy first-line parse.
+# the caller asking about the right mate. A readable file that declares no
+# override keeps the legacy first-line parse without grammar validation.
 secondmate_line() {
   local id=${1:-} i
   secondmate_parse || return 1

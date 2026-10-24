@@ -611,10 +611,10 @@ fm_backend_paseo_kill() { # <target> [unused] [expected-label]
 }
 
 # fm_backend_paseo_retire_workspace: after a task tab closes, archive the
-# per-project shared workspace Firstmate created once it holds no tab and no
-# Paseo agent works in its folder, then delete its project when that folder
-# is one of this home's own clones and no other workspace uses it, so
-# finished work leaves nothing in the sidebar. Only a workspace for one of
+# per-project shared workspace Firstmate created only when both terminal and
+# agent inventories prove every entry owns a different workspace, then delete
+# its project when that folder is one of this home's own clones and no other
+# workspace uses it, so finished work leaves nothing in the sidebar. Only a workspace for one of
 # this home's own clones is archived; Firstmate's own workspace and any
 # workspace titled by someone else are never touched, and an unreadable
 # inventory skips the cleanup. Runs under the workspace lock so a concurrent

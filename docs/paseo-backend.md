@@ -83,7 +83,9 @@ Spawn-time worktree discovery therefore sends begin and end markers around `pwd`
 
 Cleanup closes only the task's tab with `terminal kill`; sibling task tabs stay alive.
 It is best-effort like every backend's kill, so an already-gone target stays quiet.
-When the closed tab was the last one in a per-project shared workspace for one of the home's own clones under `projects/`, cleanup archives that workspace, provided it carries Firstmate's own title, is not Firstmate's own workspace, and no Paseo agent works in its folder, because archiving a workspace also archives the agents it owns.
+After closing a tab, or when its recorded terminal is already gone, cleanup may archive the per-project shared workspace for one of the home's own clones under `projects/`, provided it carries Firstmate's own title and is not Firstmate's own workspace.
+Retirement requires readable terminal and agent inventories proving every entry belongs to a different workspace through a non-empty string `workspaceId`; an owning agent blocks retirement regardless of its cwd, including a subdirectory.
+Missing or ambiguous ownership also skips retirement, because archiving a workspace also archives the agents it owns.
 Archiving leaves the project in the sidebar, so cleanup then deletes that clone's project when no other workspace uses it; workspaces and projects outside the home's clones are never touched.
 Spawning and this cleanup share one home-wide lock (`state/.paseo-workspace.lock`), so a new task's tab can never land in a workspace between its empty check and its archive; a spawn that cannot get the lock refuses, and cleanup that cannot get it skips.
 Any inventory read that fails also skips this cleanup.
