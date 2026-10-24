@@ -263,12 +263,18 @@ fi
 # publishes this line. Only the last done line counts, so a later done that
 # does not report green withdraws an earlier one.
 fm_pr_check_ready_line_waits_for_green() {
-  local note
+  local note='' line latest_done='' verb
   [ -e "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}/ready-after-green" ] || return 1
   case "$PROVIDER:$PR_MODE" in
     gerrit:*|*:direct-PR|*:local-only) return 1 ;;
   esac
-  note=$(grep -E '^done( \[at=[^]]*\])?: ' "$STATE/$ID.status" 2>/dev/null | tail -1 | sed -E 's/^done( \[at=[^]]*\])?: //' || true)
+  if [ -r "$STATE/$ID.status" ]; then
+    while IFS= read -r line || [ -n "$line" ]; do
+      status_line_verb "$line" verb
+      [ "$verb" != done ] || latest_done=$line
+    done < "$STATE/$ID.status"
+  fi
+  note=$(status_line_note "$latest_done")
   if fm_dod_note_reports_ci_ready "$note" "$URL"; then
     return 1
   fi

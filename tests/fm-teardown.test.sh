@@ -2960,7 +2960,7 @@ test_secondmate_pr_registration_publishes_ready_line() {
 # the checks-green report for that exact PR; without the flag it publishes at
 # registration as before.
 test_secondmate_pr_ready_line_waits_for_green_when_opted_in() {
-  local case_dir channel url other pr_head
+  local case_dir channel url other pr_head prefix
   url=https://github.com/example/repo/pull/7
   other=https://github.com/example/repo/pull/8
   case_dir=$(make_case mate-pr-ready-green)
@@ -2995,6 +2995,21 @@ test_secondmate_pr_ready_line_waits_for_green_when_opted_in() {
   run
   assert_grep "done [key=child-pr-task-x1]: child task-x1 PR ready: $url mode=no-mistakes" <(sed -E 's/ \[at=[0-9]+\]//' "$channel") \
     "mate-pr-ready-green: the ready line did not follow the checks-green report"
+
+  for prefix in 'done [key=fix]:' 'done : ' 'done [at=10:30] [key=fix]:' 'done: [key=fix]'; do
+    rm -f "$channel"
+    printf 'done: PR %s checks green\n' "$url" > "$case_dir/state/task-x1.status"
+    printf '%s checks pending after another push\n' "$prefix" >> "$case_dir/state/task-x1.status"
+    run
+    [ ! -e "$channel" ] || ! grep -q 'child-pr-task-x1' "$channel" \
+      || fail "mate-pr-ready-green: latest $prefix withdrawal did not withhold readiness"
+
+    printf '%s PR %s checks green\n' "$prefix" "$url" >> "$case_dir/state/task-x1.status"
+    printf 'note: awaiting merge\n' >> "$case_dir/state/task-x1.status"
+    run
+    assert_grep "child task-x1 PR ready: $url mode=no-mistakes" "$channel" \
+      "mate-pr-ready-green: latest $prefix green report did not release readiness"
+  done
 
   rm -f "$channel" "$case_dir/home/config/ready-after-green"
   printf 'working [at=4]: waiting for CI on %s\n' "$url" > "$case_dir/state/task-x1.status"
