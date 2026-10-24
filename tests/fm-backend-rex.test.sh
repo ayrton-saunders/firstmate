@@ -837,6 +837,88 @@ test_kill_requires_the_recorded_server() {
   pass "Rex close requires recorded-server identity before mutation and absence proof"
 }
 
+test_secondmate_recovery_requires_recorded_rex_server() {
+  local caller mode dir out sid bid target meta before before_state expected
+  for caller in bootstrap watcher; do
+    for mode in dead missing wrong-present wrong-missing missing-record unreadable empty close-noop changed-server no-home worktree-home; do
+      dir=$(new_case "recovery-$caller-$mode")
+      out=$(rex_env "$dir" 'fm_backend_rex_create_task fm-sm1 /tmp')
+      read -r sid _ bid <<< "$out"
+      target="${sid#session:}:${bid#block:}"
+      mkdir -p "$dir/supervisor/state" "$dir/code/bin"
+      meta="$dir/supervisor/state/sm1.meta"
+      printf '%s\n' kind=secondmate harness=claude backend=rex "window=$target" \
+        "rex_session_id=$sid" "rex_block_id=$bid" > "$meta"
+      case "$mode" in
+        no-home) ;;
+        worktree-home) printf 'worktree=%s/home\n' "$dir" >> "$meta" ;;
+        *) printf 'home=%s/home\n' "$dir" >> "$meta" ;;
+      esac
+      [ "$mode" = missing-record ] || printf '%s\n' rex_server=unix:///fake/rex.sock >> "$meta"
+      printf 'ready\n' > "$dir/supervisor/state/sm1.status"
+      cat > "$dir/code/bin/fm-spawn.sh" <<'SH'
+#!/usr/bin/env bash
+printf '%s %s guard=%s\n' "$1" "$2" "${FM_SPAWN_NO_GUARD:-}" >> "$FM_R36_DIR/spawn.log"
+jq -e '.sessions | length == 0' "$FM_REX_FAKE_DIR/state.json" >/dev/null || exit 9
+printf 'replacement=verified\n' >> "$FM_R36_DIR/supervisor/state/sm1.meta"
+SH
+      chmod +x "$dir/code/bin/fm-spawn.sh"
+      case "$mode" in
+        missing|wrong-missing) printf '{"sessions":[]}\n' > "$dir/fake/state.json" ;;
+      esac
+      case "$mode" in
+        wrong-present|wrong-missing) printf 'unix:///server-b.sock\n' > "$dir/fake/endpoint" ;;
+        unreadable) : > "$dir/fake/whoami-fail" ;;
+        empty) : > "$dir/fake/endpoint" ;;
+        close-noop) : > "$dir/fake/close-noop" ;;
+        changed-server)
+          : > "$dir/fake/close-noop"
+          printf 'unix:///server-b.sock\n' > "$dir/fake/after-close-endpoint"
+          ;;
+      esac
+      expected=1
+      case "$mode" in dead|missing|worktree-home) expected=0 ;; esac
+      before=$(cat "$meta")
+      before_state=$(state_json "$dir" '.')
+      out=$(rex_env "$dir" "FM_R36_DIR=$dir" "FM_R36_CALLER=$caller" \
+        "FM_ROOT=$dir/code" "FM_HOME=$dir/supervisor" "STATE=$dir/supervisor/state" \
+        "FM_STATE_OVERRIDE=$dir/supervisor/state" '
+          . "$0/bin/fm-secondmate-liveness-lib.sh"
+          fm_secondmate_liveness_lock sm1 || exit 10
+          fm_secondmate_liveness_probe "$FM_R36_DIR/supervisor/state/sm1.meta" sm1 poll
+          [ "$FM_SM_LIVE_STATUS" = relaunchable ] || exit 11
+          rc=0
+          if [ "$FM_R36_CALLER" = watcher ]; then
+            fm_secondmate_liveness_relaunch "$FM_R36_DIR/supervisor/state/sm1.meta" sm1 30 || rc=$?
+          else
+            fm_secondmate_liveness_relaunch "$FM_R36_DIR/supervisor/state/sm1.meta" sm1 || rc=$?
+          fi
+          fm_secondmate_liveness_unlock sm1
+          printf "rc=%s status=%s reason=%s\n" "$rc" "$FM_SM_LIVE_STATUS" "$FM_SM_LIVE_REASON"
+          [ "$FM_SM_LIVE_RC" = "$rc" ] || exit 12
+          fm_lock_try_acquire "$STATE/.secondmate-relaunch.lock" || exit 13
+          fm_lock_release "$STATE/.secondmate-relaunch.lock"
+        ') || fail "$caller $mode recovery fixture failed: $out"
+      assert_contains "$out" "rc=$expected" "$caller $mode returned the wrong recovery result"
+      assert_equals ready "$(cat "$dir/supervisor/state/sm1.status")" "$caller $mode discarded the status record"
+      if [ "$expected" = 0 ]; then
+        assert_grep 'sm1 --secondmate guard=1' "$dir/spawn.log" "$caller $mode did not use guarded spawn"
+        assert_grep 'replacement=verified' "$meta" "$caller $mode did not reach replacement after closure proof"
+        assert_grep 'relaunched' "$dir/supervisor/state/.secondmate-relaunch-sm1" "$caller $mode lost the success outcome"
+        assert_equals 0 "$(state_json "$dir" '.sessions | length')" "$caller $mode did not retire the child session"
+      else
+        assert_contains "$out" 'status=skipped' "$caller $mode did not surface refusal"
+        assert_contains "$out" 'records preserved' "$caller $mode lost refusal diagnostics"
+        [ ! -e "$dir/spawn.log" ] || fail "$caller $mode spawned without proof"
+        assert_equals "$before" "$(cat "$meta")" "$caller $mode discarded or replaced metadata"
+        assert_equals "$before_state" "$(state_json "$dir" '.')" "$caller $mode modified an unverified endpoint"
+        assert_grep 'failed' "$dir/supervisor/state/.secondmate-relaunch-sm1" "$caller $mode lost the failed outcome"
+      fi
+    done
+  done
+  pass "secondmate recovery binds Rex close and absence to recorded server for bootstrap and watcher paths"
+}
+
 test_kill_refuses_without_proof() {
   local dir out sid bid
   dir=$(new_case kill-noop)
@@ -1136,6 +1218,7 @@ test_submit_confirms_turn_start_without_accepting_arbitrary_unknown
 test_kill_closes_and_retires_per_home_session
 test_kill_never_retires_a_foreign_session
 test_kill_requires_the_recorded_server
+test_secondmate_recovery_requires_recorded_rex_server
 test_kill_refuses_without_proof
 test_teardown_retires_the_secondmate_session
 test_teardown_keeps_records_when_rex_server_is_unverified

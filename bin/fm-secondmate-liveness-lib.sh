@@ -294,20 +294,32 @@ fm_secondmate_liveness_relaunch() {  # <meta> <id> [timeout-secs]
     FM_SM_LIVE_RC=1
     return 1
   fi
-  if [ "$FM_SM_LIVE_KILL" = 1 ]; then
-    local backend target window
-    backend=$(fm_backend_of_meta "$meta")
+  local backend target window
+  backend=$(fm_backend_of_meta "$meta")
+  if [ "$FM_SM_LIVE_KILL" = 1 ] || [ "$backend" = rex ]; then
     target=$(fm_backend_target_of_meta "$meta")
     if [ -z "$target" ]; then
       window=$(fm_meta_get "$meta" window)
       target=$window
     fi
-    if [ -n "$target" ]; then
+    if [ -n "$target" ] || [ "$backend" = rex ]; then
       if [ "$backend" = rex ]; then
-        local home
+        local home recorded_server
         home=$(fm_meta_get "$meta" home)
         [ -n "$home" ] || home=$(fm_meta_get "$meta" worktree)
-        ( unset FM_ROOT_OVERRIDE; FM_HOME="$home" FM_ROOT="$home" STATE="$home/state" fm_backend_kill "$backend" "$target" ) 2>/dev/null || true
+        recorded_server=$(fm_meta_get "$meta" rex_server)
+        if [ -z "$home" ] || ! FM_SM_LIVE_OUT=$(
+          unset FM_ROOT_OVERRIDE
+          FM_HOME="$home" FM_ROOT="$home" STATE="$home/state" FM_STATE_OVERRIDE="$home/state" \
+            fm_backend_kill "$backend" "$target" "$recorded_server" "fm-$id" 2>&1
+        ); then
+          FM_SM_LIVE_STATUS=skipped
+          FM_SM_LIVE_REASON="Rex endpoint closure or absence could not be verified; records preserved"
+          FM_SM_LIVE_RC=1
+          fm_secondmate_liveness_ledger_add "$id" failed || true
+          fm_lock_release "$relaunch_lock" || true
+          return 1
+        fi
       else
         fm_backend_kill "$backend" "$target" 2>/dev/null || true
       fi
