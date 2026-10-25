@@ -209,6 +209,12 @@ stop_home_processes() {  # <home>
 }
 suite_cleanup() {
   local home
+  if [ -n "${RETURN_FAIL_DIAGNOSTIC_PID:-}" ]; then
+    return_fail_diagnostic_stop
+  fi
+  if [ -n "${RETURN_FAIL_DIAGNOSTIC_HOME:-}" ]; then
+    return_fail_diagnostic_snapshot "$RETURN_FAIL_DIAGNOSTIC_HOME" before-cleanup
+  fi
   while IFS= read -r home; do
     [ -n "$home" ] && stop_home_processes "$home"
   done < <(cat "$HOMES_FILE" 2>/dev/null)
@@ -2518,14 +2524,81 @@ test_report_without_acknowledgement_hands_the_wake_to_main() {
   pass "host: a turn that reports but leaves its granted rows queued hands the wake to main"
 }
 
+# Opt-in evidence for the hosted return-fail assertion; no environment or
+# unrelated fixture files are exported, and the original wait stays unchanged.
+return_fail_diagnostic_snapshot() {  # <private home> <stage>
+  local home=$1 stage=$2 root=${FM_TEST_HOST_RETURN_DIAGNOSTIC_DIR:-} out file pid
+  [ -n "$root" ] || return 0
+  [ "$root" = "${RUNNER_TEMP:-/absent}/fm-test/host-return-fail" ] \
+    || fail "return-fail diagnostic destination is not the runner's private artifact directory"
+  case "$home" in "$TMP_ROOT"/away-return-fail) ;; *) fail "return-fail diagnostic home is not this case's private fixture" ;; esac
+  out="$root/$stage"
+  mkdir -p "$out/state" || return 1
+  printf 'epoch=%s suite_pid=%s stage=%s\n' "$(date +%s)" "$$" "$stage" > "$out/observation.txt"
+  for file in host.out host.rc claude.err claude-pids engine-return.log engine-report.log engine-ack.log engine-lease.log \
+    state/.supervision-host state/.supervision-host.log state/.supervision-host.engine-pid \
+    state/.supervision-host-turn state/.wake-queue state/.watcher-down state/.watch.lock/pid; do
+    if [ -f "$home/$file" ]; then
+      mkdir -p "$out/$(dirname "$file")"
+      cp "$home/$file" "$out/$file" 2>/dev/null || true
+    else
+      printf 'absent %s\n' "$file" >> "$out/observation.txt"
+    fi
+  done
+  {
+    [ ! -f "$home/claude-pids" ] || awk '/^[0-9]+$/ { print }' "$home/claude-pids"
+    [ ! -f "$home/state/.supervision-host" ] \
+      || awk -F '\t' '$1 == "host" || $1 == "arm" { if ($2 ~ /^[0-9]+$/) print $2 }' "$home/state/.supervision-host"
+    [ ! -f "$home/state/.supervision-host.engine-pid" ] \
+      || awk -F '\t' '$1 ~ /^[0-9]+$/ { print $1 }' "$home/state/.supervision-host.engine-pid"
+    [ ! -f "$home/state/.watch.lock/pid" ] || awk '/^[0-9]+$/ { print }' "$home/state/.watch.lock/pid"
+  } | sort -u > "$out/owned-pids.txt"
+  while IFS= read -r pid; do
+    ps -p "$pid" -o pid=,ppid=,pgid=,etime=,state=,args= >> "$out/owned-processes.txt" 2>/dev/null || true
+  done < "$out/owned-pids.txt"
+}
+
+return_fail_diagnostic_stop() {
+  local current
+  [ -n "${RETURN_FAIL_DIAGNOSTIC_PID:-}" ] || return 0
+  current=$(fm_test_pid_identity "$RETURN_FAIL_DIAGNOSTIC_PID" 2>/dev/null || true)
+  if [ -n "${RETURN_FAIL_DIAGNOSTIC_IDENTITY:-}" ] && [ "$current" = "$RETURN_FAIL_DIAGNOSTIC_IDENTITY" ]; then
+    kill -TERM "$RETURN_FAIL_DIAGNOSTIC_PID" 2>/dev/null || true
+  fi
+  wait "$RETURN_FAIL_DIAGNOSTIC_PID" 2>/dev/null || true
+  RETURN_FAIL_DIAGNOSTIC_PID=
+}
+
+return_fail_diagnostic_start() {  # <private home>
+  [ -n "${FM_TEST_HOST_RETURN_DIAGNOSTIC_DIR:-}" ] || return 0
+  RETURN_FAIL_DIAGNOSTIC_HOME=$1
+  return_fail_diagnostic_snapshot "$1" watcher-ready || return 1
+  (
+    local sample=0
+    while [ "$sample" -lt 40 ] && kill -0 "$FM_TEST_SUITE_PID" 2>/dev/null; do
+      return_fail_diagnostic_snapshot "$1" "sample-$sample" || exit 1
+      sample=$((sample + 1))
+      sleep 1
+    done
+  ) &
+  RETURN_FAIL_DIAGNOSTIC_PID=$!
+  RETURN_FAIL_DIAGNOSTIC_IDENTITY=$(fm_test_pid_identity "$RETURN_FAIL_DIAGNOSTIC_PID") || return 1
+}
+
 test_return_during_a_failed_turn_still_hands_its_outcomes_to_main() {
   local home
   home=$(make_home away-return-fail away)
   echo return-fail > "$home/stub-mode"
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "return-fail: the host never started a watcher cycle"
+  return_fail_diagnostic_start "$home" || fail "return-fail: could not start private diagnostic capture"
   append_status "$home" 'mid-task, then a crash'
-  wait_until 250 host_exited "$home" || fail "return-fail: the host did not hand the wake to main"
+  wait_until 250 host_exited "$home" || {
+    return_fail_diagnostic_snapshot "$home" wait-failed
+    fail "return-fail: the host did not hand the wake to main"
+  }
+  return_fail_diagnostic_stop
+  return_fail_diagnostic_snapshot "$home" wait-completed
   expect_code 0 "$(cat "$home/host.rc")" "a failed turn's handback must exit 0 for the owner to deliver"
   assert_absent "$home/state/.afk-contract" "fixture: the stub's return did not archive the record"
   assert_re '^supervision-host: the away session could not take this wake: the engine turn failed \(exit 3\); .*captain returned during its turn.*store rows 1[,)]' "$home/host.out" \
