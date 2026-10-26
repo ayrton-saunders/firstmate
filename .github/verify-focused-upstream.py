@@ -1,9 +1,7 @@
 #!/usr/bin/env python3
 """Focused-upstream proof components for a trusted workflow caller.
 
-Usage: verify-focused-upstream.py REPOSITORY CLAIM_JSON CURRENT_FACTS_JSON
-The CLI checks correspondence only, not inspection/execution or compliance.
-CURRENT_FACTS_JSON must come from fresh trusted forge lookups, not the PR body.
+Usage: verify-focused-upstream.py --workflow
 The library's qualify_request composes live correspondence, retained inspection,
 fresh sandbox execution and a final publication recheck. It accepts no prior
 receipts. --workflow is the trusted-base Actions entry for fresh object
@@ -567,19 +565,8 @@ def workflow_main(read_json=github_json):
 def main():
     if sys.argv[1:] == ["--workflow"]:
         return workflow_main()
-    if len(sys.argv) != 4:
-        print(__doc__, file=sys.stderr)
-        return 2
-    try:
-        with open(sys.argv[2], encoding="utf-8") as stream:
-            claim = json.load(stream)
-        with open(sys.argv[3], encoding="utf-8") as stream:
-            current = json.load(stream)
-        print(json.dumps(verify_correspondence(sys.argv[1], claim, current)))
-        return 0
-    except (Refusal, OSError, ValueError) as error:
-        print("Focused correspondence refused: " + str(error), file=sys.stderr)
-        return 1
+    print(__doc__, file=sys.stderr)
+    return 2
 
 
 if __name__ == "__main__":

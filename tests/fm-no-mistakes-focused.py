@@ -769,17 +769,6 @@ class CorrespondenceTests(unittest.TestCase):
         with self.assertRaises(FOCUSED.Refusal):
             invoke(original, "workflow-route-drift", read=switch_to_native)
 
-    def test_cli_reports_only_correspondence_not_execution(self):
-        claim, current = self.fixture()
-        for filename, value in (("claim.json", claim), ("facts.json", current)):
-            (self.repo / filename).write_text(json.dumps(value))
-        result = subprocess.run(
-            [sys.executable, str(SPEC.origin), str(self.repo),
-             str(self.repo / "claim.json"), str(self.repo / "facts.json")],
-            text=True, check=True, stdout=subprocess.PIPE)
-        self.assertEqual(json.loads(result.stdout)["execution_evidence"],
-                         "not-verified")
-
 
 if __name__ == "__main__":
     unittest.main()
