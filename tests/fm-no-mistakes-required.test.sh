@@ -124,6 +124,10 @@ test_test_override_requires_recorded_opt_in() {
   pass "current pinned native verifier refuses test override without recorded opt-in"
 }
 
+python3 "$(dirname "${BASH_SOURCE[0]}")/fm-no-mistakes-focused.py" \
+  || fail "focused Git correspondence regressions failed"
+pass "focused Git correspondence is independently reconstructed, not body-authenticated"
+
 fetch_shared_verifier
 test_matching_head_and_completed_steps_pass
 test_mismatched_head_fails_with_both_shas
