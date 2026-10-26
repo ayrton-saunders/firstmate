@@ -1,0 +1,7 @@
+diff --git a/canonical b/canonical
+new file mode 100644
+index 0000000..567b8d3
+--- /dev/null
++++ b/canonical
+@@ -0,0 +1 @@
++upstream behavior
