@@ -847,6 +847,55 @@ SH
   pass "fm-control relaunch: invalid Polytoken profiles and config sources refuse before shutdown"
 }
 
+test_codex_modes_refuse_before_worker_shutdown() {
+  local dir setting kind target file out rc pair approval permission expected
+  for setting in codex-approval-mode codex-permission-mode; do
+    for target in claude codex; do
+      dir=$(new_case "codex-admission-$setting-$target" rl-codex)
+      add_ship_task "$dir" rl-codex claude
+      mkdir -p "$dir/home/config"
+      cp "$dir/home/state/rl-codex.meta" "$dir/prior.meta"
+      file="$dir/home/config/$setting"
+      for kind in invalid directory dangling unreadable; do
+        case "$kind" in
+          invalid) printf 'invalid\n' > "$file" ;;
+          directory) rm "$file"; mkdir "$file" ;;
+          dangling) rmdir "$file"; ln -s "$dir/missing" "$file" ;;
+          unreadable)
+            rm "$file"
+            printf 'bypass\n' > "$file"
+            chmod 000 "$file"
+            if [ -r "$file" ]; then chmod 600 "$file"; continue; fi ;;
+        esac
+        out=$(run_control "$dir" rl-codex relaunch --harness "$target" --note "replace worker"); rc=$?
+        [ "$rc" -ne 0 ] || fail "$setting $kind accepted on $target relaunch"
+        assert_contains "$out" "$setting" "mode admission must identify the setting"
+        [ -z "$(cat "$dir/fake/literal")" ] || fail "mode refusal sent worker input"
+        [ "$(cat "$dir/fake/command")" = claude ] || fail "mode refusal stopped the worker"
+        cmp "$dir/prior.meta" "$dir/home/state/rl-codex.meta" || fail "mode refusal changed the record"
+      done
+      chmod 600 "$file"
+    done
+  done
+  for pair in 'bypass bypass' 'approve-for-me bypass' 'approve-for-me restricted'; do
+    read -r approval permission <<EOF
+$pair
+EOF
+    dir=$(new_case "codex-valid-$approval-$permission" rl-codex)
+    add_ship_task "$dir" rl-codex claude
+    mkdir -p "$dir/home/config"
+    printf '%s\n' "$approval" > "$dir/home/config/codex-approval-mode"
+    printf '%s\n' "$permission" > "$dir/home/config/codex-permission-mode"
+    printf codex > "$dir/fake/becomes"
+    out=$(run_control "$dir" rl-codex relaunch --harness codex --note "replace worker"); rc=$?
+    expect_code 0 "$rc" "valid Codex modes must relaunch successfully: $out"
+    expected=$approval
+    [ "$permission" != restricted ] || expected=restricted
+    assert_equals "$expected" "$(meta_field "$dir" rl-codex approval_mode)" "replacement records the resolved approval mode"
+  done
+  pass "Codex modes share launch/relaunch admission and preserve valid replacement modes"
+}
+
 test_relaunch_off_opencode_removes_tracked_wiring() {
   local dir out
   dir=$(new_case opencodetracked rl78)
@@ -1526,7 +1575,13 @@ test_secondmate_relaunch_refuses_an_unreadable_configured_pin_before_stop() {
     out=$(run_control "$dir" smp3 relaunch); rc=$?
     chmod 700 "$home/config"
     expect_code 1 "$rc" "$mode: an unreadable pin must refuse relaunch"$'\n'"$out"
-    assert_contains "$out" "config/secondmate-harness" "I/O refusal must identify the pin file"
+    if [ "$mode" = parent ]; then
+      # Mode admission also reads this directory before resolving the mate pin.
+      # An inaccessible parent must still refuse before any lifecycle mutation.
+      assert_contains "$out" "$home/config/" "parent I/O refusal must identify the inaccessible configuration source"
+    else
+      assert_contains "$out" "config/secondmate-harness" "I/O refusal must identify the pin file"
+    fi
     [ "$(cat "$dir/fake/command")" = claude ] || fail "$mode: pin I/O failure stopped the agent"
     [ ! -s "$dir/fake/literal" ] || fail "$mode: pin I/O failure sent lifecycle text"
     [ ! -s "$dir/fake/keys" ] || fail "$mode: pin I/O failure sent lifecycle keys"
@@ -3115,6 +3170,7 @@ test_harness_switch_moves_the_record_and_clears_prior_wiring
 test_refused_relaunch_onto_polytoken_keeps_the_project_hook_layer
 test_polytoken_directory_escape_refuses_before_stop
 test_refused_polytoken_profile_leaves_the_running_agent
+test_codex_modes_refuse_before_worker_shutdown
 test_relaunch_from_a_raw_polytoken_launch_keeps_the_project_layers
 test_harness_switch_does_not_carry_the_old_profile_axes
 test_harness_switch_resolves_a_prefixed_recorded_harness

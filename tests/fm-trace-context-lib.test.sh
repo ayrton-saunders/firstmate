@@ -213,7 +213,7 @@ ef_res=$(FM_TRACE_CONTEXT=on fm_trace_context_resolve "$CFG_ON" "$NOMETA"); ef_r
 [ -z "$ef_res" ] && [ "$ef_res_rc" -eq 0 ] || fail "resolve must omit and STILL return 0 on entropy failure (rc=$ef_res_rc out='$ef_res')"
 pass "entropy failure omits telemetry safely: mint reports failure, resolve returns success with no carrier"
 
-for backend in tmux herdr zellij orca cmux paseo; do
+for backend in tmux herdr zellij orca cmux paseo rex; do
   config="$WORK/$backend/config"
   mkdir -p "$config"
   : > "$config/trace-context"

@@ -4488,6 +4488,30 @@ test_expected_qualified_head() {
 
 test_expected_qualified_head
 
+test_expected_head_with_waived_gitlab_pipeline() {
+  local case_dir rc expected mode merge_line
+  for mode in matching moved; do
+    case_dir=$(make_gitlab_case "gitlab-expected-waived-$mode" pipeline=null)
+    expected=$MR_HEAD
+    [ "$mode" != moved ] || expected=1111111111111111111111111111111111111111
+    rc=0
+    run_pr_merge "$case_dir" task-x1 "$MR_URL" --allow-no-pipeline --expected-head "$expected" \
+      > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    merge_line=$(glab_merge_line "$case_dir/glab.log")
+    if [ "$mode" = matching ]; then
+      expect_code 0 "$rc" 'waived GitLab pipeline retains matching qualified head'
+      assert_grep "--sha $expected" "$case_dir/glab.log" 'waived GitLab merge binds identical qualified head'
+    else
+      expect_code 1 "$rc" 'waived GitLab pipeline must not waive qualified head movement'
+      assert_grep 'differs from expected qualified head' "$case_dir/stderr" 'waived pipeline still requires requalification'
+      [ -z "$merge_line" ] || fail 'GitLab merged a changed head with a waived pipeline'
+    fi
+  done
+  pass 'expected qualified head remains enforced beside the attended GitLab no-pipeline option'
+}
+
+test_expected_head_with_waived_gitlab_pipeline
+
 # --allow-no-pipeline is for a GitLab repository that deliberately runs no merge
 # request pipeline: it waives only a head_pipeline GitLab reports as null, and
 # the merge stays bound to the verified head.

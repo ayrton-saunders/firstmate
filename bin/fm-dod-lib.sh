@@ -620,7 +620,13 @@ fm_dod_ref_contains() {  # <repo> <ref-namespace> <sha>
 # 0 when a done: note reports the no-mistakes CI-ready PR (`PR <url> checks
 # green`, with any surrounding text). bin/fm-crew-state.sh takes its CI-ready
 # path on this same test, so every CI-ready line it acts on is gated.
-fm_dod_note_reports_ci_ready() {  # <note>
+fm_dod_note_reports_ci_ready() {  # <note> [exact-pr-url]
+  if [ -n "${2:-}" ]; then
+    case " $1 " in
+      *[![:alnum:]_]"PR $2 checks green"[![:alnum:]_]*) return 0 ;;
+      *) return 1 ;;
+    esac
+  fi
   case "$1" in
     *"checks green"*) ;;
     *) return 1 ;;
