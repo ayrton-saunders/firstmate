@@ -272,6 +272,107 @@ class CorrespondenceTests(unittest.TestCase):
                 with self.assertRaisesRegex(FOCUSED.Refusal, "changed current " + key):
                     self.verify(claim, facts)
 
+    def declaration(self, claim):
+        return "<!-- firstmate-focused-upstream:v1 " + json.dumps(claim) + " -->"
+
+    def test_strict_focused_routing_preserves_native_only_baseline(self):
+        native = ('Updates from [git push no-mistakes]'
+                  '(https://github.com/kunchenguid/no-mistakes)\n'
+                  '<!-- no-mistakes-pipeline-attestation:v1 '
+                  '{"head_sha":"' + self.common + '","steps":[]} -->')
+        for body in (None, "", "ordinary personal feature", native):
+            with self.subTest(body=body):
+                self.assertIsNone(FOCUSED.focused_claim(FOCUSED.FORK, body))
+        # No new parsing or exemptions for canonical/nonfork repositories.
+        self.assertIsNone(FOCUSED.focused_claim(FOCUSED.CANONICAL,
+                                               "firstmate-focused-upstream"))
+        claim, _ = self.fixture()
+        self.assertEqual(FOCUSED.focused_claim(FOCUSED.FORK,
+                                             self.declaration(claim)), claim)
+        bad_claims = [[], {}, {**claim, "evidence": "passed"},
+                      {**claim, "test_run": 123}, {**claim, "O": True}]
+        bad_bodies = ["firstmate-focused-upstream", self.declaration(claim) * 2,
+                      self.declaration(claim).replace(":v1 ", ":v2 "),
+                      '<!-- firstmate-focused-upstream:v1 {invalid} -->',
+                      '<!-- firstmate-focused-upstream:v1 {"O":"a","O":"b"} -->',
+                      '<!-- firstmate-focused-upstream:v1 ' + ' ' * 16385 + ' -->']
+        bad_bodies.extend(self.declaration(value) for value in bad_claims)
+        for body in bad_bodies:
+            for suffix in ("", "\n" + native):
+                with self.subTest(body=body[:100], native=bool(suffix)):
+                    with self.assertRaises(FOCUSED.Refusal):
+                        FOCUSED.focused_claim(FOCUSED.FORK, body + suffix)
+
+    def test_live_request_positive_is_not_execution_evidence(self):
+        claim, _ = self.fixture()
+        claim["head_ref"] = "refs/heads/intake/upstream"
+        replies = self.live_api(claim)
+        replies[f"/repos/{FOCUSED.FORK}/pulls/23"]["body"] = self.declaration(claim)
+        result = FOCUSED.verify_request(FOCUSED.FORK, str(self.repo),
+                                        replies.__getitem__, 23, claim["H"])
+        self.assertEqual(result["route"], "focused")
+        self.assertEqual(result["execution_evidence"], "not-verified")
+        self.assertEqual(result["current"]["T"], claim["T"])
+
+    def test_failed_focused_request_never_routes_to_native(self):
+        claim, _ = self.fixture()
+        claim["head_ref"] = "refs/heads/intake/upstream"
+        replies = self.live_api(claim)
+        pr = replies[f"/repos/{FOCUSED.FORK}/pulls/23"]
+        native = ('\n<!-- no-mistakes-pipeline-attestation:v1 '
+                  '{"head_sha":"' + claim["H"] + '","steps":[]} -->')
+        # Valid syntax is not evidence: forged identities and reused heads must
+        # reach the actual Git/live correspondence checks and refuse terminally.
+        for field in ("source_repository", "source_ref", "O", "U", "H", "B", "T"):
+            with self.subTest(field=field):
+                forged = {**claim, field: self.common}
+                pr["body"] = self.declaration(forged) + native
+                with self.assertRaises(FOCUSED.Refusal):
+                    FOCUSED.verify_request(FOCUSED.FORK, str(self.repo),
+                                           replies.__getitem__, 23, claim["H"])
+        pr["body"] = self.declaration(claim)
+        with self.assertRaisesRegex(FOCUSED.Refusal, "event head"):
+            FOCUSED.verify_request(FOCUSED.FORK, str(self.repo),
+                                   replies.__getitem__, 23, self.common)
+        self.git("checkout", "-q", "--detach", claim["H"])
+        personal = self.commit_file("unrelated", "personal feature\n")
+        forged = {**claim, "H": personal}
+        replies = self.live_api(forged)
+        replies[f"/repos/{FOCUSED.FORK}/pulls/23"]["body"] = self.declaration(forged)
+        with self.assertRaisesRegex(FOCUSED.Refusal, "personal changes"):
+            FOCUSED.verify_request(FOCUSED.FORK, str(self.repo),
+                                   replies.__getitem__, 23, personal)
+
+    def test_request_body_is_read_live_and_routing_detects_publication_race(self):
+        claim, _ = self.fixture()
+        claim["head_ref"] = "refs/heads/intake/upstream"
+        replies = self.live_api(claim)
+        pr = replies[f"/repos/{FOCUSED.FORK}/pulls/23"]
+        self.assertEqual(FOCUSED.verify_request(
+            FOCUSED.FORK, str(self.repo), replies.__getitem__, 23, claim["H"]),
+            {"route": "native"})
+        # Legacy native reruns still let the pinned action evaluate live facts,
+        # rather than imposing the focused route's event-head restriction.
+        self.assertEqual(FOCUSED.verify_request(
+            FOCUSED.FORK, str(self.repo), replies.__getitem__, 23, self.common),
+            {"route": "native"})
+        pr["body"] = self.declaration(claim)
+        calls = 0
+
+        def changed_after_body_read(path):
+            nonlocal calls
+            calls += 1
+            response = copy.deepcopy(replies[path])
+            if calls == 1:
+                pr["head"]["sha"] = self.common
+                replies[f"/repos/{FOCUSED.FORK}/git/ref/heads/intake%2Fupstream"][
+                    "object"]["sha"] = self.common
+            return response
+
+        with self.assertRaisesRegex(FOCUSED.Refusal, "publication changed"):
+            FOCUSED.verify_request(FOCUSED.FORK, str(self.repo),
+                                   changed_after_body_read, 23, claim["H"])
+
     def test_cli_reports_only_correspondence_not_execution(self):
         claim, current = self.fixture()
         for filename, value in (("claim.json", claim), ("facts.json", current)):

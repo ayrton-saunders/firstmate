@@ -21,6 +21,11 @@ import urllib.request
 CANONICAL = "kunchenguid/firstmate"
 FORK = "ayrton-saunders/firstmate"
 SHA = re.compile(r"[0-9a-f]{40}\Z")
+FOCUSED_MARKER = "firstmate-focused-upstream"
+CLAIM_FIELDS = frozenset({
+    "source_repository", "fork_repository", "head_repository", "source_ref",
+    "base_ref", "head_ref", "O", "U", "H", "B", "T", "conflict_history",
+})
 
 
 class Refusal(ValueError):
@@ -30,6 +35,72 @@ class Refusal(ValueError):
 def require(condition, reason):
     if not condition:
         raise Refusal(reason)
+
+
+def focused_claim(repository, body):
+    """Select the fork-only alternative, never fall back on a bad declaration.
+
+    A declaration requests fresh verification; it is not inspection/execution
+    evidence. Native-only bodies keep the existing action's baseline behavior.
+    Nonfork repositories retain that behavior even if their body uses this text.
+    """
+    if repository != FORK:
+        return None
+    require(body is None or isinstance(body, str), "malformed live PR body")
+    body = body or ""
+    if FOCUSED_MARKER not in body:
+        return None
+    require(body.count(FOCUSED_MARKER) == 1, "ambiguous focused declarations")
+    match = re.search(r"<!-- firstmate-focused-upstream:v1 (.*?) -->", body,
+                      re.DOTALL)
+    require(match is not None, "malformed or unsupported focused declaration")
+    require(len(match[1]) <= 16384, "oversized focused declaration")
+
+    def unique_object(pairs):
+        result = {}
+        for key, value in pairs:
+            require(key not in result, "duplicate focused declaration field")
+            result[key] = value
+        return result
+
+    try:
+        claim = json.loads(match[1], object_pairs_hook=unique_object)
+    except ValueError as error:
+        raise Refusal("invalid focused declaration JSON") from error
+    require(isinstance(claim, dict) and set(claim) == CLAIM_FIELDS,
+            "focused declaration must contain only correspondence fields")
+    require(all(isinstance(value, str) for value in claim.values()),
+            "focused declaration fields must be strings")
+    return claim
+
+
+def verify_request(repository, git_repository, read_json, number, expected_head):
+    """Fresh request routing and correspondence, NOT an execution verdict.
+
+    The trusted workflow supplies its event head to prevent a queued old run
+    qualifying a newer publication. No claim field selects a URL or command.
+    An exception is terminal for this request, including a body that also carries
+    structurally acceptable legacy native JSON. The caller must not catch it
+    and invoke the native action instead.
+    """
+    if repository != FORK:
+        return {"route": "native"}
+    require(type(number) is int and number > 0, "invalid PR number")
+    pr = read_json(f"/repos/{FORK}/pulls/{number}")
+    require(isinstance(pr, dict) and pr.get("number") == number,
+            "wrong live PR request")
+    claim = focused_claim(repository, pr.get("body"))
+    if claim is None:
+        return {"route": "native"}
+    head = pr.get("head")
+    require(isinstance(expected_head, str) and SHA.fullmatch(expected_head) and
+            isinstance(head, dict) and head.get("sha") == expected_head,
+            "event head is no longer the current publication")
+    facts = current_facts(read_json, number)
+    require(facts["H"] == expected_head, "publication changed during routing")
+    result = verify_correspondence(git_repository, claim, facts)
+    return {"route": "focused", "claim": claim, "current": facts,
+            **result}
 
 
 class Git:
