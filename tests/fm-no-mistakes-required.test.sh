@@ -1,11 +1,13 @@
 #!/usr/bin/env bash
-# Regression tests for the pinned shared no-mistakes gate action.
+# Structural baseline tests for the workflow's pinned shared native action.
+# These controlled author-editable fixtures are not native execution proof.
+# Focused-upstream authentication must be tested independently of this baseline.
 set -u
 
 # shellcheck source=tests/lib.sh disable=SC1091
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-ACTION_REF=32d396ac0f29135daf7fcb9964aba9d5f4e796d6
+ACTION_REF=f6441c96c352a18b9cadcaef6b6c7017e9ac3970
 TMP_ROOT=$(fm_test_tmproot fm-no-mistakes-required)
 VERIFY="$TMP_ROOT/verify.py"
 OLD_SHA=1111111111111111111111111111111111111111
@@ -25,6 +27,8 @@ fetch_shared_verifier() {
 run_verifier() {
   local body=$1 head=$2
   PR_BODY="$body" PR_HEAD_SHA="$head" PR_AUTHOR=regression PR_NUMBER=3006 \
+    NM_EXEMPT_AUTHORS='' NM_EXEMPT_BOT_AUTHORS=false NM_EXEMPT_HEAD_BRANCHES='' \
+    GITHUB_OUTPUT='' GITHUB_EVENT_PATH='' \
     python3 "$VERIFY" 2>&1
 }
 
@@ -37,7 +41,9 @@ test_matching_head_and_completed_steps_pass() {
   expect_code 0 "$rc" "shared action rejected an attestation bound to the current PR head"
   assert_contains "$output" "Found structurally compliant pipeline step attestation." \
     "shared action did not report the matching attestation as compliant"
-  pass "shared action accepts a matching head_sha with completed required steps"
+  assert_contains "$output" "PR-body attestation is author-editable" \
+    "baseline acceptance did not disclose the existing forgery limitation"
+  pass "known native-only limitation: hand-written matching body passes, not execution proof"
 }
 
 test_mismatched_head_fails_with_both_shas() {
@@ -66,7 +72,62 @@ test_missing_head_fails() {
   pass "shared action rejects an attestation with no head_sha"
 }
 
+test_ordinary_personal_and_focused_bodies_fail() {
+  local body output rc
+  for body in 'Personal feature without pipeline evidence' \
+    '<!-- firstmate-focused-upstream:v1 {"head_sha":"forged","evidence":"passed"} -->'; do
+    rc=0
+    output=$(run_verifier "$body" "$NEW_SHA") || rc=$?
+    [ "$rc" -ne 0 ] || fail "native baseline accepted a body without its signature"
+    assert_contains "$output" "This PR was not raised through no-mistakes" \
+      "unsigned-body rejection did not explain the native requirement"
+  done
+  pass "native baseline refuses ordinary personal and focused-only declarations"
+}
+
+test_incomplete_required_steps_fail() {
+  local step status steps body output rc
+  for step in review test document; do
+    for status in skipped failed missing; do
+      steps=$(python3 - "$step" "$status" <<'PY'
+import json
+import sys
+step, status = sys.argv[1:]
+print(json.dumps([
+    {"step": name, "status": status if name == step else "completed"}
+    for name in ("review", "test", "document")
+    if name != step or status != "missing"
+]))
+PY
+      )
+      body="$SIGNATURE
+<!-- no-mistakes-pipeline-attestation:v1 {\"head_sha\":\"$NEW_SHA\",\"steps\":$steps} -->"
+      rc=0
+      output=$(run_verifier "$body" "$NEW_SHA") || rc=$?
+      [ "$rc" -ne 0 ] || fail "native baseline accepted $step=$status"
+      assert_contains "$output" "$step (" "incomplete-step failure did not name $step"
+    done
+  done
+  pass "native baseline rejects skipped, failed and missing review/test/document"
+}
+
+test_test_override_requires_recorded_opt_in() {
+  local steps body output rc
+  steps='[{"step":"review","status":"completed"},{"step":"test","status":"completed","override_reason":"controlled failing-command fixture"},{"step":"document","status":"completed"}]'
+  body="$SIGNATURE
+<!-- no-mistakes-pipeline-attestation:v1 {\"head_sha\":\"$NEW_SHA\",\"steps\":$steps} -->"
+  rc=0
+  output=$(run_verifier "$body" "$NEW_SHA") || rc=$?
+  [ "$rc" -ne 0 ] || fail "native baseline accepted a test override without recorded opt-in"
+  assert_contains "$output" "without a recorded repository opt-in" \
+    "test override rejection did not explain the missing opt-in"
+  pass "current pinned native verifier refuses test override without recorded opt-in"
+}
+
 fetch_shared_verifier
 test_matching_head_and_completed_steps_pass
 test_mismatched_head_fails_with_both_shas
 test_missing_head_fails
+test_ordinary_personal_and_focused_bodies_fail
+test_incomplete_required_steps_fail
+test_test_override_requires_recorded_opt_in
