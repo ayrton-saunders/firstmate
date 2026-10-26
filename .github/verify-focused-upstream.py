@@ -114,7 +114,8 @@ class Git:
     def run(self, *arguments, check=True):
         # Replace refs must not rewrite the history being proved. Objects are
         # fetched by the trusted caller, never by a PR-supplied .git directory.
-        env = {**os.environ, "GIT_NO_REPLACE_OBJECTS": "1"}
+        env = {**os.environ, "GIT_NO_REPLACE_OBJECTS": "1",
+               "GIT_LITERAL_PATHSPECS": "1"}
         result = subprocess.run(
             ["git", "-C", self.repository, "--no-replace-objects", *arguments],
             env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
@@ -294,6 +295,57 @@ def verify_correspondence(repository, claim, current):
             "tested merge tree differs from integration")
     return {"correspondence": "verified", "H": h, "B": b, "T": t,
             "tree": tree, "execution_evidence": "not-verified"}
+
+
+def inspect_personal_delta(repository, claim, current, evidence_directory):
+    """Inspect exact personal-file preservation, retaining actual Git patches.
+
+    This bounded deterministic inspection supports clean integrations whose
+    existing personal paths are byte-for-byte preserved, including modes and
+    deletions. Overlapping upstream/personal changes need substantive resolution
+    review beyond this inspector and are refused, even when Git merges cleanly.
+    No caller artifact, body assertion or historical clean claim proves this:
+    correspondence and every personal path are independently recomputed now.
+    """
+    correspondence = verify_correspondence(repository, claim, current)
+    evidence = os.path.abspath(evidence_directory)
+    os.mkdir(evidence, 0o700)
+    git = Git(repository)
+    bases = git.text("merge-base", "--all", claim["O"], claim["U"]).splitlines()
+    require(len(bases) == 1, "ambiguous personal-delta merge base")
+    ancestor = bases[0]
+    paths = git.run("diff", "--name-only", "--no-renames", "-z", ancestor,
+                    claim["O"], "--").stdout.split("\0")
+    paths = [path for path in paths if path]
+    inspected = []
+    for path in paths:
+        # Literal pathspecs prevent a repository filename from selecting other
+        # paths. ls-tree includes mode/type/object/name and represents deletion
+        # by empty output; it does not execute candidate tools or diff drivers.
+        before = git.run("ls-tree", "-z", claim["O"], "--", path).stdout
+        after = git.run("ls-tree", "-z", claim["H"], "--", path).stdout
+        require(before == after,
+                "personal path changed; substantive overlap/resolution inspection required")
+        inspected.append({"path": path, "base_entry": before,
+                          "head_entry": after})
+    patches = {}
+    for name, older, newer in (
+            ("personal.patch", ancestor, claim["O"]),
+            ("canonical.patch", ancestor, claim["U"]),
+            ("integration.patch", claim["O"], claim["H"])):
+        patch = git.run("diff", "--binary", "--no-ext-diff", "--no-textconv",
+                        "--no-renames", older, newer, "--").stdout
+        data = patch.encode("utf-8")
+        with open(os.path.join(evidence, name), "xb") as stream:
+            stream.write(data)
+        patches[name] = hashlib.sha256(data).hexdigest()
+    receipt = {key: correspondence[key] for key in ("H", "B", "T", "tree")}
+    receipt.update(inspection_evidence="fresh-exact-personal-path-inspection",
+                   merge_base=ancestor, conflict_history="reconstructed-clean",
+                   personal_paths=inspected, patches=patches)
+    with open(os.path.join(evidence, "inspection.json"), "x", encoding="utf-8") as stream:
+        json.dump(receipt, stream, sort_keys=True)
+    return receipt
 
 
 def execute_focused_tests(repository, correspondence, image, evidence_directory):

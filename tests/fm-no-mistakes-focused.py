@@ -374,6 +374,87 @@ class CorrespondenceTests(unittest.TestCase):
             FOCUSED.verify_request(FOCUSED.FORK, str(self.repo),
                                    changed_after_body_read, 23, claim["H"])
 
+    def test_fresh_inspection_retains_actual_patches_and_personal_entries(self):
+        claim, current = self.fixture()
+        evidence = self.repo / "inspection"
+        receipt = FOCUSED.inspect_personal_delta(str(self.repo), claim, current,
+                                                 str(evidence))
+        self.assertEqual(receipt["H"], claim["H"])
+        self.assertEqual(receipt["conflict_history"], "reconstructed-clean")
+        self.assertEqual(receipt["personal_paths"][0]["path"], "personal")
+        self.assertEqual(receipt["personal_paths"][0]["base_entry"],
+                         receipt["personal_paths"][0]["head_entry"])
+        self.assertIn("+preserved personal behavior", (evidence / "personal.patch").read_text())
+        self.assertIn("+upstream behavior", (evidence / "canonical.patch").read_text())
+        self.assertEqual(json.loads((evidence / "inspection.json").read_text()), receipt)
+        with self.assertRaises(FileExistsError):
+            FOCUSED.inspect_personal_delta(str(self.repo), claim, current, str(evidence))
+        with self.assertRaises(FOCUSED.Refusal):
+            FOCUSED.inspect_personal_delta(str(self.repo), {**claim, "H": self.common},
+                                           current, str(self.repo / "forged-inspection"))
+
+    def test_inspection_handles_ff_and_ancestry_only_integrations(self):
+        for mode in ("ff", "ancestry-only"):
+            with self.subTest(mode=mode):
+                claim, current = self.fixture(mode)
+                receipt = FOCUSED.inspect_personal_delta(
+                    str(self.repo), claim, current, str(self.repo / ("inspect-" + mode)))
+                self.assertEqual(receipt["tree"], self.git("rev-parse", claim["H"] + "^{tree}"))
+                if mode == "ff":
+                    self.assertEqual(receipt["personal_paths"], [])
+                else:
+                    self.assertEqual((self.repo / ("inspect-" + mode) /
+                                      "integration.patch").read_text(), "")
+                self.git("checkout", "-q", "--detach", self.common)
+
+    def test_inspection_refuses_clean_overlap_without_pretending_it_was_reviewed(self):
+        (self.repo / "shared").write_text("first\n" + "middle\n" * 20 + "last\n")
+        self.git("add", "shared")
+        self.git("commit", "-qm", "common multiline behavior")
+        self.common = self.git("rev-parse", "HEAD")
+        o = self.commit_file("shared", "personal\n" + "middle\n" * 20 + "last\n")
+        self.git("checkout", "-q", "--detach", self.common)
+        u = self.commit_file("shared", "first\n" + "middle\n" * 20 + "upstream\n")
+        tree = self.git("merge-tree", "--write-tree", o, u)
+        h = self.commit_tree(tree, o, u)
+        t = self.commit_tree(tree, o, h)
+        # Git really merges cleanly, but that alone is not substantive review of
+        # a changed personal file. This bounded inspector must refuse it.
+        claim, current = self.fixture()
+        claim.update(O=o, B=o, U=u, H=h, T=t)
+        current.update(O=o, B=o, U=u, H=h, T=t)
+        self.assertEqual(self.verify(claim, current)["correspondence"], "verified")
+        evidence = self.repo / "overlap-inspection"
+        with self.assertRaisesRegex(FOCUSED.Refusal, "substantive overlap"):
+            FOCUSED.inspect_personal_delta(str(self.repo), claim, current, str(evidence))
+        self.assertFalse((evidence / "inspection.json").exists())
+
+    def test_inspection_preserves_deleted_modes_and_literal_personal_paths(self):
+        self.git("rm", "shared")
+        (self.repo / ":(glob)*").write_text("literal personal filename\n")
+        executable = self.repo / "personal-executable"
+        executable.write_text("#!/bin/bash\nexit 0\n")
+        executable.chmod(0o755)
+        (self.repo / "personal-link").symlink_to("personal-executable")
+        self.git("add", "--all")
+        self.git("commit", "-qm", "personal modes deletion and literal name")
+        o = self.git("rev-parse", "HEAD")
+        self.git("checkout", "-q", "--detach", self.common)
+        u = self.commit_file("canonical", "upstream behavior\n")
+        tree = self.git("merge-tree", "--write-tree", o, u)
+        h = self.commit_tree(tree, o, u)
+        t = self.commit_tree(tree, o, h)
+        claim, current = self.fixture()
+        claim.update(O=o, B=o, U=u, H=h, T=t)
+        current.update(O=o, B=o, U=u, H=h, T=t)
+        receipt = FOCUSED.inspect_personal_delta(str(self.repo), claim, current,
+                                                 str(self.repo / "mode-inspection"))
+        entries = {item["path"]: item["base_entry"] for item in receipt["personal_paths"]}
+        self.assertEqual(entries["shared"], "")
+        self.assertTrue(entries["personal-executable"].startswith("100755 blob "))
+        self.assertTrue(entries["personal-link"].startswith("120000 blob "))
+        self.assertIn(":(glob)*", entries)
+
     def test_fresh_sandbox_execution_and_failed_behavior(self):
         if not shutil.which("docker"):
             if os.environ.get("CI"):
