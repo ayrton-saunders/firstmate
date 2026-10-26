@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Controlled local Git histories for the production correspondence component."""
 
+import copy
 import importlib.util
 import json
 import os
@@ -168,6 +169,108 @@ class CorrespondenceTests(unittest.TestCase):
         current.update(O=o, U=u, H=h, B=o, T=t)
         with self.assertRaisesRegex(FOCUSED.Refusal, "conflict resolutions"):
             self.verify(claim, current)
+
+    def live_api(self, claim):
+        source = {"id": 100, "full_name": FOCUSED.CANONICAL, "fork": False,
+                  "default_branch": "main"}
+        fork = {"id": 200, "full_name": FOCUSED.FORK, "fork": True,
+                "default_branch": "main", "parent": source, "source": source}
+        replies = {
+            "/repos/" + FOCUSED.CANONICAL: source,
+            "/repos/" + FOCUSED.FORK: fork,
+            f"/repos/{FOCUSED.FORK}/pulls/23": {
+                "number": 23, "state": "open", "merged": False,
+                "mergeable": True, "merge_commit_sha": claim["T"],
+                "base": {"repo": fork, "ref": "main", "sha": claim["B"]},
+                "head": {"repo": fork, "ref": "intake/upstream", "sha": claim["H"]},
+            },
+        }
+        for repo, ref, sha in ((FOCUSED.CANONICAL, "main", claim["U"]),
+                               (FOCUSED.FORK, "main", claim["B"]),
+                               (FOCUSED.FORK, "intake%2Fupstream", claim["H"])):
+            replies[f"/repos/{repo}/git/ref/heads/{ref}"] = {
+                "ref": "refs/heads/" + ref.replace("%2F", "/"),
+                "object": {"type": "commit", "sha": sha}}
+        return replies
+
+    def test_fresh_api_facts_bind_real_git_correspondence(self):
+        claim, _ = self.fixture()
+        claim["head_ref"] = "refs/heads/intake/upstream"
+        replies = self.live_api(claim)
+        calls = []
+
+        def read(path):
+            calls.append(path)
+            return copy.deepcopy(replies[path])
+
+        facts = FOCUSED.current_facts(read, 23)
+        self.assertEqual(self.verify(claim, facts)["H"], claim["H"])
+        self.assertEqual(len(calls), 6)
+        # A prior receipt does not survive a newly published integration head.
+        replies[f"/repos/{FOCUSED.FORK}/git/ref/heads/intake%2Fupstream"][
+            "object"]["sha"] = self.common
+        with self.assertRaisesRegex(FOCUSED.Refusal, "publication disagree"):
+            FOCUSED.current_facts(read, 23)
+
+    def test_live_identity_and_mergeability_refusals(self):
+        claim, _ = self.fixture()
+        original = self.live_api(claim)
+        source_path = "/repos/" + FOCUSED.CANONICAL
+        fork_path = "/repos/" + FOCUSED.FORK
+        pr_path = f"/repos/{FOCUSED.FORK}/pulls/23"
+        changes = [
+            (source_path, ("full_name",), "someone/firstmate"),
+            (source_path, ("fork",), True),
+            (fork_path, ("fork",), False),
+            (fork_path, ("parent", "id"), 999),
+            (fork_path, ("source", "full_name"), "someone/firstmate"),
+            (fork_path, ("default_branch",), "release"),
+            (pr_path, ("number",), 24),
+            (pr_path, ("state",), "closed"),
+            (pr_path, ("merged",), True),
+            (pr_path, ("mergeable",), None),
+            (pr_path, ("mergeable",), False),
+            (pr_path, ("merge_commit_sha",), None),
+            (pr_path, ("head", "repo", "id"), 999),
+            (pr_path, ("head", "repo"), None),
+            (pr_path, ("base", "ref"), "release"),
+            (pr_path, ("head", "ref"), "main"),
+            (pr_path, ("base", "sha"), self.common),
+            (pr_path, ("head", "sha"), self.common),
+            (f"/repos/{FOCUSED.FORK}/git/ref/heads/main",
+             ("object", "type"), "tag"),
+            (f"/repos/{FOCUSED.CANONICAL}/git/ref/heads/main",
+             ("ref",), "refs/heads/other"),
+        ]
+        for path, keys, value in changes:
+            with self.subTest(path=path, keys=keys, value=value):
+                # Break shared fixture dictionaries as real API responses are
+                # independent snapshots, even for the same repository identity.
+                replies = {key: copy.deepcopy(item) for key, item in original.items()}
+                target = replies[path]
+                for key in keys[:-1]:
+                    target = target[key]
+                target[keys[-1]] = value
+                with self.assertRaises(FOCUSED.Refusal):
+                    FOCUSED.current_facts(replies.__getitem__, 23)
+        for number in (0, -1, True, "23"):
+            with self.subTest(number=number), self.assertRaises(FOCUSED.Refusal):
+                FOCUSED.current_facts(original.__getitem__, number)
+
+    def test_live_source_and_tested_merge_changes_invalidate_old_claim(self):
+        claim, _ = self.fixture()
+        claim["head_ref"] = "refs/heads/intake/upstream"
+        for path, key in ((f"/repos/{FOCUSED.CANONICAL}/git/ref/heads/main", "U"),
+                          (f"/repos/{FOCUSED.FORK}/pulls/23", "T")):
+            with self.subTest(changed=key):
+                replies = self.live_api(claim)
+                if key == "U":
+                    replies[path]["object"]["sha"] = self.common
+                else:
+                    replies[path]["merge_commit_sha"] = self.common
+                facts = FOCUSED.current_facts(replies.__getitem__, 23)
+                with self.assertRaisesRegex(FOCUSED.Refusal, "changed current " + key):
+                    self.verify(claim, facts)
 
     def test_cli_reports_only_correspondence_not_execution(self):
         claim, current = self.fixture()

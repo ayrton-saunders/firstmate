@@ -14,6 +14,9 @@ import os
 import re
 import subprocess
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 
 CANONICAL = "kunchenguid/firstmate"
 FORK = "ayrton-saunders/firstmate"
@@ -52,6 +55,107 @@ class Git:
     def ancestor(self, older, newer):
         return self.run("merge-base", "--is-ancestor", older, newer,
                         check=False).returncode == 0
+
+
+def current_facts(read_json, number):
+    """Read live GitHub identities; no claim/body fields select repositories.
+
+    read_json takes an API-relative path and must perform an authenticated fresh
+    read, not load a caller's retained evidence artifact. These facts bind Git
+    correspondence only; neither mergeability nor these reads prove execution.
+    Call again after inspection/tests and refuse any change before accepting.
+    """
+    require(type(number) is int and number > 0, "invalid PR number")
+    source = read_json("/repos/" + CANONICAL)
+    fork = read_json("/repos/" + FORK)
+    pr = read_json(f"/repos/{FORK}/pulls/{number}")
+    require(all(isinstance(item, dict) for item in (source, fork, pr)),
+            "malformed live repository/PR response")
+    require(source.get("full_name") == CANONICAL and source.get("fork") is False,
+            "wrong live canonical identity")
+    require(fork.get("full_name") == FORK and fork.get("fork") is True,
+            "wrong live fork identity")
+    require(isinstance(source.get("id"), int) and
+            isinstance(fork.get("id"), int) and source["id"] != fork["id"],
+            "missing live repository ids")
+    for relation in ("parent", "source"):
+        upstream = fork.get(relation)
+        require(isinstance(upstream, dict) and
+                upstream.get("id") == source["id"] and
+                upstream.get("full_name") == CANONICAL,
+                "wrong live fork " + relation)
+    require(pr.get("number") == number and pr.get("state") == "open" and
+            pr.get("merged") is False and pr.get("mergeable") is True,
+            "PR is not a current open mergeable integration")
+    defaults = []
+    for repo in (source, fork):
+        default = repo.get("default_branch")
+        require(isinstance(default, str) and default and
+                not any(char in default for char in "\r\n"),
+                "missing live default branch")
+        defaults.append(default)
+    refs = []
+    for side in ("base", "head"):
+        ref = pr.get(side)
+        require(isinstance(ref, dict) and isinstance(ref.get("repo"), dict),
+                "missing live " + side + " repository")
+        require(ref["repo"].get("id") == fork["id"] and
+                ref["repo"].get("full_name") == FORK,
+                "wrong live " + side + " repository")
+        require(isinstance(ref.get("ref"), str) and ref["ref"],
+                "missing live " + side + " ref")
+        refs.append(ref)
+    base, head = refs
+    require(base["ref"] == defaults[1] and head["ref"] != base["ref"],
+            "PR does not target fork default from an integration branch")
+
+    def advertised(repository, ref):
+        encoded = urllib.parse.quote(ref, safe="")
+        value = read_json(f"/repos/{repository}/git/ref/heads/{encoded}")
+        require(isinstance(value, dict) and value.get("ref") == "refs/heads/" + ref,
+                "wrong live advertised ref")
+        obj = value.get("object")
+        require(isinstance(obj, dict) and obj.get("type") == "commit" and
+                isinstance(obj.get("sha"), str) and SHA.fullmatch(obj["sha"]),
+                "missing live advertised commit")
+        return obj["sha"]
+
+    u = advertised(CANONICAL, defaults[0])
+    b = advertised(FORK, defaults[1])
+    h = advertised(FORK, head["ref"])
+    require(base.get("sha") == b and head.get("sha") == h,
+            "PR and advertised publication disagree; retry fresh qualification")
+    t = pr.get("merge_commit_sha")
+    require(isinstance(t, str) and SHA.fullmatch(t), "missing current tested merge")
+    return {"source_repository": CANONICAL, "fork_repository": FORK,
+            "head_repository": FORK, "source_ref": "refs/heads/" + defaults[0],
+            "source_default": "refs/heads/" + defaults[0],
+            "base_ref": "refs/heads/" + defaults[1],
+            "fork_default": "refs/heads/" + defaults[1],
+            "head_ref": "refs/heads/" + head["ref"], "U": u, "B": b,
+            "H": h, "T": t}
+
+
+class NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        return None
+
+
+def github_json(path):
+    """Fixed GitHub API origin, no redirects or credential-bearing diagnostics."""
+    require(path.startswith("/repos/") and "?" not in path and "#" not in path,
+            "invalid GitHub API path")
+    headers = {"Accept": "application/vnd.github+json",
+               "X-GitHub-Api-Version": "2022-11-28"}
+    token = os.environ.get("GITHUB_TOKEN")
+    if token:
+        headers["Authorization"] = "Bearer " + token
+    request = urllib.request.Request("https://api.github.com" + path, headers=headers)
+    try:
+        with urllib.request.build_opener(NoRedirect).open(request, timeout=30) as response:
+            return json.load(response)
+    except (OSError, ValueError) as error:
+        raise Refusal("fresh GitHub API read unavailable") from error
 
 
 def verify_correspondence(repository, claim, current):
