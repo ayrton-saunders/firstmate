@@ -9,14 +9,18 @@ compliance. Its output must never substitute for those remaining checks.
 Conflicted or repaired integrations need additional proof and are refused here.
 """
 
+import hashlib
 import json
 import os
 import re
 import subprocess
 import sys
+import tarfile
+import tempfile
 import urllib.error
 import urllib.parse
 import urllib.request
+import uuid
 
 CANONICAL = "kunchenguid/firstmate"
 FORK = "ayrton-saunders/firstmate"
@@ -290,6 +294,90 @@ def verify_correspondence(repository, claim, current):
             "tested merge tree differs from integration")
     return {"correspondence": "verified", "H": h, "B": b, "T": t,
             "tree": tree, "execution_evidence": "not-verified"}
+
+
+def execute_focused_tests(repository, correspondence, image, evidence_directory):
+    """Execute fresh personal-behavior tests without giving PR code host access.
+
+    This is called only after correspondence verification, by trusted workflow
+    code. image and evidence_directory are workflow-owned, never claim fields.
+    No retained receipt is an input. The container receives only a Git archive,
+    no .git directory, token, host environment, network or writable host mount.
+    This proves execution, not semantic human inspection or conflict provenance;
+    callers must not treat it alone as a complete compliance verdict.
+    """
+    require(correspondence.get("correspondence") == "verified",
+            "execution requires verified correspondence")
+    for name in ("H", "B", "T"):
+        require(isinstance(correspondence.get(name), str) and
+                SHA.fullmatch(correspondence[name]), "missing execution " + name)
+    require(isinstance(image, str) and image and not image.startswith("-"),
+            "missing trusted execution image")
+    evidence = os.path.abspath(evidence_directory)
+    # The caller must allocate a new directory for each attempt. Refusing reuse
+    # prevents accidental substitution of an earlier head's retained result.
+    os.mkdir(evidence, 0o700)
+    git = Git(repository)
+    for name in ("H", "T"):
+        require(git.text("rev-parse", correspondence[name] + "^{tree}") ==
+                correspondence["tree"], "changed execution tree")
+    with tempfile.TemporaryFile() as archive:
+        # Keep the test definitions owned by the trusted current fork base.
+        # Head changes, even canonical ones, cannot replace the assertions that
+        # decide whether this head preserves existing personal behavior.
+        with tarfile.open(fileobj=archive, mode="w") as bundle:
+            for filename, revision, paths in (
+                    ("candidate.tar", correspondence["T"], []),
+                    ("trusted-tests.tar", correspondence["B"], ["tests"])):
+                with tempfile.TemporaryFile() as content:
+                    result = subprocess.run(
+                        ["git", "-C", repository, "--no-replace-objects", "archive",
+                         "--format=tar", revision, *paths], stdout=content,
+                        stderr=subprocess.PIPE, check=False)
+                    require(result.returncode == 0, "execution archive unavailable")
+                    member = tarfile.TarInfo(filename)
+                    member.size = content.tell()
+                    content.seek(0)
+                    bundle.addfile(member, content)
+        archive.seek(0)
+        # docker does not inherit environment unless explicitly requested. All
+        # test output is retained as data, never interpreted as Actions commands.
+        # The script cannot control the verdict through output files or stdout.
+        container = "fm-focused-" + uuid.uuid4().hex
+        command = [
+            "docker", "run", "--name=" + container, "--rm", "--network=none", "--read-only",
+            "--cap-drop=ALL", "--security-opt=no-new-privileges",
+            "--pids-limit=256", "--memory=2g", "--cpus=2",
+            "--user=65534:65534", "--tmpfs=/tmp:rw,nosuid,nodev,size=1g",
+            "--workdir=/tmp", "--interactive", "--entrypoint=/bin/bash",
+            image, "-euc",
+            "tar -xf -; mkdir source; tar -xf candidate.tar -C source; "
+            "rm -rf source/tests; tar -xf trusted-tests.tar -C source; cd source; "
+            "export HOME=/tmp/home; mkdir -p \"$HOME\"; "
+            "bash tests/fm-update.test.sh",
+        ]
+        with open(os.path.join(evidence, "execution.log"), "wb") as log:
+            try:
+                result = subprocess.run(command, stdin=archive, stdout=log,
+                                        stderr=subprocess.STDOUT, timeout=300,
+                                        check=False)
+            except subprocess.TimeoutExpired as error:
+                raise Refusal("focused execution exceeded its bound") from error
+            finally:
+                # Scope cleanup to this invocation, including timeout paths.
+                subprocess.run(["docker", "rm", "--force", container],
+                               stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                               timeout=30, check=False)
+        require(result.returncode == 0, "focused personal-behavior tests failed")
+    with open(os.path.join(evidence, "execution.log"), "rb") as log:
+        digest = hashlib.sha256(log.read()).hexdigest()
+    receipt = {key: correspondence[key] for key in ("H", "B", "T", "tree")}
+    receipt.update(execution_evidence="fresh-sandbox-execution",
+                   test="bash tests/fm-update.test.sh", log_sha256=digest,
+                   inspection_evidence="not-verified")
+    with open(os.path.join(evidence, "execution.json"), "x", encoding="utf-8") as stream:
+        json.dump(receipt, stream, sort_keys=True)
+    return receipt
 
 
 def main():

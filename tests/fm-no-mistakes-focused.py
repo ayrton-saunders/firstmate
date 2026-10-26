@@ -5,6 +5,7 @@ import copy
 import importlib.util
 import json
 import os
+import shutil
 from pathlib import Path
 import subprocess
 import sys
@@ -372,6 +373,69 @@ class CorrespondenceTests(unittest.TestCase):
         with self.assertRaisesRegex(FOCUSED.Refusal, "publication changed"):
             FOCUSED.verify_request(FOCUSED.FORK, str(self.repo),
                                    changed_after_body_read, 23, claim["H"])
+
+    def test_fresh_sandbox_execution_and_failed_behavior(self):
+        if not shutil.which("docker"):
+            if os.environ.get("CI"):
+                self.fail("hosted focused execution tests require Docker")
+            self.skipTest("Docker is required for real focused execution coverage")
+        available = subprocess.run(["docker", "info"], stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, timeout=20, check=False)
+        if available.returncode:
+            if os.environ.get("CI"):
+                self.fail("hosted focused execution tests require a Docker server")
+            self.skipTest("Docker server unavailable")
+        image = os.environ.get("FM_FOCUSED_TEST_IMAGE", "ubuntu:24.04")
+        # This is a controlled upstream test, not a real canonical publication.
+        # It checks actual behavior in an uncredentialed isolated process and
+        # deliberately emits workflow-command syntax to retained data only.
+        (self.repo / "tests").mkdir()
+        script = self.repo / "tests/fm-update.test.sh"
+        script.write_text(
+            '#!/bin/bash\nset -eu\n'
+            'test "$(id -u)" = 65534\n'
+            'test -z "${GITHUB_TOKEN:-}"\n'
+            'test ! -e .git\n'
+            'test ! -e /var/run/docker.sock\n'
+            'test "$(cat canonical)" = "upstream behavior"\n'
+            'test "$(cat personal)" = "preserved personal behavior"\n'
+            'echo "::error::retained output is not a workflow command"\n')
+        self.git("add", "tests")
+        self.git("commit", "-qm", "controlled focused behavior test")
+        self.common = self.git("rev-parse", "HEAD")
+        claim, current = self.fixture()
+        result = self.verify(claim, current)
+        evidence = self.repo / "retained-first"
+        os.environ["GITHUB_TOKEN"] = "fixture-not-a-secret"
+        receipt = FOCUSED.execute_focused_tests(str(self.repo), result, image,
+                                                str(evidence))
+        self.assertEqual(receipt["T"], claim["T"])
+        self.assertEqual(receipt["execution_evidence"], "fresh-sandbox-execution")
+        self.assertEqual(receipt["inspection_evidence"], "not-verified")
+        self.assertEqual(json.loads((evidence / "execution.json").read_text()), receipt)
+        self.assertIn("::error::", (evidence / "execution.log").read_text())
+        with self.assertRaises(FileExistsError):
+            FOCUSED.execute_focused_tests(str(self.repo), result, image, str(evidence))
+        # Actual canonical changes may break preserved personal behavior. Real
+        # execution must fail even though correspondence is independently valid.
+        self.git("checkout", "-q", "--detach", claim["U"])
+        self.commit_file("canonical", "regression\n")
+        # Replacing the head's tests with a green assertion must not approve
+        # the broken candidate: the actual executed assertions belong to B.
+        u = self.commit_file("tests/fm-update.test.sh", "#!/bin/bash\nexit 0\n")
+        tree = self.git("merge-tree", "--write-tree", claim["O"], u)
+        h = self.commit_tree(tree, claim["O"], u)
+        t = self.commit_tree(tree, claim["O"], h)
+        claim.update(U=u, H=h, T=t)
+        current.update(U=u, H=h, T=t)
+        result = self.verify(claim, current)
+        failed = self.repo / "retained-failed"
+        with self.assertRaisesRegex(FOCUSED.Refusal, "behavior tests failed"):
+            FOCUSED.execute_focused_tests(str(self.repo), result, image, str(failed))
+        self.assertFalse((failed / "execution.json").exists())
+        with self.assertRaisesRegex(FOCUSED.Refusal, "changed execution tree"):
+            FOCUSED.execute_focused_tests(str(self.repo), {**result, "tree": self.common},
+                                          image, str(self.repo / "retained-stale"))
 
     def test_cli_reports_only_correspondence_not_execution(self):
         claim, current = self.fixture()
