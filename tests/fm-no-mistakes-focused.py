@@ -10,6 +10,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+import textwrap
 import unittest
 
 # Keep dynamically imported production code from writing into the source copy.
@@ -623,6 +624,54 @@ class CorrespondenceTests(unittest.TestCase):
         self.assertFalse((failed / "execution/execution.json").exists())
         self.assertFalse((failed / "qualified.json").exists())
 
+    def test_first_install_executes_actual_workflow_native_bootstrap(self):
+        # Parse the workflow's literal shell block for execution, not assertions
+        # about implementation text. No candidate checker exists on this base.
+        lines = (ROOT / ".github/workflows/no-mistakes-required.yml").read_text().splitlines()
+        start = next(i for i, line in enumerate(lines) if line.strip() == "run: |") + 1
+        block = []
+        for line in lines[start:]:
+            if line.strip() and not line.startswith("          "):
+                break
+            block.append(line)
+        command = textwrap.dedent("\n".join(block))
+        verifier = os.environ["FM_NATIVE_TEST_VERIFIER"]
+        event = self.repo / "event.json"
+        output = self.repo / "output"
+        native = ('Updates from [git push no-mistakes]'
+                  '(https://github.com/kunchenguid/no-mistakes)\n'
+                  '<!-- no-mistakes-pipeline-attestation:v1 ' + json.dumps({
+                      "head_sha": self.common, "steps": [
+                          {"step": step, "status": "completed"}
+                          for step in ("review", "test", "document")]}) + ' -->')
+        for body, bootstrap_ok, native_ok in (
+                ("ordinary unsigned personal feature", True, False),
+                (native, True, True),
+                ("firstmate-focused-upstream", False, False),
+                ("firstmate-focused-upstream\n" + native, False, False)):
+            with self.subTest(body=body[:40]):
+                event.write_text(json.dumps({"pull_request": {
+                    "number": 23, "body": body, "head": {"sha": self.common},
+                    "base": {"sha": self.common}}}))
+                output.write_text("")
+                env = {**os.environ, "GITHUB_EVENT_PATH": str(event),
+                       "GITHUB_OUTPUT": str(output)}
+                result = subprocess.run(["bash", "-e", "-c", command],
+                                        cwd=self.repo, env=env, capture_output=True)
+                self.assertEqual(result.returncode == 0, bootstrap_ok)
+                if bootstrap_ok:
+                    self.assertEqual(output.read_text(), "route=native\n")
+                    env.update(PR_BODY=body, PR_HEAD_SHA=self.common,
+                               PR_AUTHOR="regression", PR_NUMBER="23",
+                               NM_EXEMPT_AUTHORS="", NM_EXEMPT_BOT_AUTHORS="false",
+                               NM_EXEMPT_HEAD_BRANCHES="", GITHUB_EVENT_PATH="",
+                               GITHUB_OUTPUT="")
+                    checked = subprocess.run([sys.executable, verifier], env=env,
+                                             capture_output=True)
+                    self.assertEqual(checked.returncode == 0, native_ok)
+                else:
+                    self.assertEqual(output.read_text(), "")
+
     def test_workflow_entry_fetches_builds_and_qualifies_without_native_fallback(self):
         if not shutil.which("docker") or subprocess.run(
                 ["docker", "info"], stdout=subprocess.DEVNULL,
@@ -653,16 +702,31 @@ class CorrespondenceTests(unittest.TestCase):
                 "url." + (self.repo / ".git").as_uri() + ".insteadOf")
             os.environ[f"GIT_CONFIG_VALUE_{i}"] = "https://github.com/" + origin + ".git"
 
-        def invoke(replies, name, head=None, read=None):
-            return FOCUSED.workflow_request(
-                FOCUSED.FORK, 23, head or claim["H"], str(ROOT),
-                str(self.repo / name), read or replies.__getitem__)
+        def invoke(replies, name, head=None, read=None, base=None):
+            event = self.repo / (name + "-event.json")
+            output = self.repo / (name + "-output")
+            event.write_text(json.dumps({"pull_request": {
+                "number": 23, "head": {"sha": head or claim["H"]},
+                "base": {"sha": base or claim["B"]}}}))
+            output.write_text("")
+            os.environ.update(GITHUB_EVENT_PATH=str(event), GITHUB_OUTPUT=str(output),
+                              GITHUB_WORKSPACE=str(ROOT), GITHUB_REPOSITORY=FOCUSED.FORK,
+                              FM_FOCUSED_EVIDENCE=str(self.repo / name))
+            code = FOCUSED.workflow_main(read_json=read or replies.__getitem__)
+            if code:
+                self.assertEqual(output.read_text(), "")
+                raise FOCUSED.Refusal("workflow entry refused")
+            route = output.read_text().strip().removeprefix("route=")
+            if route == "native":
+                return {"route": route}
+            self.assertEqual(route, "focused")
+            return json.loads((self.repo / name / "qualified.json").read_text())
 
         receipt = invoke(original, "workflow-positive")
         self.assertEqual(receipt["qualification"], "fresh-focused-proof")
         self.assertTrue((self.repo / "workflow-positive/qualified.json").exists())
         self.assertEqual(receipt["execution"]["T"], claim["T"])
-        with self.assertRaises(FileExistsError):
+        with self.assertRaises(FOCUSED.Refusal):
             invoke(original, "workflow-positive")
         for field, value in (("source_repository", "someone/firstmate"),
                              ("fork_repository", "someone/firstmate"),
@@ -678,6 +742,8 @@ class CorrespondenceTests(unittest.TestCase):
                     invoke(replies, "workflow-forged-" + field)
         with self.assertRaises(FOCUSED.Refusal):
             invoke(original, "workflow-stale-event", self.common)
+        with self.assertRaises(FOCUSED.Refusal):
+            invoke(original, "workflow-stale-base-code", base=self.common)
         personal = self.commit_file("personal-feature", "unrelated personal change\n")
         wrong = {**claim, "H": personal,
                  "T": self.commit_tree(self.git("rev-parse", personal + "^{tree}"),
@@ -700,7 +766,7 @@ class CorrespondenceTests(unittest.TestCase):
                 return copy.deepcopy(native[path])
             return copy.deepcopy(original[path])
 
-        with self.assertRaisesRegex(FOCUSED.Refusal, "changed after workflow routing"):
+        with self.assertRaises(FOCUSED.Refusal):
             invoke(original, "workflow-route-drift", read=switch_to_native)
 
     def test_cli_reports_only_correspondence_not_execution(self):

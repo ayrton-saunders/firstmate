@@ -14,6 +14,17 @@ The attestation must bind to the current PR head commit and report the review, t
 It evaluates every PR opening and body edit independently, reruns after head synchronization or reopening, and prevents a later edit from replacing an earlier pending compliance check.
 GitHub Actions and Dependabot are exempt so their automation keeps working, but other contributor PRs that do not satisfy the attestation contract will not be reviewed or merged.
 
+On the personal fork `ayrton-saunders/firstmate`, the same required context also accepts a fresh focused canonical integration qualified by the base-sourced [focused checker](.github/verify-focused-upstream.py).
+Its current supported boundary is a clean integration with unchanged personal paths; conflicts, repairs, and overlapping personal-path changes are refused rather than treated as reviewed.
+The original pull-request producer and native action remain in place for ordinary personal features, including the first installation when the base does not yet contain the focused checker.
+A focused declaration on that older base is refused, not redirected into native acceptance.
+Canonical and other repositories retain their existing native behavior.
+
+This accommodation retains the existing repository CI trust model, not independent authentication of the workflow producing an Actions context.
+Workflow/context substitution remains a pre-existing limitation, as does the native verifier's author-editable PR-body attestation; neither is fixed by the focused checker.
+Controlled executable fixtures verify the focused decision and sandbox boundaries, not actual hosted publication or universal malicious-workflow prevention.
+All other required contexts and their Actions app bindings remain unchanged.
+
 ## Workflow
 
 1. Fork the repo, then clone the parent repo or set your local `origin` back to the parent (`git@github.com:kunchenguid/firstmate.git`).

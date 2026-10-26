@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Structural baseline tests for the workflow's pinned shared native action.
+# Executable focused workflow/bootstrap and pinned shared native-action tests.
 # These controlled author-editable fixtures are not native execution proof.
-# Focused-upstream authentication must be tested independently of this baseline.
+# Focused qualification is tested independently of the native-body baseline.
 set -u
 
 # shellcheck source=tests/lib.sh disable=SC1091
@@ -124,11 +124,10 @@ test_test_override_requires_recorded_opt_in() {
   pass "current pinned native verifier refuses test override without recorded opt-in"
 }
 
-python3 "$(dirname "${BASH_SOURCE[0]}")/fm-no-mistakes-focused.py" \
+fetch_shared_verifier
+FM_NATIVE_TEST_VERIFIER="$VERIFY" python3 "$(dirname "${BASH_SOURCE[0]}")/fm-no-mistakes-focused.py" \
   || fail "focused Git correspondence regressions failed"
 pass "focused Git correspondence is independently reconstructed, not body-authenticated"
-
-fetch_shared_verifier
 test_matching_head_and_completed_steps_pass
 test_mismatched_head_fails_with_both_shas
 test_missing_head_fails

@@ -493,7 +493,7 @@ def fetch_current_objects(repository, facts):
 
 
 def workflow_request(repository, number, expected_head, workspace,
-                     evidence_directory, read_json=github_json):
+                     evidence_directory, read_json=github_json, expected_base=None):
     """Actual trusted-base workflow entry, including fresh transport and image.
 
     workspace contains only the current trusted base, never PR source. The
@@ -510,6 +510,9 @@ def workflow_request(repository, number, expected_head, workspace,
         return {"route": "native"}
     facts = current_facts(read_json, number)
     require(facts["H"] == expected_head, "event head is no longer current")
+    if expected_base is not None:
+        require(facts["B"] == expected_base,
+                "qualification code is not from the current PR base")
     for name in ("source_repository", "fork_repository", "head_repository",
                  "source_ref", "base_ref", "head_ref", "U", "B", "H", "T"):
         require(claim[name] == facts[name], "declaration differs from live facts")
@@ -538,17 +541,19 @@ def workflow_request(repository, number, expected_head, workspace,
         return receipt
 
 
-def workflow_main():
+def workflow_main(read_json=github_json):
     try:
         with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as stream:
             event = json.load(stream)
         pr = event["pull_request"]
-        number, head = pr["number"], pr["head"]["sha"]
+        number, head, base = pr["number"], pr["head"]["sha"], pr["base"]["sha"]
         require(type(number) is int and number > 0 and
-                isinstance(head, str) and SHA.fullmatch(head), "invalid PR event")
+                isinstance(head, str) and SHA.fullmatch(head) and
+                isinstance(base, str) and SHA.fullmatch(base), "invalid PR event")
         result = workflow_request(
             os.environ["GITHUB_REPOSITORY"], number, head,
-            os.environ["GITHUB_WORKSPACE"], os.environ["FM_FOCUSED_EVIDENCE"])
+            os.environ["GITHUB_WORKSPACE"], os.environ["FM_FOCUSED_EVIDENCE"],
+            read_json=read_json, expected_base=base)
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
             stream.write("route=" + result["route"] + "\n")
         return 0
