@@ -21,11 +21,12 @@ On personal fork `github.com/ayrton-saunders/firstmate`, read the advertised def
 Confirm configured identities rather than trusting remote names.
 Canonical is read/fetch only; publication, push and evidence destinations must all be the personal fork.
 The selected setup uses canonical's read remote named `canonical`, with fork `origin` unchanged and no higher-precedence publication remote selecting the parent.
-If role resolution or actual installed no-mistakes routing disagrees, stop with the concrete mismatch; do not reinitialize, change shared routing/settings, broaden consent or migrate origins.
+If role resolution or the actual publication destination disagrees, stop with the concrete mismatch; do not reinitialize, change shared routing/settings, broaden consent or migrate origins.
 Other installations retain their existing origin-only operation unless their operator separately authorized integration.
 
 If O contains U, skip integration and consume the freshly verified intended fork revision.
-If it does not, dispatch an ordinary isolated integration task at exact O under the accepted intent, with normal no-mistakes delivery and fork-only consent.
+If it does not, dispatch an isolated upstream integration task at exact O under the accepted intent, with direct-PR delivery, upstream-only automatic merge authority and fork-only consent.
+This standing authority covers genuine canonical-to-personal-fork uptake and necessary in-scope conflict/interoperability repairs only; personal features, including changes to this updater, retain normal no-mistakes validation and explicit merge approval.
 Use that already-dispatched copy; the updater never allocates a copy or manages pool slots.
 A new upstream target after this bounded attempt is a later update, not a reason for an endless catch-up loop.
 
@@ -40,45 +41,46 @@ Preparation emits no restart actions, runs no validator and publishes nothing.
 
 Record the deliberate fork delta `merge-base(O,U)..O`, including skill behavior, in this task's qualification evidence.
 A textual no-conflict result is not semantic preservation.
-Normal no-mistakes review and focused behavior tests must exercise those customizations against the combined result, including subsequent pipeline repairs.
-Repair an in-scope semantic defect through that normal path without inventing another human approval or a parallel manual review.
-Changing deliberate behavior, expanding scope, destructive changes and security-sensitive choices still escalate.
+Inspect the actual integration, deliberate personal delta and any conflict resolutions, then run focused executable interoperability checks against that combined result.
+Conflict-free uptake needs only the applicable existing checks; do not run no-mistakes on imported upstream or add a parallel review.
+Real conflicts or demonstrated interoperability failures justify focused in-scope repairs, with resolved paths/diff/rationale and final-head inspection/test evidence retained.
+A real conflict alone does not require another merge approval; materially ambiguous behavior, changes to deliberate behavior, scope expansion, destructive changes and security-sensitive choices still escalate.
 For prose-only behavior, retain real evaluation evidence; file/source-string presence does not prove the instruction is obeyed.
 
 ## 3. Qualify the actual published head
 
-Use the existing no-mistakes pipeline as the sole review/test/docs/push/PR/CI owner.
-Recheck actual fork-only destinations immediately before entering it.
-The initial updater implementation and unrelated PRs retain their own merge approval; this skill's scoped automatic authority covers only future qualified upstream integrations.
+Publish the integration branch and open a genuine fork-only PR through the ordinary forge path, then require every applicable original forge check and verify its actual producer at final H.
+Recheck actual fork-only destinations immediately before publication.
+A required no-mistakes compliance check is not waived by this policy: if it rejects focused upstream publication, preserve the local result and report the minimal separately unapproved compliance adjustment rather than fabricating native attestation, changing workflow exemptions/rules or borrowing another PR's waiver.
+Personal feature validation remains owned by its normal no-mistakes pipeline, not this integration path.
 
 Keep one qualification package in the existing integration task:
 
 - O/U, original candidate and deliberate fork behavior evidence.
 - Actual final published H/tree and real recorded PR URL, current fork base B and the actual tested merge T with exact B,H parents.
-- Actual normal Review/Test evidence heads, every later repair delta and evidence artifact, plus current required checks at H.
-- Preparation and every pipeline round's conflict provenance, resolved paths/diff/rationale, applicable authority or explicit conflict-resolution approval bound to H.
+- Actual focused inspection/test evidence heads, exact executable commands/results, every later repair delta and evidence artifact, plus current required checks and producer evidence at H.
+- Preparation and every later integration/repair round's conflict provenance, resolved paths/diff/rationale and any escalated decision bound to H.
 - Actual landed M/parents/tree, publication outcome, consumption results and outstanding activation.
 
-Obtain evidence from the installed tool's supported status/log/evidence interfaces, not from an ancestor's green label or a fabricated compliance body.
-`--qualify-upstream` checks the supplied normal evidence heads, both final ancestries, published task branch, fresh base/upstream identities and tested-merge provenance.
-Supply its pipeline-history input only from actual complete pipeline provenance, including later repair rounds; absent or uncertain provenance is `unknown`, never inferred clean from an index.
-The checker is a local proof check, not an attestation of how its caller obtained evidence and not merge authority.
-Its strict supported evidence path requires the current base in H, T's tree equal to H's reviewed tree, Review at H and Test at H or that actual tested merge T.
-A later repair with different evidence heads stops until supported narrow normal revalidation supplies final-head coverage; do not enable global/trusted defaults or substitute another audit.
-An ancestry-only/empty-tree-diff candidate currently stops qualification: skipped pipeline phases or absence of a real checked PR cannot prove publication.
+Obtain evidence from actual inspection/execution records and the forge's supported check/PR interfaces, not from an ancestor's green label or a fabricated compliance body.
+Use the existing `--qualify-upstream --focused` interface; `bin/fm-update.sh`'s header and help own its exact inputs and correspondence guards.
+Supply integration history from the complete preparation/repair provenance; absent or uncertain history is `unknown`, never inferred clean from an index.
+The checker fingerprints caller-supplied artifacts for identity only: retain substantive inspection and execution evidence, never label it authenticated native proof or completed native Review/Test stages.
+It is neither forge-check verification nor merge authority.
+The unflagged native evidence mode remains available for existing callers and does not turn this focused path into a native pipeline.
+A later repair or changed base requires fresh final-head inspection and actual head/merge-tree execution coverage before qualification; preserve all prior evidence.
+An ancestry-only candidate may use focused qualification with real new ancestry and a genuine checked PR; do not create fake edits or skipped-stage attestations to satisfy publication.
 
-If the pipeline lost O/U ancestry, preserve its fixes and original conflict evidence.
-Regain exclusive custody only through a supported terminal/custody handoff, then append an integration retaining both histories and run normal validation again.
-A green CI-ready return alone is not exclusive custody: a monitor may still publish repairs.
-If the installed tool cannot establish custody, final evidence, tested-base provenance or conflict history through a supported bounded route, record that exact compatibility blocker and stop before merge/consumption.
-Do not hand-edit an active pipeline, change dependency code/settings, force its branch or loop through the same unsupported rebase path.
+If any repair lost O/U ancestry, preserve its fixes and original conflict evidence, append an integration retaining both histories under exclusive source custody, then repeat focused checks on the final result.
+If tooling cannot establish custody, final evidence, tested-base provenance or conflict history through a supported bounded route, record that exact compatibility blocker and stop before merge/consumption.
+Never edit another active validator's source, change dependency code/settings, force its branch or erase uncertain provenance.
 
 ## 4. Land exactly what qualified
 
-Future conflict-free upstream integrations need no separate human merge approval once normal review/tests, preservation evidence, qualification and every current required check pass.
-Any integration that required conflict resolution returns for explicit approval of exact H with its resolution evidence, even if the final index is clean.
-Unknown history cannot use the conflict-free exception.
-Any changed H returns to normal qualification, not automatically to another human call for an ordinary in-scope repair.
+Future genuine upstream integrations need no separate human merge approval once focused inspection/tests, preservation/resolution evidence, qualification and every current required check pass.
+Known resolved conflicts retain their exact history and evidence but do not remove this narrowly scoped authority for ordinary in-scope repairs.
+Unknown history cannot use automatic landing; ambiguous behavior or a decision outside this scope returns for the concrete approval needed.
+Any changed H returns to focused qualification, not automatically to another human call for an ordinary in-scope repair.
 
 Use only the existing `bin/fm-pr-merge.sh` checked merge owner, with `--expected-head H` before its separator and explicit `-- --merge` to preserve ancestry.
 The expected-head input must be the same full H just qualified; the helper compares its fresh live head and passes that identical H to backend head matching.

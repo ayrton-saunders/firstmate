@@ -696,6 +696,150 @@ run_proof() {
     FM_PROJECTS_OVERRIDE="$w/home/projects" "$UPDATE" "$@" 2>&1
 }
 
+test_focused_upstream_qualification() {
+  local w o u h t m out mode rc main_before
+  for mode in ff divergent conflict empty; do
+    w=$(new_world "focused-$mode")
+    prepare_world "$w"
+    o=$(git -C "$w/main" rev-parse HEAD)
+    main_before=$o
+    printf 'echo upstream\n' > "$w/upstream/bin/tool.sh"
+    printf 'canonical\n' > "$w/upstream/README.md"
+    git -C "$w/upstream" add -A
+    git -C "$w/upstream" commit -qm canonical
+    if [ "$mode" = empty ]; then git -C "$w/upstream" revert --no-edit HEAD >/dev/null; fi
+    git -C "$w/upstream" push -q origin main
+    u=$(git -C "$w/upstream" rev-parse HEAD)
+    case "$mode" in
+      divergent|conflict)
+        cat > "$w/seed/personal.sh" <<'SH'
+test "$(bash "$(dirname "$0")/bin/tool.sh")" = upstream
+SH
+        if [ "$mode" = conflict ]; then printf 'personal\n' > "$w/seed/README.md"; fi
+        git -C "$w/seed" add -A
+        git -C "$w/seed" commit -qm personal
+        git -C "$w/seed" push -q origin main
+        o=$(git -C "$w/seed" rev-parse HEAD)
+        git -C "$w/candidate" fetch -q origin
+        git -C "$w/candidate" merge -q --ff-only "$o"
+        ;;
+    esac
+    rc=0
+    out=$(run_prepare "$w" "$o" "$u") || rc=$?
+    if [ "$mode" = conflict ]; then
+      [ "$rc" -ne 0 ] || fail 'focused fixture did not actually conflict'
+      git -C "$w/candidate" ls-files -u | grep -q . || fail 'missing real conflict'
+      printf 'personal and canonical\n' > "$w/candidate/README.md"
+      git -C "$w/candidate" add README.md
+      git -C "$w/candidate" commit -qm 'resolve actual README conflict'
+    else
+      [ "$rc" -eq 0 ] || fail "focused preparation refused: $out"
+    fi
+    h=$(git -C "$w/candidate" rev-parse HEAD)
+    # Real local inspection and executable results, not intercepted native stages
+    # or authenticated forge evidence. Publication/CI remain the caller's duty.
+    {
+      printf 'Focused inspection at %s\n' "$h"
+      git -C "$w/candidate" diff "$o...$u" --
+      git -C "$w/candidate" diff "$u" "$h" --
+      printf 'Command: bash bin/tool.sh\n'
+      bash "$w/candidate/bin/tool.sh" || fail 'focused tool execution failed'
+      if [ -e "$w/candidate/personal.sh" ]; then
+        printf 'Command: bash personal.sh\n'
+        bash "$w/candidate/personal.sh" || fail 'actual personal interoperability failed'
+      fi
+      printf 'Exit: 0\n'
+    } > "$w/evidence"
+    git -C "$w/candidate" push -q origin integration
+    t=$(printf 'focused tested merge\n' | git -C "$w/candidate" commit-tree "$h^{tree}" -p "$o" -p "$h")
+    # Execute against the exact tested merge tree without another editable copy.
+    git -C "$w/candidate" show "$t:bin/tool.sh" > "$w/tested-tool.sh"
+    bash "$w/tested-tool.sh" >> "$w/evidence" || fail 'tested merge behavior failed'
+    out=$(run_proof "$w" --qualify-upstream --focused "$w/attempt" "$h" "$h" "$t" "$o" "$t" clean "$w/evidence") \
+      || fail "truthful focused evidence refused: $out"
+    assert_contains "$out" 'evidence-kind: focused' 'focused evidence is never labeled native'
+    if [ "$mode" = conflict ]; then
+      assert_contains "$out" 'conflict-history: conflicted' 'focused qualification retains actual conflict provenance'
+    fi
+    m=$(printf 'actual focused landing\n' | git -C "$w/candidate" commit-tree "$h^{tree}" -p "$o" -p "$h")
+    git -C "$w/candidate" push -q origin "$m:refs/heads/main"
+    out=$(run_proof "$w" --verify-landed "$w/attempt" "$m") || fail "focused landed proof refused: $out"
+    assert_contains "$out" "verified-origin: $m" 'focused qualification retains exact landing correspondence'
+    [ "$(git -C "$w/main" rev-parse HEAD)" = "$main_before" ] || fail 'focused proof moved active source'
+  done
+  pass 'real FF/divergent/conflicted/ancestry-only integrations accept truthful focused inspection and execution evidence'
+}
+
+test_focused_qualification_refusals() {
+  local w o u h t m inspection tested base evidence out mode rc tree
+  for mode in inspection-head test-head missing-evidence canonical-race head-race base-race merge-parents merge-tree unknown landed-parents landed-tree; do
+    w=$(new_world "focused-refusal-$mode")
+    prepare_world "$w"
+    o=$(git -C "$w/main" rev-parse HEAD)
+    printf 'echo upstream\n' > "$w/upstream/bin/tool.sh"
+    git -C "$w/upstream" add -A
+    git -C "$w/upstream" commit -qm canonical
+    git -C "$w/upstream" push -q origin main
+    u=$(git -C "$w/upstream" rev-parse HEAD)
+    run_prepare "$w" "$o" "$u" >/dev/null || fail 'focused refusal preparation failed'
+    h=$(git -C "$w/candidate" rev-parse HEAD)
+    tree=$(git -C "$w/candidate" rev-parse "$h^{tree}")
+    {
+      printf 'Inspection at %s\n' "$h"
+      git -C "$w/candidate" diff "$o" "$h" --
+      printf 'Command: bash bin/tool.sh\n'
+      bash "$w/candidate/bin/tool.sh" || fail 'focused refusal fixture execution failed'
+      printf 'Exit: 0\n'
+    } > "$w/evidence"
+    git -C "$w/candidate" push -q origin integration
+    t=$(printf 'tested merge\n' | git -C "$w/candidate" commit-tree "$tree" -p "$o" -p "$h")
+    inspection=$h; tested=$t; base=$o; evidence="$w/evidence"
+    case "$mode" in
+      inspection-head) inspection=$o ;;
+      test-head) tested=$o ;;
+      missing-evidence) evidence="$w/absent-evidence" ;;
+      canonical-race)
+        printf 'later upstream\n' >> "$w/upstream/README.md"
+        git -C "$w/upstream" add -A
+        git -C "$w/upstream" commit -qm 'later canonical'
+        git -C "$w/upstream" push -q origin main
+        ;;
+      head-race)
+        m=$(printf 'later published head\n' | git -C "$w/candidate" commit-tree "$tree" -p "$h")
+        git -C "$w/candidate" push -q origin "$m:refs/heads/integration"
+        ;;
+      base-race) bump_origin "$w" readme ;;
+      merge-parents) t=$(printf 'wrong tested parents\n' | git -C "$w/candidate" commit-tree "$tree" -p "$h" -p "$o"); tested=$t ;;
+      merge-tree) t=$(printf 'wrong tested tree\n' | git -C "$w/candidate" commit-tree "$o^{tree}" -p "$o" -p "$h"); tested=$t ;;
+      unknown) printf 'unknown\n' >> "$w/attempt/events" ;;
+    esac
+    rc=0
+    out=$(run_proof "$w" --qualify-upstream --focused "$w/attempt" "$h" "$inspection" "$tested" "$base" "$t" clean "$evidence") || rc=$?
+    case "$mode" in
+      landed-parents|landed-tree)
+        [ "$rc" -eq 0 ] || fail "valid focused qualification refused before landing: $out"
+        if [ "$mode" = landed-parents ]; then
+          m=$(printf 'wrong landed parents\n' | git -C "$w/candidate" commit-tree "$tree" -p "$h" -p "$o")
+        else
+          m=$(printf 'wrong landed tree\n' | git -C "$w/candidate" commit-tree "$o^{tree}" -p "$o" -p "$h")
+        fi
+        git -C "$w/candidate" push -q origin "$m:refs/heads/main"
+        rc=0
+        out=$(run_proof "$w" --verify-landed "$w/attempt" "$m") || rc=$?
+        [ "$rc" -ne 0 ] || fail "focused $mode accepted"
+        assert_contains "$out" 'published result differs' 'exact focused landing correspondence enforced'
+        assert_absent "$w/attempt/landings" 'invalid focused landing recorded'
+        ;;
+      *)
+        [ "$rc" -ne 0 ] || fail "unsafe focused $mode qualified"
+        assert_absent "$w/attempt/qualifications" 'unsafe focused qualification recorded'
+        ;;
+    esac
+    [ "$(git -C "$w/main" rev-parse HEAD)" = "$o" ] || fail 'focused refusal changed active source'
+  done
+  pass 'focused evidence cannot bypass final coverage, fresh targets, provenance, exact tested merge or landed parents/tree'
+}
+
 test_published_qualification_and_landing() {
   local w o u h t m base review tested history mode rc out lost
   for mode in valid review-repair test-repair ancestry head-race base-race landed-race tested-tree empty unknown conflict; do
@@ -1011,6 +1155,8 @@ test_standalone_secondmate_keeps_own_origin() {
 test_upstream_preparation
 test_preparation_refusals_preserve_active_sources
 test_pinned_consumption
+test_focused_upstream_qualification
+test_focused_qualification_refusals
 test_published_qualification_and_landing
 test_unknown_provenance_survives_interrupted_conflicted_retry
 test_semantic_repair_requires_final_evidence_not_approval
