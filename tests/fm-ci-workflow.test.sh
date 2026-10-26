@@ -7,7 +7,7 @@
 # safeguards: PR runs supersede within one PR while main pushes are never
 # cancelled, and every CI job carries a finite hang tripwire drawn from the
 # three-tier timeout policy that docs/fm-test-portable-shards.md "Timeouts"
-# owns (fast, normal, heavy), including the serial shard 2 budget exception.
+# owns (fast, normal, heavy), including the serial shards 1 and 2 budget exceptions.
 #
 # They also hold the fork opt-out: the repository variables FM_CI_SKIP_PUSH and
 # FM_CI_SKIP_MACOS let a fork skip the push run and the macOS job through a
@@ -191,12 +191,12 @@ end
 ' "$CI_WORKFLOW" "$1" "$2" "$3"
 }
 
-job_timeout() {  # <job> [serial shard, defaults to 1]
+job_timeout() {  # <job> [serial shard, defaults to baseline shard 3]
   ruby -ryaml -e "$EXPRESSION_RUBY" -e '
 raw = YAML.load_file(ARGV[0]).fetch("jobs").fetch(ARGV[1]).fetch("timeout-minutes", "none")
 value = raw.is_a?(String) && raw.match(/\A\$\{\{(.*)\}\}\z/m)
 puts(value ? Expression.evaluate(value[1], {"matrix.shard" => Integer(ARGV[2])}) : raw)
-' "$CI_WORKFLOW" "$1" "${2:-1}"
+' "$CI_WORKFLOW" "$1" "${2:-3}"
 }
 
 # Tier membership is the executable inventory of the timeout policy: a new job
@@ -282,7 +282,7 @@ end
 }
 
 # Every job sits in exactly one tier with three distinct baseline timeouts.
-# The serial shard 2 exception is checked across the expanded matrix below.
+# The serial shard exceptions are checked across the expanded matrix below.
 test_every_job_belongs_to_exactly_one_timeout_tier() {
   local expected actual distinct
   # shellcheck disable=SC2086
@@ -308,7 +308,7 @@ test_fast_tier_shares_one_short_tripwire() {
   pass "fast tier jobs share one $fast minute tripwire"
 }
 
-# Normal tier baseline: 30 minutes, except serial shard 2 checked below.
+# Normal tier baseline: 30 minutes, except serial shards 1 and 2 checked below.
 # That budget is a hang tripwire, not a packing estimate.
 test_normal_tier_shares_one_budget() {
   local fast normal
@@ -329,12 +329,12 @@ test_serial_shard_timeout_exception() {
 puts YAML.load_file(ARGV[0]).fetch("jobs").fetch("tests-portable-serial").fetch("strategy").fetch("matrix").fetch("shard")
 ' "$CI_WORKFLOW"); do
     expected=30
-    [ "$shard" != 2 ] || expected=45
+    case "$shard" in 1|2) expected=45 ;; esac
     actual=$(job_timeout tests-portable-serial "$shard") || fail "could not resolve shard $shard timeout"
     [ "$actual" = "$expected" ] \
       || fail "serial shard $shard must have a $expected minute budget, got $actual"
   done
-  pass "only serial shard 2 has a 45-minute budget; all sibling shards retain 30 minutes"
+  pass "only serial shards 1 and 2 have a 45-minute budget; all other shards retain 30 minutes"
 }
 
 # Heavy tier: Herdr alone carries a job-level last-resort backstop above the

@@ -277,6 +277,32 @@ test_ci_ready_requires_pr_reference() {
   pass "CI-ready notes require checks green and an actual PR reference"
 }
 
+test_ci_ready_binds_the_green_clause_to_an_exact_url() {
+  local url=https://github.com/o/r/pull/8 note
+  for note in \
+    "PR https://github.com/o/r/pull/7 checks green; replacement $url still pending" \
+    "Replacement $url still pending; PR https://github.com/o/r/pull/7 checks green" \
+    "PR ${url}0 checks green; $url pending" \
+    "PR ${url}/extra checks green; $url pending" \
+    "PR $url checks pending; other checks green" \
+    "PR $url checks greenish" \
+    "NOTPR $url checks green" \
+    "PR $url pending; checks green"; do
+    if fm_dod_note_reports_ci_ready "$note" "$url"; then
+      fail "unbound green report accepted for $url: $note"
+    fi
+  done
+  for note in \
+    "PR $url checks green" \
+    "Verified: PR $url checks green, awaiting merge." \
+    "Other PR https://github.com/o/r/pull/7 pending; PR $url checks green; review complete" \
+    "PR $url checks green; replacement https://github.com/o/r/pull/9 pending"; do
+    fm_dod_note_reports_ci_ready "$note" "$url" \
+      || fail "exact green clause rejected: $note"
+  done
+  pass "URL-bound readiness requires that exact PR's green clause and preserves surrounding text"
+}
+
 test_ci_ready_variants_are_gated() {
   local repo wt line rc
   repo="$TMP_ROOT/variant-repo"
@@ -459,6 +485,7 @@ test_merge_marker_binds_to_the_named_pr
 test_forge_recorded_head_is_accepted_without_local_object
 test_direct_pr_recorded_head_does_not_cover_unpushed_commit
 test_ci_ready_requires_pr_reference
+test_ci_ready_binds_the_green_clause_to_an_exact_url
 test_ci_ready_variants_are_gated
 test_keyed_and_spaced_done_lines_are_gated
 test_local_only_linked_branch_is_accepted
