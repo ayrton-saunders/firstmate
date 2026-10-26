@@ -1,0 +1,31 @@
+FM_TEST_BEGIN 2026-10-26T02:23:33Z tests/fm-update.test.sh family=session-bootstrap expected_gate_skip=none
+ok - contained/FF/divergent/conflicted/empty histories preserve ancestry, behavior and interrupted evidence
+ok - moving identities, dirty/detached/active/shallow/mismatched and primary preparation refuse without active-source effects
+ok - pinned consumption rejects moving/unsafe targets before all secondmate effects
+ok - real FF/divergent/conflicted/ancestry-only integrations accept truthful focused inspection and execution evidence
+ok - focused evidence cannot bypass final coverage, fresh targets, provenance, exact tested merge or landed parents/tree
+ok - final ancestry, actual Review/Test heads, conflict provenance, publication/head/base races and actual landed tree are checked
+ok - unknown provenance survives interrupted preparation and conflicted retries across preparation, qualification and landing
+ok - textually clean semantic regression fails behavior testing; final normal repair evidence qualifies without another human approval
+ok - pinned primary consumption preserves a standalone secondmate distinct origin and source result
+ok - T1 main + secondmate fast-forward (single-parent), reread + restart signalled
+ok - T3 a non-instruction advance still restarts the live secondmate
+ok - T3b a bin/-only advance restarts the secondmate
+ok - T3c an unverifiable secondmate receives the fallback nudge
+ok - T3d an already-stopped secondmate is left to startup recovery
+ok - T3e a legacy remote advance still restarts the live remote mate
+ok - T4 dirty secondmate skipped, local edit preserved
+ok - T5 diverged secondmate is preserved and durably actionable
+ok - T5b squash-merged divergence heals and rejoins live convergence
+ok - T6 an already-current live secondmate is still restarted
+ok - T6b an already-current mate with an unprovable runtime is steered, not claimed as reloaded
+ok - T7 registry backstop resolves, dedups meta+registry, excludes the firstmate repo
+ok - T9 firstmate off its default branch is skipped, not forced
+ok - T10 firstmate detached HEAD is skipped
+ok - T11 unsafe secondmate home is not fast-forwarded
+ok - T12 a self-update rebinds a locally armed watch on the primary
+# all fm-update tests passed
+FM_TEST_END 2026-10-26T02:24:35Z tests/fm-update.test.sh exit=0 duration_ms=62555 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=62633
+FM_TEST_SUMMARY_FAMILY family=session-bootstrap count=1 duration_ms=62555 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-update.test.sh duration_ms=62555

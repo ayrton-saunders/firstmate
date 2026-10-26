@@ -1,0 +1,192 @@
+[
+  {
+    "scenario": "fast-forward"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/fast-forward/fork.git main c66024ad4a43c842ecb4caa16543a42c6b44eda3 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/fast-forward/canonical.git main 87ff10e824d2035f7180bd16f8f65a5849f4c090 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/fast-forward/record",
+    "exit": 0,
+    "output": "preparation: fast-forward c66024ad4a43c842ecb4caa16543a42c6b44eda3..87ff10e824d2035f7180bd16f8f65a5849f4c090\nfork-head: c66024ad4a43c842ecb4caa16543a42c6b44eda3\nupstream-head: 87ff10e824d2035f7180bd16f8f65a5849f4c090\ncandidate: 87ff10e824d2035f7180bd16f8f65a5849f4c090\ntree: 8fdf7e3ba32b58ec64a4e6717e04a3abe40a5d4f\nconflict-history: clean\n"
+  },
+  {
+    "command": "bash /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/fast-forward/task/bin/tool.sh",
+    "exit": 0,
+    "output": "upstream\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --qualify-upstream --focused /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/fast-forward/record 87ff10e824d2035f7180bd16f8f65a5849f4c090 87ff10e824d2035f7180bd16f8f65a5849f4c090 a536aa9f6ad16f3aa8353c532231f40203bf307c c66024ad4a43c842ecb4caa16543a42c6b44eda3 a536aa9f6ad16f3aa8353c532231f40203bf307c clean /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/fast-forward/execution.txt",
+    "exit": 0,
+    "output": "qualified-head: 87ff10e824d2035f7180bd16f8f65a5849f4c090\nconflict-history: clean\nevidence-kind: focused\n"
+  },
+  {
+    "recorded_evidence": "87ff10e824d2035f7180bd16f8f65a5849f4c090 focused 29e63adae4e1d34439713de7e3457a6c44299157 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/fast-forward/execution.txt\n",
+    "qualifications": "87ff10e824d2035f7180bd16f8f65a5849f4c090 87ff10e824d2035f7180bd16f8f65a5849f4c090 a536aa9f6ad16f3aa8353c532231f40203bf307c c66024ad4a43c842ecb4caa16543a42c6b44eda3 a536aa9f6ad16f3aa8353c532231f40203bf307c 8fdf7e3ba32b58ec64a4e6717e04a3abe40a5d4f\n",
+    "events": "unknown\nclean\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --qualify-upstream --focused /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/fast-forward/record 87ff10e824d2035f7180bd16f8f65a5849f4c090 c66024ad4a43c842ecb4caa16543a42c6b44eda3 a536aa9f6ad16f3aa8353c532231f40203bf307c c66024ad4a43c842ecb4caa16543a42c6b44eda3 a536aa9f6ad16f3aa8353c532231f40203bf307c clean /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/fast-forward/execution.txt",
+    "exit": 1,
+    "output": "update refused: final-head inspection/test coverage unavailable; revalidate the final integration head or stop\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --qualify-upstream --focused /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/fast-forward/record 87ff10e824d2035f7180bd16f8f65a5849f4c090 87ff10e824d2035f7180bd16f8f65a5849f4c090 0923f86f3f7d1bfb5a9bc4a47937d21719de0954 c66024ad4a43c842ecb4caa16543a42c6b44eda3 0923f86f3f7d1bfb5a9bc4a47937d21719de0954 clean /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/fast-forward/execution.txt",
+    "exit": 1,
+    "output": "update refused: tested merge provenance must have exact base,H parents\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --verify-landed /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/fast-forward/record a536aa9f6ad16f3aa8353c532231f40203bf307c",
+    "exit": 0,
+    "output": "verified-origin: a536aa9f6ad16f3aa8353c532231f40203bf307c\nprimary-activation: pending human-owned fresh-process handover\n"
+  },
+  {
+    "primary_unchanged": "c66024ad4a43c842ecb4caa16543a42c6b44eda3",
+    "canonical_unchanged": "87ff10e824d2035f7180bd16f8f65a5849f4c090",
+    "activation": "not performed"
+  },
+  {
+    "scenario": "divergent"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/divergent/fork.git main a720351554fd02c579c1ce1e8d6fc4448dd296b8 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/divergent/canonical.git main 8f93aaa09f041c1ef5245e6d3a6ca70589df38d2 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/divergent/record",
+    "exit": 0,
+    "output": "preparation: divergent a720351554fd02c579c1ce1e8d6fc4448dd296b8..11c9e458b781de2d594475f61a42e68cb88d946f\nfork-head: a720351554fd02c579c1ce1e8d6fc4448dd296b8\nupstream-head: 8f93aaa09f041c1ef5245e6d3a6ca70589df38d2\ncandidate: 11c9e458b781de2d594475f61a42e68cb88d946f\ntree: e6264e16685abcd27fedbb50eebbc9cda22deaff\nconflict-history: clean\n"
+  },
+  {
+    "command": "bash /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/divergent/task/bin/tool.sh",
+    "exit": 0,
+    "output": "upstream\n"
+  },
+  {
+    "command": "bash /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/divergent/task/personal.sh",
+    "exit": 0,
+    "output": "personal-interoperability-ok\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --qualify-upstream --focused /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/divergent/record 11c9e458b781de2d594475f61a42e68cb88d946f 11c9e458b781de2d594475f61a42e68cb88d946f 9fdea6a1ec65db0077b6fecba508e8c71f11234f a720351554fd02c579c1ce1e8d6fc4448dd296b8 9fdea6a1ec65db0077b6fecba508e8c71f11234f clean /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/divergent/execution.txt",
+    "exit": 0,
+    "output": "qualified-head: 11c9e458b781de2d594475f61a42e68cb88d946f\nconflict-history: clean\nevidence-kind: focused\n"
+  },
+  {
+    "recorded_evidence": "11c9e458b781de2d594475f61a42e68cb88d946f focused 5e7943bd9fa02f21392ce752f7181d0782297b48 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/divergent/execution.txt\n",
+    "qualifications": "11c9e458b781de2d594475f61a42e68cb88d946f 11c9e458b781de2d594475f61a42e68cb88d946f 9fdea6a1ec65db0077b6fecba508e8c71f11234f a720351554fd02c579c1ce1e8d6fc4448dd296b8 9fdea6a1ec65db0077b6fecba508e8c71f11234f e6264e16685abcd27fedbb50eebbc9cda22deaff\n",
+    "events": "unknown\nclean\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --qualify-upstream --focused /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/divergent/record 11c9e458b781de2d594475f61a42e68cb88d946f a720351554fd02c579c1ce1e8d6fc4448dd296b8 9fdea6a1ec65db0077b6fecba508e8c71f11234f a720351554fd02c579c1ce1e8d6fc4448dd296b8 9fdea6a1ec65db0077b6fecba508e8c71f11234f clean /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/divergent/execution.txt",
+    "exit": 1,
+    "output": "update refused: final-head inspection/test coverage unavailable; revalidate the final integration head or stop\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --qualify-upstream --focused /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/divergent/record 11c9e458b781de2d594475f61a42e68cb88d946f 11c9e458b781de2d594475f61a42e68cb88d946f c510acf6518ea1770fc3c66c7a71dc74d44aad2d a720351554fd02c579c1ce1e8d6fc4448dd296b8 c510acf6518ea1770fc3c66c7a71dc74d44aad2d clean /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/divergent/execution.txt",
+    "exit": 1,
+    "output": "update refused: tested merge provenance must have exact base,H parents\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --verify-landed /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/divergent/record 9fdea6a1ec65db0077b6fecba508e8c71f11234f",
+    "exit": 0,
+    "output": "verified-origin: 9fdea6a1ec65db0077b6fecba508e8c71f11234f\nprimary-activation: pending human-owned fresh-process handover\n"
+  },
+  {
+    "primary_unchanged": "a720351554fd02c579c1ce1e8d6fc4448dd296b8",
+    "canonical_unchanged": "8f93aaa09f041c1ef5245e6d3a6ca70589df38d2",
+    "activation": "not performed"
+  },
+  {
+    "scenario": "conflict"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/conflict/fork.git main f5a8fdbfbeb5930767c0d8b4ee98c7e0b6e4cde8 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/conflict/canonical.git main 769108cab3e38d43b66b22c534d90de8f89af80e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/conflict/record",
+    "exit": 1,
+    "output": "update refused: integration failed; preserve index, paths and task evidence for resolution/approval\n"
+  },
+  {
+    "command": "bash /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/conflict/task/bin/tool.sh",
+    "exit": 0,
+    "output": "upstream\n"
+  },
+  {
+    "command": "bash /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/conflict/task/personal.sh",
+    "exit": 0,
+    "output": "personal-interoperability-ok\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --qualify-upstream --focused /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/conflict/record 5d0ae751c0748c40ad45debb51fe0e1723d9acde 5d0ae751c0748c40ad45debb51fe0e1723d9acde e5e473bd9226663b06f4eafbf819b17159c4a354 f5a8fdbfbeb5930767c0d8b4ee98c7e0b6e4cde8 e5e473bd9226663b06f4eafbf819b17159c4a354 clean /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/conflict/execution.txt",
+    "exit": 0,
+    "output": "qualified-head: 5d0ae751c0748c40ad45debb51fe0e1723d9acde\nconflict-history: conflicted\nevidence-kind: focused\nresolution-evidence-required: conflict resolution bound to 5d0ae751c0748c40ad45debb51fe0e1723d9acde\n"
+  },
+  {
+    "recorded_evidence": "5d0ae751c0748c40ad45debb51fe0e1723d9acde focused dc6b299df9b8a9595585bec717fed1422ee1edf4 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/conflict/execution.txt\n",
+    "qualifications": "5d0ae751c0748c40ad45debb51fe0e1723d9acde 5d0ae751c0748c40ad45debb51fe0e1723d9acde e5e473bd9226663b06f4eafbf819b17159c4a354 f5a8fdbfbeb5930767c0d8b4ee98c7e0b6e4cde8 e5e473bd9226663b06f4eafbf819b17159c4a354 0d314857db3f359158fffbe2afdade50c0364e50\n",
+    "events": "unknown\nconflicted\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --qualify-upstream --focused /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/conflict/record 5d0ae751c0748c40ad45debb51fe0e1723d9acde f5a8fdbfbeb5930767c0d8b4ee98c7e0b6e4cde8 e5e473bd9226663b06f4eafbf819b17159c4a354 f5a8fdbfbeb5930767c0d8b4ee98c7e0b6e4cde8 e5e473bd9226663b06f4eafbf819b17159c4a354 clean /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/conflict/execution.txt",
+    "exit": 1,
+    "output": "update refused: final-head inspection/test coverage unavailable; revalidate the final integration head or stop\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --qualify-upstream --focused /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/conflict/record 5d0ae751c0748c40ad45debb51fe0e1723d9acde 5d0ae751c0748c40ad45debb51fe0e1723d9acde 47d4ef121fa1fc19840d2f7528682858ca0718cd f5a8fdbfbeb5930767c0d8b4ee98c7e0b6e4cde8 47d4ef121fa1fc19840d2f7528682858ca0718cd clean /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/conflict/execution.txt",
+    "exit": 1,
+    "output": "update refused: tested merge provenance must have exact base,H parents\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --verify-landed /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/conflict/record e5e473bd9226663b06f4eafbf819b17159c4a354",
+    "exit": 0,
+    "output": "verified-origin: e5e473bd9226663b06f4eafbf819b17159c4a354\nprimary-activation: pending human-owned fresh-process handover\n"
+  },
+  {
+    "primary_unchanged": "f5a8fdbfbeb5930767c0d8b4ee98c7e0b6e4cde8",
+    "canonical_unchanged": "769108cab3e38d43b66b22c534d90de8f89af80e",
+    "activation": "not performed"
+  },
+  {
+    "scenario": "ancestry-only"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --prepare-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/ancestry-only/fork.git main a0f05cf90d1ef796e67ee802099bb5731f514426 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/ancestry-only/canonical.git main 15a26e1f36b51752d8ed2bd47cef13a53321a023 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/ancestry-only/record",
+    "exit": 0,
+    "output": "preparation: fast-forward a0f05cf90d1ef796e67ee802099bb5731f514426..15a26e1f36b51752d8ed2bd47cef13a53321a023\nfork-head: a0f05cf90d1ef796e67ee802099bb5731f514426\nupstream-head: 15a26e1f36b51752d8ed2bd47cef13a53321a023\ncandidate: 15a26e1f36b51752d8ed2bd47cef13a53321a023\ntree: fe3530b7bd80abe1871d8afe92a6b5beb2d5ce61\nconflict-history: clean\n"
+  },
+  {
+    "command": "bash /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/ancestry-only/task/bin/tool.sh",
+    "exit": 0,
+    "output": "baseline\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --qualify-upstream --focused /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/ancestry-only/record 15a26e1f36b51752d8ed2bd47cef13a53321a023 15a26e1f36b51752d8ed2bd47cef13a53321a023 4137899ca6848133a89c2f74cc88dd9e8e84f887 a0f05cf90d1ef796e67ee802099bb5731f514426 4137899ca6848133a89c2f74cc88dd9e8e84f887 clean /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/ancestry-only/execution.txt",
+    "exit": 0,
+    "output": "qualified-head: 15a26e1f36b51752d8ed2bd47cef13a53321a023\nconflict-history: clean\nevidence-kind: focused\n"
+  },
+  {
+    "recorded_evidence": "15a26e1f36b51752d8ed2bd47cef13a53321a023 focused 0b90e02abf2f604239e3b6f36313ff75feba4a40 /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/ancestry-only/execution.txt\n",
+    "qualifications": "15a26e1f36b51752d8ed2bd47cef13a53321a023 15a26e1f36b51752d8ed2bd47cef13a53321a023 4137899ca6848133a89c2f74cc88dd9e8e84f887 a0f05cf90d1ef796e67ee802099bb5731f514426 4137899ca6848133a89c2f74cc88dd9e8e84f887 fe3530b7bd80abe1871d8afe92a6b5beb2d5ce61\n",
+    "events": "unknown\nclean\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --qualify-upstream --focused /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/ancestry-only/record 15a26e1f36b51752d8ed2bd47cef13a53321a023 a0f05cf90d1ef796e67ee802099bb5731f514426 4137899ca6848133a89c2f74cc88dd9e8e84f887 a0f05cf90d1ef796e67ee802099bb5731f514426 4137899ca6848133a89c2f74cc88dd9e8e84f887 clean /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/ancestry-only/execution.txt",
+    "exit": 1,
+    "output": "update refused: final-head inspection/test coverage unavailable; revalidate the final integration head or stop\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --qualify-upstream --focused /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/ancestry-only/record 15a26e1f36b51752d8ed2bd47cef13a53321a023 15a26e1f36b51752d8ed2bd47cef13a53321a023 fc0acf08e4df3e2573092200e36177581bc39786 a0f05cf90d1ef796e67ee802099bb5731f514426 fc0acf08e4df3e2573092200e36177581bc39786 clean /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/ancestry-only/execution.txt",
+    "exit": 1,
+    "output": "update refused: tested merge provenance must have exact base,H parents\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --qualify-upstream /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/ancestry-only/record 15a26e1f36b51752d8ed2bd47cef13a53321a023 15a26e1f36b51752d8ed2bd47cef13a53321a023 4137899ca6848133a89c2f74cc88dd9e8e84f887 a0f05cf90d1ef796e67ee802099bb5731f514426 4137899ca6848133a89c2f74cc88dd9e8e84f887 clean /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/ancestry-only/execution.txt",
+    "exit": 1,
+    "output": "update refused: ancestry-only candidate: supported checked publication evidence unavailable; no fake edit or skipped-phase attestation\n"
+  },
+  {
+    "command": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/bin/fm-update.sh --verify-landed /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5V07C9A1K8EEEJXH4YW0C4V/.test-phase-tmp/live-cli/ancestry-only/record 4137899ca6848133a89c2f74cc88dd9e8e84f887",
+    "exit": 0,
+    "output": "verified-origin: 4137899ca6848133a89c2f74cc88dd9e8e84f887\nprimary-activation: pending human-owned fresh-process handover\n"
+  },
+  {
+    "primary_unchanged": "a0f05cf90d1ef796e67ee802099bb5731f514426",
+    "canonical_unchanged": "15a26e1f36b51752d8ed2bd47cef13a53321a023",
+    "activation": "not performed"
+  },
+  {
+    "result": "all direct CLI assertions passed"
+  }
+]
