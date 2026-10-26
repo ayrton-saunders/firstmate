@@ -3,7 +3,7 @@
 Thanks for wanting to contribute.
 One rule up front:
 
-**Human-authored pull requests targeting `main` must be raised through [`no-mistakes`](https://github.com/kunchenguid/no-mistakes).**
+**Human-authored pull requests targeting `main` must be raised through [`no-mistakes`](https://github.com/kunchenguid/no-mistakes), except for the personal-fork focused allowance below.**
 We require this to reduce the maintainer's burden of reviewing and merging contributions.
 
 `no-mistakes` puts a local git proxy in front of your real remote.
@@ -13,6 +13,17 @@ A GitHub Actions check (`Require no-mistakes`) runs on PRs targeting `main` and 
 The attestation must bind to the current PR head commit and report the review, test, and document steps as completed, so a stale attestation, a missing `head_sha`, or a skipped required step fails.
 It evaluates every PR opening and body edit independently, reruns after head synchronization or reopening, and prevents a later edit from replacing an earlier pending compliance check.
 GitHub Actions and Dependabot are exempt so their automation keeps working, but other contributor PRs that do not satisfy the attestation contract will not be reviewed or merged.
+
+On the personal fork `ayrton-saunders/firstmate`, the same required context also accepts a fresh focused canonical integration qualified by the base-sourced [focused checker](.github/verify-focused-upstream.py).
+Its current supported boundary is a clean integration with unchanged personal paths; conflicts, repairs, and overlapping personal-path changes are refused rather than treated as reviewed.
+The original pull-request producer and native action remain in place for ordinary personal features, including the first installation when the base does not yet contain the focused checker.
+A focused declaration on that older base is refused, not redirected into native acceptance.
+Canonical and other repositories retain their existing native behavior.
+
+This accommodation retains the existing repository CI trust model, not independent authentication of the workflow producing an Actions context.
+Workflow/context substitution remains a pre-existing limitation, as does the native verifier's author-editable PR-body attestation; neither is fixed by the focused checker.
+Controlled executable fixtures verify the focused decision and sandbox boundaries, not actual hosted publication or universal malicious-workflow prevention.
+All other required contexts and their Actions app bindings remain unchanged.
 
 ## Workflow
 
@@ -86,7 +97,7 @@ Coordinate any workflow rollback with its required-check names so a retired chec
 
 ## Development
 
-Tracked changes to firstmate itself - `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `.tasks.toml`, `.github/workflows/`, `bin/`, `.agents/skills/`, and `skills/` - ship through the `no-mistakes` pipeline on a feature branch and require an explicit merge approval.
+Tracked changes to firstmate itself - `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `.tasks.toml`, `.github/workflows/`, `bin/`, `.agents/skills/`, and `skills/` - ship through the `no-mistakes` pipeline on a feature branch and require an explicit merge approval, except for upstream integrations governed by the [`updatefirstmate` skill](.agents/skills/updatefirstmate/SKILL.md).
 Before making any such change, load the agent-only `firstmate-coding-guidelines` skill (`.agents/skills/firstmate-coding-guidelines/SKILL.md`).
 It has the knowledge-placement rules that keep `AGENTS.md` from regrowing after each diet pass.
 Firstmate adds this skill's load line to firstmate-repo briefs by hand; the [coding-guidelines skill](.agents/skills/firstmate-coding-guidelines/SKILL.md#trigger-hygiene) owns the scaffold's detection limits.

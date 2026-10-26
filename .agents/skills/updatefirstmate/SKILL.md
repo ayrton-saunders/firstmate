@@ -51,7 +51,8 @@ For prose-only behavior, retain real evaluation evidence; file/source-string pre
 
 Publish the integration branch and open a genuine fork-only PR through the ordinary forge path, then require every applicable original forge check and verify its actual producer at final H.
 Recheck actual fork-only destinations immediately before publication.
-A required no-mistakes compliance check is not waived by this policy: if it rejects focused upstream publication, preserve the local result and report the minimal separately unapproved compliance adjustment rather than fabricating native attestation, changing workflow exemptions/rules or borrowing another PR's waiver.
+[`CONTRIBUTING.md`](../../../CONTRIBUTING.md) owns the personal-fork focused compliance allowance and its currently supported boundary.
+If required compliance rejects the integration, preserve the local result and report the concrete blocker rather than fabricating native attestation, changing workflow exemptions/rules or borrowing another PR's waiver.
 Personal feature validation remains owned by its normal no-mistakes pipeline, not this integration path.
 
 Keep one qualification package in the existing integration task:
