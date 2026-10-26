@@ -6,8 +6,9 @@ The CLI checks correspondence only, not inspection/execution or compliance.
 CURRENT_FACTS_JSON must come from fresh trusted forge lookups, not the PR body.
 The library's qualify_request composes live correspondence, retained inspection,
 fresh sandbox execution and a final publication recheck. It accepts no prior
-receipts. Trusted workflow execution/transport is required and is not supplied
-by this CLI. Conflicted or repaired integrations are conservatively refused.
+receipts. --workflow is the trusted-base Actions entry for fresh object
+transport, workflow-owned image construction and qualification. Conflicted or
+repaired integrations are conservatively refused.
 """
 
 import hashlib
@@ -469,7 +470,98 @@ def qualify_request(repository, git_repository, read_json, number, expected_head
     return receipt
 
 
+def fetch_current_objects(repository, facts):
+    """Acquire full histories from fixed public origins into a new object store.
+
+    No candidate checkout, credential helper, PR-selected URL or retained .git is
+    used. SHA fetches are bound to live facts and checked again by qualification.
+    """
+    os.mkdir(repository, 0o700)
+    subprocess.run(["git", "init", "--bare", "--quiet", repository], check=True)
+    git = Git(repository)
+    for origin, names in ((CANONICAL, ("U",)), (FORK, ("B", "H", "T"))):
+        for name in names:
+            sha = facts.get(name)
+            require(isinstance(sha, str) and SHA.fullmatch(sha),
+                    "invalid live fetch object")
+            git.run("-c", "credential.helper=", "-c", "core.hooksPath=/dev/null",
+                    "fetch", "--quiet", "--no-tags", "--no-recurse-submodules",
+                    "https://github.com/" + origin + ".git",
+                    sha + ":refs/qualification/" + name)
+            require(git.text("rev-parse", "refs/qualification/" + name) == sha,
+                    "fetched object differs from live publication")
+
+
+def workflow_request(repository, number, expected_head, workspace,
+                     evidence_directory, read_json=github_json):
+    """Actual trusted-base workflow entry, including fresh transport and image.
+
+    workspace contains only the current trusted base, never PR source. The
+    execution environment is built from its Dockerfile and selected by image ID.
+    Native requests neither fetch candidate objects nor execute candidate code.
+    """
+    if repository != FORK:
+        return {"route": "native"}
+    pr = read_json(f"/repos/{FORK}/pulls/{number}")
+    require(isinstance(pr, dict) and pr.get("number") == number,
+            "wrong live PR request")
+    claim = focused_claim(repository, pr.get("body"))
+    if claim is None:
+        return {"route": "native"}
+    facts = current_facts(read_json, number)
+    require(facts["H"] == expected_head, "event head is no longer current")
+    for name in ("source_repository", "fork_repository", "head_repository",
+                 "source_ref", "base_ref", "head_ref", "U", "B", "H", "T"):
+        require(claim[name] == facts[name], "declaration differs from live facts")
+    with tempfile.TemporaryDirectory(prefix="fm-focused-workflow-") as scratch:
+        objects = os.path.join(scratch, "objects.git")
+        fetch_current_objects(objects, facts)
+        # Build only trusted-base instructions, without token/build args or
+        # candidate context. Builder output never enters the Actions channel.
+        context = os.path.join(scratch, "empty-context")
+        os.mkdir(context)
+        result = subprocess.run(
+            ["docker", "build", "--quiet", "--file",
+             os.path.join(workspace, ".github/focused-upstream.Dockerfile"),
+             context],
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True,
+            timeout=300, check=False)
+        require(result.returncode == 0, "trusted execution image build failed")
+        image = result.stdout.strip()
+        require(re.fullmatch(r"sha256:[0-9a-f]{64}", image) is not None,
+                "missing immutable local execution image")
+        receipt = qualify_request(repository, objects, read_json, number,
+                                  expected_head, image, evidence_directory)
+        require(receipt.get("route") == "focused" and
+                receipt.get("claim") == claim and receipt.get("current") == facts,
+                "focused request changed after workflow routing")
+        return receipt
+
+
+def workflow_main():
+    try:
+        with open(os.environ["GITHUB_EVENT_PATH"], encoding="utf-8") as stream:
+            event = json.load(stream)
+        pr = event["pull_request"]
+        number, head = pr["number"], pr["head"]["sha"]
+        require(type(number) is int and number > 0 and
+                isinstance(head, str) and SHA.fullmatch(head), "invalid PR event")
+        result = workflow_request(
+            os.environ["GITHUB_REPOSITORY"], number, head,
+            os.environ["GITHUB_WORKSPACE"], os.environ["FM_FOCUSED_EVIDENCE"])
+        with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
+            stream.write("route=" + result["route"] + "\n")
+        return 0
+    except (Refusal, OSError, ValueError, KeyError,
+            subprocess.SubprocessError):
+        print("Focused workflow qualification refused; native fallback prohibited.",
+              file=sys.stderr)
+        return 1
+
+
 def main():
+    if sys.argv[1:] == ["--workflow"]:
+        return workflow_main()
     if len(sys.argv) != 4:
         print(__doc__, file=sys.stderr)
         return 2

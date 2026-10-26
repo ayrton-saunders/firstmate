@@ -2,7 +2,9 @@ name: Require no-mistakes
 run-name: "PR #${{ github.event.pull_request.number }} body compliance - ${{ github.event.action }} - event ${{ github.run_number }} (run ${{ github.run_id }})"
 
 on:
-  pull_request:
+  # Trusted base owns the decision code. Candidate code runs only in the
+  # token-free, network-free sandbox, never directly on this runner.
+  pull_request_target:
     types: [opened, edited, synchronize, reopened]
     branches:
       - main
@@ -27,7 +29,28 @@ jobs:
       github.event.pull_request.user.login != 'github-actions[bot]' &&
       github.event.pull_request.user.login != 'dependabot[bot]'
     steps:
+      - name: Read trusted base qualification code
+        if: github.repository == 'ayrton-saunders/firstmate'
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.base.sha }}
+          persist-credentials: false
+      - name: Qualify focused canonical integration or select native verification
+        if: github.repository == 'ayrton-saunders/firstmate'
+        id: focused
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          FM_FOCUSED_EVIDENCE: ${{ runner.temp }}/focused-evidence
+        run: python3 .github/verify-focused-upstream.py --workflow
+      - name: Retain fresh focused qualification evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: focused-qualification-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/focused-evidence
+          if-no-files-found: ignore
       - name: Verify no-mistakes signature and pipeline attestation
+        if: github.repository != 'ayrton-saunders/firstmate' || steps.focused.outputs.route == 'native'
         uses: kunchenguid/no-mistakes/.github/actions/require-no-mistakes@f6441c96c352a18b9cadcaef6b6c7017e9ac3970 # v1.80.1
         with:
           exempt-authors: kunchenguid

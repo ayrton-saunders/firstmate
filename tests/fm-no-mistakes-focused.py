@@ -623,6 +623,86 @@ class CorrespondenceTests(unittest.TestCase):
         self.assertFalse((failed / "execution/execution.json").exists())
         self.assertFalse((failed / "qualified.json").exists())
 
+    def test_workflow_entry_fetches_builds_and_qualifies_without_native_fallback(self):
+        if not shutil.which("docker") or subprocess.run(
+                ["docker", "info"], stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL, check=False).returncode:
+            if os.environ.get("CI"):
+                self.fail("hosted workflow integration requires Docker")
+            self.skipTest("Docker server required for workflow integration")
+        (self.repo / "tests").mkdir()
+        (self.repo / "tests/fm-update.test.sh").write_text(
+            '#!/bin/bash\nset -eu\n'
+            'test "$(cat canonical)" = "upstream behavior"\n'
+            'test "$(cat personal)" = "preserved personal behavior"\n'
+            'command -v git; command -v python3\n')
+        self.git("add", "tests")
+        self.git("commit", "-qm", "trusted base assertions")
+        self.common = self.git("rev-parse", "HEAD")
+        claim, _ = self.fixture()
+        claim["head_ref"] = "refs/heads/intake/upstream"
+        original = self.live_api(claim)
+        pr_path = f"/repos/{FOCUSED.FORK}/pulls/23"
+        original[pr_path]["body"] = self.declaration(claim)
+        # Only transport is redirected to real local Git object stores. The
+        # production fetch/init, correspondence, Dockerfile build, sandbox and
+        # final live-read decision all execute without success mocks.
+        os.environ["GIT_CONFIG_COUNT"] = "2"
+        for i, origin in enumerate((FOCUSED.CANONICAL, FOCUSED.FORK)):
+            os.environ[f"GIT_CONFIG_KEY_{i}"] = (
+                "url." + (self.repo / ".git").as_uri() + ".insteadOf")
+            os.environ[f"GIT_CONFIG_VALUE_{i}"] = "https://github.com/" + origin + ".git"
+
+        def invoke(replies, name, head=None, read=None):
+            return FOCUSED.workflow_request(
+                FOCUSED.FORK, 23, head or claim["H"], str(ROOT),
+                str(self.repo / name), read or replies.__getitem__)
+
+        receipt = invoke(original, "workflow-positive")
+        self.assertEqual(receipt["qualification"], "fresh-focused-proof")
+        self.assertTrue((self.repo / "workflow-positive/qualified.json").exists())
+        self.assertEqual(receipt["execution"]["T"], claim["T"])
+        with self.assertRaises(FileExistsError):
+            invoke(original, "workflow-positive")
+        for field, value in (("source_repository", "someone/firstmate"),
+                             ("fork_repository", "someone/firstmate"),
+                             ("H", self.common), ("B", self.common),
+                             ("T", self.common), ("U", self.common),
+                             ("evidence", "reused-success")):
+            with self.subTest(forged=field):
+                replies = copy.deepcopy(original)
+                replies[pr_path]["body"] = self.declaration({**claim, field: value})
+                # Even native-looking body data cannot rescue a focused refusal.
+                replies[pr_path]["body"] += '\n<!-- no-mistakes-pipeline-attestation:v1 {} -->'
+                with self.assertRaises(FOCUSED.Refusal):
+                    invoke(replies, "workflow-forged-" + field)
+        with self.assertRaises(FOCUSED.Refusal):
+            invoke(original, "workflow-stale-event", self.common)
+        personal = self.commit_file("personal-feature", "unrelated personal change\n")
+        wrong = {**claim, "H": personal,
+                 "T": self.commit_tree(self.git("rev-parse", personal + "^{tree}"),
+                                       claim["B"], personal)}
+        replies = self.live_api(wrong)
+        replies[pr_path]["body"] = self.declaration(wrong)
+        with self.assertRaises(FOCUSED.Refusal):
+            invoke(replies, "workflow-personal", personal)
+        native = copy.deepcopy(original)
+        native[pr_path]["body"] = "ordinary personal feature without native attestation"
+        self.assertEqual(invoke(native, "workflow-native"), {"route": "native"})
+        self.assertFalse((self.repo / "workflow-native").exists())
+        calls = 0
+
+        def switch_to_native(path):
+            nonlocal calls
+            calls += 1
+            # First selection + six live facts reads finish before fetch/build.
+            if calls > 7 and path == pr_path:
+                return copy.deepcopy(native[path])
+            return copy.deepcopy(original[path])
+
+        with self.assertRaisesRegex(FOCUSED.Refusal, "changed after workflow routing"):
+            invoke(original, "workflow-route-drift", read=switch_to_native)
+
     def test_cli_reports_only_correspondence_not_execution(self):
         claim, current = self.fixture()
         for filename, value in (("claim.json", claim), ("facts.json", current)):
