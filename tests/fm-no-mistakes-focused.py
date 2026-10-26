@@ -518,6 +518,111 @@ class CorrespondenceTests(unittest.TestCase):
             FOCUSED.execute_focused_tests(str(self.repo), {**result, "tree": self.common},
                                           image, str(self.repo / "retained-stale"))
 
+    def test_combined_qualification_requires_fresh_inspection_execution_and_publication(self):
+        if not shutil.which("docker"):
+            if os.environ.get("CI"):
+                self.fail("hosted combined qualification requires Docker")
+            self.skipTest("Docker is required for combined qualification coverage")
+        available = subprocess.run(["docker", "info"], stdout=subprocess.DEVNULL,
+                                   stderr=subprocess.DEVNULL, timeout=20, check=False)
+        if available.returncode:
+            if os.environ.get("CI"):
+                self.fail("hosted combined qualification requires a Docker server")
+            self.skipTest("Docker server unavailable")
+        image = os.environ.get("FM_FOCUSED_TEST_IMAGE", "ubuntu:24.04")
+        (self.repo / "tests").mkdir()
+        (self.repo / "tests/fm-update.test.sh").write_text(
+            '#!/bin/bash\nset -eu\n'
+            'test "$(cat canonical)" = "upstream behavior"\n'
+            'test "$(cat personal)" = "preserved personal behavior"\n')
+        self.git("add", "tests")
+        self.git("commit", "-qm", "base-owned acceptance assertions")
+        self.common = self.git("rev-parse", "HEAD")
+        claim, _ = self.fixture()
+        claim["head_ref"] = "refs/heads/intake/upstream"
+        original = self.live_api(claim)
+        pr_path = f"/repos/{FOCUSED.FORK}/pulls/23"
+        original[pr_path]["body"] = self.declaration(claim)
+
+        def qualify(replies, directory, read=None):
+            return FOCUSED.qualify_request(
+                FOCUSED.FORK, str(self.repo), read or replies.__getitem__, 23,
+                claim["H"], image, str(directory))
+
+        evidence = self.repo / "combined-positive"
+        receipt = qualify(original, evidence)
+        self.assertEqual(receipt["qualification"], "fresh-focused-proof")
+        self.assertEqual(receipt["inspection"]["H"], claim["H"])
+        self.assertEqual(receipt["execution"]["T"], claim["T"])
+        self.assertEqual(json.loads((evidence / "qualified.json").read_text()), receipt)
+        with self.assertRaises(FileExistsError):
+            qualify(original, evidence)
+        # Native-only routing produces no focused receipt and does not attempt
+        # focused execution. This is preservation, not native authentication.
+        native = copy.deepcopy(original)
+        native[pr_path]["body"] = "ordinary personal native request"
+        untouched = self.repo / "native-no-focused-proof"
+        self.assertEqual(qualify(native, untouched), {"route": "native"})
+        self.assertFalse(untouched.exists())
+        forged = copy.deepcopy(original)
+        forged[pr_path]["body"] = self.declaration({**claim, "evidence": "passed"})
+        refused = self.repo / "forged-no-proof"
+        with self.assertRaises(FOCUSED.Refusal):
+            qualify(forged, refused)
+        self.assertFalse(refused.exists())
+
+        # Every case executes genuine sandboxed acceptance assertions first.
+        # An old successful receipt cannot authorize a changed publication or a
+        # switch back to native while that execution was in progress.
+        for change in ("body", "U", "B", "H", "T", "repository-id"):
+            with self.subTest(changed_after_execution=change):
+                replies = copy.deepcopy(original)
+                calls = 0
+
+                def changed_on_refresh(path):
+                    nonlocal calls
+                    calls += 1
+                    if calls == 8:
+                        if change == "body":
+                            replies[pr_path]["body"] = "native-only replacement"
+                        elif change == "T":
+                            replies[pr_path]["merge_commit_sha"] = self.common
+                        elif change == "repository-id":
+                            replies["/repos/" + FOCUSED.CANONICAL]["id"] = 101
+                        else:
+                            repo = FOCUSED.CANONICAL if change == "U" else FOCUSED.FORK
+                            ref = "intake%2Fupstream" if change == "H" else "main"
+                            replies[f"/repos/{repo}/git/ref/heads/{ref}"][
+                                "object"]["sha"] = self.common
+                            if change in ("B", "H"):
+                                side = "base" if change == "B" else "head"
+                                replies[pr_path][side]["sha"] = self.common
+                    return copy.deepcopy(replies[path])
+
+                failed = self.repo / ("combined-drift-" + change)
+                with self.assertRaises(FOCUSED.Refusal):
+                    qualify(replies, failed, changed_on_refresh)
+                self.assertTrue((failed / "inspection/inspection.json").exists())
+                self.assertTrue((failed / "execution/execution.json").exists())
+                self.assertFalse((failed / "qualified.json").exists())
+
+        # A valid upstream correspondence is insufficient when actual personal
+        # behavior fails; partial inspection evidence never becomes a verdict.
+        self.git("checkout", "-q", "--detach", claim["U"])
+        u = self.commit_file("canonical", "broken upstream behavior\n")
+        tree = self.git("merge-tree", "--write-tree", claim["O"], u)
+        h = self.commit_tree(tree, claim["O"], u)
+        t = self.commit_tree(tree, claim["O"], h)
+        claim.update(U=u, H=h, T=t)
+        broken = self.live_api(claim)
+        broken[pr_path]["body"] = self.declaration(claim)
+        failed = self.repo / "combined-broken-behavior"
+        with self.assertRaisesRegex(FOCUSED.Refusal, "behavior tests failed"):
+            qualify(broken, failed)
+        self.assertTrue((failed / "inspection/inspection.json").exists())
+        self.assertFalse((failed / "execution/execution.json").exists())
+        self.assertFalse((failed / "qualified.json").exists())
+
     def test_cli_reports_only_correspondence_not_execution(self):
         claim, current = self.fixture()
         for filename, value in (("claim.json", claim), ("facts.json", current)):

@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
-"""Git correspondence component of focused-upstream compliance.
+"""Focused-upstream proof components for a trusted workflow caller.
 
 Usage: verify-focused-upstream.py REPOSITORY CLAIM_JSON CURRENT_FACTS_JSON
-CURRENT_FACTS_JSON must come from the trusted workflow's fresh forge lookups,
-not the PR body. This component checks identities and reconstructs clean Git
-integration; it does NOT authenticate inspection/execution evidence or grant
-compliance. Its output must never substitute for those remaining checks.
-Conflicted or repaired integrations need additional proof and are refused here.
+The CLI checks correspondence only, not inspection/execution or compliance.
+CURRENT_FACTS_JSON must come from fresh trusted forge lookups, not the PR body.
+The library's qualify_request composes live correspondence, retained inspection,
+fresh sandbox execution and a final publication recheck. It accepts no prior
+receipts. Trusted workflow execution/transport is required and is not supplied
+by this CLI. Conflicted or repaired integrations are conservatively refused.
 """
 
 import hashlib
@@ -204,6 +205,7 @@ def current_facts(read_json, number):
     t = pr.get("merge_commit_sha")
     require(isinstance(t, str) and SHA.fullmatch(t), "missing current tested merge")
     return {"source_repository": CANONICAL, "fork_repository": FORK,
+            "source_id": source["id"], "fork_id": fork["id"],
             "head_repository": FORK, "source_ref": "refs/heads/" + defaults[0],
             "source_default": "refs/heads/" + defaults[0],
             "base_ref": "refs/heads/" + defaults[1],
@@ -428,6 +430,41 @@ def execute_focused_tests(repository, correspondence, image, evidence_directory)
                    test="bash tests/fm-update.test.sh", log_sha256=digest,
                    inspection_evidence="not-verified")
     with open(os.path.join(evidence, "execution.json"), "x", encoding="utf-8") as stream:
+        json.dump(receipt, stream, sort_keys=True)
+    return receipt
+
+
+def qualify_request(repository, git_repository, read_json, number, expected_head,
+                    image, evidence_directory):
+    """Compose fresh proof, inspection and execution, then recheck publication.
+
+    Only trusted workflow code may call this with a workflow-owned Git object
+    store, image and new evidence directory. No receipt is accepted as input.
+    Failure is terminal, never permission to retry through the native action.
+    Workflow transport/required-context wiring remains a separate caller concern.
+    """
+    request = verify_request(repository, git_repository, read_json, number,
+                             expected_head)
+    if request["route"] == "native":
+        return request
+    evidence = os.path.abspath(evidence_directory)
+    os.mkdir(evidence, 0o700)
+    inspection = inspect_personal_delta(
+        git_repository, request["claim"], request["current"],
+        os.path.join(evidence, "inspection"))
+    execution = execute_focused_tests(
+        git_repository, request, image, os.path.join(evidence, "execution"))
+    # A test run cannot qualify a later body, canonical tip, fork base, head or
+    # tested merge. Refetch the full request, not merely the event's head SHA.
+    refreshed = verify_request(repository, git_repository, read_json, number,
+                               expected_head)
+    require(refreshed == request,
+            "focused request changed during inspection/execution")
+    receipt = {key: request[key] for key in ("H", "B", "T", "tree")}
+    receipt.update(route="focused", qualification="fresh-focused-proof",
+                   claim=request["claim"], current=request["current"],
+                   inspection=inspection, execution=execution)
+    with open(os.path.join(evidence, "qualified.json"), "x", encoding="utf-8") as stream:
         json.dump(receipt, stream, sort_keys=True)
     return receipt
 
