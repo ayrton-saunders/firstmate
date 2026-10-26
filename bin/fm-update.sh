@@ -65,7 +65,7 @@
 #
 # Usage: fm-update.sh [--help | --consume-origin <full-sha>]
 #        fm-update.sh --prepare-upstream <fork-url> <fork-default> <O> <canonical-url> <canonical-default> <U> <task-record-dir>
-#        fm-update.sh --qualify-upstream <task-record-dir> <H> <review-head> <test-head> <base> <tested-merge> <pipeline-history> <evidence-file>
+#        fm-update.sh --qualify-upstream [--focused] <task-record-dir> <H> <inspection-head> <test-head> <base> <tested-merge> <integration-history> <evidence-file>
 #        fm-update.sh --verify-landed <task-record-dir> <M>
 # No arguments retain the origin-only, best-effort fleet update contract.
 # Pinned consumption refuses before secondmates/actions on any primary skip.
@@ -75,11 +75,16 @@
 # publication, validation, active-home movement or restart actions. The caller
 # supplies a new private task-record directory outside that copy; repeated calls
 # reuse its exact identity and retain unknown/ever-conflicted provenance.
-# Qualification is a local proof check, not a pipeline attestation: the caller
-# must obtain actual Review/Test heads from supported normal pipeline evidence.
-# Only exact final-tree evidence is supported here: base must be in H and the
-# tested merge must have H's tree (Test may cover H or that tested merge).
-# Missing repair-delta coverage/custody or empty-diff publication support stops;
+# Qualification is a local correspondence check, not authenticated attestation.
+# By default inspection/test heads name actual native Review/Test evidence.
+# --focused instead names actual upstream integration inspection and executable
+# interoperability test evidence; it never represents completed native stages.
+# The caller retains substantive inspection of the personal delta/resolutions
+# and exact commands/results in evidence-file, not just a hash or a green claim.
+# Both modes require final-head inspection, base in H, and a tested merge with
+# H's tree (tests may cover H or that merge). Missing final coverage stops.
+# Focused mode supports ancestry-only upstream uptake, but not H equal to base.
+# Forge checks/producer verification and merge authority remain external duties;
 # this helper never repairs a dependency, fabricates evidence or grants authority.
 # Qualification checks the published task head, current fork base and canonical
 # target. tested-merge must have exactly base,H parents. Landing verification
@@ -102,7 +107,7 @@ usage() {
   printf '%s\n' \
     'usage: fm-update.sh [--consume-origin <full-sha>]' \
     '       fm-update.sh --prepare-upstream <fork-url> <fork-default> <O> <canonical-url> <canonical-default> <U> <task-record-dir>' \
-    '       fm-update.sh --qualify-upstream <task-record-dir> <H> <review-head> <test-head> <base> <tested-merge> <pipeline-history> <evidence-file>' \
+    '       fm-update.sh --qualify-upstream [--focused] <task-record-dir> <H> <inspection-head> <test-head> <base> <tested-merge> <integration-history> <evidence-file>' \
     '       fm-update.sh --verify-landed <task-record-dir> <M>' >&2
 }
 
@@ -243,6 +248,8 @@ prepare_upstream() {
 }
 
 qualify_upstream() {
+  local evidence_kind=native
+  if [ "${1:-}" = --focused ]; then evidence_kind=focused; shift; fi
   [ "$#" -eq 8 ] || { usage; exit 2; }
   update_record "$1"
   local h=$2 review=$3 tested=$4 base=$5 merge=$6 pipeline_history=$7 evidence=$8 evidence_hash published
@@ -255,9 +262,9 @@ qualify_upstream() {
       ;;
     *) printf 'unknown\n' >> "$RECORD/events"; update_refuse 'pipeline conflict provenance unknown; preserve evidence and stop' ;;
   esac
-  # Evidence is retained verbatim as task material by the caller, not synthesized
-  # by this proof checker. It must name the actual normal Review/Test results.
-  [ -f "$evidence" ] && [ -s "$evidence" ] || update_refuse 'missing actual pipeline evidence artifact'
+  # Artifacts are caller-supplied task material, not authenticated by this check.
+  # Their fingerprint records identity, never proof that inspection/tests ran.
+  [ -f "$evidence" ] && [ -s "$evidence" ] || update_refuse 'missing actual inspection/test evidence artifact'
   evidence="$(resolved_existing_dir "$(dirname "$evidence")")/$(basename "$evidence")"
   evidence_hash=$(git -C "$FM_ROOT" hash-object "$evidence") || update_refuse 'cannot fingerprint actual evidence'
   update_clean
@@ -265,7 +272,7 @@ qualify_upstream() {
   [ "$HISTORY" != unknown ] || update_refuse 'unknown conflict history is ineligible for automatic landing'
   if ! { update_sha "$review" && update_sha "$tested" && update_sha "$base" && update_sha "$merge"; }; then update_refuse 'qualification requires full evidence SHAs'; fi
   if ! { [ "$review" = "$h" ] && { [ "$tested" = "$h" ] || [ "$tested" = "$merge" ]; }; }; then
-    update_refuse 'final-head Review/Test coverage unavailable; use supported narrow normal revalidation or stop'
+    update_refuse 'final-head inspection/test coverage unavailable; revalidate the final integration head or stop'
   fi
   update_observed "$FORK_URL" "$FORK_DEFAULT" "$base"
   update_observed "$UPSTREAM_URL" "$UPSTREAM_DEFAULT" "$U"
@@ -278,15 +285,22 @@ qualify_upstream() {
     && [ "$(git -C "$FM_ROOT" rev-parse "$merge^{tree}")" = "$(git -C "$FM_ROOT" rev-parse "$h^{tree}")" ]; }; then
     update_refuse 'base or tested tree differs from final reviewed tree; supported normal revalidation required'
   fi
-  if git -C "$FM_ROOT" diff --quiet "$base" "$h" --; then
+  [ "$h" != "$base" ] || update_refuse 'no integration to publish; consume the verified origin instead'
+  if [ "$evidence_kind" = native ] && git -C "$FM_ROOT" diff --quiet "$base" "$h" --; then
     update_refuse 'ancestry-only candidate: supported checked publication evidence unavailable; no fake edit or skipped-phase attestation'
   fi
   [ ! -L "$RECORD/qualifications" ] && [ ! -L "$RECORD/evidence" ] || update_refuse 'unsafe qualification path'
-  printf '%s %s %s\n' "$h" "$evidence_hash" "$evidence" >> "$RECORD/evidence"
+  printf '%s %s %s %s\n' "$h" "$evidence_kind" "$evidence_hash" "$evidence" >> "$RECORD/evidence"
   # Append snapshots; movement invalidates earlier qualification without deleting it.
   printf '%s %s %s %s %s %s\n' "$h" "$review" "$tested" "$base" "$merge" "$(git -C "$FM_ROOT" rev-parse "$merge^{tree}")" >> "$RECORD/qualifications"
-  printf 'qualified-head: %s\nconflict-history: %s\n' "$h" "$HISTORY"
-  [ "$HISTORY" != conflicted ] || printf 'approval-required: conflict resolution bound to %s\n' "$h"
+  printf 'qualified-head: %s\nconflict-history: %s\nevidence-kind: %s\n' "$h" "$HISTORY" "$evidence_kind"
+  if [ "$HISTORY" = conflicted ]; then
+    if [ "$evidence_kind" = native ]; then
+      printf 'approval-required: conflict resolution bound to %s\n' "$h"
+    else
+      printf 'resolution-evidence-required: conflict resolution bound to %s\n' "$h"
+    fi
+  fi
 }
 verify_landed() {
   [ "$#" -eq 2 ] || { usage; exit 2; }
