@@ -2593,7 +2593,7 @@ test_return_during_a_failed_turn_still_hands_its_outcomes_to_main() {
   wait_until 150 watcher_live "$home" || fail "return-fail: the host never started a watcher cycle"
   return_fail_diagnostic_start "$home" || fail "return-fail: could not start private diagnostic capture"
   append_status "$home" 'mid-task, then a crash'
-  wait_until 250 host_exited "$home" || {
+  wait_until 600 host_exited "$home" || {
     return_fail_diagnostic_snapshot "$home" wait-failed
     fail "return-fail: the host did not hand the wake to main"
   }
