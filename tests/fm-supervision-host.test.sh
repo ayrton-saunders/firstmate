@@ -220,6 +220,9 @@ suite_cleanup() {
   if [ -n "${RETURN_FAIL_DIAGNOSTIC_HOME:-}" ]; then
     return_fail_diagnostic_snapshot "$RETURN_FAIL_DIAGNOSTIC_HOME" before-cleanup
   fi
+  if [ -n "${DIALOG_RESTART_DIAGNOSTIC_HOME:-}" ]; then
+    dialog_restart_diagnostic_snapshot "$DIALOG_RESTART_DIAGNOSTIC_HOME" before-cleanup
+  fi
   while IFS= read -r home; do
     [ -n "$home" ] && stop_home_processes "$home"
   done < <(cat "$HOMES_FILE" 2>/dev/null)
@@ -2085,14 +2088,77 @@ quiet_pass_through_successor() {  # <home>
     || fail "fixture: could not acknowledge the successor downtime"
 }
 
+# Opt-in scalar evidence for this fixture only. Never copy dialog, prompts,
+# config, environment, command lines, or raw logs into the hosted artifact.
+# At most four restarts plus cleanup; no sampler or additional wait is needed.
+dialog_restart_diagnostic_snapshot() {  # <private home> <stage>
+  local home=$1 stage=$2 root=${FM_TEST_HOST_DIALOG_DIAGNOSTIC_DIR:-} file pid
+  [ -n "$root" ] || return 0
+  [ "$root" = "${RUNNER_TEMP:-/absent}/fm-test/host-dialog-restart" ] \
+    || fail "dialog-restart diagnostic destination is not the runner's private artifact directory"
+  [ "$home" = "$TMP_ROOT/mirror-boundary" ] \
+    || fail "dialog-restart diagnostic home is not this case's private fixture"
+  mkdir -p "$root" || return 1
+  {
+    printf 'epoch=%s restart=%s stage=%s\n' "$(date +%s)" "${DIALOG_RESTART_DIAGNOSTIC_STEP:-0}" "$stage"
+    for file in park.go host.rc host.out state/.watcher-down state/.watcher-down.lock \
+      state/.watch.lock state/.wake-queue state/.wake-queue.lock state/.supervision-host state/.supervision-host-left \
+      state/.supervision-host-turn state/.supervision-host.engine-pid; do
+      if [ -e "$home/$file" ]; then printf '%s present=1\n' "$file"; else printf '%s present=0\n' "$file"; fi
+    done
+    for file in host.rc park-clock; do
+      [ ! -f "$home/$file" ] || awk -v key="$file" '/^[0-9]+$/ { print key "=" $0 }' "$home/$file"
+    done
+    [ ! -f "$home/state/.watcher-down" ] || awk -F : '
+      ($1 == "pending" || $1 == "announced" || $1 == "acked") && ($2 == "handling" || $2 == "downtime") {
+        print "downtime_state=" $1; print "downtime_kind=" $2
+      }
+    ' "$home/state/.watcher-down"
+    [ ! -f "$home/state/.wake-queue" ] || awk 'END { print "queue_rows=" NR }' "$home/state/.wake-queue"
+    printf 'engine_calls=%s\n' "$(engine_calls "$home")"
+    if grep -q '^check: rearm-resurface' "$home/host.out" 2>/dev/null; then
+      printf 'resurface_result=1\n'
+    else
+      printf 'resurface_result=0\n'
+    fi
+    [ ! -f "$home/state/.supervision-host" ] || awk -F '\t' '
+      ($1 == "host" || $1 == "arm") && $2 ~ /^[0-9]+$/ { print $1 "_pid=" $2 }
+    ' "$home/state/.supervision-host"
+    for file in state/.watch.lock/pid state/.supervision-host.engine-pid state/.supervision-host-left; do
+      [ ! -f "$home/$file" ] || awk -F '\t' -v key="$file" '$1 ~ /^[0-9]+$/ { print key "=" $1 }' "$home/$file"
+    done
+    # Only exact PIDs recorded by this synthetic home, never a fleet scan.
+    {
+      [ ! -f "$home/claude-pids" ] || awk '/^[0-9]+$/ { print }' "$home/claude-pids"
+      [ ! -f "$home/state/.supervision-host" ] || awk -F '\t' '
+        ($1 == "host" || $1 == "arm") && $2 ~ /^[0-9]+$/ { print $2 }
+      ' "$home/state/.supervision-host"
+      for file in state/.watch.lock/pid state/.supervision-host.engine-pid state/.supervision-host-left \
+        state/.watcher-down.lock/pid state/.wake-queue.lock/pid; do
+        [ ! -f "$home/$file" ] || awk -F '\t' '$1 ~ /^[0-9]+$/ { print $1 }' "$home/$file"
+      done
+    } | sort -u | while IFS= read -r pid; do
+      printf 'owned_pid=%s\n' "$pid"
+      ps -p "$pid" -o pid=,ppid=,pgid=,etime=,state= 2>/dev/null || true
+    done
+  } > "$root/restart-${DIALOG_RESTART_DIAGNOSTIC_STEP:-0}-$stage.txt"
+}
+
 park_after_stop() {  # <home>
+  DIALOG_RESTART_DIAGNOSTIC_STEP=$(( ${DIALOG_RESTART_DIAGNOSTIC_STEP:-0} + 1 ))
+  dialog_restart_diagnostic_snapshot "$1" before-restart
   rm -f "$1/host.rc"
   : > "$1/park.go"
-  wait_until 150 host_exited "$1" || fail "the watcher's downtime resurface did not reach main: $(cat "$1/host.out")"
+  wait_until 150 host_exited "$1" || {
+    dialog_restart_diagnostic_snapshot "$1" wait-failed
+    fail "the watcher's downtime resurface did not reach main: $(cat "$1/host.out")"
+  }
+  dialog_restart_diagnostic_snapshot "$1" wait-completed
   assert_re '^check: rearm-resurface' "$1/host.out" "fixture: the first close after the watcher stopped was not its resurface"
   main_drain_and_ack "$1"
   quiet_pass_through_successor "$1"
   park_again "$1"
+  dialog_restart_diagnostic_snapshot "$1" next-park-ready
 }
 
 # Dialog counts as delivered only once the turn that carried it is accepted
@@ -2103,6 +2169,7 @@ park_after_stop() {  # <home>
 test_undelivered_dialog_is_fed_again_on_the_next_turn() {
   local home real_node second third fourth
   home=$(make_home mirror-boundary attended)
+  DIALOG_RESTART_DIAGNOSTIC_HOME=$home
   real_node=$(command -v node)
   cat > "$home/fakebin/node" <<SH
 #!/usr/bin/env bash
