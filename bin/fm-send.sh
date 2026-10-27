@@ -806,7 +806,7 @@ else
   # Optional parent-issued authority, before markers/correlation or delivery.
   if [ -e "$FM_HOME/config/discord-integration.json" ]; then
     DISCORD_ROUTE_INFO=$(printf '%s' "$MESSAGE" | FM_HOME="$FM_HOME" python3 -I "$SCRIPT_DIR/fm-discord-hook.py" send \
-      "$RAW_TARGET" "$T" "$TARGET_META") || exit 1
+      "$RAW_TARGET" "$T" "$TARGET_META" "$TARGET_BACKEND") || exit 1
     if [ -n "$DISCORD_ROUTE_INFO" ]; then
       DISCORD_ROUTE_CORR=${DISCORD_ROUTE_INFO%%|*}
       DISCORD_ROUTE_GEN=${DISCORD_ROUTE_INFO#*|}

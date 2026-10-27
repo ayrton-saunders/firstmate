@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Optional mapped-route parent lane guard, no Discord/SSH/model access.
 
-Usage: fm-discord-hook.py send <raw-target> <resolved-target> <meta-or-empty>
+Usage: fm-discord-hook.py send <raw-target> <resolved-target> <meta-or-empty> <backend>
        fm-discord-hook.py spawn <task-id> <canonical-project-directory>
        fm-discord-hook.py capacity-deferred <task-id> <canonical-project-directory>
        fm-discord-hook.py ready|outcome <note-id>|confirm-send local|remote <receipt>
@@ -162,25 +162,22 @@ def guard(args):
     project = None
     target = None
     generation = ''
-    if args[0] == 'send' and len(args) == 4:
-        _, raw, resolved, metadata = args
+    if args[0] == 'send' and len(args) == 5:
+        _, raw, resolved, metadata, candidate_backend = args
         for route in config['routes']:
             route_id = route['target']
             path = home / f'state/{route_id}.meta'
-            # Match both ordinary task selectors and the explicit-terminal
-            # escape hatch, using only explicitly configured route metadata.
-            endpoints = set()
-            if path.exists():
-                # The backend resolver owns all supported endpoint representations.
-                backend = Path(__file__).resolve().parent / 'fm-backend.sh'
-                result = subprocess.run(['/bin/bash', '-c', '. "$1"; fm_backend_target_of_meta "$2"', '_', str(backend), str(path)],
-                                        text=True, capture_output=True, timeout=5)
-                if result.returncode:
-                    raise ValueError('Mapped backend target could not be resolved')
-                endpoints = {result.stdout.strip()}
-                endpoints.discard('')
             direct = raw in (route_id, 'fm-' + route_id)
-            if direct or resolved in endpoints:
+            matches = False
+            if not direct and path.exists():
+                backend = Path(__file__).resolve().parent / 'fm-backend.sh'
+                result = subprocess.run(['/bin/bash', '-c', '. "$1"; fm_backend_target_matches_meta "$2" "$3" "$4"',
+                                         '_', str(backend), candidate_backend, resolved, str(path)],
+                                        text=True, capture_output=True, timeout=5)
+                if result.returncode not in (0, 1):
+                    raise ValueError('Mapped backend target could not be resolved')
+                matches = result.returncode == 0
+            if direct or matches:
                 if not direct or not metadata or Path(metadata).resolve() != path.resolve():
                     raise ValueError('Explicit-terminal text cannot bypass the mapped parent route')
                 project, target = route['project'], route_id
