@@ -799,6 +799,17 @@ else
     echo "error: a text steer requires a nonempty message; nothing was sent (an empty marked request would deliver only marker and correlation bytes and leave the parent waiting on a reply to nothing)" >&2
     exit 1
   fi
+  # Optional parent-issued authority, before markers/correlation or delivery.
+  if [ -e "$FM_HOME/config/discord-integration.json" ]; then
+    DISCORD_ROUTE_INFO=$(printf '%s' "$MESSAGE" | python3 -I "$SCRIPT_DIR/fm-discord-hook.py" send \
+      "$RAW_TARGET" "$T" "$TARGET_META") || exit 1
+    if [ -n "$DISCORD_ROUTE_INFO" ]; then
+      DISCORD_ROUTE_CORR=${DISCORD_ROUTE_INFO%%|*}
+      DISCORD_ROUTE_GEN=${DISCORD_ROUTE_INFO#*|}
+      [ -z "$DISCORD_ROUTE_CORR" ] || export FM_PENDING_REPLY_EXISTING_CORR="$DISCORD_ROUTE_CORR"
+      [ -z "$DISCORD_ROUTE_GEN" ] || export FM_SEND_EXPECTED_SPAWN_GEN="$DISCORD_ROUTE_GEN"
+    fi
+  fi
   if [ "$TARGET_BACKEND" = remote ]; then
     FM_SEND_REMOTE_BUDGET=${FM_SEND_REMOTE_BUDGET:-30}
     case "$FM_SEND_REMOTE_BUDGET" in
@@ -989,6 +1000,11 @@ else
       exit 1
     fi
     # The remote record is durable delivery, exactly as a local enqueue is.
+    if [ -n "${DISCORD_ROUTE_INFO:-}" ]; then
+      if ! python3 -I "$SCRIPT_DIR/fm-discord-hook.py" confirm-send remote "${PENDING_REPLY_CORR:-$FIRE_AND_FORGET_ID}"; then
+        echo 'warning: mapped steer delivered; reconcile its receipt, do not resend blindly' >&2
+      fi
+    fi
     if [ -n "$PENDING_REPLY_CORR" ]; then
       if fm_pending_reply_confirm_delivery "$STATE" "$PENDING_REPLY_CORR"; then
         :
@@ -1053,6 +1069,11 @@ else
       exit 1
     fi
     fm_lock_release "$INBOX_META_LOCK"
+    if [ -n "${DISCORD_ROUTE_INFO:-}" ]; then
+      if ! python3 -I "$SCRIPT_DIR/fm-discord-hook.py" confirm-send local "$INBOX_RECORD"; then
+        echo 'warning: mapped steer delivered; reconcile its receipt, do not resend blindly' >&2
+      fi
+    fi
     # Enqueue IS durable delivery to the task's record: mark the pending
     # expectation delivered now, without resolving it - only a correlated
     # parent report acknowledges the request.
