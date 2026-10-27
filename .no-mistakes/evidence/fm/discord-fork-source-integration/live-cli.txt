@@ -1,0 +1,134 @@
+/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l
+=== Real fm-send: absent configuration ===
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the requested message WILL still be sent.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+fm-send: doorbell not typed because the agent in primary:0 has exited; the steer is durably recorded at /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l/state/worker.inbox/001.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+exit=0 durable-records-before=0 after=1
+=== Real fm-inbox: absent capture/drain/reply/receipt ===
+{"schema":"fm-inbox-note.v1","outcome":"created","id":"1793122854-kr4IiR","request_id":"live-absent","saved":true,"announced":true,"acknowledged":false,"path":"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l/state/inbox/1793122854-kr4IiR.note"}
+1793122854-kr4IiR
+    isolated absent request
+
+Ack with: fm-inbox.sh drain --ack <id>...
+{"schema":"fm-inbox-reply.v1","outcome":"created","id":"1793122854-kr4IiR","path":"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l/state/inbox/.replies/1793122854-kr4IiR"}
+{"schema":"fm-inbox-receipts.v1","home":"01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l","generated":"2026-10-27T17:40:54Z","pending":[{"id":"1793122854-kr4IiR","at":"2026-10-27T17:40:54Z","source":"text","request_id":"live-absent","body":"isolated absent request","acknowledged":false,"announced":true,"reply":{"id":"1793122854-kr4IiR","at":"2026-10-27T17:40:54Z","body":"isolated absent reply","cursor":"000000000001"}}],"handled":[],"replies":[{"id":"1793122854-kr4IiR","at":"2026-10-27T17:40:54Z","body":"isolated absent reply","cursor":"000000000001"}],"reply_cursor":"000000000001","omitted":[]}
+=== Real fm-send: disabled configuration ===
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+fm-send: doorbell not typed because the agent in primary:0 has exited; the steer is durably recorded at /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l/state/worker.inbox/002.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+exit=0 durable-records-before=1 after=2
+=== Real fm-inbox: disabled capture/drain/reply/receipt ===
+{"schema":"fm-inbox-note.v1","outcome":"created","id":"1793122855-h1d6w2","request_id":"live-disabled","saved":true,"announced":true,"acknowledged":false,"path":"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l/state/inbox/1793122855-h1d6w2.note"}
+1793122854-kr4IiR
+    isolated absent request
+1793122855-h1d6w2
+    isolated disabled request
+
+Ack with: fm-inbox.sh drain --ack <id>...
+{"schema":"fm-inbox-reply.v1","outcome":"created","id":"1793122855-h1d6w2","path":"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l/state/inbox/.replies/1793122855-h1d6w2"}
+{"schema":"fm-inbox-receipts.v1","home":"01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l","generated":"2026-10-27T17:40:55Z","pending":[{"id":"1793122855-h1d6w2","at":"2026-10-27T17:40:55Z","source":"text","request_id":"live-disabled","body":"isolated disabled request","acknowledged":false,"announced":true,"reply":{"id":"1793122855-h1d6w2","at":"2026-10-27T17:40:55Z","body":"isolated disabled reply","cursor":"000000000002"}},{"id":"1793122854-kr4IiR","at":"2026-10-27T17:40:54Z","source":"text","request_id":"live-absent","body":"isolated absent request","acknowledged":false,"announced":true,"reply":{"id":"1793122854-kr4IiR","at":"2026-10-27T17:40:54Z","body":"isolated absent reply","cursor":"000000000001"}}],"handled":[],"replies":[{"id":"1793122854-kr4IiR","at":"2026-10-27T17:40:54Z","body":"isolated absent reply","cursor":"000000000001"},{"id":"1793122855-h1d6w2","at":"2026-10-27T17:40:55Z","body":"isolated disabled reply","cursor":"000000000002"}],"reply_cursor":"000000000002","omitted":[]}
+=== Real fm-send: malformed configuration ===
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit
+exit=1 durable-records-before=2 after=2
+=== Real fm-inbox: malformed capture/drain/reply/receipt ===
+{"schema":"fm-inbox-note.v1","outcome":"created","id":"1793122855-NVGtZA","request_id":"live-malformed","saved":true,"announced":true,"acknowledged":false,"path":"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l/state/inbox/1793122855-NVGtZA.note"}
+error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit
+warning: Discord readiness not renewed; saved requests remain unaccepted
+1793122854-kr4IiR
+    isolated absent request
+1793122855-NVGtZA
+    isolated malformed request
+1793122855-h1d6w2
+    isolated disabled request
+
+Ack with: fm-inbox.sh drain --ack <id>...
+error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit
+warning: reply recorded; Discord final needs reconciliation, do not resend
+{"schema":"fm-inbox-reply.v1","outcome":"created","id":"1793122855-NVGtZA","path":"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l/state/inbox/.replies/1793122855-NVGtZA"}
+{"schema":"fm-inbox-receipts.v1","home":"01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l","generated":"2026-10-27T17:40:56Z","pending":[{"id":"1793122855-h1d6w2","at":"2026-10-27T17:40:55Z","source":"text","request_id":"live-disabled","body":"isolated disabled request","acknowledged":false,"announced":true,"reply":{"id":"1793122855-h1d6w2","at":"2026-10-27T17:40:55Z","body":"isolated disabled reply","cursor":"000000000002"}},{"id":"1793122855-NVGtZA","at":"2026-10-27T17:40:55Z","source":"text","request_id":"live-malformed","body":"isolated malformed request","acknowledged":false,"announced":true,"reply":{"id":"1793122855-NVGtZA","at":"2026-10-27T17:40:56Z","body":"isolated malformed reply","cursor":"000000000003"}},{"id":"1793122854-kr4IiR","at":"2026-10-27T17:40:54Z","source":"text","request_id":"live-absent","body":"isolated absent request","acknowledged":false,"announced":true,"reply":{"id":"1793122854-kr4IiR","at":"2026-10-27T17:40:54Z","body":"isolated absent reply","cursor":"000000000001"}}],"handled":[],"replies":[{"id":"1793122854-kr4IiR","at":"2026-10-27T17:40:54Z","body":"isolated absent reply","cursor":"000000000001"},{"id":"1793122855-h1d6w2","at":"2026-10-27T17:40:55Z","body":"isolated disabled reply","cursor":"000000000002"},{"id":"1793122855-NVGtZA","at":"2026-10-27T17:40:56Z","body":"isolated malformed reply","cursor":"000000000003"}],"reply_cursor":"000000000003","omitted":[]}
+=== Real fm-send: duplicate configuration ===
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit
+exit=1 durable-records-before=2 after=2
+=== Real fm-send: nonboolean configuration ===
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit
+exit=1 durable-records-before=2 after=2
+=== Real fm-send: symlink configuration ===
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit
+exit=1 durable-records-before=2 after=2
+=== Persisted steering records ===
+001.msg schema=fm-task-inbox.v1
+at=2026-10-27T17:40:54Z
+body-terminator=1
+--
+isolated absent delivery
+
+002.msg schema=fm-task-inbox.v1
+at=2026-10-27T17:40:54Z
+body-terminator=1
+--
+isolated disabled delivery
+
+=== Terminal capture (no agent launched; durable enqueue is delivery) ===
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+=== Default-home inbox with FM_HOME unset ===
+1793122854-kr4IiR
+    isolated absent request
+1793122855-NVGtZA
+    isolated malformed request
+1793122855-h1d6w2
+    isolated disabled request
+1793122857-srrg9q
+    unset-home request
+
+Ack with: fm-inbox.sh drain --ack <id>...
+{"schema":"fm-inbox-reply.v1","outcome":"created","id":"1793122857-srrg9q","path":"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l/state/inbox/.replies/1793122857-srrg9q"}
+{"schema":"fm-inbox-receipts.v1","home":"01M5Z6S3D1YEKGGHKF6B2RZ6HH/.l","generated":"2026-10-27T17:40:57Z","pending":[{"id":"1793122857-srrg9q","at":"2026-10-27T17:40:57Z","source":"text","request_id":null,"body":"unset-home request","acknowledged":false,"announced":true,"reply":{"id":"1793122857-srrg9q","at":"2026-10-27T17:40:57Z","body":"unset-home durable reply","cursor":"000000000004"}},{"id":"1793122855-h1d6w2","at":"2026-10-27T17:40:55Z","source":"text","request_id":"live-disabled","body":"isolated disabled request","acknowledged":false,"announced":true,"reply":{"id":"1793122855-h1d6w2","at":"2026-10-27T17:40:55Z","body":"isolated disabled reply","cursor":"000000000002"}},{"id":"1793122855-NVGtZA","at":"2026-10-27T17:40:55Z","source":"text","request_id":"live-malformed","body":"isolated malformed request","acknowledged":false,"announced":true,"reply":{"id":"1793122855-NVGtZA","at":"2026-10-27T17:40:56Z","body":"isolated malformed reply","cursor":"000000000003"}},{"id":"1793122854-kr4IiR","at":"2026-10-27T17:40:54Z","source":"text","request_id":"live-absent","body":"isolated absent request","acknowledged":false,"announced":true,"reply":{"id":"1793122854-kr4IiR","at":"2026-10-27T17:40:54Z","body":"isolated absent reply","cursor":"000000000001"}}],"handled":[],"replies":[{"id":"1793122854-kr4IiR","at":"2026-10-27T17:40:54Z","body":"isolated absent reply","cursor":"000000000001"},{"id":"1793122855-h1d6w2","at":"2026-10-27T17:40:55Z","body":"isolated disabled reply","cursor":"000000000002"},{"id":"1793122855-NVGtZA","at":"2026-10-27T17:40:56Z","body":"isolated malformed reply","cursor":"000000000003"},{"id":"1793122857-srrg9q","at":"2026-10-27T17:40:57Z","body":"unset-home durable reply","cursor":"000000000004"}],"reply_cursor":"000000000004","omitted":[]}
+All live CLI checks completed; disposable terminal and home removed on exit.

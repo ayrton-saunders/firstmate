@@ -1,0 +1,8 @@
+{
+  "supplied_snapshot_commit": "2ae30eca3ec48f13a5067c24f7960d3da791d274",
+  "provenance": "User-supplied committed source-only snapshot; copied byte-identically into ignored worktree-local test dependency. No Git history/remotes copied.",
+  "snapshot_sha256": "4e66d5d808d5ca5b91e238e78c8f5f2ea4c45828c383b8f01e3979cd34ad0bc7",
+  "source": "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH",
+  "source_commit": "db3ba5aa4f2af79887f7d15cdbd46992b28fa6cc",
+  "limits": "Fake Discord/SSH/terminal services only; no live bot activation, production identities, credentials, media/model calls, installs, network or publication. Child execution synthetic; Firstmate inbox/send/hook executables real."
+}

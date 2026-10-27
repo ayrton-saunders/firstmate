@@ -1,0 +1,81 @@
+{
+  "identity": [
+    {
+      "singleton": 1,
+      "schema_version": 2,
+      "epoch": "bd7273e3317c4565abdeec098d94f56d",
+      "fenced": 0,
+      "delivery_fenced": 0
+    }
+  ],
+  "records": [
+    {
+      "family": "public-status",
+      "id": "isolated-test",
+      "digest": "ca15213e1f5159328f67bfae8b88099d35a386ae7213bafc79aac69d449962ef",
+      "body": "{\"acceptance\":true,\"epoch\":\"033a5aa253cb42adae50af3138625980\",\"expires\":\"2026-10-27T17:48:20Z\",\"home_identity\":\"5096a77303773e17cd0f2dada4c4978e8ae52e1e919c50f00cc98d12165c891e\",\"media_enabled\":false,\"production_acceptance_proven\":false,\"restore_epoch\":\"bd7273e3317c4565abdeec098d94f56d\",\"schema\":2,\"source_commit\":\"db3ba5aa4f2af79887f7d15cdbd46992b28fa6cc\",\"source_digest\":\"6b9ef416e26ccafcc4c68cd21c85327c9bb2318460cdf731bfdb41af75d305e9\"}",
+      "created": 1793123270
+    },
+    {
+      "family": "public-request",
+      "id": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "digest": "ea59713f7d91533360e2a9d5ae7e8412eb4cf8546f1e667138e43b56bf7b0300",
+      "body": "{\"availability_epoch\":\"033a5aa253cb42adae50af3138625980\",\"cancellation_requested\":false,\"digest\":\"9462770c4d52ef138c2fe030608e7502a260d76c1ae02f31eba79e9cda8b053f\",\"epoch\":\"bd7273e3317c4565abdeec098d94f56d\",\"fresh_until\":\"2026-10-27T17:48:20Z\",\"id\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"phase\":\"completed\",\"queue_position\":\"1\",\"revision\":\"3\"}",
+      "created": 1793123270
+    }
+  ],
+  "state": [],
+  "events": [
+    {
+      "sequence": 1,
+      "id": "captured.c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "generation": "preacceptance",
+      "digest": "4b57867270d43f57b7178e4c4da83753fe3ebcef8cc6159fddf00dd179259a5d",
+      "body": "{\"at\":\"2026-10-27T17:47:49Z\",\"generation\":\"preacceptance\",\"id\":\"captured.c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"kind\":\"progress\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"outcome\":null,\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"text\":\"Request captured for Personal review; it has not yet been accepted.\"}",
+      "terminal": 0
+    },
+    {
+      "sequence": 2,
+      "id": "accepted.58db08ded1105e94bf2f734f6bdc750ac4f2b74a33c67b1104c5bd0a56d3a3dc",
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "generation": "generation-1",
+      "digest": "478166961f1c646e65012c9f5252e8845a7665eedf4c5dc342b5190a238f42a7",
+      "body": "{\"at\":\"2026-10-27T17:47:49Z\",\"generation\":\"generation-1\",\"id\":\"accepted.58db08ded1105e94bf2f734f6bdc750ac4f2b74a33c67b1104c5bd0a56d3a3dc\",\"kind\":\"progress\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"outcome\":null,\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"text\":\"Accepted for parent-authorized work. Routing is being reconciled; this is not a completion notice.\"}",
+      "terminal": 0
+    },
+    {
+      "sequence": 3,
+      "id": "progress.1",
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "generation": "generation-1",
+      "digest": "ecfc3bd3f49f541926e2cb067fe51eff2d80e6f2e6bce1f3d5abbec2386b971f",
+      "body": "{\"at\":\"2026-10-27T17:47:49Z\",\"generation\":\"generation-1\",\"id\":\"progress.1\",\"kind\":\"progress\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"outcome\":null,\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"text\":\"The read-only inspection found the requested title.\"}",
+      "terminal": 0
+    },
+    {
+      "sequence": 4,
+      "id": "decision.1.public",
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "generation": "generation-1",
+      "digest": "80f71a8863f7642f2c3bd8bf0252d4149f5131870494d1649c8a974ad63174fc",
+      "body": "{\"at\":\"2026-10-27T17:47:49Z\",\"generation\":\"generation-1\",\"id\":\"decision.1.public\",\"kind\":\"decision\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"outcome\":null,\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"text\":\"May I share the exact title found by the read-only inspection? Reply !answer decision.1 e01497da8fffec3a29abf4cc866b6d948c5d1d26561468790d651b296ef85997 with your explicit answer.\"}",
+      "terminal": 0
+    },
+    {
+      "sequence": 5,
+      "id": "final.1",
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "generation": "generation-1",
+      "digest": "db20654506cc808957389e801a7587855d690afec4a6234db9d7948b100ecf23",
+      "body": "{\"at\":\"2026-10-27T17:47:50Z\",\"generation\":\"generation-1\",\"id\":\"final.1\",\"kind\":\"final\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"outcome\":\"completed\",\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"text\":\"Synthetic README title: Example. No files changed.\"}",
+      "terminal": 1
+    }
+  ],
+  "obligations": [],
+  "lanes": [],
+  "work_bindings": [],
+  "event_bindings": [],
+  "intents": [],
+  "assets": []
+}

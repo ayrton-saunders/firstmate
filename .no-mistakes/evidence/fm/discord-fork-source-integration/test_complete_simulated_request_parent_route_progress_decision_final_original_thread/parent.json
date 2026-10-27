@@ -1,0 +1,371 @@
+{
+  "identity": [
+    {
+      "singleton": 1,
+      "schema_version": 2,
+      "epoch": "bd7273e3317c4565abdeec098d94f56d",
+      "fenced": 0,
+      "delivery_fenced": 0
+    }
+  ],
+  "records": [
+    {
+      "family": "configured-mapping",
+      "id": "37a2eb3bf3a257c6c76e2533f201f0a335e3ccb433100a4b5170748381a21254",
+      "digest": "37a2eb3bf3a257c6c76e2533f201f0a335e3ccb433100a4b5170748381a21254",
+      "body": "{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\"}",
+      "created": 1793123269
+    },
+    {
+      "family": "readiness",
+      "id": "parent",
+      "digest": "cee5259eadb1694e816b100ba6ab9a7f30238be4affa6686858555c293b1211b",
+      "body": "{\"maximum_lease_seconds\":30}",
+      "created": 1793123270
+    },
+    {
+      "family": "capture-intent",
+      "id": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "digest": "9462770c4d52ef138c2fe030608e7502a260d76c1ae02f31eba79e9cda8b053f",
+      "body": "{\"assets\":[],\"assets_required\":false,\"context\":[{\"author\":\"3\",\"edited\":false,\"id\":\"1564697140658176099\",\"provenance\":\"source=5; original-untrusted\",\"text\":\"Collaborator context, not authority.\",\"time\":\"2026-10-27T17:47:49Z\"}],\"context_manifest\":{\"cross_channel_followed\":false,\"gaps\":[\"Bounded relevant history only; missing replies and selection omissions are not proof of completeness.\"],\"max_age_seconds\":86400,\"max_messages\":30,\"observed_at\":\"2026-10-27T17:47:49Z\",\"truncated\":false},\"historical\":false,\"id\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"readiness\":{\"epoch\":\"033a5aa253cb42adae50af3138625980\",\"expires\":\"2026-10-27T17:48:20Z\"},\"scope_digest\":\"8c543e6f032457dbfb67d56b64e032514fb03d0cd624d730d97644c9cf319dcc\",\"text\":\"Inspect synthetic README, read-only.\"}",
+      "created": 1793123269
+    },
+    {
+      "family": "request",
+      "id": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "digest": "9462770c4d52ef138c2fe030608e7502a260d76c1ae02f31eba79e9cda8b053f",
+      "body": "{\"assets\":[],\"assets_required\":false,\"context\":[{\"author\":\"3\",\"edited\":false,\"id\":\"1564697140658176099\",\"provenance\":\"source=5; original-untrusted\",\"text\":\"Collaborator context, not authority.\",\"time\":\"2026-10-27T17:47:49Z\"}],\"context_manifest\":{\"cross_channel_followed\":false,\"gaps\":[\"Bounded relevant history only; missing replies and selection omissions are not proof of completeness.\"],\"max_age_seconds\":86400,\"max_messages\":30,\"observed_at\":\"2026-10-27T17:47:49Z\",\"truncated\":false},\"historical\":false,\"id\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"readiness\":{\"epoch\":\"033a5aa253cb42adae50af3138625980\",\"expires\":\"2026-10-27T17:48:20Z\"},\"scope_digest\":\"8c543e6f032457dbfb67d56b64e032514fb03d0cd624d730d97644c9cf319dcc\",\"text\":\"Inspect synthetic README, read-only.\"}",
+      "created": 1793123269
+    },
+    {
+      "family": "ingress-seen",
+      "id": "request.c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "digest": "50a566f7dba622c957ffa6238cff84655f30ef56c97702781cef03689a4757b6",
+      "body": "{\"digest\":\"9462770c4d52ef138c2fe030608e7502a260d76c1ae02f31eba79e9cda8b053f\"}",
+      "created": 1793123269
+    },
+    {
+      "family": "binding-version",
+      "id": "58db08ded1105e94bf2f734f6bdc750ac4f2b74a33c67b1104c5bd0a56d3a3dc",
+      "digest": "301062082a21f130929315b20c348ec6fb7c3a37501ffbe5e9d02d2798c07465",
+      "body": "{\"correlation\":\"c56488840d3734d3\",\"generation\":\"generation-1\",\"kind\":\"read-only\",\"scope_digest\":\"8c543e6f032457dbfb67d56b64e032514fb03d0cd624d730d97644c9cf319dcc\",\"work_id\":\"domain\"}",
+      "created": 1793123269
+    },
+    {
+      "family": "new-route-authorization",
+      "id": "58db08ded1105e94bf2f734f6bdc750ac4f2b74a33c67b1104c5bd0a56d3a3dc",
+      "digest": "c3953a6e6894e792ac31d486625cb76ede7b2d6a430a8f46fe494c8fc4f4b16a",
+      "body": "{\"generation\":\"generation-1\",\"payload_digest\":\"32f7062efd05897d8717d1a0dec084f7173a7293c7974cfe8ba9a8e2d448680c\",\"target\":\"domain\"}",
+      "created": 1793123269
+    },
+    {
+      "family": "route-permit",
+      "id": "809c156ae327a0f3596a4bad684cf90b",
+      "digest": "ad0be380d3737198ab7387e00e8f347d7f23cb47477e7b6929ce161db62761e7",
+      "body": "{\"authority\":null,\"endpoint_generation\":\"endpoint-v1\",\"epoch\":\"bd7273e3317c4565abdeec098d94f56d\",\"expires\":1793123299,\"generation\":\"generation-1\",\"operation\":\"new\",\"owner_action\":null,\"payload_digest\":\"32f7062efd05897d8717d1a0dec084f7173a7293c7974cfe8ba9a8e2d448680c\",\"project\":\"pristine-valets\",\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"request_revision\":2,\"target\":\"domain\"}",
+      "created": 1793123269
+    },
+    {
+      "family": "decision",
+      "id": "decision.1",
+      "digest": "e01497da8fffec3a29abf4cc866b6d948c5d1d26561468790d651b296ef85997",
+      "body": "{\"action\":\"share-title\",\"expires\":1793123329,\"generation\":\"generation-1\",\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"revision\":2,\"sensitive\":false,\"target\":{\"action\":\"share-title\",\"base\":\"synthetic-read-only-baseline\",\"head\":\"6e55f5e106e3454102e290ea53e053433017a10d643c7d67615ec66769a109dc\"}}",
+      "created": 1793123269
+    },
+    {
+      "family": "event-ack",
+      "id": "captured.c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "digest": "f374baf855b591ae40d7b7edb9347bf015d9112c0fbf2c8ba971c12a441ffa6d",
+      "body": "{\"event_digest\":\"4b57867270d43f57b7178e4c4da83753fe3ebcef8cc6159fddf00dd179259a5d\",\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\"}",
+      "created": 1793123269
+    },
+    {
+      "family": "event-ack",
+      "id": "accepted.58db08ded1105e94bf2f734f6bdc750ac4f2b74a33c67b1104c5bd0a56d3a3dc",
+      "digest": "65586c9506a6bfb78578e4724b46794f26b45e308423967cf963b1d9a04dd9ee",
+      "body": "{\"event_digest\":\"478166961f1c646e65012c9f5252e8845a7665eedf4c5dc342b5190a238f42a7\",\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\"}",
+      "created": 1793123269
+    },
+    {
+      "family": "event-ack",
+      "id": "progress.1",
+      "digest": "355b6c6aef468542ec11326024085d9da748d2d27202db5f7a53a0b8b4c64919",
+      "body": "{\"event_digest\":\"ecfc3bd3f49f541926e2cb067fe51eff2d80e6f2e6bce1f3d5abbec2386b971f\",\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\"}",
+      "created": 1793123269
+    },
+    {
+      "family": "event-ack",
+      "id": "decision.1.public",
+      "digest": "8e09c46dca404a23b430d1442dea98953960adb08cfe49726055b0707676f3d9",
+      "body": "{\"event_digest\":\"80f71a8863f7642f2c3bd8bf0252d4149f5131870494d1649c8a974ad63174fc\",\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\"}",
+      "created": 1793123269
+    },
+    {
+      "family": "owner-action-record",
+      "id": "f2be1bd80ef6807547d9c9acc14d8592c338e2602e6ed168090c62196907f1b6",
+      "digest": "cea1d780b60bab6ca9b043b68f72a23585274719989a398f8c3bb4e39e4b5003",
+      "body": "{\"availability_epoch\":\"033a5aa253cb42adae50af3138625980\",\"digest\":\"9462770c4d52ef138c2fe030608e7502a260d76c1ae02f31eba79e9cda8b053f\",\"fresh_until\":\"2026-10-27T17:48:20Z\",\"id\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"kind\":\"answer-routine\",\"op\":\"instruct\",\"protocol\":\"personal-discord/2\",\"revision\":\"2\",\"schema\":2,\"source_message\":\"1564697144852480101\",\"target\":{\"decision_digest\":\"e01497da8fffec3a29abf4cc866b6d948c5d1d26561468790d651b296ef85997\",\"decision_id\":\"decision.1\"},\"words\":\"!answer decision.1 e01497da8fffec3a29abf4cc866b6d948c5d1d26561468790d651b296ef85997 Share that exact title.\"}",
+      "created": 1793123270
+    },
+    {
+      "family": "owner-instruction",
+      "id": "f2be1bd80ef6807547d9c9acc14d8592c338e2602e6ed168090c62196907f1b6",
+      "digest": "cea1d780b60bab6ca9b043b68f72a23585274719989a398f8c3bb4e39e4b5003",
+      "body": "{\"availability_epoch\":\"033a5aa253cb42adae50af3138625980\",\"digest\":\"9462770c4d52ef138c2fe030608e7502a260d76c1ae02f31eba79e9cda8b053f\",\"fresh_until\":\"2026-10-27T17:48:20Z\",\"id\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"kind\":\"answer-routine\",\"op\":\"instruct\",\"protocol\":\"personal-discord/2\",\"revision\":\"2\",\"schema\":2,\"source_message\":\"1564697144852480101\",\"target\":{\"decision_digest\":\"e01497da8fffec3a29abf4cc866b6d948c5d1d26561468790d651b296ef85997\",\"decision_id\":\"decision.1\"},\"words\":\"!answer decision.1 e01497da8fffec3a29abf4cc866b6d948c5d1d26561468790d651b296ef85997 Share that exact title.\"}",
+      "created": 1793123270
+    },
+    {
+      "family": "ingress-seen",
+      "id": "action.f2be1bd80ef6807547d9c9acc14d8592c338e2602e6ed168090c62196907f1b6",
+      "digest": "4e6f8755a9588a266c8c1eeaf8e709d9dbae2402806538c7b9bdbef072813c4f",
+      "body": "{\"digest\":\"cea1d780b60bab6ca9b043b68f72a23585274719989a398f8c3bb4e39e4b5003\"}",
+      "created": 1793123270
+    },
+    {
+      "family": "answer",
+      "id": "decision.1",
+      "digest": "112af14015ed8c452b9c06b096f1c86c2960f2d81645860113677797698cd45d",
+      "body": "{\"decision_digest\":\"e01497da8fffec3a29abf4cc866b6d948c5d1d26561468790d651b296ef85997\",\"source_message\":\"1564697144852480101\",\"words\":\"!answer decision.1 e01497da8fffec3a29abf4cc866b6d948c5d1d26561468790d651b296ef85997 Share that exact title.\"}",
+      "created": 1793123270
+    },
+    {
+      "family": "pending-final",
+      "id": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "digest": "041ac3851a3d9cd03a7001025127ac9f81ecfbed6341cc0d7a8bee77dec1fc0d",
+      "body": "{\"generation\":\"generation-1\",\"note_id\":\"1793123270-QYwws1\",\"reply_digest\":\"75a0d34669f608becb3131422a5205cad7092100ca8a06be13098ef0d0935f7f\"}",
+      "created": 1793123275
+    },
+    {
+      "family": "event-ack",
+      "id": "final.1",
+      "digest": "59841e5884ba95ee0757126e334825965d34262edcee0f0cc32a50d14d33bc40",
+      "body": "{\"event_digest\":\"db20654506cc808957389e801a7587855d690afec4a6234db9d7948b100ecf23\",\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\"}",
+      "created": 1793123270
+    }
+  ],
+  "state": [
+    {
+      "family": "configured-mapping",
+      "id": "37a2eb3bf3a257c6c76e2533f201f0a335e3ccb433100a4b5170748381a21254",
+      "revision": 0,
+      "body": "{}"
+    },
+    {
+      "family": "readiness",
+      "id": "parent",
+      "revision": 1,
+      "body": "{\"availability_epoch\":\"033a5aa253cb42adae50af3138625980\",\"expires\":1793123300,\"primary_identity\":null,\"restore_epoch\":\"bd7273e3317c4565abdeec098d94f56d\"}"
+    },
+    {
+      "family": "capture-intent",
+      "id": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "revision": 0,
+      "body": "{}"
+    },
+    {
+      "family": "request",
+      "id": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "revision": 3,
+      "body": "{\"generation\":\"generation-1\",\"note_generation\":\"generation-1\",\"note_id\":\"1793123270-QYwws1\",\"observed_epoch\":\"033a5aa253cb42adae50af3138625980\",\"online_at_capture\":true,\"phase\":\"completed\"}"
+    },
+    {
+      "family": "ingress-seen",
+      "id": "request.c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "revision": 0,
+      "body": "{}"
+    },
+    {
+      "family": "binding-version",
+      "id": "58db08ded1105e94bf2f734f6bdc750ac4f2b74a33c67b1104c5bd0a56d3a3dc",
+      "revision": 0,
+      "body": "{}"
+    },
+    {
+      "family": "new-route-authorization",
+      "id": "58db08ded1105e94bf2f734f6bdc750ac4f2b74a33c67b1104c5bd0a56d3a3dc",
+      "revision": 0,
+      "body": "{}"
+    },
+    {
+      "family": "route-permit",
+      "id": "809c156ae327a0f3596a4bad684cf90b",
+      "revision": 2,
+      "body": "{\"evidence\":{\"local_inbox_record\":\"001.msg\"},\"phase\":\"confirmed\"}"
+    },
+    {
+      "family": "decision",
+      "id": "decision.1",
+      "revision": 0,
+      "body": "{}"
+    },
+    {
+      "family": "event-ack",
+      "id": "captured.c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "revision": 1,
+      "body": "{\"evidence\":{\"chunks\":[{\"id\":\"1564697140658266001\",\"nonce\":\"801b84adcd30941fb5a4383c\",\"ordinal\":\"0\",\"read_back_at\":\"2026-10-27T17:47:49Z\",\"sha256\":\"fb3b1b261ce3a327cd0545151dd0facdbba34133cce0884ea49f34b9ed8748d4\"}],\"event_digest\":\"4b57867270d43f57b7178e4c4da83753fe3ebcef8cc6159fddf00dd179259a5d\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"read_back\":true},\"phase\":\"delivered\"}"
+    },
+    {
+      "family": "event-ack",
+      "id": "accepted.58db08ded1105e94bf2f734f6bdc750ac4f2b74a33c67b1104c5bd0a56d3a3dc",
+      "revision": 1,
+      "body": "{\"evidence\":{\"chunks\":[{\"id\":\"1564697140658266002\",\"nonce\":\"a02a3a181d23d851c238a879\",\"ordinal\":\"0\",\"read_back_at\":\"2026-10-27T17:47:49Z\",\"sha256\":\"2db58cac030ed68531bcf1fb27ff80e8de87a69ce1cc94b7caad46a885ee0161\"}],\"event_digest\":\"478166961f1c646e65012c9f5252e8845a7665eedf4c5dc342b5190a238f42a7\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"read_back\":true},\"phase\":\"delivered\"}"
+    },
+    {
+      "family": "event-ack",
+      "id": "progress.1",
+      "revision": 1,
+      "body": "{\"evidence\":{\"chunks\":[{\"id\":\"1564697140658266003\",\"nonce\":\"f2d90d652fe0b19e57c170e4\",\"ordinal\":\"0\",\"read_back_at\":\"2026-10-27T17:47:49Z\",\"sha256\":\"69086147982f0c20f78ef281b11f739721720238cf365553839ddf593b17c93a\"}],\"event_digest\":\"ecfc3bd3f49f541926e2cb067fe51eff2d80e6f2e6bce1f3d5abbec2386b971f\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"read_back\":true},\"phase\":\"delivered\"}"
+    },
+    {
+      "family": "event-ack",
+      "id": "decision.1.public",
+      "revision": 1,
+      "body": "{\"evidence\":{\"chunks\":[{\"id\":\"1564697140658266004\",\"nonce\":\"dc819d2e8cb5896b5d784d88\",\"ordinal\":\"0\",\"read_back_at\":\"2026-10-27T17:47:49Z\",\"sha256\":\"45c5b4367328b474f3db61da806f99a6c856888332a8360a3558804981239423\"}],\"event_digest\":\"80f71a8863f7642f2c3bd8bf0252d4149f5131870494d1649c8a974ad63174fc\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"read_back\":true},\"phase\":\"delivered\"}"
+    },
+    {
+      "family": "owner-action-record",
+      "id": "f2be1bd80ef6807547d9c9acc14d8592c338e2602e6ed168090c62196907f1b6",
+      "revision": 1,
+      "body": "{\"online_at_capture\":true}"
+    },
+    {
+      "family": "owner-instruction",
+      "id": "f2be1bd80ef6807547d9c9acc14d8592c338e2602e6ed168090c62196907f1b6",
+      "revision": 0,
+      "body": "{}"
+    },
+    {
+      "family": "ingress-seen",
+      "id": "action.f2be1bd80ef6807547d9c9acc14d8592c338e2602e6ed168090c62196907f1b6",
+      "revision": 0,
+      "body": "{}"
+    },
+    {
+      "family": "answer",
+      "id": "decision.1",
+      "revision": 0,
+      "body": "{}"
+    },
+    {
+      "family": "pending-final",
+      "id": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "revision": 1,
+      "body": "{\"event\":\"final.1\",\"phase\":\"published\"}"
+    },
+    {
+      "family": "event-ack",
+      "id": "final.1",
+      "revision": 2,
+      "body": "{\"evidence\":{\"chunks\":[{\"id\":\"1564697140658266005\",\"nonce\":\"141928ebd5b8c98f4706d15f\",\"ordinal\":\"0\",\"read_back_at\":\"2026-10-27T17:47:50Z\",\"sha256\":\"513629cda3ea7db544e6da88cfedbb6f3f8d0cbea6c7e2a3e82478afa7973246\"}],\"event_digest\":\"db20654506cc808957389e801a7587855d690afec4a6234db9d7948b100ecf23\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"read_back\":true},\"phase\":\"delivered\"}"
+    }
+  ],
+  "events": [
+    {
+      "sequence": 1,
+      "id": "captured.c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "generation": "preacceptance",
+      "digest": "4b57867270d43f57b7178e4c4da83753fe3ebcef8cc6159fddf00dd179259a5d",
+      "body": "{\"at\":\"2026-10-27T17:47:49Z\",\"generation\":\"preacceptance\",\"id\":\"captured.c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"kind\":\"progress\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"outcome\":null,\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"text\":\"Request captured for Personal review; it has not yet been accepted.\"}",
+      "terminal": 0
+    },
+    {
+      "sequence": 2,
+      "id": "accepted.58db08ded1105e94bf2f734f6bdc750ac4f2b74a33c67b1104c5bd0a56d3a3dc",
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "generation": "generation-1",
+      "digest": "478166961f1c646e65012c9f5252e8845a7665eedf4c5dc342b5190a238f42a7",
+      "body": "{\"at\":\"2026-10-27T17:47:49Z\",\"generation\":\"generation-1\",\"id\":\"accepted.58db08ded1105e94bf2f734f6bdc750ac4f2b74a33c67b1104c5bd0a56d3a3dc\",\"kind\":\"progress\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"outcome\":null,\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"text\":\"Accepted for parent-authorized work. Routing is being reconciled; this is not a completion notice.\"}",
+      "terminal": 0
+    },
+    {
+      "sequence": 3,
+      "id": "progress.1",
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "generation": "generation-1",
+      "digest": "ecfc3bd3f49f541926e2cb067fe51eff2d80e6f2e6bce1f3d5abbec2386b971f",
+      "body": "{\"at\":\"2026-10-27T17:47:49Z\",\"generation\":\"generation-1\",\"id\":\"progress.1\",\"kind\":\"progress\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"outcome\":null,\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"text\":\"The read-only inspection found the requested title.\"}",
+      "terminal": 0
+    },
+    {
+      "sequence": 4,
+      "id": "decision.1.public",
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "generation": "generation-1",
+      "digest": "80f71a8863f7642f2c3bd8bf0252d4149f5131870494d1649c8a974ad63174fc",
+      "body": "{\"at\":\"2026-10-27T17:47:49Z\",\"generation\":\"generation-1\",\"id\":\"decision.1.public\",\"kind\":\"decision\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"outcome\":null,\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"text\":\"May I share the exact title found by the read-only inspection? Reply !answer decision.1 e01497da8fffec3a29abf4cc866b6d948c5d1d26561468790d651b296ef85997 with your explicit answer.\"}",
+      "terminal": 0
+    },
+    {
+      "sequence": 5,
+      "id": "final.1",
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "generation": "generation-1",
+      "digest": "db20654506cc808957389e801a7587855d690afec4a6234db9d7948b100ecf23",
+      "body": "{\"at\":\"2026-10-27T17:47:50Z\",\"generation\":\"generation-1\",\"id\":\"final.1\",\"kind\":\"final\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"outcome\":\"completed\",\"request\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"text\":\"Synthetic README title: Example. No files changed.\"}",
+      "terminal": 1
+    }
+  ],
+  "obligations": [
+    {
+      "event": "final.1",
+      "phase": "delivered",
+      "evidence": "{\"chunks\":[{\"id\":\"1564697140658266005\",\"nonce\":\"141928ebd5b8c98f4706d15f\",\"ordinal\":\"0\",\"read_back_at\":\"2026-10-27T17:47:50Z\",\"sha256\":\"513629cda3ea7db544e6da88cfedbb6f3f8d0cbea6c7e2a3e82478afa7973246\"}],\"event_digest\":\"db20654506cc808957389e801a7587855d690afec4a6234db9d7948b100ecf23\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"read_back\":true}",
+      "disposed": 1793123270
+    }
+  ],
+  "lanes": [
+    {
+      "project": "pristine-valets",
+      "ticket": 1,
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "phase": "finished",
+      "origin": "discord",
+      "revision": 0
+    }
+  ],
+  "work_bindings": [
+    {
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "project": "pristine-valets",
+      "generation": "generation-1",
+      "work_id": "domain",
+      "correlation": "c56488840d3734d3",
+      "scope_digest": "8c543e6f032457dbfb67d56b64e032514fb03d0cd624d730d97644c9cf319dcc",
+      "kind": "read-only"
+    }
+  ],
+  "event_bindings": [
+    {
+      "event": "progress.1",
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "generation": "generation-1",
+      "project": "pristine-valets"
+    },
+    {
+      "event": "decision.1.public",
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "generation": "generation-1",
+      "project": "pristine-valets"
+    },
+    {
+      "event": "final.1",
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "generation": "generation-1",
+      "project": "pristine-valets"
+    }
+  ],
+  "intents": [
+    {
+      "id": "fe9fe0894440b17aa631db79dc021b4cf38c5d71302ca5b43ca9d7e82d26f2cf",
+      "request": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "generation": "generation-1",
+      "operation": "dispatch",
+      "digest": "301062082a21f130929315b20c348ec6fb7c3a37501ffbe5e9d02d2798c07465",
+      "body": "{\"correlation\":\"c56488840d3734d3\",\"generation\":\"generation-1\",\"kind\":\"read-only\",\"scope_digest\":\"8c543e6f032457dbfb67d56b64e032514fb03d0cd624d730d97644c9cf319dcc\",\"work_id\":\"domain\"}",
+      "phase": "confirmed",
+      "result": "{\"correlation\":\"c56488840d3734d3\",\"inbox_record\":\"001.msg\"}"
+    }
+  ],
+  "assets": []
+}

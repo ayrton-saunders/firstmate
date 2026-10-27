@@ -1,0 +1,100 @@
+{
+  "identity": [
+    {
+      "singleton": 1,
+      "schema_version": 2,
+      "epoch": "bcfe570f238d4508a3e045c3249cf03c",
+      "fenced": 0,
+      "delivery_fenced": 0
+    }
+  ],
+  "records": [
+    {
+      "family": "configured-mapping",
+      "id": "37a2eb3bf3a257c6c76e2533f201f0a335e3ccb433100a4b5170748381a21254",
+      "digest": "37a2eb3bf3a257c6c76e2533f201f0a335e3ccb433100a4b5170748381a21254",
+      "body": "{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\"}",
+      "created": 1793123275
+    },
+    {
+      "family": "input",
+      "id": "7ba444b3ebd388ac8bc3ba38a6c85d9048fc2fe7548ce571e81928dda138ae9d",
+      "digest": "aff1be921ebe6fb482afaa6fe6a047e077f16e79654ba2f9dd8972b6da33146e",
+      "body": "{\"historical\":false,\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697165824000100\",\"thread_id\":\"5\"},\"requires_media\":false,\"screenshot_selections\":[],\"selected_assets\":[],\"text\":\"Inspect synthetic README, read-only.\"}",
+      "created": 1793123275
+    },
+    {
+      "family": "thread-attempt",
+      "id": "7ba444b3ebd388ac8bc3ba38a6c85d9048fc2fe7548ce571e81928dda138ae9d",
+      "digest": "e6929132c052dfcb9373fd94763ca72f99119303abdc4ec91c37d8ad71036083",
+      "body": "{\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697165824000100\",\"thread_id\":\"5\"}}",
+      "created": 1793123275
+    },
+    {
+      "family": "thread-binding",
+      "id": "1564697165824000100",
+      "digest": "8c33b359f4eecc7a6a21dbf98ed79808821596985e79ddc5106b0797344b8cd2",
+      "body": "{\"request\":\"7ba444b3ebd388ac8bc3ba38a6c85d9048fc2fe7548ce571e81928dda138ae9d\"}",
+      "created": 1793123275
+    },
+    {
+      "family": "remote-epoch",
+      "id": "parent",
+      "digest": "67d6291b301412df4a6ca7808aeafac9d0587b06ece3c68e72bab0157cd9d52c",
+      "body": "{\"schema\":1}",
+      "created": 1793123275
+    },
+    {
+      "family": "prepared-request",
+      "id": "7ba444b3ebd388ac8bc3ba38a6c85d9048fc2fe7548ce571e81928dda138ae9d",
+      "digest": "b371edd3a705515f6d38f3b1d612732a3a179f883b81ac5c0195c5f1a144ecc7",
+      "body": "{\"assets\":[],\"assets_required\":false,\"context\":[{\"author\":\"3\",\"edited\":false,\"id\":\"1564697165824000099\",\"provenance\":\"source=5; original-untrusted\",\"text\":\"Collaborator context, not authority.\",\"time\":\"2026-10-27T17:47:55Z\"}],\"context_manifest\":{\"cross_channel_followed\":false,\"gaps\":[\"Bounded relevant history only; missing replies and selection omissions are not proof of completeness.\"],\"max_age_seconds\":86400,\"max_messages\":30,\"observed_at\":\"2026-10-27T17:47:55Z\",\"truncated\":false},\"historical\":false,\"id\":\"7ba444b3ebd388ac8bc3ba38a6c85d9048fc2fe7548ce571e81928dda138ae9d\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697165824000100\",\"thread_id\":\"1564697165824000100\"},\"readiness\":{\"epoch\":\"f7c8301ed63c4956847c66f234965e8d\",\"expires\":\"2026-10-27T17:48:26Z\"},\"scope_digest\":\"06934ca88cd7b31e180fbe2cb92afa5e557f4ada567157c21a0f3cd05c9c2718\",\"text\":\"Inspect synthetic README, read-only.\"}",
+      "created": 1793123275
+    }
+  ],
+  "state": [
+    {
+      "family": "configured-mapping",
+      "id": "37a2eb3bf3a257c6c76e2533f201f0a335e3ccb433100a4b5170748381a21254",
+      "revision": 0,
+      "body": "{}"
+    },
+    {
+      "family": "input",
+      "id": "7ba444b3ebd388ac8bc3ba38a6c85d9048fc2fe7548ce571e81928dda138ae9d",
+      "revision": 2,
+      "body": "{\"phase\":\"endpoint-saved\"}"
+    },
+    {
+      "family": "thread-attempt",
+      "id": "7ba444b3ebd388ac8bc3ba38a6c85d9048fc2fe7548ce571e81928dda138ae9d",
+      "revision": 0,
+      "body": "{}"
+    },
+    {
+      "family": "thread-binding",
+      "id": "1564697165824000100",
+      "revision": 0,
+      "body": "{}"
+    },
+    {
+      "family": "remote-epoch",
+      "id": "parent",
+      "revision": 1,
+      "body": "{\"epoch\":\"88d09de9118f4da89fe3bc43ffdef581\",\"identity\":{\"home_identity\":\"67fcd3c9410a04c841b229f5c5b367e68b8ec0a04bd94a663b7b0bf3971e8f0a\",\"source_commit\":\"db3ba5aa4f2af79887f7d15cdbd46992b28fa6cc\",\"source_digest\":\"6b9ef416e26ccafcc4c68cd21c85327c9bb2318460cdf731bfdb41af75d305e9\"}}"
+    },
+    {
+      "family": "prepared-request",
+      "id": "7ba444b3ebd388ac8bc3ba38a6c85d9048fc2fe7548ce571e81928dda138ae9d",
+      "revision": 0,
+      "body": "{}"
+    }
+  ],
+  "events": [],
+  "obligations": [],
+  "lanes": [],
+  "work_bindings": [],
+  "event_bindings": [],
+  "intents": [],
+  "assets": []
+}

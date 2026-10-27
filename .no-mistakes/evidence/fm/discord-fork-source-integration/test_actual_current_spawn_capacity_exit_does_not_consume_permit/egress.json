@@ -1,0 +1,45 @@
+{
+  "identity": [
+    {
+      "singleton": 1,
+      "schema_version": 2,
+      "epoch": "88d09de9118f4da89fe3bc43ffdef581",
+      "fenced": 0,
+      "delivery_fenced": 0
+    }
+  ],
+  "records": [
+    {
+      "family": "public-status",
+      "id": "isolated-test",
+      "digest": "904a621a3924025c58a9e54bbec41bae5e2930a53071a1fed226a64d8f506d89",
+      "body": "{\"acceptance\":true,\"epoch\":\"f7c8301ed63c4956847c66f234965e8d\",\"expires\":\"2026-10-27T17:48:26Z\",\"home_identity\":\"67fcd3c9410a04c841b229f5c5b367e68b8ec0a04bd94a663b7b0bf3971e8f0a\",\"media_enabled\":false,\"production_acceptance_proven\":false,\"restore_epoch\":\"88d09de9118f4da89fe3bc43ffdef581\",\"schema\":2,\"source_commit\":\"db3ba5aa4f2af79887f7d15cdbd46992b28fa6cc\",\"source_digest\":\"6b9ef416e26ccafcc4c68cd21c85327c9bb2318460cdf731bfdb41af75d305e9\"}",
+      "created": 1793123275
+    },
+    {
+      "family": "public-request",
+      "id": "7ba444b3ebd388ac8bc3ba38a6c85d9048fc2fe7548ce571e81928dda138ae9d",
+      "digest": "a6b7fd364f9823e4daeee232f4bc919282a99d6769c5e13b5e579085ae243688",
+      "body": "{\"availability_epoch\":\"f7c8301ed63c4956847c66f234965e8d\",\"cancellation_requested\":false,\"digest\":\"b371edd3a705515f6d38f3b1d612732a3a179f883b81ac5c0195c5f1a144ecc7\",\"epoch\":\"88d09de9118f4da89fe3bc43ffdef581\",\"fresh_until\":\"2026-10-27T17:48:26Z\",\"id\":\"7ba444b3ebd388ac8bc3ba38a6c85d9048fc2fe7548ce571e81928dda138ae9d\",\"phase\":\"captured\",\"queue_position\":\"1\",\"revision\":\"1\"}",
+      "created": 1793123275
+    }
+  ],
+  "state": [],
+  "events": [
+    {
+      "sequence": 1,
+      "id": "captured.7ba444b3ebd388ac8bc3ba38a6c85d9048fc2fe7548ce571e81928dda138ae9d",
+      "request": "7ba444b3ebd388ac8bc3ba38a6c85d9048fc2fe7548ce571e81928dda138ae9d",
+      "generation": "preacceptance",
+      "digest": "2595af02e8412fade68da7851435008aabae91f826a90154c3e3ede4e4ba579b",
+      "body": "{\"at\":\"2026-10-27T17:47:55Z\",\"generation\":\"preacceptance\",\"id\":\"captured.7ba444b3ebd388ac8bc3ba38a6c85d9048fc2fe7548ce571e81928dda138ae9d\",\"kind\":\"progress\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697165824000100\",\"thread_id\":\"1564697165824000100\"},\"outcome\":null,\"request\":\"7ba444b3ebd388ac8bc3ba38a6c85d9048fc2fe7548ce571e81928dda138ae9d\",\"text\":\"Request captured for Personal review; it has not yet been accepted.\"}",
+      "terminal": 0
+    }
+  ],
+  "obligations": [],
+  "lanes": [],
+  "work_bindings": [],
+  "event_bindings": [],
+  "intents": [],
+  "assets": []
+}

@@ -1,0 +1,538 @@
+[
+  {
+    "scenario": "test_spawn_and_capacity_hook_real_permit_state",
+    "media_calls": 0,
+    "model_calls": 0,
+    "readiness": {
+      "epoch": "7870bccdffb246eda0e3ace39e164bf7",
+      "restore_epoch": "9f217a9f1ec544cc8723965743d99bcf",
+      "expires": "2026-10-27T17:52:51Z",
+      "acceptance": true,
+      "schema": 2
+    },
+    "inboxes": {},
+    "journal_records": [
+      {
+        "family": "route-permit",
+        "id": "45d749bfc07140bd71338103775cd8c8",
+        "record": {
+          "authority": null,
+          "endpoint_generation": "",
+          "epoch": "9f217a9f1ec544cc8723965743d99bcf",
+          "expires": 1793123570,
+          "generation": "generation-1",
+          "operation": "new",
+          "owner_action": null,
+          "payload_digest": "93795f34bcb2cbedd3242924450498355f76ff6825b11f56047c2859fbedb0a1",
+          "project": "pristine-valets",
+          "request": "2ecd1d5582a1f94efe0b5b1b2d72cbb52c88df07d69abe42e1acbb2bf3309597",
+          "request_revision": 2,
+          "target": "disposable-worker"
+        },
+        "state": [
+          1,
+          {
+            "consumed": 1793123542,
+            "phase": "external-outcome-unknown"
+          }
+        ]
+      },
+      {
+        "family": "route-permit",
+        "id": "a17ae3a72ebc220ecebec7fbed01541a",
+        "record": {
+          "authority": null,
+          "endpoint_generation": "",
+          "epoch": "9f217a9f1ec544cc8723965743d99bcf",
+          "expires": 1793123570,
+          "generation": "generation-1",
+          "operation": "new",
+          "owner_action": null,
+          "payload_digest": "93795f34bcb2cbedd3242924450498355f76ff6825b11f56047c2859fbedb0a1",
+          "project": "pristine-valets",
+          "request": "2ecd1d5582a1f94efe0b5b1b2d72cbb52c88df07d69abe42e1acbb2bf3309597",
+          "request_revision": 2,
+          "target": "disposable-worker"
+        },
+        "state": [
+          1,
+          {
+            "exit_code": 75,
+            "no_launch": true,
+            "phase": "capacity-deferred"
+          }
+        ]
+      }
+    ],
+    "obligations": [],
+    "fake_service_messages": {}
+  },
+  {
+    "scenario": "test_complete_simulated_request_parent_route_progress_decision_final_original_thread",
+    "media_calls": 0,
+    "model_calls": 0,
+    "readiness": {
+      "epoch": "96e0337943544c549a8be09bb8fc5c73",
+      "restore_epoch": "cd664efcae0d431ab9100464b09474b7",
+      "expires": "2026-10-27T17:52:52Z",
+      "acceptance": true,
+      "schema": 2
+    },
+    "inboxes": {},
+    "journal_records": [
+      {
+        "family": "pending-final",
+        "id": "344360c1068d51efa3b7f51e033ffa85be835490cc106c7bca49f83b6334ab06",
+        "record": {
+          "generation": "generation-1",
+          "note_id": "1793123543-bdCH7f",
+          "reply_digest": "cf4ee8f8d36403af74a50719084059abe0fbf0c27198d50aa3bed71c01780908"
+        },
+        "state": [
+          1,
+          {
+            "event": "final.1",
+            "phase": "published"
+          }
+        ]
+      },
+      {
+        "family": "route-permit",
+        "id": "c3a130b1288649f1c6abf7ec26c86317",
+        "record": {
+          "authority": null,
+          "endpoint_generation": "endpoint-v1",
+          "epoch": "cd664efcae0d431ab9100464b09474b7",
+          "expires": 1793123572,
+          "generation": "generation-1",
+          "operation": "new",
+          "owner_action": null,
+          "payload_digest": "32f7062efd05897d8717d1a0dec084f7173a7293c7974cfe8ba9a8e2d448680c",
+          "project": "pristine-valets",
+          "request": "344360c1068d51efa3b7f51e033ffa85be835490cc106c7bca49f83b6334ab06",
+          "request_revision": 2,
+          "target": "domain"
+        },
+        "state": [
+          2,
+          {
+            "evidence": {
+              "local_inbox_record": "001.msg"
+            },
+            "phase": "confirmed"
+          }
+        ]
+      }
+    ],
+    "obligations": [
+      {
+        "event": "final.1",
+        "phase": "delivered",
+        "evidence": "{\"chunks\":[{\"id\":\"1564698285703258005\",\"nonce\":\"24b8311ce7f3c149f6e1d5b8\",\"ordinal\":\"0\",\"read_back_at\":\"2026-10-27T17:52:23Z\",\"sha256\":\"513629cda3ea7db544e6da88cfedbb6f3f8d0cbea6c7e2a3e82478afa7973246\"}],\"event_digest\":\"d240cb2513bd444b051f7890d9064174907e8ee78120cd362d8a094ab98978a8\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564698285703168100\",\"thread_id\":\"1564698285703168100\"},\"read_back\":true}",
+        "disposed": 1793123543
+      }
+    ],
+    "fake_service_messages": {
+      "1564698285703258001": {
+        "author_id": "2",
+        "content": "[fm:captured.344360c1068d51efa3b7f51e033ffa85be835490cc106c7bca49f83b6334ab06:1/1]\nRequest captured for Personal review; it has not yet been accepted.",
+        "guild_id": "4",
+        "id": "1564698285703258001",
+        "nonce": "db8cacdefceb31303ce83646",
+        "thread_id": "1564698285703168100"
+      },
+      "1564698285703258002": {
+        "author_id": "2",
+        "content": "[fm:accepted.95d882bb29534df38d0c1683503eee75034d6388ddfc1790dab85997b68831bf:1/1]\nAccepted for parent-authorized work. Routing is being reconciled; this is not a completion notice.",
+        "guild_id": "4",
+        "id": "1564698285703258002",
+        "nonce": "5cfe56f04d6b98396f10e536",
+        "thread_id": "1564698285703168100"
+      },
+      "1564698285703258003": {
+        "author_id": "2",
+        "content": "[fm:progress.1:1/1]\nThe read-only inspection found the requested title.",
+        "guild_id": "4",
+        "id": "1564698285703258003",
+        "nonce": "d13fe637dbeb388b327dd5ce",
+        "thread_id": "1564698285703168100"
+      },
+      "1564698285703258004": {
+        "author_id": "2",
+        "content": "[fm:decision.1.public:1/1]\nMay I share the exact title found by the read-only inspection? Reply !answer decision.1 b09987ccd12f21c8232d607d9d80db3e2af4ca6aac57a826d57496d49c2aec84 with your explicit answer.",
+        "guild_id": "4",
+        "id": "1564698285703258004",
+        "nonce": "a93dfb47cfb0b8d3bc687727",
+        "thread_id": "1564698285703168100"
+      },
+      "1564698285703258005": {
+        "author_id": "2",
+        "content": "[fm:final.1:1/1]\nSynthetic README title: Example. No files changed.",
+        "guild_id": "4",
+        "id": "1564698285703258005",
+        "nonce": "24b8311ce7f3c149f6e1d5b8",
+        "thread_id": "1564698285703168100"
+      }
+    }
+  },
+  {
+    "scenario": "test_enabled_untyped_explicit_terminal_and_disabled_legacy",
+    "media_calls": 0,
+    "model_calls": 0,
+    "readiness": {
+      "epoch": "596febf689cf4cdd901e9cd03c57792f",
+      "restore_epoch": "4894bbd896ab4c4fade5090369eb0f32",
+      "expires": "2026-10-27T17:52:58Z",
+      "acceptance": true,
+      "schema": 2
+    },
+    "inboxes": {
+      "state/domain.inbox/001.msg": "schema=fm-task-inbox.v1\nat=2026-10-27T17:52:30Z\nbody-terminator=1\n--\n[fm-from-firstmate]\u2063corr=6b56a99abb3a79dd Legacy mapped-route text with integration disabled\n"
+    },
+    "journal_records": [],
+    "obligations": [],
+    "fake_service_messages": {}
+  },
+  {
+    "scenario": "test_instruction_maintenance_unrelated_classification_and_replay",
+    "media_calls": 0,
+    "model_calls": 0,
+    "readiness": {
+      "epoch": "11f329dfa5e449128da5ab3a5cb979b1",
+      "restore_epoch": "14001188684f45dca9d7355b87f23b37",
+      "expires": "2026-10-27T17:53:02Z",
+      "acceptance": true,
+      "schema": 2
+    },
+    "inboxes": {
+      "state/domain.inbox/002.msg": "schema=fm-task-inbox.v1\nat=2026-10-27T17:52:37Z\nbody-terminator=1\n--\n[fm-from-firstmate]\u2063corr=e4818987fa0ecab9 Non-work health acknowledgement only\n",
+      "state/domain.inbox/003.msg": "schema=fm-task-inbox.v1\nat=2026-10-27T17:52:41Z\nbody-terminator=1\n--\n[fm-from-firstmate]\u2063corr=45493901799dd378 Explicit unrelated project read-only text\n",
+      "state/domain.inbox/001.msg": "schema=fm-task-inbox.v1\nat=2026-10-27T17:52:34Z\nbody-terminator=1\n--\n[fm-from-firstmate]\u2063corr=5f0befbdc02b97d0 Current-binding clarification only\n",
+      "state/unrelated.inbox/001.msg": "schema=fm-task-inbox.v1\nat=2026-10-27T17:52:44Z\nbody-terminator=1\n--\n[fm-from-firstmate]\u2063corr=40958bd1baf9b46b Unrelated unmapped route remains legacy\n"
+    },
+    "journal_records": [
+      {
+        "family": "route-permit",
+        "id": "7e5ef5abdaf6ce623809d87cd1f8effa",
+        "record": {
+          "authority": "private-existing",
+          "endpoint_generation": "endpoint-v1",
+          "epoch": "14001188684f45dca9d7355b87f23b37",
+          "expires": 1793123582,
+          "generation": null,
+          "operation": "unmapped",
+          "owner_action": null,
+          "payload_digest": "d12d3ec725ffcd2c4ba22cb124b647fde11b2afdc331d6d937f07bf7fd2083d2",
+          "project": "other-project",
+          "request": null,
+          "request_revision": null,
+          "target": "domain"
+        },
+        "state": [
+          2,
+          {
+            "evidence": {
+              "local_inbox_record": "003.msg"
+            },
+            "phase": "confirmed"
+          }
+        ]
+      },
+      {
+        "family": "route-permit",
+        "id": "cea10ec94b1b1316b6dc048cce1d4612",
+        "record": {
+          "authority": "private-existing",
+          "endpoint_generation": "endpoint-v1",
+          "epoch": "14001188684f45dca9d7355b87f23b37",
+          "expires": 1793123582,
+          "generation": null,
+          "operation": "maintenance",
+          "owner_action": null,
+          "payload_digest": "81b2059b920cc4f55706746b05ccf62c254654c2c11652e405bb89bfc84290a2",
+          "project": "pristine-valets",
+          "request": null,
+          "request_revision": null,
+          "target": "domain"
+        },
+        "state": [
+          2,
+          {
+            "evidence": {
+              "local_inbox_record": "002.msg"
+            },
+            "phase": "confirmed"
+          }
+        ]
+      },
+      {
+        "family": "route-permit",
+        "id": "e407337c4b1f3e86885580ebaf061869",
+        "record": {
+          "authority": "private-existing",
+          "endpoint_generation": "endpoint-v1",
+          "epoch": "14001188684f45dca9d7355b87f23b37",
+          "expires": 1793123582,
+          "generation": "generation-1",
+          "operation": "instruction",
+          "owner_action": null,
+          "payload_digest": "5d1038147796ce8cd206c9bbc42703afa74d5c22c6d2a315d3af6d1b2b1b81d9",
+          "project": "pristine-valets",
+          "request": "2f3c4869bdefa17e092071985114b6155fe50957142f54f849da4fab3d9fbe19",
+          "request_revision": 2,
+          "target": "domain"
+        },
+        "state": [
+          2,
+          {
+            "evidence": {
+              "local_inbox_record": "001.msg"
+            },
+            "phase": "confirmed"
+          }
+        ]
+      }
+    ],
+    "obligations": [],
+    "fake_service_messages": {}
+  },
+  {
+    "scenario": "test_stale_target_expiry_sensitive_and_permit_revision",
+    "media_calls": 0,
+    "model_calls": 0,
+    "readiness": {
+      "epoch": "4553ac22886445a9a2513757dc5d99ca",
+      "restore_epoch": "7279f8946bd2454f911d8cf8e541bdcd",
+      "expires": "2026-10-27T17:53:15Z",
+      "acceptance": true,
+      "schema": 2
+    },
+    "inboxes": {},
+    "journal_records": [
+      {
+        "family": "route-permit",
+        "id": "a5f2f2b0ba165e3a562ed689c7161be9",
+        "record": {
+          "authority": "private-existing",
+          "endpoint_generation": "endpoint-v1",
+          "epoch": "7279f8946bd2454f911d8cf8e541bdcd",
+          "expires": 1793123594,
+          "generation": "generation-1",
+          "operation": "instruction",
+          "owner_action": null,
+          "payload_digest": "b2437a6aa53010b70011f253d0ef2e75d5a15350811531d9b82c27e77a706081",
+          "project": "pristine-valets",
+          "request": "06bf05a723e32567eca8588d6c28e5326ba40cd95a525f1bb2abeef6a19cdfe5",
+          "request_revision": 2,
+          "target": "domain"
+        },
+        "state": [
+          0,
+          {}
+        ]
+      }
+    ],
+    "obligations": [],
+    "fake_service_messages": {}
+  },
+  {
+    "scenario": "test_two_projects_existing_parent_actual_worker_safe_updates_original_delivery",
+    "media_calls": 0,
+    "model_calls": 0,
+    "readiness": {
+      "epoch": "e4880f98fc2e4b539c817c2e5f4bddca",
+      "restore_epoch": "d1057a95212a49b9a2073aaa90513257",
+      "expires": "2026-10-27T17:53:16Z",
+      "acceptance": true,
+      "schema": 2
+    },
+    "inboxes": {
+      "state/domain-galagoa.inbox/001.msg": "schema=fm-task-inbox.v1\nat=2026-10-27T17:52:51Z\nbody-terminator=1\n--\n[fm-from-firstmate]\u2063corr=31e94ab9387455b4 Implement only the nonprivate synthetic fixture.\n",
+      "state/domain.inbox/001.msg": "schema=fm-task-inbox.v1\nat=2026-10-27T17:52:48Z\nbody-terminator=1\n--\n[fm-from-firstmate]\u2063corr=eb69725828088a68 Implement only the nonprivate synthetic fixture.\n"
+    },
+    "journal_records": [
+      {
+        "family": "route-permit",
+        "id": "9665b86b42f9e23385e244e98cfe766c",
+        "record": {
+          "authority": null,
+          "endpoint_generation": "endpoint-v1",
+          "epoch": "d1057a95212a49b9a2073aaa90513257",
+          "expires": 1793123596,
+          "generation": "generation-1",
+          "operation": "new",
+          "owner_action": null,
+          "payload_digest": "da5771429ec569c3e2605cb203f15889f65f06052b0ae0031703e157d8a7f70a",
+          "project": "pristine-valets",
+          "request": "d873fee9a5fee5e415bda6732012454288e6c412671f0c427cdcdd67f42fac9c",
+          "request_revision": 2,
+          "target": "domain"
+        },
+        "state": [
+          2,
+          {
+            "evidence": {
+              "local_inbox_record": "001.msg"
+            },
+            "phase": "confirmed"
+          }
+        ]
+      },
+      {
+        "family": "route-permit",
+        "id": "d7b1e157eb2a778cc3b2a6c2b5e13797",
+        "record": {
+          "authority": null,
+          "endpoint_generation": "endpoint-v1",
+          "epoch": "d1057a95212a49b9a2073aaa90513257",
+          "expires": 1793123598,
+          "generation": "generation-1",
+          "operation": "new",
+          "owner_action": null,
+          "payload_digest": "da5771429ec569c3e2605cb203f15889f65f06052b0ae0031703e157d8a7f70a",
+          "project": "galagoa",
+          "request": "793acf77ec8bb469d582592c5412c9494755475817f72111bc294f58e4fcd785",
+          "request_revision": 2,
+          "target": "domain-galagoa"
+        },
+        "state": [
+          2,
+          {
+            "evidence": {
+              "local_inbox_record": "001.msg"
+            },
+            "phase": "confirmed"
+          }
+        ]
+      }
+    ],
+    "obligations": [
+      {
+        "event": "result.0",
+        "phase": "delivered",
+        "evidence": "{\"chunks\":[{\"id\":\"1564698386366554005\",\"nonce\":\"018b894fdebbd2ac8ef2893f\",\"ordinal\":\"0\",\"read_back_at\":\"2026-10-27T17:52:50Z\",\"sha256\":\"07e5476e4be878ebbf770aa4b8e350a76f49012dbb81a5cd953f1c5638541e01\"}],\"event_digest\":\"bb143c507bfe84f06f8a4851ed9c8db7f26c07a4e6abb41288e76dc4e03733b9\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564698386366464700\",\"thread_id\":\"1564698386366464700\"},\"read_back\":true}",
+        "disposed": 1793123570
+      },
+      {
+        "event": "result.1",
+        "phase": "delivered",
+        "evidence": "{\"chunks\":[{\"id\":\"1564698386366554010\",\"nonce\":\"a275dc78440e9d82ea41a7cd\",\"ordinal\":\"0\",\"read_back_at\":\"2026-10-27T17:52:50Z\",\"sha256\":\"3f249b93ee332e7cd617b18acb6c9f31f5cb17cc9a7612953bdd249d88ff3bff\"}],\"event_digest\":\"556feac878aea4a2d5358406a8580b9b551176cd833a9b75bcb48e849217474a\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"14\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"15\",\"project_key\":\"galagoa\",\"source_message_id\":\"1564698394755072701\",\"thread_id\":\"1564698394755072701\"},\"read_back\":true}",
+        "disposed": 1793123570
+      }
+    ],
+    "fake_service_messages": {
+      "1564698386366554001": {
+        "author_id": "2",
+        "content": "[fm:captured.d873fee9a5fee5e415bda6732012454288e6c412671f0c427cdcdd67f42fac9c:1/1]\nRequest captured for Personal review; it has not yet been accepted.",
+        "guild_id": "4",
+        "id": "1564698386366554001",
+        "nonce": "7cddf12274e76b22af589353",
+        "thread_id": "1564698386366464700"
+      },
+      "1564698386366554002": {
+        "author_id": "2",
+        "content": "[fm:accepted.9c90e4104ae7a9ad400115288e686ba0bc37d9554465de4ea06406869e95b47b:1/1]\nAccepted for parent-authorized work. Routing is being reconciled; this is not a completion notice.",
+        "guild_id": "4",
+        "id": "1564698386366554002",
+        "nonce": "d65197cc86e4cacc8b0a29af",
+        "thread_id": "1564698386366464700"
+      },
+      "1564698386366554003": {
+        "author_id": "2",
+        "content": "[fm:milestone.0:1/1]\nThe synthetic implementation is under way.",
+        "guild_id": "4",
+        "id": "1564698386366554003",
+        "nonce": "87c505ea56af6bb2229d5610",
+        "thread_id": "1564698386366464700"
+      },
+      "1564698386366554004": {
+        "author_id": "2",
+        "content": "[fm:private.0:1/1]\nA private decision is needed. Details remain in the existing private Personal conversation.",
+        "guild_id": "4",
+        "id": "1564698386366554004",
+        "nonce": "cb3094762630271bc72e6929",
+        "thread_id": "1564698386366464700"
+      },
+      "1564698386366554005": {
+        "author_id": "2",
+        "content": "[fm:result.0:1/1]\nThe synthetic coding change is complete and remains local.",
+        "guild_id": "4",
+        "id": "1564698386366554005",
+        "nonce": "018b894fdebbd2ac8ef2893f",
+        "thread_id": "1564698386366464700"
+      },
+      "1564698386366554006": {
+        "author_id": "2",
+        "content": "[fm:captured.793acf77ec8bb469d582592c5412c9494755475817f72111bc294f58e4fcd785:1/1]\nRequest captured for Personal review; it has not yet been accepted.",
+        "guild_id": "14",
+        "id": "1564698386366554006",
+        "nonce": "7f9e40907dcab16cd0ade564",
+        "thread_id": "1564698394755072701"
+      },
+      "1564698386366554007": {
+        "author_id": "2",
+        "content": "[fm:accepted.88763ca7eb9eee6def84829a52eda36011f4ab7f5bfa74f331f5a4b2750f05eb:1/1]\nAccepted for parent-authorized work. Routing is being reconciled; this is not a completion notice.",
+        "guild_id": "14",
+        "id": "1564698386366554007",
+        "nonce": "4ffe714f0512360e890dc359",
+        "thread_id": "1564698394755072701"
+      },
+      "1564698386366554008": {
+        "author_id": "2",
+        "content": "[fm:milestone.1:1/1]\nThe synthetic implementation is under way.",
+        "guild_id": "14",
+        "id": "1564698386366554008",
+        "nonce": "83cf4523b75dc3db2fdf18c0",
+        "thread_id": "1564698394755072701"
+      },
+      "1564698386366554009": {
+        "author_id": "2",
+        "content": "[fm:private.1:1/1]\nA private decision is needed. Details remain in the existing private Personal conversation.",
+        "guild_id": "14",
+        "id": "1564698386366554009",
+        "nonce": "5dcb7894a1327f190209813a",
+        "thread_id": "1564698394755072701"
+      },
+      "1564698386366554010": {
+        "author_id": "2",
+        "content": "[fm:result.1:1/1]\nThe synthetic coding change is complete and remains local.",
+        "guild_id": "14",
+        "id": "1564698386366554010",
+        "nonce": "a275dc78440e9d82ea41a7cd",
+        "thread_id": "1564698394755072701"
+      }
+    }
+  },
+  {
+    "scenario": "test_duplicate_parent_routes_refuse_before_any_delivery",
+    "media_calls": 0,
+    "model_calls": 0,
+    "readiness": {
+      "epoch": "b6238ec64da042d0aba22cf4c0b85eb6",
+      "restore_epoch": "ebe80b5d124f4f7e8e1ce6a51e0afd62",
+      "expires": "2026-10-27T17:53:22Z",
+      "acceptance": true,
+      "schema": 2
+    },
+    "inboxes": {},
+    "journal_records": [],
+    "obligations": [],
+    "fake_service_messages": {}
+  },
+  {
+    "scenario": "test_both_mapping_negatives_and_immutable_config_zero_io",
+    "media_calls": 0,
+    "model_calls": 0,
+    "readiness": {
+      "epoch": "aea069029ce145a8a93c544dc672ccca",
+      "restore_epoch": "532c596fc6da4dfeb0503c6cf102a6ec",
+      "expires": "2026-10-27T17:53:24Z",
+      "acceptance": true,
+      "schema": 2
+    },
+    "inboxes": {},
+    "journal_records": [],
+    "obligations": [],
+    "fake_service_messages": {}
+  }
+]

@@ -1,0 +1,74 @@
+{
+  "identity": [
+    {
+      "singleton": 1,
+      "schema_version": 2,
+      "epoch": "c64e113d2dc54f49bf25d08db053ae10",
+      "fenced": 0,
+      "delivery_fenced": 0
+    }
+  ],
+  "records": [
+    {
+      "family": "configured-mapping",
+      "id": "37a2eb3bf3a257c6c76e2533f201f0a335e3ccb433100a4b5170748381a21254",
+      "digest": "37a2eb3bf3a257c6c76e2533f201f0a335e3ccb433100a4b5170748381a21254",
+      "body": "{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\"}",
+      "created": 1793123269
+    },
+    {
+      "family": "rate",
+      "id": "endpoint",
+      "digest": "ebe72cd9ea861654c08a89b1c8673b823a285781f430aacfe5068547551a9575",
+      "body": "{\"burst\":5,\"sustained\":2}",
+      "created": 1793123269
+    },
+    {
+      "family": "request",
+      "id": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "digest": "9462770c4d52ef138c2fe030608e7502a260d76c1ae02f31eba79e9cda8b053f",
+      "body": "{\"assets\":[],\"assets_required\":false,\"context\":[{\"author\":\"3\",\"edited\":false,\"id\":\"1564697140658176099\",\"provenance\":\"source=5; original-untrusted\",\"text\":\"Collaborator context, not authority.\",\"time\":\"2026-10-27T17:47:49Z\"}],\"context_manifest\":{\"cross_channel_followed\":false,\"gaps\":[\"Bounded relevant history only; missing replies and selection omissions are not proof of completeness.\"],\"max_age_seconds\":86400,\"max_messages\":30,\"observed_at\":\"2026-10-27T17:47:49Z\",\"truncated\":false},\"historical\":false,\"id\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"origin\":{\"bridge_id\":\"isolated-test\",\"guild_id\":\"4\",\"mapping_revision\":\"1\",\"owner_id\":\"1\",\"parent_channel_id\":\"5\",\"project_key\":\"pristine-valets\",\"source_message_id\":\"1564697140658176100\",\"thread_id\":\"1564697140658176100\"},\"readiness\":{\"epoch\":\"033a5aa253cb42adae50af3138625980\",\"expires\":\"2026-10-27T17:48:20Z\"},\"scope_digest\":\"8c543e6f032457dbfb67d56b64e032514fb03d0cd624d730d97644c9cf319dcc\",\"text\":\"Inspect synthetic README, read-only.\"}",
+      "created": 1793123269
+    },
+    {
+      "family": "action",
+      "id": "f2be1bd80ef6807547d9c9acc14d8592c338e2602e6ed168090c62196907f1b6",
+      "digest": "cea1d780b60bab6ca9b043b68f72a23585274719989a398f8c3bb4e39e4b5003",
+      "body": "{\"availability_epoch\":\"033a5aa253cb42adae50af3138625980\",\"digest\":\"9462770c4d52ef138c2fe030608e7502a260d76c1ae02f31eba79e9cda8b053f\",\"fresh_until\":\"2026-10-27T17:48:20Z\",\"id\":\"c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7\",\"kind\":\"answer-routine\",\"op\":\"instruct\",\"protocol\":\"personal-discord/2\",\"revision\":\"2\",\"schema\":2,\"source_message\":\"1564697144852480101\",\"target\":{\"decision_digest\":\"e01497da8fffec3a29abf4cc866b6d948c5d1d26561468790d651b296ef85997\",\"decision_id\":\"decision.1\"},\"words\":\"!answer decision.1 e01497da8fffec3a29abf4cc866b6d948c5d1d26561468790d651b296ef85997 Share that exact title.\"}",
+      "created": 1793123270
+    }
+  ],
+  "state": [
+    {
+      "family": "configured-mapping",
+      "id": "37a2eb3bf3a257c6c76e2533f201f0a335e3ccb433100a4b5170748381a21254",
+      "revision": 0,
+      "body": "{}"
+    },
+    {
+      "family": "rate",
+      "id": "endpoint",
+      "revision": 6,
+      "body": "{\"time\":1793123270,\"tokens\":1.0}"
+    },
+    {
+      "family": "request",
+      "id": "c02c204e4a8891ea51e9ea1656a755ec132e33cb9c2d9dc919e67411c10d8dd7",
+      "revision": 0,
+      "body": "{}"
+    },
+    {
+      "family": "action",
+      "id": "f2be1bd80ef6807547d9c9acc14d8592c338e2602e6ed168090c62196907f1b6",
+      "revision": 0,
+      "body": "{}"
+    }
+  ],
+  "events": [],
+  "obligations": [],
+  "lanes": [],
+  "work_bindings": [],
+  "event_bindings": [],
+  "intents": [],
+  "assets": []
+}

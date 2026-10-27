@@ -1,0 +1,533 @@
+[
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "drain"
+    ],
+    "exit": 0,
+    "stdout": "(inbox empty)\n\nAck with: fm-inbox.sh drain --ack <id>...\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "note",
+      "--request-id",
+      "discord.2ecd1d5582a1f94efe0b5b1b2d72cbb52c88df07d69abe42e1acbb2bf3309597",
+      "--json",
+      "-"
+    ],
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-note.v1\",\"outcome\":\"created\",\"id\":\"1793123541-G15Coe\",\"request_id\":\"discord.2ecd1d5582a1f94efe0b5b1b2d72cbb52c88df07d69abe42e1acbb2bf3309597\",\"saved\":true,\"announced\":true,\"acknowledged\":false,\"path\":\"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpf0nl1ngv/home/state/inbox/1793123541-G15Coe.note\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/Users/ayrton/Firstmates/personal/data/discord-isolated-adaptation/venv/bin/python",
+      "-I",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-discord-hook.py",
+      "capacity-deferred",
+      "disposable-worker",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpf0nl1ngv/home/projects/pristine-valets"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/Users/ayrton/Firstmates/personal/data/discord-isolated-adaptation/venv/bin/python",
+      "-I",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-discord-hook.py",
+      "spawn",
+      "disposable-worker",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpf0nl1ngv/home/projects/pristine-valets"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/Users/ayrton/Firstmates/personal/data/discord-isolated-adaptation/venv/bin/python",
+      "-I",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-discord-hook.py",
+      "spawn",
+      "disposable-worker",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpf0nl1ngv/home/projects/pristine-valets"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Discord parent routing guard refused: Conflict; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "drain"
+    ],
+    "exit": 0,
+    "stdout": "(inbox empty)\n\nAck with: fm-inbox.sh drain --ack <id>...\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "note",
+      "--request-id",
+      "discord.344360c1068d51efa3b7f51e033ffa85be835490cc106c7bca49f83b6334ab06",
+      "--json",
+      "-"
+    ],
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-note.v1\",\"outcome\":\"created\",\"id\":\"1793123543-bdCH7f\",\"request_id\":\"discord.344360c1068d51efa3b7f51e033ffa85be835490cc106c7bca49f83b6334ab06\",\"saved\":true,\"announced\":true,\"acknowledged\":false,\"path\":\"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpqf2gdh6a/home/state/inbox/1793123543-bdCH7f.note\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "-c",
+      ". \"$1\"; fm_pending_reply_create \"$2\" \"$3\" domain \"$4\"",
+      "_",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-pending-reply-lib.sh",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpqf2gdh6a/home",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpqf2gdh6a/home/state",
+      "Inspect synthetic README, read-only. No product changes."
+    ],
+    "exit": 0,
+    "stdout": "3cd453dec9dbe40f",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-send.sh",
+      "domain",
+      "Inspect synthetic README, read-only. No product changes."
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpqf2gdh6a/home\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\u25cf  WATCHER DOWN - SUPERVISION IS OFF\n\u25cf  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).\n\u25cf  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.\n\u25cf  This is a supervision warning only; the requested message WILL still be sent.\n\u25cf  After draining queued wakes, repair missing watcher supervision according to the session-start block for this harness; do not use shell &.\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-secondmate-report.sh",
+      "done",
+      "3cd453dec9dbe40f",
+      "Synthetic README title: Example. No files changed."
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "-c",
+      ". \"$1\"; fm_pending_reply_try_resolve \"$2\" \"$3\"",
+      "_",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-pending-reply-lib.sh",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpqf2gdh6a/home/state",
+      "3cd453dec9dbe40f"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "note",
+      "--request-id",
+      "discord.action.109b1560e27768542703546983ca24f392a09448e90f7956c551a5ddb17cabe0",
+      "--json",
+      "-"
+    ],
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-note.v1\",\"outcome\":\"created\",\"id\":\"1793123546-p039tv\",\"request_id\":\"discord.action.109b1560e27768542703546983ca24f392a09448e90f7956c551a5ddb17cabe0\",\"saved\":true,\"announced\":true,\"acknowledged\":false,\"path\":\"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpqf2gdh6a/home/state/inbox/1793123546-p039tv.note\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "reply",
+      "1793123543-bdCH7f",
+      "PRIVATE synthetic raw detail must not be exported"
+    ],
+    "exit": 0,
+    "stdout": "replied 1793123543-bdCH7f\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "reply",
+      "1793123543-bdCH7f",
+      "second"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-inbox: reply already recorded for 1793123543-bdCH7f\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "drain"
+    ],
+    "exit": 0,
+    "stdout": "(inbox empty)\n\nAck with: fm-inbox.sh drain --ack <id>...\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-send.sh",
+      "domain",
+      "New mapped work without classification"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpdq1zmab7/home\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\u25cf  WATCHER DOWN - SUPERVISION IS OFF\n\u25cf  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).\n\u25cf  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.\n\u25cf  This is a supervision warning only; the requested message WILL still be sent.\n\u25cf  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nerror: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-send.sh",
+      "fixture:fm-domain",
+      "New mapped work without classification"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpdq1zmab7/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nerror: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-send.sh",
+      "domain",
+      "Legacy mapped-route text with integration disabled"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpdq1zmab7/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "drain"
+    ],
+    "exit": 0,
+    "stdout": "(inbox empty)\n\nAck with: fm-inbox.sh drain --ack <id>...\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "note",
+      "--request-id",
+      "discord.2f3c4869bdefa17e092071985114b6155fe50957142f54f849da4fab3d9fbe19",
+      "--json",
+      "-"
+    ],
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-note.v1\",\"outcome\":\"created\",\"id\":\"1793123552-xLhxnH\",\"request_id\":\"discord.2f3c4869bdefa17e092071985114b6155fe50957142f54f849da4fab3d9fbe19\",\"saved\":true,\"announced\":true,\"acknowledged\":false,\"path\":\"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmp5c8rycj0/home/state/inbox/1793123552-xLhxnH.note\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-send.sh",
+      "domain",
+      "Current-binding clarification only"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmp5c8rycj0/home\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\u25cf  WATCHER DOWN - SUPERVISION IS OFF\n\u25cf  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).\n\u25cf  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.\n\u25cf  This is a supervision warning only; the requested message WILL still be sent.\n\u25cf  After draining queued wakes, repair missing watcher supervision according to the session-start block for this harness; do not use shell &.\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-send.sh",
+      "domain",
+      "Current-binding clarification only"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmp5c8rycj0/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: Conflict; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-send.sh",
+      "domain",
+      "Non-work health acknowledgement only"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmp5c8rycj0/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-send.sh",
+      "domain",
+      "Non-work health acknowledgement only"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmp5c8rycj0/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: Conflict; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-send.sh",
+      "domain",
+      "Explicit unrelated project read-only text"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmp5c8rycj0/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-send.sh",
+      "domain",
+      "Explicit unrelated project read-only text"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmp5c8rycj0/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: Conflict; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-send.sh",
+      "unrelated",
+      "Unrelated unmapped route remains legacy"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmp5c8rycj0/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nfm-send: doorbell not typed because the agent in fixture:fm-unrelated has exited; the steer is durably recorded at /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmp5c8rycj0/home/state/unrelated.inbox/001.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "drain"
+    ],
+    "exit": 0,
+    "stdout": "(inbox empty)\n\nAck with: fm-inbox.sh drain --ack <id>...\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "note",
+      "--request-id",
+      "discord.06bf05a723e32567eca8588d6c28e5326ba40cd95a525f1bb2abeef6a19cdfe5",
+      "--json",
+      "-"
+    ],
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-note.v1\",\"outcome\":\"created\",\"id\":\"1793123565-CC1VAo\",\"request_id\":\"discord.06bf05a723e32567eca8588d6c28e5326ba40cd95a525f1bb2abeef6a19cdfe5\",\"saved\":true,\"announced\":true,\"acknowledged\":false,\"path\":\"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmp2swqy027/home/state/inbox/1793123565-CC1VAo.note\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-send.sh",
+      "domain",
+      "answer"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmp2swqy027/home\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\u25cf  WATCHER DOWN - SUPERVISION IS OFF\n\u25cf  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).\n\u25cf  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.\n\u25cf  This is a supervision warning only; the requested message WILL still be sent.\n\u25cf  After draining queued wakes, repair missing watcher supervision according to the session-start block for this harness; do not use shell &.\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: Conflict; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "drain"
+    ],
+    "exit": 0,
+    "stdout": "(inbox empty)\n\nAck with: fm-inbox.sh drain --ack <id>...\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "note",
+      "--request-id",
+      "discord.d873fee9a5fee5e415bda6732012454288e6c412671f0c427cdcdd67f42fac9c",
+      "--json",
+      "-"
+    ],
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-note.v1\",\"outcome\":\"created\",\"id\":\"1793123567-f5wBzp\",\"request_id\":\"discord.d873fee9a5fee5e415bda6732012454288e6c412671f0c427cdcdd67f42fac9c\",\"saved\":true,\"announced\":true,\"acknowledged\":false,\"path\":\"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpyqi32ck9/home/state/inbox/1793123567-f5wBzp.note\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "-c",
+      ". \"$1\"; fm_pending_reply_create \"$2\" \"$3\" \"$4\" \"$5\"",
+      "_",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-pending-reply-lib.sh",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpyqi32ck9/home",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpyqi32ck9/home/state",
+      "domain",
+      "Implement only the nonprivate synthetic fixture."
+    ],
+    "exit": 0,
+    "stdout": "eb69725828088a68",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-send.sh",
+      "domain",
+      "Implement only the nonprivate synthetic fixture."
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpyqi32ck9/home\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\u25cf  WATCHER DOWN - SUPERVISION IS OFF\n\u25cf  2 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).\n\u25cf  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.\n\u25cf  This is a supervision warning only; the requested message WILL still be sent.\n\u25cf  After draining queued wakes, repair missing watcher supervision according to the session-start block for this harness; do not use shell &.\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-secondmate-report.sh",
+      "done",
+      "eb69725828088a68",
+      "Synthetic coding result complete."
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "-c",
+      ". \"$1\"; fm_pending_reply_try_resolve \"$2\" \"$3\"",
+      "_",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-pending-reply-lib.sh",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpyqi32ck9/home/state",
+      "eb69725828088a68"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "note",
+      "--request-id",
+      "discord.793acf77ec8bb469d582592c5412c9494755475817f72111bc294f58e4fcd785",
+      "--json",
+      "-"
+    ],
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-note.v1\",\"outcome\":\"created\",\"id\":\"1793123570-dOIMSz\",\"request_id\":\"discord.793acf77ec8bb469d582592c5412c9494755475817f72111bc294f58e4fcd785\",\"saved\":true,\"announced\":true,\"acknowledged\":false,\"path\":\"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpyqi32ck9/home/state/inbox/1793123570-dOIMSz.note\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "-c",
+      ". \"$1\"; fm_pending_reply_create \"$2\" \"$3\" \"$4\" \"$5\"",
+      "_",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-pending-reply-lib.sh",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpyqi32ck9/home",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpyqi32ck9/home/state",
+      "domain-galagoa",
+      "Implement only the nonprivate synthetic fixture."
+    ],
+    "exit": 0,
+    "stdout": "31e94ab9387455b4",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-send.sh",
+      "domain-galagoa",
+      "Implement only the nonprivate synthetic fixture."
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpyqi32ck9/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nfm-send: doorbell not typed because the agent in fixture:fm-domain-galagoa has exited; the steer is durably recorded at /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpyqi32ck9/home/state/domain-galagoa.inbox/001.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-secondmate-report.sh",
+      "done",
+      "31e94ab9387455b4",
+      "Synthetic coding result complete."
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "-c",
+      ". \"$1\"; fm_pending_reply_try_resolve \"$2\" \"$3\"",
+      "_",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-pending-reply-lib.sh",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmpyqi32ck9/home/state",
+      "31e94ab9387455b4"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "drain"
+    ],
+    "exit": 0,
+    "stdout": "(inbox empty)\n\nAck with: fm-inbox.sh drain --ack <id>...\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-send.sh",
+      "domain",
+      "synthetic private words must not be echoed"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/tmp8e78md5c/home\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\u25cf  WATCHER DOWN - SUPERVISION IS OFF\n\u25cf  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).\n\u25cf  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.\n\u25cf  This is a supervision warning only; the requested message WILL still be sent.\n\u25cf  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nerror: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/bin/fm-inbox.sh",
+      "drain"
+    ],
+    "exit": 0,
+    "stdout": "(inbox empty)\n\nAck with: fm-inbox.sh drain --ack <id>...\n",
+    "stderr": ""
+  }
+]

@@ -1,0 +1,46 @@
+[
+  {
+    "command": [
+      "fm-inbox.sh",
+      "note",
+      "--request-id",
+      "live-unset-home",
+      "--json",
+      "Disposable default-home request"
+    ],
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-note.v1\",\"outcome\":\"created\",\"id\":\"1793123513-eQL32v\",\"request_id\":\"live-unset-home\",\"saved\":true,\"announced\":true,\"acknowledged\":false,\"path\":\"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/default-home/state/inbox/1793123513-eQL32v.note\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "fm-inbox.sh",
+      "drain"
+    ],
+    "exit": 0,
+    "stdout": "1793123513-eQL32v\n    Disposable default-home request\n\nAck with: fm-inbox.sh drain --ack <id>...\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "fm-inbox.sh",
+      "reply",
+      "--json",
+      "1793123513-eQL32v",
+      "Disposable default-home terminal reply"
+    ],
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-reply.v1\",\"outcome\":\"created\",\"id\":\"1793123513-eQL32v\",\"path\":\"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/test-artifacts/default-home/state/inbox/.replies/1793123513-eQL32v\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "fm-inbox.sh",
+      "receipts",
+      "--all-replies"
+    ],
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-receipts.v1\",\"home\":\"test-artifacts/default-home\",\"generated\":\"2026-10-27T17:51:53Z\",\"pending\":[{\"id\":\"1793123513-eQL32v\",\"at\":\"2026-10-27T17:51:53Z\",\"source\":\"text\",\"request_id\":\"live-unset-home\",\"body\":\"Disposable default-home request\",\"acknowledged\":false,\"announced\":true,\"reply\":{\"id\":\"1793123513-eQL32v\",\"at\":\"2026-10-27T17:51:53Z\",\"body\":\"Disposable default-home terminal reply\",\"cursor\":\"000000000001\"}}],\"handled\":[],\"replies\":[{\"id\":\"1793123513-eQL32v\",\"at\":\"2026-10-27T17:51:53Z\",\"body\":\"Disposable default-home terminal reply\",\"cursor\":\"000000000001\"}],\"reply_cursor\":\"000000000001\",\"omitted\":[]}\n",
+    "stderr": ""
+  }
+]

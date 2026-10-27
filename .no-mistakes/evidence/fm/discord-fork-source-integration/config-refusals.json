@@ -1,0 +1,20 @@
+[
+  {
+    "scenario": "duplicate enablement",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "scenario": "invalid boolean",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "scenario": "incomplete enabled schema",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  }
+]

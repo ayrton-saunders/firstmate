@@ -1,0 +1,9 @@
+test_complete_simulated_request_parent_route_progress_decision_final_original_thread (__main__.LabFlow.test_complete_simulated_request_parent_route_progress_decision_final_original_thread) ... Executing <Task finished name='Task-2' coro=<Flow.test_complete_simulated_request_parent_route_progress_decision_final_original_thread() done, defined at /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/private-core-test/tests/test_flow.py:206> result=None created at /opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/runners.py:110> took 5.048 seconds
+ok
+test_actual_current_spawn_capacity_exit_does_not_consume_permit (__main__.LabAdaptation.test_actual_current_spawn_capacity_exit_does_not_consume_permit) ... Executing <Task finished name='Task-7' coro=<Adaptation.test_actual_current_spawn_capacity_exit_does_not_consume_permit() done, defined at /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5Z6S3D1YEKGGHKF6B2RZ6HH/.no-mistakes/private-core-test/tests/test_adaptation.py:227> result=None created at /opt/homebrew/Cellar/python@3.14/3.14.6/Frameworks/Python.framework/Versions/3.14/lib/python3.14/asyncio/runners.py:110> took 2.007 seconds
+ok
+
+----------------------------------------------------------------------
+Ran 2 tests in 8.298s
+
+OK
