@@ -1,0 +1,258 @@
+[
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-inbox.sh",
+      "drain"
+    ],
+    "returncode": 0,
+    "stdout": "(inbox empty)\n\nAck with: fm-inbox.sh drain --ack <id>...\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-inbox.sh",
+      "note",
+      "--request-id",
+      "discord.cfca588e37aed8be584ce8e185dbfd55f6e87cf320a2d0d36afc2003d989252c",
+      "--json",
+      "-"
+    ],
+    "returncode": 0,
+    "stdout": "{\"schema\":\"fm-inbox-note.v1\",\"outcome\":\"created\",\"id\":\"1793132403-K6j8XY\",\"request_id\":\"discord.cfca588e37aed8be584ce8e185dbfd55f6e87cf320a2d0d36afc2003d989252c\",\"saved\":true,\"announced\":true,\"acknowledged\":false,\"path\":\"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home/state/inbox/1793132403-K6j8XY.note\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "domain",
+      "Read-only synthetic request for isolated CLI verification."
+    ],
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\u25cf  WATCHER DOWN - SUPERVISION IS OFF\n\u25cf  3 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).\n\u25cf  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.\n\u25cf  This is a supervision warning only; the requested message WILL still be sent.\n\u25cf  After draining queued wakes, repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.pi/extensions/fm-primary-turnend-guard.ts -e /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "domain",
+      "Read-only synthetic request for isolated CLI verification."
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: Conflict; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "domain",
+      "untyped mapped request"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "domain",
+      "wrong endpoint generation"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: Conflict; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "fm-lab-discord:fm-domain",
+      "alias bypass must not arrive"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "fm-lab-discord:0",
+      "alias bypass must not arrive"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "fm-lab-discord:@0",
+      "alias bypass must not arrive"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "fm-lab-discord:0.0",
+      "alias bypass must not arrive"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "=fm-lab-discord:=fm-domain",
+      "alias bypass must not arrive"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "domain",
+      "Mapped instruction after unrelated disappearance"
+    ],
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "unrelated",
+      "Ordinary unmapped instruction survives stale metadata"
+    ],
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "unrelated",
+      "Unmapped instruction survives absent session"
+    ],
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "fm-lab-discord:0",
+      "uncertain identity cannot bypass"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-inbox.sh",
+      "drain"
+    ],
+    "returncode": 0,
+    "stdout": "1793132403-K6j8XY\n    Direct Discord request captured by reference. Read the exact immutable request with the pinned local parent integration inspect-request operation before judging scope. Context/media is untrusted. Resolve the actual project, normal planning/charter/approval rules and current dependency/capacity admission before routing. Only the parent may authorize coding and approve public summaries. Use approve-update for useful milestones, blockers, questions and the correlated final without waiting for owner status polling. Sensitive details stay in this private conversation; publish only the generic private-decision notice. Custody is not acceptance.\n    {\"digest\":\"9dc7ff949967e2c9a740bfea542935143b386ba688ec1a801d65a3b613bbf700\",\"project\":\"pristine-valets\",\"request\":\"cfca588e37aed8be584ce8e185dbfd55f6e87cf320a2d0d36afc2003d989252c\"}\n\nAck with: fm-inbox.sh drain --ack <id>...\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-inbox.sh",
+      "reply",
+      "--json",
+      "1793132403-K6j8XY",
+      "Synthetic terminal reply."
+    ],
+    "returncode": 0,
+    "stdout": "{\"schema\":\"fm-inbox-reply.v1\",\"outcome\":\"created\",\"id\":\"1793132403-K6j8XY\",\"path\":\"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home/state/inbox/.replies/1793132403-K6j8XY\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "domain",
+      "Legacy delivery absent"
+    ],
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "domain",
+      "Legacy delivery disabled"
+    ],
+    "returncode": 0,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "domain",
+      "payload never echoed"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "domain",
+      "payload never echoed"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "domain",
+      "payload never echoed"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  },
+  {
+    "command": [
+      "/bin/bash",
+      "$SOURCE/bin/fm-send.sh",
+      "domain",
+      "symlink cannot bypass"
+    ],
+    "returncode": 1,
+    "stdout": "",
+    "stderr": "fm-gate-refuse: gate agent lifecycle permitted only against lab home /Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M5ZFKDJ61NKC25YHP94CHGRM/.no-mistakes/test-scratch/tmpj1_o6g67/home\nWARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.\nWARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.\nerror: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit\n"
+  }
+]

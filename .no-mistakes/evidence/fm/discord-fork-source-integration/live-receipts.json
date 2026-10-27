@@ -1,0 +1,35 @@
+{
+  "steering_records": [
+    "schema=fm-task-inbox.v1\nat=2026-10-27T20:20:05Z\nbody-terminator=1\n--\n[fm-from-firstmate]\u2063corr=04e31c683a69ef8d Read-only synthetic request for isolated CLI verification.\n",
+    "schema=fm-task-inbox.v1\nat=2026-10-27T20:20:12Z\nbody-terminator=1\n--\n[fm-from-firstmate]\u2063corr=80aecccce5b266a4 Mapped instruction after unrelated disappearance\n",
+    "schema=fm-task-inbox.v1\nat=2026-10-27T20:20:19Z\nbody-terminator=1\n--\n[fm-from-firstmate]\u2063corr=2fa9deefb75e2c3a Legacy delivery absent\n",
+    "schema=fm-task-inbox.v1\nat=2026-10-27T20:20:21Z\nbody-terminator=1\n--\n[fm-from-firstmate]\u2063corr=c578bc666cce54f8 Legacy delivery disabled\n"
+  ],
+  "permit_state": {
+    "evidence": {
+      "local_inbox_record": "001.msg"
+    },
+    "phase": "confirmed"
+  },
+  "pending_final": {
+    "generation": "generation-1",
+    "note_id": "1793132403-K6j8XY",
+    "reply_digest": "00eacc16db6af3c813d8a80203d5d29ebaea8125d0297a24e7d9e71396232dc1"
+  },
+  "readiness": {
+    "epoch": "a712d4619d4f454082780d4814efb8f9",
+    "restore_epoch": "b2df46b2f0204e8094d16dd83d713fcb",
+    "expires": "2026-10-27T20:20:49Z",
+    "acceptance": true,
+    "schema": 2
+  },
+  "aliases_refused": [
+    "fm-lab-discord:fm-domain",
+    "fm-lab-discord:0",
+    "fm-lab-discord:@0",
+    "fm-lab-discord:0.0",
+    "=fm-lab-discord:=fm-domain"
+  ],
+  "media_calls": 0,
+  "model_calls": 0
+}

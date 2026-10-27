@@ -1,0 +1,11 @@
+{
+  "submitted_head": "b71119e691661b99cdf6e5c4adbbfd4b2e167266",
+  "private_dependency_commit": "2ae30eca3ec48f13a5067c24f7960d3da791d274",
+  "supplied_snapshot_byte_identical": true,
+  "runtime": "existing Python 3.14.6",
+  "external_services": "synthetic only",
+  "tmux": "real private socket, inert cat panes; server stopped",
+  "activation": false,
+  "publication": false,
+  "media_calls": 0
+}

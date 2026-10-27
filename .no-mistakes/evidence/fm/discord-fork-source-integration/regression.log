@@ -1,0 +1,9 @@
+ok - Discord hook: absent integration preserves legacy delivery
+ok - Discord hook: disabled integration preserves legacy delivery
+ok - Discord hook: malformed configuration refuses without echoing private payload
+ok - Discord hook: incomplete enabled configuration refuses
+ok - Discord hook: non-object and non-boolean enablement refuse
+ok - Discord hook: symlink configuration refuses
+ok - Discord hook: actual inbox preserves absent/disabled behavior and reconciles optional failures
+ok - Discord hook: unset FM_HOME preserves disabled default-home inbox behavior
+ok - Discord hook: unset FM_HOME preserves disabled default-home spawn and deferral
