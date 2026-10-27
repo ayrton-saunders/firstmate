@@ -16,6 +16,10 @@
 # Orca supports Enter and C-c only; T3 Code maps Escape and C-c to a native
 # turn interrupt and treats Enter as a no-op.
 #
+# Optional mapped-route authority and retry exception:
+# bin/fm-discord-hook.py owns the enabled private integration's one-use permit
+# contract; reconcile consumed authority before retrying even a failed send.
+#
 # Two data planes:
 #
 # INBOX - the default for text to a task recorded in this home, local and
