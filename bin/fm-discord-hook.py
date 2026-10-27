@@ -4,7 +4,9 @@
 Usage: fm-discord-hook.py send <raw-target> <resolved-target> <meta-or-empty> <backend>
        fm-discord-hook.py spawn <task-id> <canonical-project-directory>
        fm-discord-hook.py capacity-deferred <task-id> <canonical-project-directory>
-       fm-discord-hook.py ready|outcome <note-id>|confirm-send local|remote <receipt>
+       fm-discord-hook.py ready
+       fm-discord-hook.py outcome <note-id>
+       fm-discord-hook.py confirm-send local|remote <receipt>
 The spawn owner calls capacity-deferred only after proving exit 75 before launch;
 it records retryable no-launch evidence without consuming dispatch authority.
 Exact pre-marker message (send) or brief SHA256 (spawn) arrives on stdin.

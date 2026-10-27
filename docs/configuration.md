@@ -2076,7 +2076,8 @@ The hook's [header and help](../bin/fm-discord-hook.py) own the exact configurat
 
 When enabled, explicitly mapped worker text routes and project spawns require parent-issued authority rather than treating transport input as authorization.
 Mapped endpoint aliases cannot bypass the guard through direct terminal text, and mapped work cannot use parser-native invocations.
-Unmapped work retains its ordinary routing behavior after configuration validation.
+Unmapped work retains its ordinary routing behavior after configuration validation and endpoint identity checks.
+A proven absent unrelated mapped endpoint does not block routing; an indeterminate identity lookup refuses delivery rather than risking a mapped terminal bypass.
 Capacity deferral remains a no-launch outcome and does not consume dispatch authority.
 Once a permit is consumed, reconcile lifecycle state before retrying; a failed command is not authority to reuse it.
 Inbox drain attempts to renew parent readiness, and durable inbox replies record private outcome digests rather than approving public finals.
