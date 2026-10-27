@@ -3,9 +3,8 @@
 # Full pinned-private-release integration is tested in that release's test suite.
 set -eu
 # shellcheck source=tests/lib.sh
-. "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+. "$(dirname "${BASH_SOURCE[0]}")/fixtures.sh"
 TMP_ROOT=$(fm_test_tmproot fm-discord-hook)
-trap 'rm -r "$TMP_ROOT"' EXIT
 HOME_FIXTURE="$TMP_ROOT/home"
 mkdir -p "$HOME_FIXTURE/config" "$HOME_FIXTURE/state"
 HOOK="$ROOT/bin/fm-discord-hook.py"
@@ -78,3 +77,55 @@ for mode in absent disabled malformed; do
   fi
 done
 pass 'Discord hook: actual inbox preserves absent/disabled behavior and reconciles optional failures'
+
+DEFAULT_HOME="$TMP_ROOT/default-home"
+fm_test_spawn_home "$DEFAULT_HOME" codex
+cp -R "$ROOT/bin" "$DEFAULT_HOME/bin"
+printf '%s\n' '{"enabled":false}' > "$DEFAULT_HOME/config/discord-integration.json"
+mkdir -p "$DEFAULT_HOME/user-home"
+run_default_inbox() {
+  env -u FM_HOME -u FM_ROOT_OVERRIDE -u FM_STATE_OVERRIDE -u FM_DATA_OVERRIDE \
+    -u FM_CONFIG_OVERRIDE HOME="$DEFAULT_HOME/user-home" \
+    bash "$DEFAULT_HOME/bin/fm-inbox.sh" "$@"
+}
+note=$(run_default_inbox note --request-id discord-default-home --json 'default-home request') \
+  || fail 'default-home inbox capture must succeed'
+id=$(printf '%s' "$note" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+run_default_inbox drain >"$TMP_ROOT/default-drain" 2>"$TMP_ROOT/default-drain.err" \
+  || fail 'default-home inbox drain must succeed'
+assert_contains "$(<"$TMP_ROOT/default-drain")" 'default-home request' 'default-home request must be drained'
+[ ! -s "$TMP_ROOT/default-drain.err" ] || fail 'disabled default-home readiness must not warn'
+run_default_inbox reply --json "$id" 'default-home reply' >"$TMP_ROOT/default-reply" 2>"$TMP_ROOT/default-reply.err" \
+  || fail 'default-home inbox reply must succeed'
+[ ! -s "$TMP_ROOT/default-reply.err" ] || fail 'disabled default-home outcome must not warn'
+receipts=$(run_default_inbox receipts --all-replies) || fail 'default-home receipts must be readable'
+assert_contains "$receipts" 'default-home reply' 'default-home reply must be durable'
+pass 'Discord hook: unset FM_HOME preserves disabled default-home inbox behavior'
+
+FAKEBIN=$(fm_test_make_spawn_fakebin "$TMP_ROOT/spawn-tools" codex gh gh-axi)
+PROJECT="$TMP_ROOT/project"
+WORKTREE="$TMP_ROOT/worker"
+fm_git_worktree "$PROJECT" "$WORKTREE" discord-default-home
+fm_test_spawn_brief "$DEFAULT_HOME" default-worker
+run_default_spawn() {
+  env -u FM_HOME -u FM_ROOT_OVERRIDE -u FM_STATE_OVERRIDE -u FM_DATA_OVERRIDE \
+    -u FM_PROJECTS_OVERRIDE -u FM_CONFIG_OVERRIDE \
+    HOME="$DEFAULT_HOME/user-home" CLAUDE_CONFIG_DIR='' \
+    FM_SPAWN_NO_GUARD=1 FM_FAKE_PANE_PATH="$WORKTREE" TMUX=fake,1,0 \
+    PATH="$FAKEBIN:$PATH" bash "$DEFAULT_HOME/bin/fm-spawn.sh" "$@"
+}
+run_default_spawn default-worker "$PROJECT" --scout --backend tmux \
+  >"$TMP_ROOT/default-spawn" 2>"$TMP_ROOT/default-spawn.err" \
+  || fail "disabled default-home spawn must succeed: $(<"$TMP_ROOT/default-spawn.err")"
+[ -f "$DEFAULT_HOME/state/default-worker.meta" ] || fail 'default-home spawn must register its worker'
+printf '%s 1\n' "${PROJECT##*/}" > "$DEFAULT_HOME/config/project-capacity"
+fm_test_spawn_brief "$DEFAULT_HOME" deferred-worker
+rc=0
+run_default_spawn deferred-worker "$PROJECT" --scout --backend tmux \
+  >"$TMP_ROOT/default-defer" 2>"$TMP_ROOT/default-defer.err" || rc=$?
+[ "$rc" -eq 75 ] || fail "default-home capacity deferral must exit 75: $(<"$TMP_ROOT/default-defer.err")"
+assert_not_contains "$(<"$TMP_ROOT/default-defer.err")" 'Discord admission receipt needs reconciliation' \
+  'disabled default-home capacity hook must not warn'
+assert_not_contains "$(<"$TMP_ROOT/default-defer.err")" 'Traceback' 'default-home capacity hook must not crash'
+[ ! -e "$DEFAULT_HOME/state/deferred-worker.meta" ] || fail 'deferred worker must not launch'
+pass 'Discord hook: unset FM_HOME preserves disabled default-home spawn and deferral'

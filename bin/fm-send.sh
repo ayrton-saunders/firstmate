@@ -801,7 +801,7 @@ else
   fi
   # Optional parent-issued authority, before markers/correlation or delivery.
   if [ -e "$FM_HOME/config/discord-integration.json" ]; then
-    DISCORD_ROUTE_INFO=$(printf '%s' "$MESSAGE" | python3 -I "$SCRIPT_DIR/fm-discord-hook.py" send \
+    DISCORD_ROUTE_INFO=$(printf '%s' "$MESSAGE" | FM_HOME="$FM_HOME" python3 -I "$SCRIPT_DIR/fm-discord-hook.py" send \
       "$RAW_TARGET" "$T" "$TARGET_META") || exit 1
     if [ -n "$DISCORD_ROUTE_INFO" ]; then
       DISCORD_ROUTE_CORR=${DISCORD_ROUTE_INFO%%|*}
@@ -1001,7 +1001,7 @@ else
     fi
     # The remote record is durable delivery, exactly as a local enqueue is.
     if [ -n "${DISCORD_ROUTE_INFO:-}" ]; then
-      if ! python3 -I "$SCRIPT_DIR/fm-discord-hook.py" confirm-send remote "${PENDING_REPLY_CORR:-$FIRE_AND_FORGET_ID}"; then
+      if ! FM_HOME="$FM_HOME" python3 -I "$SCRIPT_DIR/fm-discord-hook.py" confirm-send remote "${PENDING_REPLY_CORR:-$FIRE_AND_FORGET_ID}"; then
         echo 'warning: mapped steer delivered; reconcile its receipt, do not resend blindly' >&2
       fi
     fi
@@ -1070,7 +1070,7 @@ else
     fi
     fm_lock_release "$INBOX_META_LOCK"
     if [ -n "${DISCORD_ROUTE_INFO:-}" ]; then
-      if ! python3 -I "$SCRIPT_DIR/fm-discord-hook.py" confirm-send local "$INBOX_RECORD"; then
+      if ! FM_HOME="$FM_HOME" python3 -I "$SCRIPT_DIR/fm-discord-hook.py" confirm-send local "$INBOX_RECORD"; then
         echo 'warning: mapped steer delivered; reconcile its receipt, do not resend blindly' >&2
       fi
     fi
