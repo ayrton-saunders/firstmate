@@ -1,0 +1,7 @@
+BASELINE: register test-agent over a bare shell (original fixture)
+warning: 2 exact herdr presentation token matches for duplicate1 are quarantined; inspecting only for duplicate-agent risk
+error: quarantined herdr presentation for duplicate1 has a stale-agent pane; refusing duplicate launch
+BASELINE DID NOT REPRODUCE on this sample: fallback refused
+{"id":"cli:agent:get","result":{"agent":{"agent":"test-agent","agent_status":"idle","cwd":"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M62DTBNYBDG9RJZVNNEDXDV8","focused":true,"foreground_cwd":"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M62DTBNYBDG9RJZVNNEDXDV8","pane_id":"w1:p1","revision":0,"state_change_seq":1,"tab_id":"w1:t1","terminal_id":"term_65eef534441341","workspace_id":"w1"},"type":"agent_info"}}
+FIXED: start a real foreground sleep, then register the same test-agent
+unknown option: w1:p1

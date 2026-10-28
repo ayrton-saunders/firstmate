@@ -1,0 +1,5 @@
+BASELINE: register test-agent over a bare shell (original fixture)
+warning: 2 exact herdr presentation token matches for duplicate1 are quarantined; inspecting only for duplicate-agent risk
+error: quarantined herdr presentation for duplicate1 has a stale-agent pane; refusing duplicate launch
+BASELINE DID NOT REPRODUCE: fallback refused
+fm-herdr-lab: session delete failed for 'fm-lab-fixture-compare-80458-6740' and the lab session remains

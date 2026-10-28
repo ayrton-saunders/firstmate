@@ -1,0 +1,14 @@
+BASELINE: register test-agent over a bare shell (original fixture)
+warning: 2 exact herdr presentation token matches for duplicate1 are quarantined; inspecting only for duplicate-agent risk
+error: quarantined herdr presentation for duplicate1 has a stale-agent pane; refusing duplicate launch
+BASELINE DID NOT REPRODUCE on this sample: fallback refused
+{"error":{"code":"agent_not_found","message":"agent target w1:p1 not found"},"id":"cli:agent:get"}
+FIXED: start a real foreground sleep, then register the same test-agent
+{"id":"cli:pane:process_info","result":{"process_info":{"foreground_process_group_id":87791,"foreground_processes":[{"argv":["sleep","900"],"argv0":"sleep","cmdline":"sleep 900","cwd":"/Users/ayrton/.no-mistakes/worktrees/5611073f0314/01M62DTBNYBDG9RJZVNNEDXDV8","name":"sleep","pid":87791}],"pane_id":"w1:p1","shell_pid":85055},"type":"pane_process_info"}}
+Classification with foreground process: live
+warning: 2 exact herdr presentation token matches for duplicate1 are quarantined; inspecting only for duplicate-agent risk
+error: quarantined herdr presentation for duplicate1 has a live pane; refusing duplicate launch
+FIXED VERIFIED: duplicate launch refused
+{"id":"cli:workspace:get","result":{"type":"workspace_info","workspace":{"active_tab_id":"w1:t1","agent_status":"idle","focused":true,"label":"firstmate/duplicate1 · p:LLilk75diyzv5JBq7NJzfw","number":1,"pane_count":1,"tab_count":1,"workspace_id":"w1"}}}
+{"id":"cli:workspace:get","result":{"type":"workspace_info","workspace":{"active_tab_id":"w2:t1","agent_status":"unknown","focused":false,"label":"copy/duplicate1 · p:LLilk75diyzv5JBq7NJzfw","number":2,"pane_count":1,"tab_count":1,"workspace_id":"w2"}}}
+Both quarantined workspaces remain present
