@@ -1738,7 +1738,8 @@ for attempt in first rerun; do
     > "$TMP_ROOT/ledger.expected"
   cmp -s "$TMP_ROOT/ledger.expected" "$TMP_ROOT/ledger-$attempt" \
     || fail "replacement charter ledger command used stale helper or config paths"
-  ack_command=$(awk -F '\140' '/moving it:/ { print $2; exit }' "$REPLACEMENT_HOME/data/charter.md")
+  # Select the acknowledgement, not the preceding inline find command.
+  ack_command=$(awk -F '\140' '/moving it:/ { for (i=2; i<=NF; i+=2) if ($i ~ /^mv /) { print $i; exit } }' "$REPLACEMENT_HOME/data/charter.md")
   [ -n "$ack_command" ] || fail "replacement charter omitted the steering acknowledgement command"
   printf 'steer\n' > "$REPLACEMENT_HOME/state/parent-route/ios.inbox/NNN.msg"
   bash -c "$ack_command" || fail "replacement charter steering acknowledgement failed"
@@ -1777,7 +1778,7 @@ assert_grep '{state} [at=<epoch>]: {one short line}' "$LOCAL_RESEED_PARENT/state
 printf 'appended\n%s\n%s\n' "$LOCAL_RESEED_PARENT/config" "$LOCAL_RESEED_PARENT/state/ios.status" > "$TMP_ROOT/ledger.expected"
 cmp -s "$TMP_ROOT/ledger.expected" "$TMP_ROOT/ledger-local" \
   || fail "local charter ledger command used stale helper or config paths"
-ack_command=$(awk -F '\140' '/moving it:/ { print $2; exit }' "$RETURNED_LOCAL_HOME/data/charter.md")
+ack_command=$(awk -F '\140' '/moving it:/ { for (i=2; i<=NF; i+=2) if ($i ~ /^mv /) { print $i; exit } }' "$RETURNED_LOCAL_HOME/data/charter.md")
 [ -n "$ack_command" ] || fail "local charter omitted the steering acknowledgement command"
 printf 'steer\n' > "$LOCAL_RESEED_PARENT/state/ios.inbox/NNN.msg"
 bash -c "$ack_command" || fail "local charter steering acknowledgement failed"

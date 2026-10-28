@@ -373,7 +373,8 @@ phase_relative_publication() {
       "$axis publication did not resolve the ledger helper and config from the child home"
     mkdir -p "$parent/state/paths.inbox/handled"
     printf 'steer\n' > "$parent/state/paths.inbox/NNN.msg"
-    ack_command=$(awk -F '\140' '/moving it:/ { print $2; exit }' "$brief")
+    # The inbox instructions can include a find command before the mv command.
+    ack_command=$(awk -F '\140' '/moving it:/ { for (i=2; i<=NF; i+=2) if ($i ~ /^mv /) { print $i; exit } }' "$brief")
     [ -n "$ack_command" ] || fail "$axis publication omitted the acknowledgement command"
     (
       cd "$child" || exit 1
