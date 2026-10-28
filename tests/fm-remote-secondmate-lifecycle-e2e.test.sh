@@ -1675,6 +1675,7 @@ assert_absent "$PARENT/data/ios" "remote no-op created an empty archive director
 assert_absent "$PARENT/state/ios.meta" "remote no-op retained stale parent metadata"
 assert_absent "$REMOTE_HOME" "remote no-op recreated the retired remote home"
 pass "remote missing-status retirement remains lock-free with archival enabled"
+mv "$TMP_ROOT/remote-archive.saved" "$PARENT/data/ios"
 
 # An absent home accepts exactly the retire dispatcher's arguments, and an
 # invalid option still fails with usage instead of reporting a retirement.
