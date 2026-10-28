@@ -7,7 +7,7 @@
 # safeguards: PR runs supersede within one PR while main pushes are never
 # cancelled, and every CI job carries a finite hang tripwire drawn from the
 # three-tier timeout policy that docs/fm-test-portable-shards.md "Timeouts"
-# owns (fast, normal, heavy), including the serial shards 1 and 2 budget exceptions.
+# owns (fast, normal, heavy), including every expanded serial matrix shard.
 #
 # They also hold the fork opt-out: the repository variables FM_CI_SKIP_PUSH and
 # FM_CI_SKIP_MACOS let a fork skip the push run and the macOS job through a
@@ -281,8 +281,8 @@ end
   pass "every ci.yml job carries a finite timeout"
 }
 
-# Every job sits in exactly one tier with three distinct baseline timeouts.
-# The serial shard exceptions are checked across the expanded matrix below.
+# Every job sits in exactly one tier with three distinct timeouts.
+# The shared serial budget is checked across the expanded matrix below.
 test_every_job_belongs_to_exactly_one_timeout_tier() {
   local expected actual distinct
   # shellcheck disable=SC2086
@@ -308,7 +308,7 @@ test_fast_tier_shares_one_short_tripwire() {
   pass "fast tier jobs share one $fast minute tripwire"
 }
 
-# Normal tier baseline: 30 minutes, except serial shards 1 and 2 checked below.
+# Normal tier: one shared 45-minute budget, including every serial shard.
 # That budget is a hang tripwire, not a packing estimate.
 test_normal_tier_shares_one_budget() {
   local fast normal
@@ -318,23 +318,23 @@ test_normal_tier_shares_one_budget() {
   normal=$(tier_timeout normal $NORMAL_TIER_JOBS) || exit 1
   [ "$normal" -gt "$fast" ] \
     || fail "normal tier ($normal) must exceed the fast tier ($fast)"
-  [ "$normal" = 30 ] \
-    || fail "normal tier must be the single 30-minute shared budget, got $normal"
+  [ "$normal" = 45 ] \
+    || fail "normal tier must be the single 45-minute shared budget, got $normal"
   pass "normal tier jobs share one $normal minute budget"
 }
 
-test_serial_shard_timeout_exception() {
+test_serial_shards_share_normal_tier_budget() {
   local shard actual expected
+  # shellcheck disable=SC2086
+  expected=$(tier_timeout normal $NORMAL_TIER_JOBS) || exit 1
   for shard in $(ruby -ryaml -e '
 puts YAML.load_file(ARGV[0]).fetch("jobs").fetch("tests-portable-serial").fetch("strategy").fetch("matrix").fetch("shard")
 ' "$CI_WORKFLOW"); do
-    expected=30
-    case "$shard" in 1|2) expected=45 ;; esac
     actual=$(job_timeout tests-portable-serial "$shard") || fail "could not resolve shard $shard timeout"
     [ "$actual" = "$expected" ] \
       || fail "serial shard $shard must have a $expected minute budget, got $actual"
   done
-  pass "only serial shards 1 and 2 have a 45-minute budget; all other shards retain 30 minutes"
+  pass "every serial shard shares the normal tier's $expected minute budget"
 }
 
 # Heavy tier: Herdr alone carries a job-level last-resort backstop above the
@@ -468,7 +468,7 @@ test_separate_prs_do_not_cancel_each_other
 test_main_pushes_are_never_cancelled
 test_fork_skip_variables_are_opt_in
 test_timing_aggregate_still_runs_after_a_failed_lane
-test_serial_shard_timeout_exception
+test_serial_shards_share_normal_tier_budget
 test_every_job_has_a_finite_timeout
 test_every_job_belongs_to_exactly_one_timeout_tier
 test_fast_tier_shares_one_short_tripwire
