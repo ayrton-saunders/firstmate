@@ -2067,6 +2067,23 @@ A fail-closed poll that already queued a wake, and a timeout, always print so th
 `FM_MAIL_CHECK_BUDGET` (default 15, valid 5..25) bounds one standing poll and is cut down to fit `FM_CHECK_TIMEOUT`.
 `bin/fm-mail-check.sh disarm` removes the standing check.
 
+## Private Discord parent integration
+
+The optional private Discord parent integration is separate from the shared Relay below.
+This repository contains only the parent lifecycle hook, not the private bot core; installing these source changes does not start a bot, publish that core, or activate Discord or media.
+Leave the integration configuration absent for ordinary operation.
+The hook's [header and help](../bin/fm-discord-hook.py) own the exact configuration, release-pinning requirements, permit interface, and invocation mechanics; this is not a standalone bot setup path.
+
+When enabled, explicitly mapped worker text routes and project spawns require parent-issued authority rather than treating transport input as authorization.
+Mapped endpoint aliases cannot bypass the guard through direct terminal text, and mapped work cannot use parser-native invocations.
+Unmapped work retains its ordinary routing behavior after configuration validation and endpoint identity checks.
+A proven absent unrelated mapped endpoint does not block routing; an indeterminate identity lookup refuses delivery rather than risking a mapped terminal bypass.
+Capacity deferral remains a no-launch outcome and does not consume dispatch authority.
+Once a permit is consumed, reconcile lifecycle state before retrying; a failed command is not authority to reuse it.
+Inbox drain attempts to renew parent readiness, and durable inbox replies record private outcome digests rather than approving public finals.
+Readiness or outcome-recording failure warns without undoing the underlying inbox operation; receipt-recording failure after a delivered steer likewise warns against resending.
+[Portable regression coverage](../tests/fm-discord-hook.test.sh) checks inactive compatibility and safe rejection without the private core.
+
 ## Relay (.env)
 
 Relay lets a firstmate instance answer public mentions and act on normal reversible mention requests through firstmate's normal lifecycle.

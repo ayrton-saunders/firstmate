@@ -242,12 +242,21 @@ jobs:
           FM_SERIAL_LANE: portable-serial-${{ matrix.shard }}of${{ strategy.job-total }}
           FM_SERIAL_SHARD: ${{ matrix.shard }}
           FM_TEST_HOST_RETURN_DIAGNOSTIC_DIR: ${{ runner.temp }}/fm-test/host-return-fail
+          FM_TEST_HOST_DIALOG_DIAGNOSTIC_DIR: ${{ runner.temp }}/fm-test/host-dialog-restart
         run: |
           set -eu
           mkdir -p "$RUNNER_TEMP/fm-test"
           bin/fm-test-run.sh --lane "$FM_SERIAL_LANE" \
             --fail-on-gate-skip 'Pi extension typecheck prerequisite not found' \
             --json "$RUNNER_TEMP/fm-test/fm-test-timing-portable-serial-${FM_SERIAL_SHARD}.json"
+      - name: Upload dialog-restart scalar fixture diagnostic
+        if: ${{ always() && matrix.shard == 1 }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: fm-host-dialog-restart-diagnostic
+          path: ${{ runner.temp }}/fm-test/host-dialog-restart
+          if-no-files-found: warn
+          retention-days: 7
       - name: Upload return-fail private fixture diagnostic
         if: ${{ always() && matrix.shard == 1 }}
         uses: actions/upload-artifact@v4

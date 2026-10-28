@@ -3834,6 +3834,11 @@ if [ -n "$SPAWN_PROJECT_CAPACITY" ]; then
   fi
   if [ "$FM_PROJECT_CAPACITY_OCCUPANTS" -ge "$SPAWN_PROJECT_CAPACITY" ]; then
     echo "deferred: project $(basename "$PROJ_ABS") admits $SPAWN_PROJECT_CAPACITY worker(s) at once on this machine ($FM_PROJECT_CAPACITY_FILE) and $FM_PROJECT_CAPACITY_OCCUPANTS already hold a place ($FM_PROJECT_CAPACITY_OCCUPANT_IDS); task $ID was not launched and its backlog item stays queued - dispatch it again once one of them records its ready PR or is cleaned up" >&2
+    if [ -e "$FM_HOME/config/discord-integration.json" ]; then
+      if ! FM_HOME="$FM_HOME" python3 -I "$SCRIPT_DIR/fm-discord-hook.py" capacity-deferred "$ID" "$PROJ_ABS" </dev/null; then
+        echo 'warning: capacity deferral proved no launch; Discord admission receipt needs reconciliation' >&2
+      fi
+    fi
     exit "$FM_PROJECT_CAPACITY_DEFER_EXIT"
   fi
 fi
@@ -3841,6 +3846,13 @@ fi
   echo "error: task $ID has no brief at inaccessible data path $BRIEF" >&2
   exit 1
 }
+# Capacity admission above must not consume a one-use Discord permit on exit 75.
+# Bind the source instructions before rendering the current worker overlay.
+if [ "$KIND" != secondmate ] && [ -e "$FM_HOME/config/discord-integration.json" ]; then
+  DISCORD_BRIEF_DIGEST=$(shasum -a 256 "$BRIEF" | awk '{print $1}') || exit 1
+  printf '%s' "$DISCORD_BRIEF_DIGEST" | FM_HOME="$FM_HOME" python3 -I "$SCRIPT_DIR/fm-discord-hook.py" spawn \
+    "$ID" "$PROJ_ABS" || exit 1
+fi
 if [ "$KIND" = ship ] || [ "$KIND" = scout ]; then
   HERDR_LIFECYCLE_BRIEF_GUARD=$(fm_config_source_present "$CONFIG/herdr-lifecycle-spawn-guard") || exit 1
   if [ "$HERDR_LIFECYCLE_BRIEF_GUARD" = 1 ]; then

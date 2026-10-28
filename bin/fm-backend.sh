@@ -745,6 +745,31 @@ fm_backend_meta_for_window() {  # <target> <state-dir>
   return 1
 }
 
+fm_backend_target_matches_meta() {  # <backend> <target> <meta>
+  local candidate_backend=$1 target=$2 meta=$3 recorded backend target_id recorded_id
+  local session window windows inventory_status
+  backend=$(fm_backend_of_meta "$meta") || return 2
+  [ "$candidate_backend" = "$backend" ] || return 1
+  recorded=$(fm_backend_target_of_meta "$meta") || return 2
+  [ -n "$recorded" ] || return 1
+  [ "$target" != "$recorded" ] || return 0
+  [ "$backend" = tmux ] || return 1
+  fm_backend_source tmux || return 2
+  session=${recorded%%:*}
+  window=${recorded#*:}
+  case "$session" in =*) session=${session#=} ;; esac
+  case "$window" in =*) window=${window#=} ;; esac
+  case "$recorded" in *:*:*) return 2 ;; *:*) ;; *) return 2 ;; esac
+  [ -n "$session" ] && [ -n "$window" ] || return 2
+  windows=$(fm_backend_tmux_window_inventory "=$session") && inventory_status=0 || inventory_status=$?
+  case "$inventory_status" in 0) ;; 2) return 1 ;; *) return 2 ;; esac
+  printf '%s\n' "$windows" | grep -Fqx -- "$window" || return 1
+  recorded_id=$(fm_backend_tmux_window_id "$session" "$window") || return 2
+  target_id=$(tmux display-message -p -t "$target" '#{window_id}') || return 2
+  [ -n "$target_id" ] && [ -n "$recorded_id" ] || return 2
+  [ "$target_id" = "$recorded_id" ]
+}
+
 fm_backend_task_id_for_selector() {  # <raw-target> <state-dir>
   local raw=$1 state=$2 id
   case "$raw" in
