@@ -1572,8 +1572,25 @@ assert_no_projection_mutation_since "$START" "agent-free duplicate-token recover
 lab workspace get "$DUP1_WSID" >/dev/null 2>&1 || fail "duplicate-token recovery removed the first quarantined workspace"
 lab workspace get "$DUP2_WSID" >/dev/null 2>&1 || fail "duplicate-token recovery removed the second quarantined workspace"
 
+# A report over a bare shell is not a live-agent fixture: Herdr can clear that
+# registration during the recovery probe. Back it with a real foreground
+# process, and prove it started before registering the duplicate-agent risk.
+# The isolated session teardown owns this process's cleanup.
+fm_backend_herdr_send_text_line "$HERDR_LAB_SESSION:$DUP1_PANE" 'sleep 900' \
+  || fail "could not start the duplicate-live-agent risk process"
+DUP_PROCESS_READY=0
+for DUP_PROCESS_TRY in {1..50}; do
+  if [ "$(fm_backend_herdr_pane_process_state "$HERDR_LAB_SESSION" "$DUP1_PANE")" = other ]; then
+    DUP_PROCESS_READY=1
+    break
+  fi
+  sleep 0.1
+done
+[ "$DUP_PROCESS_READY" -eq 1 ] || fail "duplicate-live-agent risk process never became foreground"
 lab pane report-agent "$DUP1_PANE" --source fm-projection-e2e --agent test-agent --state idle >/dev/null \
   || fail "could not register the duplicate-live-agent risk fixture"
+[ "$(fm_backend_herdr_pane_agent_state "$HERDR_LAB_SESSION" "$DUP1_PANE")" = live ] \
+  || fail "duplicate-live-agent risk fixture is not backed by a live registered process"
 START=$(log_line_count)
 if fm_backend_herdr_projection_recovery_allows_flat "$HERDR_LAB_SESSION" "$DUP_JOURNAL" duplicate1; then
   fail "a duplicate token match with a registered agent should refuse fallback"
