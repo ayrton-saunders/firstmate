@@ -52,11 +52,11 @@ Verify setup by spawning a small task and confirming metadata contains `backend=
 
 `CMUX_WORKSPACE_ID` is the primary cmux runtime marker.
 `CMUX_SOCKET_PATH` is not sufficient because operators may set it outside cmux.
-Detection checks tmux first, then Herdr, then cmux, so a multiplexer nested inside cmux remains the active backend.
+[Backend selection order](configuration.md#backend-selection-order) owns marker precedence, so a multiplexer nested inside cmux remains the active backend.
 
 cmux's bundled Claude wrapper can remove every `CMUX_*` variable when its internal socket probe fails, including in Password mode.
 On macOS only, detection therefore falls back first to `__CFBundleIdentifier=com.cmuxterm.app`, then to process ancestry reaching the running cmux app.
-Those fallbacks are consulted only when neither tmux nor Herdr already won.
+Those fallbacks are consulted only when no higher-priority runtime marker already won.
 An environment-scrubbed or launchd-reparented process with no reliable marker is not auto-detected.
 
 Auto-detection selects only the backend.
@@ -67,9 +67,9 @@ The spawn refusal explains how to finish cmux setup or opt back into tmux.
 
 Each task owns one cmux workspace with one surface.
 The caller-facing label remains `fm-<id>`, while the visible workspace title is `fm-<home-label>-<id>`.
-The home label is `firstmate` or `2ndmate-<id>` plus a stable short hash of the resolved Firstmate root.
+The home label is `firstmate` or `2ndmate-<id>` plus a stable short hash of the resolved operational home.
 cmux does not enforce title uniqueness, so create, recovery, list, and cleanup paths all validate this scoped title.
-Relocating the Firstmate installation changes the hash and leaves old titles unmatched, consistent with recorded worktree paths also becoming stale.
+Relocating the Firstmate home changes the hash and leaves old titles unmatched, consistent with recorded worktree paths also becoming stale.
 
 ```text
 backend=cmux

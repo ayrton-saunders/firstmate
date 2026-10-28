@@ -67,6 +67,9 @@ set -u
 
 # shellcheck source=tests/lib.sh disable=SC1091
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+
+# A caller's Relay parent binding is never authority for these fixture homes.
+unset FM_PUBLIC_FOLLOWUP_PRIMARY_HOME
 fm_git_identity fmtest fmtest@example.invalid
 
 TEARDOWN="$ROOT/bin/fm-teardown.sh"
@@ -119,6 +122,7 @@ SH
   cat > "$fakebin/gh" <<'SH'
 #!/usr/bin/env bash
 case "${1:-} ${2:-}" in
+  "pr list") printf '[]\n'; exit 0 ;;
   "pr view") echo "error: pull request not found" >&2 ; exit 1 ;;
 esac
 exit 0
@@ -139,8 +143,14 @@ SH
   # runner's own PATH. Tests exercising the run-abort path override
   # FM_FAKE_AXI_STATUS/FM_FAKE_NM_ABORT_LOG/FM_FAKE_NM_RUNS_LIST before
   # run_teardown.
+  # When FM_FAKE_NM_EXPECT_HOME is set, the stub sees runs only from that
+  # NM_HOME, as a per-workspace daemon would: any other home answers no run
+  # and records no abort.
   cat > "$fakebin/no-mistakes" <<'SH'
 #!/usr/bin/env bash
+if [ -n "${FM_FAKE_NM_EXPECT_HOME:-}" ] && [ "${NM_HOME:-}" != "$FM_FAKE_NM_EXPECT_HOME" ]; then
+  exit 0
+fi
 case "${1:-}" in
   axi)
     shift
@@ -265,6 +275,8 @@ land_on_origin_main() {
 # Override GitHub lookups to report PR 7 as merged with the supplied head.
 add_gh_pr_merged_for_head() {
   local case_dir=$1 head=$2
+  jq -n '[{number:7,headRefName:"fm/task-x1",headRepository:{name:"repo"},headRepositoryOwner:{login:"example"}}]' \
+    > "$case_dir/pr-list.json"
   cat > "$case_dir/fakebin/gh-axi" <<'SH'
 #!/usr/bin/env bash
 case "${1:-} ${2:-}" in
@@ -278,6 +290,7 @@ SH
   cat > "$case_dir/fakebin/gh" <<SH
 #!/usr/bin/env bash
 case "\${1:-} \${2:-}" in
+  "pr list") cat '$case_dir/pr-list.json'; exit 0 ;;
   "pr view")
     case " \$* " in
       *"state,headRefOid,url"*) printf '%s\t%s\t%s\n' 'MERGED' '$head' 'https://github.com/example/repo/pull/7' ; exit 0 ;;
@@ -680,6 +693,153 @@ make_path_without_lsof() {  # <case-dir>
   printf '%s\n' "$path_dir"
 }
 
+test_descendant_close_uses_owning_home_and_state() {
+  local backend depth identity case_dir home owner parent tag legacy a b target rc
+  a=aaaaaaaa-0000-0000-0000-000000000000
+  b=bbbbbbbb-1111-1111-1111-111111111111
+  for backend in cmux paseo; do
+    for depth in direct nested; do
+      for identity in current legacy; do
+        case_dir=$(make_case "child-scope-$backend-$depth-$identity")
+        parent="$case_dir/parent"
+        home="$case_dir/secondmate-home"
+        mkdir -p "$parent" "$home/state" "$home/data" "$home/config" "$home/projects"
+        write_meta "$case_dir" local-only secondmate
+        printf 'home=%s\n' "$home" >> "$case_dir/state/task-x1.meta"
+        printf 'task-x1\n' > "$home/.fm-secondmate-home"
+        owner=$home
+        if [ "$depth" = nested ]; then
+          owner="$case_dir/nested-home"
+          mkdir -p "$owner/state" "$owner/data" "$owner/config" "$owner/projects"
+          printf 'nested\n' > "$owner/.fm-secondmate-home"
+          fm_write_meta "$home/state/nested.meta" window=firstmate:fm-nested endpoint_task_id=nested \
+            "worktree=$owner" "project=$case_dir/project" \
+            kind=secondmate mode=local-only "home=$owner" spawn_gen=fixture-nested
+        fi
+        mkdir -p "$owner/projects/repo"
+        tag=$(FM_HOME="$owner" bash -c '. "$1/bin/fm-backend-hometag-lib.sh"; fm_backend_hometag' _ "$ROOT")
+        legacy=$(FM_HOME="$ROOT" bash -c '. "$1/bin/fm-backend-hometag-lib.sh"; fm_backend_hometag' _ "$ROOT")
+        if [ "$backend" = cmux ]; then target="$a:$b"; else target="$a:wks_child"; fi
+        fm_write_meta "$owner/state/leaf.meta" "window=$target" endpoint_task_id=leaf kind=ship mode=local-only \
+          "worktree=$case_dir/gone-leaf" "project=$case_dir/project" "backend=$backend" spawn_gen=fixture-leaf
+        if [ "$backend" = cmux ]; then
+          printf 'cmux_workspace_id=%s\ncmux_surface_id=%s\n' "$a" "$b" >> "$owner/state/leaf.meta"
+        else
+          printf 'paseo_terminal_id=%s\npaseo_workspace_id=wks_child\n' "$a" >> "$owner/state/leaf.meta"
+        fi
+        printf 'done: fixture result\n' > "$owner/state/leaf.status"
+        cat > "$case_dir/fakebin/$backend" <<'SH'
+#!/usr/bin/env bash
+printf 'home=%s state=%s %s\n' "$FM_HOME" "${STATE:-}" "$*" >> "$FM_CHILD_LOG"
+case "$FM_CHILD_BACKEND:$*" in
+  cmux:*workspace\ list*) printf '{"workspaces":[{"id":"%s","title":"%s"},{"id":"other","title":"other"}]}\n' "$FM_CHILD_ID" "$FM_CHILD_NAME" ;;
+  cmux:*list-panes*) printf '{"panes":[{"surface_ids":["%s"]}]}\n' "$FM_CHILD_SURFACE" ;;
+  cmux:*list-windows*) printf '[{"id":"fixture-window"}]\n' ;;
+  cmux:*close-workspace*) : > "$FM_CHILD_CLOSED" ;;
+  paseo:*terminal\ ls*)
+    if [ -f "$FM_CHILD_CLOSED" ]; then printf '[]\n'
+    else printf '[{"id":"%s","workspaceId":"wks_child","name":"%s"}]\n' "$FM_CHILD_ID" "$FM_CHILD_NAME"; fi ;;
+  paseo:*terminal\ kill*) : > "$FM_CHILD_CLOSED" ;;
+  paseo:*workspace\ ls*)
+    [ -d "$FM_CHILD_OWNER/state/.paseo-workspace.lock" ] || exit 1
+    [ ! -e "$FM_CHILD_PARENT_STATE/.paseo-workspace.lock" ] || exit 1
+    : > "$FM_CHILD_LOCK_SEEN"
+    printf '[{"workspaceId":"wks_child","name":"%s","cwd":"%s/projects/repo"}]\n' "$FM_CHILD_WORKSPACE_NAME" "$FM_CHILD_OWNER" ;;
+  paseo:ls\ *|paseo:project\ ls*) printf '[]\n' ;;
+esac
+SH
+        chmod +x "$case_dir/fakebin/$backend"
+        : > "$case_dir/runtime.log"
+        rc=0
+        FM_HOME="$parent" FM_CHILD_BACKEND="$backend" FM_CHILD_OWNER="$owner" \
+          FM_CHILD_PARENT_STATE="$case_dir/state" FM_CHILD_LOG="$case_dir/runtime.log" \
+          FM_CHILD_CLOSED="$case_dir/closed" FM_CHILD_LOCK_SEEN="$case_dir/lock-seen" \
+          FM_CHILD_ID="$a" FM_CHILD_SURFACE="$b" FM_CHILD_WORKSPACE_NAME="${tag%-*}" \
+          FM_CHILD_NAME="fm-$(if [ "$identity" = current ]; then printf '%s' "$tag"; else printf '%s' "$legacy"; fi)-leaf" \
+          FM_BACKEND_PASEO_LOCK_ATTEMPTS=1 \
+          run_teardown "$case_dir" --force > "$case_dir/out" 2> "$case_dir/err" || rc=$?
+        assert_grep "home=$owner state=$owner/state" "$case_dir/runtime.log" "$backend/$depth did not close as the owner"
+        assert_no_grep "home=$parent " "$case_dir/runtime.log" "$backend/$depth used the parent's namespace"
+        assert_no_grep "state=$case_dir/state " "$case_dir/runtime.log" "$backend/$depth used the parent's state"
+        if [ "$identity" = current ]; then
+          expect_code 0 "$rc" "$backend/$depth owning-home cleanup failed: $(cat "$case_dir/err")"
+          assert_present "$case_dir/closed" "$backend/$depth never closed the verified endpoint"
+          assert_absent "$home" "$backend/$depth did not retire the isolated secondmate fixture"
+          assert_absent "$case_dir/state/task-x1.meta" "$backend/$depth left the completed parent's record"
+          if [ "$backend" = paseo ]; then
+            assert_present "$case_dir/lock-seen" "Paseo retirement did not hold the child's workspace lock"
+            assert_grep 'workspace archive wks_child' "$case_dir/runtime.log" "Paseo did not retire the empty child workspace"
+          fi
+        else
+          [ "$rc" -ne 0 ] || fail "$backend/$depth accepted a legacy identity under --force"
+          assert_present "$owner/state/leaf.meta" "$backend/$depth discarded the refused endpoint record"
+          assert_present "$owner/state/leaf.status" "$backend/$depth discarded the refused task status"
+          assert_present "$case_dir/state/task-x1.meta" "$backend/$depth discarded the parent record"
+          assert_absent "$case_dir/closed" "$backend/$depth closed a legacy endpoint"
+        fi
+        assert_absent "$case_dir/state/.paseo-workspace.lock" "descendant cleanup touched the parent's workspace lock"
+      done
+    done
+  done
+  pass "direct and nested cmux/Paseo closes use their owning home/state and retain unmatched legacy records"
+}
+
+test_unverified_present_endpoints_keep_teardown_records() {
+  local case_dir backend variant target a b rc legacy operation
+  a=aaaaaaaa-0000-0000-0000-000000000000
+  b=bbbbbbbb-1111-1111-1111-111111111111
+  legacy=$(FM_HOME="$ROOT" bash -c '. "$1/bin/fm-backend-hometag-lib.sh"; fm_backend_hometag' _ "$ROOT")
+  for variant in cmux zellij-live zellij-empty paseo; do
+    backend=${variant%%-*}
+    case_dir=$(make_case "unverified-endpoint-$variant")
+    mkdir -p "$case_dir/home"
+    case "$backend" in
+      cmux) target="$a:$b" ;;
+      zellij) target=firstmate:7 ;;
+      paseo) target="$a:wks_old" ;;
+    esac
+    fm_write_meta "$case_dir/state/task-x1.meta" \
+      "window=$target" "endpoint_task_id=task-x1" "worktree=$case_dir/wt" \
+      "project=$case_dir/project" kind=ship mode=local-only "backend=$backend" \
+      spawn_gen=teardown-test-task-x1
+    case "$backend" in
+      cmux) printf 'cmux_workspace_id=%s\ncmux_surface_id=%s\n' "$a" "$b" >> "$case_dir/state/task-x1.meta" ;;
+      zellij) printf 'zellij_session=firstmate\nzellij_pane_id=7\nzellij_tab_id=3\n' >> "$case_dir/state/task-x1.meta" ;;
+      paseo) printf 'paseo_terminal_id=%s\npaseo_workspace_id=wks_old\n' "$a" >> "$case_dir/state/task-x1.meta" ;;
+    esac
+    printf 'done: local result\n' > "$case_dir/state/task-x1.status"
+    cat > "$case_dir/fakebin/$backend" <<'SH'
+#!/usr/bin/env bash
+printf '%s %s\n' "$FM_FAKE_UNVERIFIED_BACKEND" "$*" >> "$FM_FAKE_UNVERIFIED_LOG"
+case "$FM_FAKE_UNVERIFIED_BACKEND:$*" in
+  cmux:*workspace\ list*) printf '{"workspaces":[{"id":"%s","title":"%s"}]}\n' "$FM_FAKE_UNVERIFIED_ID" "$FM_FAKE_UNVERIFIED_NAME" ;;
+  zellij:*list-sessions*) printf 'firstmate\n' ;;
+  zellij:*list-panes*)
+    if [ "$FM_FAKE_UNVERIFIED_VARIANT" = zellij-empty ]; then printf '[]\n'
+    else printf '[{"id":7,"tab_id":3,"is_plugin":false}]\n'; fi ;;
+  zellij:*list-tabs*) printf '[{"tab_id":3,"name":"%s"}]\n' "$FM_FAKE_UNVERIFIED_NAME" ;;
+  paseo:*terminal\ ls*) printf '[{"id":"%s","workspaceId":"wks_old","name":"%s"}]\n' "$FM_FAKE_UNVERIFIED_ID" "$FM_FAKE_UNVERIFIED_NAME" ;;
+esac
+SH
+    chmod +x "$case_dir/fakebin/$backend"
+    : > "$case_dir/runtime.log"
+    rc=0
+    FM_HOME="$case_dir/home" FM_FAKE_UNVERIFIED_BACKEND="$backend" \
+      FM_FAKE_UNVERIFIED_VARIANT="$variant" FM_FAKE_UNVERIFIED_LOG="$case_dir/runtime.log" \
+      FM_FAKE_UNVERIFIED_ID="$a" FM_FAKE_UNVERIFIED_NAME="fm-$legacy-task-x1" \
+      run_teardown "$case_dir" > "$case_dir/out" 2> "$case_dir/err" || rc=$?
+    [ "$rc" -ne 0 ] || fail "$variant teardown claimed to close an unverified present endpoint"
+    assert_grep 'could not be closed' "$case_dir/err" "$variant must reach the endpoint-close refusal"
+    [ -f "$case_dir/state/task-x1.meta" ] || fail "$variant erased the surviving endpoint's record"
+    [ -f "$case_dir/state/task-x1.status" ] || fail "$variant erased the task's status"
+    for operation in close-workspace close-tab close-pane 'terminal kill' 'workspace archive'; do
+      assert_no_grep "$operation" "$case_dir/runtime.log" "$variant must not close or adopt the legacy endpoint"
+    done
+    assert_no_grep 'teardown task-x1 complete' "$case_dir/out" "$variant must not report completed cleanup"
+  done
+  pass "teardown retains cmux, Zellij live/empty-tab and Paseo records when legacy identity verification refuses"
+}
+
 test_local_only_fork_remote_allows() {
   local case_dir rc
   case_dir=$(make_case fork-allow)
@@ -786,6 +946,55 @@ SH
     | grep -F 'links: "pr:https://github.com/example/repo/pull/7"' >/dev/null \
     || fail "a GitHub pull request no longer closed as the item's pr link"
   pass "teardown closes a landed Gerrit task with its change URL as a note and a GitHub task with --pr"
+}
+
+test_teardown_closes_a_gitlab_task_with_its_merge_request_url_as_a_note() {
+  local case_dir out real_tasks_axi url forge
+  local gitlab_url=https://gitlab.example.com/group/sub/repo/-/merge_requests/12
+  case_dir=$(make_case tasks-axi-close-gitlab)
+  write_meta "$case_dir" no-mistakes ship
+  printf 'pr=%s\n' "$gitlab_url" >> "$case_dir/state/task-x1.meta"
+  seed_backlog_in_flight "$case_dir"
+  # Pin the refusal tasks-axi applies to a --pr link that is neither a GitHub
+  # nor a Forgejo pull request, so this case keeps reproducing whatever the
+  # installed release accepts.
+  real_tasks_axi=$(command -v tasks-axi)
+  cat > "$case_dir/fakebin/tasks-axi" <<SH
+#!/usr/bin/env bash
+previous=
+for arg in "\$@"; do
+  if [ "\$previous" = --pr ] && ! [[ "\$arg" =~ ^https://[^/]+/[^/]+/[^/]+/pulls?/[0-9]+\$ ]]; then
+    echo "error: \"Task pr link must be a canonical pull request URL\""
+    exit 1
+  fi
+  previous=\$arg
+done
+exec "$real_tasks_axi" "\$@"
+SH
+  chmod +x "$case_dir/fakebin/tasks-axi"
+
+  out=$(run_teardown "$case_dir" 2>&1) || fail "teardown of a landed GitLab task failed: $out"
+  [ "$(backlog_row_state "$case_dir")" = "done" ] \
+    || fail "teardown left a landed GitLab task's backlog item at $(backlog_row_state "$case_dir"): $out"
+  tasks-axi show task-x1 --file "$case_dir/data/backlog.md" --full \
+    | grep -F "body: \"GitLab merge request $gitlab_url\"" >/dev/null \
+    || fail "closed GitLab backlog item did not record its merge request URL as a note"
+  assert_absent "$case_dir/state/task-x1.backlog-close" \
+    "a landed GitLab close left its pending-close record behind"
+
+  for url in https://github.com/example/repo/pull/7 https://forgejo.example.com/example/repo/pulls/7; do
+    forge=${url#https://}
+    case_dir=$(make_case "tasks-axi-close-pr-under-gitlab-refusal-${forge%%.*}")
+    write_meta "$case_dir" no-mistakes ship
+    printf 'pr=%s\n' "$url" >> "$case_dir/state/task-x1.meta"
+    seed_backlog_in_flight "$case_dir"
+    cp "$TMP_ROOT/tasks-axi-close-gitlab/fakebin/tasks-axi" "$case_dir/fakebin/tasks-axi"
+    out=$(run_teardown "$case_dir" 2>&1) || fail "teardown of a landed task with $url failed: $out"
+    tasks-axi show task-x1 --file "$case_dir/data/backlog.md" \
+      | grep -F "links: \"pr:$url\"" >/dev/null \
+      || fail "$url no longer closed as the item's pr link"
+  done
+  pass "teardown closes a landed GitLab task with its merge request URL as a note and GitHub and Forgejo tasks with --pr"
 }
 
 test_teardown_manual_backend_leaves_the_backlog_to_the_operator() {
@@ -929,6 +1138,8 @@ test_squash_merged_pr_allows_when_head_ancestor_of_pr_head() {
 test_no_pr_recorded_discovers_merged_pr_by_branch_allows() {
   local case_dir rc local_head pr_head
   case_dir=$(make_case no-pr-branch-discovery)
+  git -C "$case_dir/wt" remote add github https://github.com/example/repo.git
+  git -C "$case_dir/wt" config remote.origin.pushurl git@github.com:example/repo.git
   write_meta "$case_dir" no-mistakes ship
   # Reproduces the real false-refusal report exactly, with NO pr=/pr_head=
   # recorded in meta at all (fm-pr-check.sh was never run, e.g. a yolo merge on
@@ -959,6 +1170,95 @@ test_no_pr_recorded_discovers_merged_pr_by_branch_allows() {
   assert_grep 'https://github.com/example/repo/pull/7' "$case_dir/data/backlog.md" \
     "no-pr-branch-discovery: resolved PR URL was not recorded on completion"
   pass "teardown discovers a merged PR by branch name and tears down when no pr= was ever recorded"
+}
+
+test_branch_discovery_binds_teardown_to_the_publication_base() {
+  local case_dir state head rc expected
+  for state in MERGED OPEN FOREIGN; do
+    case_dir=$(make_case "branch-base-$state")
+    write_meta "$case_dir" no-mistakes ship
+    wt_commit_file "$case_dir" feature.txt unlanded
+    head=$(git -C "$case_dir/wt" rev-parse HEAD)
+    git -C "$case_dir/wt" remote add canonical https://github.com/canonical/repo.git
+    git -C "$case_dir/wt" remote add github https://github.com/mine/repo.git
+    git -C "$case_dir/wt" config remote.origin.pushurl git@github.com:mine/repo.git
+    cat > "$case_dir/fakebin/gh" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$*" >> "$FM_BOUND_BASE_LOG"
+case "${1:-} ${2:-}" in
+  'pr list')
+    repo=; previous=
+    for arg in "$@"; do
+      [ "$previous" != --repo ] || repo=$arg
+      previous=$arg
+    done
+    if [ "$repo" = github.com/mine/repo ]; then number=7; else number=8; fi
+    printf '[{"number":%s,"headRefName":"fm/task-x1","headRepository":{"name":"repo"},"headRepositoryOwner":{"login":"mine"}}]\n' "$number" ;;
+  'pr view')
+    if [ "$3" = https://github.com/mine/repo/pull/7 ] && [ "$FM_BOUND_BASE_STATE" != FOREIGN ]; then
+      printf '%s\t%s\t%s\n' "$FM_BOUND_BASE_STATE" "$FM_BOUND_BASE_HEAD" https://github.com/mine/repo/pull/7
+    else
+      printf '%s\t%s\t%s\n' MERGED "$FM_BOUND_BASE_HEAD" https://github.com/canonical/repo/pull/8
+    fi ;;
+  *) exit 1 ;;
+esac
+SH
+    chmod +x "$case_dir/fakebin/gh"
+    rc=0
+    GH_REPO=canonical/repo FM_BOUND_BASE_LOG="$case_dir/gh.log" \
+      FM_BOUND_BASE_STATE="$state" FM_BOUND_BASE_HEAD="$head" \
+      run_teardown "$case_dir" > "$case_dir/out" 2> "$case_dir/err" || rc=$?
+    if [ "$state" = MERGED ]; then expected=0; else expected=1; fi
+    expect_code "$expected" "$rc" "$state base binding: $(cat "$case_dir/err")"
+    assert_grep 'pr list --repo github.com/mine/repo ' "$case_dir/gh.log" "teardown discovery must bind its base"
+    assert_grep 'pr view https://github.com/mine/repo/pull/7 ' "$case_dir/gh.log" "teardown must read the discovered number through its full base URL"
+    if [ "$expected" = 1 ]; then
+      assert_refusal_retained_task_state "$case_dir" "$state base binding" "$head"
+    else
+      assert_absent "$case_dir/state/task-x1.meta" "a verified merged personal-base PR must complete teardown"
+    fi
+  done
+  pass 'teardown binds discovery and landing reads to the personal base despite canonical GH_REPO'
+}
+
+test_branch_discovery_requires_unique_publication_head() {
+  local case_dir scenario head rc expected
+  for scenario in two-forks wrong-only ambiguous wrong-ref; do
+    case_dir=$(make_case "branch-head-$scenario")
+    write_meta "$case_dir" no-mistakes ship
+    wt_commit_file "$case_dir" feature.txt hello
+    head=$(git -C "$case_dir/wt" rev-parse HEAD)
+    git -C "$case_dir/wt" remote add github https://github.com/example/repo.git
+    git -C "$case_dir/wt" config remote.origin.pushurl ssh://git@github.com/mine/repo.git
+    add_gh_pr_merged_for_head "$case_dir" "$head"
+    case "$scenario" in
+      two-forks)
+        jq '.[0].headRepositoryOwner.login = "mine" | . = [ (.[0] | .number = 8 | .headRepositoryOwner.login = "other"), .[0]]' \
+          "$case_dir/pr-list.json" > "$case_dir/list-next.json"
+        expected=0 ;;
+      wrong-only)
+        cp "$case_dir/pr-list.json" "$case_dir/list-next.json"
+        expected=1 ;;
+      ambiguous)
+        jq '.[0].headRepositoryOwner.login = "mine" | . + [ (.[0] | .number = 8)]' \
+          "$case_dir/pr-list.json" > "$case_dir/list-next.json"
+        expected=1 ;;
+      wrong-ref)
+        jq '.[0].headRepositoryOwner.login = "mine" | .[0].headRefName = "other-branch"' \
+          "$case_dir/pr-list.json" > "$case_dir/list-next.json"
+        expected=1 ;;
+    esac
+    mv "$case_dir/list-next.json" "$case_dir/pr-list.json"
+    rc=0
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    expect_code "$expected" "$rc" "branch-head-$scenario: $(cat "$case_dir/stderr")"
+    if [ "$expected" = 1 ]; then
+      assert_refusal_retained_task_state "$case_dir" "$scenario" "$head"
+    else
+      [ ! -e "$case_dir/state/task-x1.meta" ] || fail 'verified branch PR did not complete teardown'
+    fi
+  done
+  pass 'teardown discovers only a unique exact publication head across forks'
 }
 
 test_squash_merged_pr_allows_replayed_unpushed_patch() {
@@ -1588,6 +1888,62 @@ SH
   assert_grep "left-behind-clone" "$case_dir/stderr" \
     "dirty-return-later-refusal: a later refusal dropped the remaining paths"
   pass "a dirty return is reported even when a later teardown step refuses"
+}
+
+test_forced_secondmate_child_polytoken_wiring_ownership() {
+  local case_dir home child_wt ownership rc harness
+  for ownership in generated tracked project other-harness; do
+    case_dir=$(make_case "secondmate-polytoken-$ownership")
+    write_meta "$case_dir" local-only secondmate
+    home="$case_dir/secondmate-home"
+    mkdir -p "$home/state" "$home/data" "$home/config" "$home/projects" "$case_dir/pool/6"
+    printf '%s\n' task-x1 > "$home/.fm-secondmate-home"
+    printf 'home=%s\n' "$home" >> "$case_dir/state/task-x1.meta"
+    child_wt="$case_dir/pool/6/repo"
+    git -C "$case_dir/project" worktree add -q -b fm/child-polytoken "$child_wt" main
+    printf '{"worktrees":[{"name":"6","path":"%s"}]}\n' "$child_wt" > "$case_dir/pool/treehouse-state.json"
+    printf '.polytoken/\n' >> "$(git -C "$child_wt" rev-parse --git-path info/exclude)"
+    harness=polytoken
+    [ "$ownership" != other-harness ] || harness=claude
+    fm_write_meta "$home/state/child-polytoken.meta" \
+      "window=firstmate:fm-child-polytoken" "endpoint_task_id=child-polytoken" \
+      "worktree=$child_wt" "project=$case_dir/project" "kind=scout" \
+      "mode=local-only" "harness=$harness"
+    (
+      . "$ROOT/bin/fm-polytoken-lib.sh"
+      fm_polytoken_write_hooks "$child_wt" "$(fm_polytoken_busy_script "$home/state" child-polytoken)"
+      fm_polytoken_write_facet "$child_wt" "$home/state/child-polytoken.inbox"
+    ) || fail "could not generate child wiring"
+    printf 'user-owned facet\n' > "$child_wt/.polytoken/facets/custom.md"
+    if [ "$ownership" = tracked ]; then
+      git -C "$child_wt" add -f .polytoken/hooks.json .polytoken/facets/firstmate-worker.md
+      git -C "$child_wt" -c user.email=t@t -c user.name=t commit -qm "project wiring fixture"
+    elif [ "$ownership" = project ]; then
+      printf '[{"event":"stop","handler":{"bash":"/bin/true"}}]\n' > "$child_wt/.polytoken/hooks.json"
+      printf 'project facet\n' > "$child_wt/.polytoken/facets/firstmate-worker.md"
+    fi
+    cp "$child_wt/.polytoken/hooks.json" "$case_dir/hooks.before"
+    cp "$child_wt/.polytoken/facets/firstmate-worker.md" "$case_dir/facet.before"
+    add_treehouse_clean_fd "$case_dir"
+    rc=0
+    run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    expect_code 0 "$rc" "forced child cleanup failed ($ownership): $(cat "$case_dir/stderr")"
+    assert_absent "$home" "forced cleanup must retire the child home"
+    [ -d "$child_wt" ] || fail "the returned child pool copy must remain available"
+    assert_equals "user-owned facet" "$(cat "$child_wt/.polytoken/facets/custom.md")" "unrelated ignored facet preserved"
+    if [ "$ownership" = generated ]; then
+      assert_absent "$child_wt/.polytoken/hooks.json" "generated child hooks survived pool return"
+      assert_absent "$child_wt/.polytoken/facets/firstmate-worker.md" "generated child facet survived pool return"
+      (
+        . "$ROOT/bin/fm-polytoken-lib.sh"
+        fm_polytoken_require_hooks_free "$child_wt" && fm_polytoken_require_facet_free "$child_wt"
+      ) || fail "returned pool copy must admit another Polytoken task"
+    else
+      cmp "$case_dir/hooks.before" "$child_wt/.polytoken/hooks.json" || fail "non-owned child hooks changed ($ownership)"
+      cmp "$case_dir/facet.before" "$child_wt/.polytoken/facets/firstmate-worker.md" || fail "non-owned child facet changed ($ownership)"
+    fi
+  done
+  pass "forced child pool return retires only owned Polytoken wiring and preserves project bytes"
 }
 
 test_forced_secondmate_child_scout_nested_clone_returns_clean() {
@@ -2599,6 +2955,119 @@ test_secondmate_pr_registration_publishes_ready_line() {
   pass "fm-pr-check publishes the PR-ready line on a secondmate's parent channel once"
 }
 
+# With config/ready-after-green present, registering a no-mistakes PR in a
+# secondmate home withholds the ready line until the child's own status holds
+# the checks-green report for that exact PR; without the flag it publishes at
+# registration as before.
+test_secondmate_pr_ready_line_waits_for_green_when_opted_in() {
+  local case_dir channel url other pr_head prefix
+  url=https://github.com/example/repo/pull/7
+  other=https://github.com/example/repo/pull/8
+  case_dir=$(make_case mate-pr-ready-green)
+  configure_secondmate_home "$case_dir" local "$case_dir/parent"
+  mkdir -p "$case_dir/parent/state" "$case_dir/home/config"
+  channel="$case_dir/parent/state/mate-x.status"
+  write_meta "$case_dir" no-mistakes ship
+  wt_commit_file "$case_dir" feature.txt hello "add feature"
+  pr_head=$(git -C "$case_dir/wt" rev-parse HEAD)
+  add_gh_pr_merged_for_head "$case_dir" "$pr_head"
+  run() {
+    FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_STATE_OVERRIDE="$case_dir/state" \
+      PATH="$case_dir/fakebin:$PATH" "$PR_CHECK" task-x1 "$url" > "$case_dir/pr-check.out" 2> "$case_dir/pr-check.err" \
+      || fail "mate-pr-ready-green: fm-pr-check failed: $(cat "$case_dir/pr-check.err")"
+  }
+
+  : > "$case_dir/home/config/ready-after-green"
+  printf 'working [at=1]: waiting for CI on %s\n' "$url" > "$case_dir/state/task-x1.status"
+  run
+  grep -q '^armed:' "$case_dir/pr-check.out" || fail "mate-pr-ready-green: the poll was not armed while checks were pending"
+  [ ! -e "$channel" ] || ! grep -q 'child-pr-task-x1' "$channel" \
+    || fail "mate-pr-ready-green: the ready line was published before the checks-green report"
+  ! grep -q '^actionable:' "$case_dir/pr-check.err" \
+    || fail "mate-pr-ready-green: a withheld ready line was reported as a channel problem"
+
+  printf 'done [at=2]: PR %s checks green\n' "$other" >> "$case_dir/state/task-x1.status"
+  run
+  [ ! -e "$channel" ] || ! grep -q 'child-pr-task-x1' "$channel" \
+    || fail "mate-pr-ready-green: another PR's checks-green report released this PR's ready line"
+
+  printf 'done [at=3]: PR %s checks green\n' "$url" >> "$case_dir/state/task-x1.status"
+  run
+  assert_grep "done [key=child-pr-task-x1]: child task-x1 PR ready: $url mode=no-mistakes" <(sed -E 's/ \[at=[0-9]+\]//' "$channel") \
+    "mate-pr-ready-green: the ready line did not follow the checks-green report"
+
+  for prefix in 'done [key=fix]:' 'done : ' 'done [at=10:30] [key=fix]:' 'done: [key=fix]'; do
+    rm -f "$channel"
+    printf 'done: PR %s checks green\n' "$url" > "$case_dir/state/task-x1.status"
+    printf '%s checks pending after another push\n' "$prefix" >> "$case_dir/state/task-x1.status"
+    run
+    [ ! -e "$channel" ] || ! grep -q 'child-pr-task-x1' "$channel" \
+      || fail "mate-pr-ready-green: latest $prefix withdrawal did not withhold readiness"
+
+    printf '%s PR %s checks green\n' "$prefix" "$url" >> "$case_dir/state/task-x1.status"
+    printf 'note: awaiting merge\n' >> "$case_dir/state/task-x1.status"
+    run
+    assert_grep "child task-x1 PR ready: $url mode=no-mistakes" "$channel" \
+      "mate-pr-ready-green: latest $prefix green report did not release readiness"
+  done
+
+  rm -f "$channel" "$case_dir/home/config/ready-after-green"
+  printf 'working [at=4]: waiting for CI on %s\n' "$url" > "$case_dir/state/task-x1.status"
+  run
+  assert_grep "done [key=child-pr-task-x1]: child task-x1 PR ready: $url mode=no-mistakes" <(sed -E 's/ \[at=[0-9]+\]//' "$channel") \
+    "mate-pr-ready-green: without the flag the ready line left its registration-time behavior"
+  pass "fm-pr-check withholds the PR-ready line until checks are green when config/ready-after-green is present"
+}
+
+# The checks-green report is read as bin/fm-crew-state.sh reads it: a note
+# that names this PR and reports checks green releases the ready line even
+# with text around the report, while one naming a PR whose number merely
+# starts with this PR's number does not.
+test_secondmate_pr_ready_line_follows_green_report_with_trailing_text() {
+  local case_dir channel url pr_head note
+  url=https://github.com/example/repo/pull/7
+  case_dir=$(make_case mate-pr-ready-green-text)
+  configure_secondmate_home "$case_dir" local "$case_dir/parent"
+  mkdir -p "$case_dir/parent/state" "$case_dir/home/config"
+  channel="$case_dir/parent/state/mate-x.status"
+  write_meta "$case_dir" no-mistakes ship
+  wt_commit_file "$case_dir" feature.txt hello "add feature"
+  pr_head=$(git -C "$case_dir/wt" rev-parse HEAD)
+  add_gh_pr_merged_for_head "$case_dir" "$pr_head"
+  : > "$case_dir/home/config/ready-after-green"
+  run() {
+    FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$ROOT" FM_STATE_OVERRIDE="$case_dir/state" \
+      PATH="$case_dir/fakebin:$PATH" "$PR_CHECK" task-x1 "$url" > "$case_dir/pr-check.out" 2> "$case_dir/pr-check.err" \
+      || fail "mate-pr-ready-green-text: fm-pr-check failed: $(cat "$case_dir/pr-check.err")"
+  }
+
+  printf 'done [at=1]: PR %s0 checks green, held for captain merge\n' "$url" > "$case_dir/state/task-x1.status"
+  run
+  [ ! -e "$channel" ] || ! grep -q 'child-pr-task-x1' "$channel" \
+    || fail "mate-pr-ready-green-text: a report naming PR 70 released PR 7's ready line"
+
+  for note in \
+    "PR https://github.com/example/repo/pull/8 checks green; replacement $url still pending" \
+    "Replacement $url still pending; PR https://github.com/example/repo/pull/8 checks green" \
+    "PR $url checks pending; other checks green" \
+    "PR ${url}0 checks green; replacement $url still pending"; do
+    printf 'done [at=2]: %s\n' "$note" >> "$case_dir/state/task-x1.status"
+    run
+    [ ! -e "$channel" ] || ! grep -q 'child-pr-task-x1' "$channel" \
+      || fail "mate-pr-ready-green-text: an unrelated green clause released this PR: $note"
+    ! grep -q '^actionable:' "$case_dir/pr-check.err" \
+      || fail "mate-pr-ready-green-text: a withheld mixed-URL report caused a channel error"
+  done
+
+  printf 'done [at=3]: Verified: PR %s checks green, held for captain merge; replacement https://github.com/example/repo/pull/8 pending.\n' "$url" >> "$case_dir/state/task-x1.status"
+  run
+  assert_grep "done [key=child-pr-task-x1]: child task-x1 PR ready: $url mode=no-mistakes" <(sed -E 's/ \[at=[0-9]+\]//' "$channel") \
+    "mate-pr-ready-green-text: a checks-green report with trailing text did not release the ready line"
+  ! grep -q '^actionable:' "$case_dir/pr-check.err" \
+    || fail "mate-pr-ready-green-text: the released ready line was reported as a channel problem"
+  pass "fm-pr-check releases the PR-ready line on a checks-green report that carries surrounding text"
+}
+
 # Tearing a child down inside a secondmate home delivers the child's final
 # ledger line to the parent before the record goes, and refuses (retaining
 # every record) while the parent channel cannot be written; a rerun after the
@@ -2689,6 +3158,107 @@ test_teardown_missing_busy_sidecar_completes() {
   assert_absent "$case_dir/state/task-x1.meta" \
     "missing-busy-sidecar: teardown remained incomplete"
   pass "teardown completes when an exact busy-state sidecar is already absent"
+}
+
+test_teardown_preserves_opencode_busy_plugin_on_pool_return() {
+  local case_dir rc plugin
+  case_dir=$(make_case opencode-busy-wiring)
+  write_meta "$case_dir" local-only ship
+  printf 'harness=opencode\n' >> "$case_dir/state/task-x1.meta"
+  # Keep scratch cleanup from removing the file independently of hook retirement.
+  printf '.opencode/\n' >> "$(git -C "$case_dir/wt" rev-parse --git-path info/exclude)"
+  plugin="$case_dir/wt/.opencode/plugins/fm-busy-state.js"
+  mkdir -p "$(dirname "$plugin")"
+  printf 'prior busy plugin\n' > "$plugin"
+  rc=0
+  run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 0 "$rc" "opencode-busy-wiring: teardown should succeed ($(cat "$case_dir/stderr"))"
+  [ -f "$plugin" ] || fail "opencode-busy-wiring: pool return must retain the busy plugin as on main"
+  assert_contains "$(cat "$plugin")" "prior busy plugin" \
+    "opencode-busy-wiring: pool return must leave the plugin unchanged"
+  pass "teardown leaves opencode's busy plugin in the returned pool worktree as on main"
+}
+
+seed_polytoken_wiring() {
+  local case_dir=$1
+  (
+    # shellcheck source=/dev/null
+    . "$ROOT/bin/fm-polytoken-lib.sh"
+    fm_polytoken_write_facet "$case_dir/wt" "$case_dir/state/task-x1.inbox"
+    fm_polytoken_write_hooks "$case_dir/wt" "$(fm_polytoken_busy_script "$case_dir/state" task-x1)"
+  ) || fail "seeding the generated polytoken wiring failed"
+}
+
+test_teardown_retires_polytoken_wiring_on_pool_return() {
+  local case_dir rc
+  case_dir=$(make_case polytoken-wiring)
+  write_meta "$case_dir" local-only ship
+  printf 'harness=polytoken\n' >> "$case_dir/state/task-x1.meta"
+  seed_polytoken_wiring "$case_dir"
+  rc=0
+  run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 0 "$rc" "polytoken-wiring: teardown should succeed ($(cat "$case_dir/stderr"))"
+  assert_absent "$case_dir/wt/.polytoken/hooks.json" \
+    "polytoken-wiring: the generated hook layer survived pool return"
+  assert_absent "$case_dir/wt/.polytoken/facets/firstmate-worker.md" \
+    "polytoken-wiring: the generated worker facet survived pool return"
+  pass "teardown retires a polytoken task's generated worktree wiring on pool return"
+}
+
+test_teardown_preserves_tracked_polytoken_layer() {
+  local case_dir rc
+  case_dir=$(make_case polytoken-tracked)
+  write_meta "$case_dir" local-only ship
+  printf 'harness=polytoken\n' >> "$case_dir/state/task-x1.meta"
+  seed_polytoken_wiring "$case_dir"
+  git -C "$case_dir/wt" add -f .polytoken/hooks.json
+  git -C "$case_dir/wt" -c user.email=t@t -c user.name=t commit -q -m "project hook layer"
+  rc=0
+  run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 0 "$rc" "polytoken-tracked: teardown should succeed ($(cat "$case_dir/stderr"))"
+  [ -f "$case_dir/wt/.polytoken/hooks.json" ] \
+    || fail "polytoken-tracked: teardown deleted the project's tracked hook layer"
+  assert_absent "$case_dir/wt/.polytoken/facets/firstmate-worker.md" \
+    "polytoken-tracked: the untracked generated facet survived pool return"
+  pass "teardown never deletes a tracked .polytoken hook layer"
+}
+
+test_teardown_preserves_ignored_project_polytoken_layer() {
+  local case_dir rc
+  case_dir=$(make_case polytoken-project-own)
+  # Scratch/--force cleanup deliberately discards non-ignored untracked
+  # files. An ignored project layer isolates the adapter ownership check.
+  printf '.polytoken/\n' >> "$(git -C "$case_dir/wt" rev-parse --git-path info/exclude)"
+  write_meta "$case_dir" local-only ship
+  printf 'harness=polytoken\n' >> "$case_dir/state/task-x1.meta"
+  mkdir -p "$case_dir/wt/.polytoken"
+  printf '[{"name":"project-own","event":"stop","handler":{"bash":"/bin/true"}}]\n' \
+    > "$case_dir/wt/.polytoken/hooks.json"
+  rc=0
+  run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 0 "$rc" "polytoken-project-own: teardown should succeed ($(cat "$case_dir/stderr"))"
+  assert_contains "$(cat "$case_dir/wt/.polytoken/hooks.json" 2>/dev/null)" "project-own" \
+    "polytoken-project-own: teardown deleted a hook layer firstmate did not generate"
+  pass "teardown never deletes a .polytoken hook layer firstmate did not generate"
+}
+
+test_teardown_leaves_polytoken_layer_for_other_harnesses() {
+  local case_dir rc
+  case_dir=$(make_case polytoken-other-harness)
+  # Scratch/--force cleanup deliberately discards non-ignored untracked
+  # files. An ignored project layer isolates the adapter ownership check.
+  printf '.polytoken/\n' >> "$(git -C "$case_dir/wt" rev-parse --git-path info/exclude)"
+  write_meta "$case_dir" local-only ship
+  printf 'harness=claude\n' >> "$case_dir/state/task-x1.meta"
+  seed_polytoken_wiring "$case_dir"
+  rc=0
+  run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 0 "$rc" "polytoken-other-harness: teardown should succeed ($(cat "$case_dir/stderr"))"
+  [ -f "$case_dir/wt/.polytoken/hooks.json" ] \
+    || fail "polytoken-other-harness: a non-polytoken teardown removed .polytoken/hooks.json"
+  [ -f "$case_dir/wt/.polytoken/facets/firstmate-worker.md" ] \
+    || fail "polytoken-other-harness: a non-polytoken teardown removed the facet file"
+  pass "teardown scopes .polytoken wiring removal to polytoken tasks"
 }
 
 test_herdr_teardown_clears_escalation_marker() {
@@ -3878,6 +4448,35 @@ test_parked_own_run_is_aborted_before_teardown() {
   pass "a task's own parked no-mistakes run is aborted, not orphaned, before the worker is removed"
 }
 
+# A parked run that lives in a per-workspace no-mistakes home is found and
+# aborted through the home's configured resolver when NM_HOME is unset.
+test_parked_run_in_a_resolved_workspace_home_is_aborted() {
+  local case_dir head rc=0
+  case_dir=$(make_case parked-run-resolved-home)
+  write_meta "$case_dir" no-mistakes ship
+  land_shippable_commit "$case_dir"
+  head=$(git -C "$case_dir/wt" rev-parse HEAD)
+  mkdir -p "$case_dir/workspace-nm"
+  cat > "$case_dir/resolver" <<SH
+#!/usr/bin/env bash
+[ "\$1" = '$case_dir/wt' ] && printf '%s\\n' '$case_dir/workspace-nm'
+SH
+  chmod +x "$case_dir/resolver"
+  printf '%s\n' "$case_dir/resolver" > "$case_dir/config/nm-home-resolver"
+
+  (
+    unset NM_HOME
+    FM_FAKE_NM_EXPECT_HOME="$case_dir/workspace-nm" \
+    FM_FAKE_AXI_STATUS="$(parked_axi_status_toon fm/task-x1 "$head")" \
+    FM_FAKE_NM_ABORT_LOG="$case_dir/nm-abort.log" \
+      run_teardown "$case_dir"
+  ) > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 0 "$rc" "parked-run-resolved-home: teardown should still succeed"
+  assert_grep "abort --run 01RUN" "$case_dir/nm-abort.log" \
+    "parked-run-resolved-home: the parked run in the resolved workspace home was not aborted"
+  pass "a parked run in a resolved workspace no-mistakes home is aborted before the worker is removed"
+}
+
 # An abort can race a concurrent gate response: the run finishes with a
 # passing-but-not-clean outcome (an explicitly approved Test/CI exception)
 # instead of landing on `cancelled`. That is still a terminal, finished run,
@@ -5028,6 +5627,322 @@ test_retained_sources_still_reach_the_ordinary_refusal() {
   pass "present required sources still reach the ordinary teardown refusal"
 }
 
+test_teardown_preserves_opencode_busy_plugin_on_pool_return
+
+# Archive coverage uses the real teardown entry point over isolated homes.
+test_status_archive_opt_in() {
+  local case_dir rc mode
+  for mode in off on; do
+    case_dir=$(make_case "status-archive-$mode")
+    write_meta "$case_dir" local-only ship
+    printf 'working: started\nneeds-decision [key=choice]: choose\nresolved [key=choice]: chosen\ndone: complete\n' > "$case_dir/state/task-x1.status"
+    cp "$case_dir/state/task-x1.status" "$case_dir/expected"
+    mkdir -p "$case_dir/data/old"
+    printf 'old archive\n' > "$case_dir/data/old/status.log"
+    touch -t 200001010000 "$case_dir/data/old/status.log"
+    [ "$mode" = off ] || touch "$case_dir/config/status-archive"
+    rc=0
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    expect_code 0 "$rc" "status archive $mode teardown"
+    assert_absent "$case_dir/state/task-x1.status" "live status survived teardown"
+    if [ "$mode" = on ]; then
+      cmp -s "$case_dir/expected" "$case_dir/data/task-x1/status.log" || fail "opt-in archive lost history"
+    else
+      assert_absent "$case_dir/data/task-x1/status.log" "default-off teardown created an archive"
+      assert_present "$case_dir/data/old/status.log" "default-off teardown pruned an archive"
+    fi
+  done
+  pass "status archival is opt-in and preserves the complete log"
+}
+
+test_status_archive_reuse_and_retention() {
+  local case_dir rc archive
+  case_dir=$(make_case status-archive-reuse)
+  write_meta "$case_dir" local-only ship
+  touch "$case_dir/config/status-archive"
+  mkdir -p "$case_dir/data/task-x1" "$case_dir/data/old" "$case_dir/outside"
+  printf 'first generation\n' > "$case_dir/data/task-x1/status.log"
+  printf 'outside sentinel\n' > "$case_dir/outside/status.log"
+  ln -s "$case_dir/outside/status.log" "$case_dir/data/task-x1/status.1.log"
+  ln -s "$case_dir/outside" "$case_dir/data/symlink-task"
+  printf 'expired\n' > "$case_dir/data/old/status.log"
+  printf 'report survives\n' > "$case_dir/data/old/report.md"
+  printf 'unowned file survives\n' > "$case_dir/data/old/status.notes.log"
+  touch -t 200001010000 "$case_dir/data/old/"* "$case_dir/outside/status.log"
+  printf 'done: second generation\n' > "$case_dir/state/task-x1.status"
+  touch -t 200001010000 "$case_dir/state/task-x1.status"
+  rc=0
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 0 "$rc" "status archive reuse"
+  assert_grep 'first generation' "$case_dir/data/task-x1/status.log" "first archive overwritten"
+  archive="$case_dir/data/task-x1/status.2.log"
+  assert_grep 'second generation' "$archive" "reused ID did not select a fresh archive"
+  assert_grep 'outside sentinel' "$case_dir/outside/status.log" "archive or pruning followed a symlink"
+  [ -L "$case_dir/data/task-x1/status.1.log" ] || fail "archive replaced an existing symlink"
+  assert_absent "$case_dir/data/old/status.log" "expired status archive survived pruning"
+  assert_present "$case_dir/data/old/report.md" "pruning removed other task data"
+  assert_present "$case_dir/data/old/status.notes.log" "pruning removed an unowned filename"
+  pass "reused task IDs never overwrite archives and retention removes only old owned logs"
+}
+
+test_status_archive_unsafe_paths_refuse() {
+  local case_dir rc unsafe
+  for unsafe in source data task children; do
+    case_dir=$(make_case "status-archive-unsafe-$unsafe")
+    write_meta "$case_dir" local-only ship
+    touch "$case_dir/config/status-archive"
+    mkdir -p "$case_dir/outside"
+    printf 'untouched\n' > "$case_dir/outside/sentinel"
+    printf 'done: complete\n' > "$case_dir/state/task-x1.status"
+    case "$unsafe" in
+      source) rm "$case_dir/state/task-x1.status"; ln -s "$case_dir/outside/sentinel" "$case_dir/state/task-x1.status" ;;
+      data) rmdir "$case_dir/data"; ln -s "$case_dir/outside" "$case_dir/data" ;;
+      task) ln -s "$case_dir/outside" "$case_dir/data/task-x1" ;;
+      children) mkdir -p "$case_dir/data/task-x1"; ln -s "$case_dir/outside" "$case_dir/data/task-x1/children" ;;
+    esac
+    rc=0
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    if [ "$unsafe" = data ]; then
+      expect_code 0 "$rc" "configured symlinked data root"
+      assert_grep 'done: complete' "$case_dir/outside/task-x1/status.log" "archive did not use physical data root"
+    elif [ "$unsafe" = children ]; then
+      expect_code 0 "$rc" "pruning ignores symlinked children: $(cat "$case_dir/stderr")"
+    else
+      [ "$rc" -ne 0 ] || fail "unsafe $unsafe archive path accepted"
+      assert_present "$case_dir/state/task-x1.status" "refusal lost status"
+    fi
+    assert_grep 'untouched' "$case_dir/outside/sentinel" "unsafe path changed outside data"
+    assert_absent "$case_dir/outside/status.log" "archive escaped through symlink"
+  done
+  pass "archive sources and directories reject symlinks; pruning never follows children links"
+}
+
+# Intercept both the old move and atomic publication so the regressions also
+# exercise the failure and watcher window on the pre-fix implementation.
+prepare_status_archive_presentation() {
+  local case_dir=$1
+  write_meta "$case_dir" local-only ship
+  touch "$case_dir/config/status-archive" "$case_dir/config/supervision-host-off"
+  printf 'note: archived note\ndone: archived outcome\n' > "$case_dir/state/task-x1.status"
+  FM_STATE_OVERRIDE="$case_dir/state" FM_CONFIG_OVERRIDE="$case_dir/config" FM_DATA_OVERRIDE="$case_dir/data" \
+    bash "$ROOT/bin/fm-wake-drain.sh" > "$case_dir/before" 2> "$case_dir/drain.err" || fail "initial presentation failed"
+  assert_grep 'archived note' "$case_dir/before" "fixture never presented the live note"
+  FM_STATE_OVERRIDE="$case_dir/state" bash -c '
+    . "$1/bin/fm-wake-lib.sh"
+    fm_wake_status_mark_current "$2" "$2/task-x1.status"
+  ' _ "$ROOT" "$case_dir/state" || fail "could not mark fixture status seen"
+  printf 'ledger\n' > "$case_dir/state/.task-x1.home-appends"
+  touch "$case_dir/state/.hb-surfaced-task-x1"
+}
+
+install_status_archive_publish_probe() {
+  local case_dir=$1 command
+  for command in ln mv; do
+    cat > "$case_dir/fakebin/$command" <<'SH'
+#!/usr/bin/env bash
+case "${*: -1}" in
+  */status.log)
+    touch "$FM_ARCHIVE_TEST_CASE/publish-entered"
+    if [ "$FM_ARCHIVE_TEST_MODE" = fail ]; then
+      echo 'simulated archive publication failure' >&2
+      exit 1
+    fi
+    bash -c '
+      . "$1/bin/fm-watch.sh"
+      scan_signals
+    ' _ "$FM_ROOT_OVERRIDE" > "$FM_ARCHIVE_TEST_CASE/publish-signals" || exit 1
+    ;;
+esac
+exec "/bin/${0##*/}" "$@"
+SH
+    chmod +x "$case_dir/fakebin/$command"
+  done
+}
+
+test_status_archive_failed_publish_preserves_presentation() {
+  local case_dir rc
+  case_dir=$(make_case status-archive-failed-publish)
+  prepare_status_archive_presentation "$case_dir"
+  cp "$case_dir/state/.status-presentation-cursor" "$case_dir/cursor.before"
+  cp "$case_dir/state/.seen-task-x1_status" "$case_dir/seen.before"
+  install_status_archive_publish_probe "$case_dir"
+  rc=0
+  FM_ARCHIVE_TEST_CASE="$case_dir" FM_ARCHIVE_TEST_MODE=fail \
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 1 "$rc" "failed archive publication"
+  assert_present "$case_dir/publish-entered" "fixture never attempted publication"
+  cmp -s "$case_dir/cursor.before" "$case_dir/state/.status-presentation-cursor" || fail "failed archive retired presentation cursor"
+  cmp -s "$case_dir/seen.before" "$case_dir/state/.seen-task-x1_status" || fail "failed archive cleared seen marker"
+  assert_present "$case_dir/state/.task-x1.home-appends" "failed archive cleared home append ledger"
+  assert_present "$case_dir/state/task-x1.status" "failed archive lost live history"
+  assert_present "$case_dir/state/task-x1.meta" "failed archive removed task metadata"
+  FM_STATE_OVERRIDE="$case_dir/state" FM_CONFIG_OVERRIDE="$case_dir/config" FM_DATA_OVERRIDE="$case_dir/data" \
+    bash "$ROOT/bin/fm-wake-drain.sh" > "$case_dir/after" 2>> "$case_dir/drain.err" || fail "retry presentation failed"
+  assert_no_grep 'archived note' "$case_dir/after" "failed archive re-presented note"
+  assert_no_grep 'archived outcome' "$case_dir/after" "failed archive re-presented outcome"
+  pass "failed archive publication preserves presentation and watcher bookkeeping"
+}
+
+test_status_archive_cursor_failure_retries_without_duplicate() {
+  local case_dir rc
+  case_dir=$(make_case status-archive-cursor-retry)
+  prepare_status_archive_presentation "$case_dir"
+  cp "$case_dir/state/task-x1.status" "$case_dir/expected"
+  cp "$case_dir/state/.status-presentation-cursor" "$case_dir/cursor.before"
+  printf 'broken\tidentity\tnot-an-offset\t0\n' >> "$case_dir/state/.status-presentation-cursor"
+  cp "$case_dir/state/.status-presentation-cursor" "$case_dir/cursor.malformed"
+  rc=0
+  run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 1 "$rc" "malformed presentation cursor"
+  assert_present "$case_dir/state/task-x1.status" "cursor failure lost live history"
+  cmp -s "$case_dir/cursor.malformed" "$case_dir/state/.status-presentation-cursor" \
+    || fail "cursor failure changed presentation rows"
+  assert_absent "$case_dir/data/task-x1/status.log" "failed retirement left a duplicate archive"
+  assert_present "$case_dir/state/task-x1.meta" "cursor failure removed task metadata"
+  cp "$case_dir/cursor.before" "$case_dir/state/.status-presentation-cursor"
+  rc=0
+  run_teardown "$case_dir" > "$case_dir/retry.stdout" 2> "$case_dir/retry.stderr" || rc=$?
+  expect_code 0 "$rc" "retry after cursor repair"
+  cmp -s "$case_dir/expected" "$case_dir/data/task-x1/status.log" || fail "retry archive lost history"
+  assert_absent "$case_dir/state/task-x1.status" "successful retry retained live status"
+  assert_absent "$case_dir/data/task-x1/status.1.log" "retry wrote a duplicate archive"
+  pass "cursor retirement failure removes its archive so retry publishes one history"
+}
+
+test_status_archive_publish_and_cold_log_stay_inert() {
+  local case_dir rc text
+  case_dir=$(make_case status-archive-inert)
+  prepare_status_archive_presentation "$case_dir"
+  install_status_archive_publish_probe "$case_dir"
+  rc=0
+  FM_ARCHIVE_TEST_CASE="$case_dir" FM_ARCHIVE_TEST_MODE=scan \
+    run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 0 "$rc" "archive publication: $(cat "$case_dir/stderr")"
+  assert_present "$case_dir/publish-entered" "fixture never attempted publication"
+  [ ! -s "$case_dir/publish-signals" ] || fail "archival caused a spurious watcher wake"
+  assert_present "$case_dir/data/task-x1/status.log" "archive absent"
+  for text in task-x1.status .task-x1.home-appends .seen-task-x1_status .hb-surfaced-task-x1 .task-x1.open-decisions-cursor; do
+    assert_absent "$case_dir/state/$text" "retirement left live bookkeeping"
+  done
+  assert_no_grep 'task-x1' "$case_dir/state/.status-presentation-cursor" "retirement left presentation cursor"
+  printf 'blocked: archive must stay cold\n' >> "$case_dir/data/task-x1/status.log"
+  FM_STATE_OVERRIDE="$case_dir/state" FM_CONFIG_OVERRIDE="$case_dir/config" FM_DATA_OVERRIDE="$case_dir/data" \
+    bash "$ROOT/bin/fm-wake-drain.sh" > "$case_dir/after" 2>> "$case_dir/drain.err" || fail "post-retirement presentation failed"
+  for text in task-x1 'archive must stay cold' 'archived note'; do
+    assert_no_grep "$text" "$case_dir/after" "archive re-presented"
+  done
+  FM_STATE_OVERRIDE="$case_dir/state" FM_DATA_OVERRIDE="$case_dir/data" bash -c '
+    . "$1/bin/fm-watch.sh"
+    scan_signals
+    status_presentation_snapshot "$STATE"
+  ' _ "$ROOT" > "$case_dir/snapshot" || fail "cold archive snapshot failed"
+  [ ! -s "$case_dir/snapshot" ] || fail "watcher or snapshot consumed archive"
+  pass "archive publication and cold logs never re-wake or re-present"
+}
+
+test_status_archive_pruning_failure_warns_and_completes() {
+  local case_dir rc operation
+  for operation in rm find; do
+    case_dir=$(make_case "status-archive-prune-failure-$operation")
+    write_meta "$case_dir" local-only ship
+    touch "$case_dir/config/status-archive"
+    printf 'done: current history\n' > "$case_dir/state/task-x1.status"
+    mkdir -p "$case_dir/data/unrelated-old"
+    printf 'expired\n' > "$case_dir/data/unrelated-old/status.log"
+    touch -t 200001010000 "$case_dir/data/unrelated-old/status.log"
+    cat > "$case_dir/fakebin/$operation" <<'SH'
+#!/usr/bin/env bash
+for arg in "$@"; do
+  case "$arg" in */unrelated-old|*/unrelated-old/status.log) exit 1 ;; esac
+done
+exec "${FM_ARCHIVE_TEST_COMMAND:?}" "$@"
+SH
+    chmod +x "$case_dir/fakebin/$operation"
+    rc=0
+    FM_ARCHIVE_TEST_COMMAND="$(command -v "$operation")" run_teardown "$case_dir" > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    expect_code 0 "$rc" "unrelated archive $operation failure aborted teardown"
+    grep -E 'warning:.*unrelated-old' "$case_dir/stderr" >/dev/null || fail "pruning failure did not name its path"
+    assert_grep 'current history' "$case_dir/data/task-x1/status.log" "pruning failure lost current archive"
+    assert_absent "$case_dir/state/task-x1.meta" "pruning failure retained current metadata"
+    assert_present "$case_dir/data/unrelated-old/status.log" "failure fixture did not preserve expired archive"
+  done
+  pass "retention failures warn without aborting unrelated teardown"
+}
+
+test_status_archive_missing_status_noop() {
+  local case_dir rc
+  case_dir=$(make_case status-archive-missing-status)
+  write_meta "$case_dir" local-only ship
+  touch "$case_dir/config/status-archive"
+  mkdir -p "$case_dir/state/.status-presentation-lock"
+  printf '%s\n' "$$" > "$case_dir/state/.status-presentation-lock/pid"
+  printf 'neighbor\tidentity\t0\t0\n' > "$case_dir/state/.status-presentation-cursor"
+  cp "$case_dir/state/.status-presentation-cursor" "$case_dir/cursor.before"
+  # A regression must fail within a bound, not wait forever on our live lock.
+  . "$ROOT/bin/fm-timeout-lib.sh"
+  rc=0
+  FM_ROOT_OVERRIDE="$ROOT" FM_STATE_OVERRIDE="$case_dir/state" FM_DATA_OVERRIDE="$case_dir/data" \
+    FM_CONFIG_OVERRIDE="$case_dir/config" PATH="$case_dir/fakebin:$PATH" \
+    fm_run_timed 20 "$TEARDOWN" task-x1 > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+  expect_code 0 "$rc" "local missing-status retirement"
+  cmp -s "$case_dir/cursor.before" "$case_dir/state/.status-presentation-cursor" || fail "missing-status no-op rewrote neighboring cursor"
+  assert_present "$case_dir/state/.status-presentation-lock" "missing-status no-op contended with presentation lock"
+  assert_absent "$case_dir/data/task-x1" "missing-status no-op created empty archive"
+  pass "local missing-status retirement stays lock-free without creating an archive"
+}
+
+test_status_archive_nested_secondmate_children() {
+  local case_dir home nested_home rc unsafe
+  for unsafe in none children; do
+    case_dir=$(make_case "status-archive-nested-$unsafe")
+    write_meta "$case_dir" local-only secondmate
+    home="$case_dir/secondmate-home"
+    nested_home="$home/nested-home"
+    mkdir -p "$home/state" "$home/data" "$home/config" "$home/projects" \
+      "$nested_home/state" "$nested_home/data" "$nested_home/config" "$nested_home/projects"
+    printf 'task-x1\n' > "$home/.fm-secondmate-home"
+    printf 'nested-sm\n' > "$nested_home/.fm-secondmate-home"
+    printf 'home=%s\n' "$home" >> "$case_dir/state/task-x1.meta"
+    fm_write_meta "$home/state/nested-sm.meta" "window=firstmate:fm-nested-sm" \
+      "kind=secondmate" "mode=local-only" "home=$nested_home" "project=$case_dir/project" "worktree=$case_dir/wt"
+    fm_write_meta "$nested_home/state/grandchild.meta" "window=firstmate:fm-grandchild" \
+      "kind=scout" "mode=local-only" "project=$case_dir/project" "worktree=$case_dir/wt"
+    touch "$case_dir/config/status-archive"
+    printf 'done: parent history\n' > "$case_dir/state/task-x1.status"
+    printf 'done: child history\n' > "$home/state/nested-sm.status"
+    printf 'done: grandchild history\n' > "$nested_home/state/grandchild.status"
+    if [ "$unsafe" = children ]; then
+      mkdir -p "$case_dir/data/task-x1" "$case_dir/outside"
+      ln -s "$case_dir/outside" "$case_dir/data/task-x1/children"
+    fi
+    rc=0
+    run_teardown "$case_dir" --force > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    if [ "$unsafe" = children ]; then
+      expect_code 1 "$rc" "symlinked child archive directory"
+      assert_present "$nested_home/state/grandchild.status" "unsafe child archive lost history"
+      assert_absent "$case_dir/outside/nested-sm" "child archive escaped through symlink"
+    else
+      expect_code 0 "$rc" "nested secondmate status archive: $(cat "$case_dir/stderr")"
+      assert_grep 'parent history' "$case_dir/data/task-x1/status.log" "parent history missing"
+      assert_grep 'child history' "$case_dir/data/task-x1/children/nested-sm/status.log" "child history missing"
+      assert_grep 'grandchild history' "$case_dir/data/task-x1/children/nested-sm/children/grandchild/status.log" "grandchild history missing"
+      assert_absent "$home" "forced retirement retained secondmate home"
+    fi
+  done
+  pass "forced secondmate retirement preserves two descendant levels and refuses linked child directories"
+}
+
+test_descendant_close_uses_owning_home_and_state
+test_unverified_present_endpoints_keep_teardown_records
+test_status_archive_opt_in
+test_status_archive_nested_secondmate_children
+test_status_archive_missing_status_noop
+test_status_archive_reuse_and_retention
+test_status_archive_unsafe_paths_refuse
+test_status_archive_failed_publish_preserves_presentation
+test_status_archive_cursor_failure_retries_without_duplicate
+test_status_archive_publish_and_cold_log_stay_inert
+test_status_archive_pruning_failure_warns_and_completes
 test_missing_startup_source_refuses_before_cleanup
 test_unreadable_startup_source_refuses_before_cleanup
 test_missing_adapter_sibling_refuses_before_cleanup
@@ -5037,6 +5952,7 @@ test_retained_sources_still_reach_the_ordinary_refusal
 test_local_only_fork_remote_allows
 test_teardown_closes_the_backlog_item_itself
 test_teardown_closes_a_gerrit_task_with_its_change_url_as_a_note
+test_teardown_closes_a_gitlab_task_with_its_merge_request_url_as_a_note
 test_teardown_manual_backend_leaves_the_backlog_to_the_operator
 test_local_only_truly_unpushed_refuses
 test_local_only_merged_to_local_main_allows
@@ -5044,8 +5960,14 @@ test_no_mistakes_origin_remote_allows
 test_no_mistakes_truly_unpushed_refuses
 test_local_only_force_overrides_unpushed
 test_secondmate_pr_registration_publishes_ready_line
+test_secondmate_pr_ready_line_waits_for_green_when_opted_in
+test_secondmate_pr_ready_line_follows_green_report_with_trailing_text
 test_secondmate_home_teardown_delivers_final_line_or_refuses
 test_teardown_missing_busy_sidecar_completes
+test_teardown_retires_polytoken_wiring_on_pool_return
+test_teardown_preserves_tracked_polytoken_layer
+test_teardown_preserves_ignored_project_polytoken_layer
+test_teardown_leaves_polytoken_layer_for_other_harnesses
 test_herdr_teardown_clears_escalation_marker
 test_herdr_flat_teardown_refuses_orphaning_records_then_retry_completes
 test_herdr_flat_teardown_refuses_records_on_unparseable_presence
@@ -5066,6 +5988,10 @@ test_teardown_retains_v1_journal_when_workspace_query_ambiguous
 test_squash_merged_branch_deleted_allows
 test_squash_merged_pr_allows_when_head_ancestor_of_pr_head
 test_no_pr_recorded_discovers_merged_pr_by_branch_allows
+test_descendant_close_uses_owning_home_and_state
+test_unverified_present_endpoints_keep_teardown_records
+test_branch_discovery_binds_teardown_to_the_publication_base
+test_branch_discovery_requires_unique_publication_head
 test_squash_merged_pr_allows_replayed_unpushed_patch
 test_merged_pr_with_later_local_commit_refuses
 test_squash_merged_rebased_branch_allows
@@ -5086,6 +6012,7 @@ test_scout_nested_clone_returns_with_no_untracked_entries
 test_ship_nested_clone_is_refused_and_bytes_stay
 test_dirty_return_warns_which_slot_was_lost
 test_dirty_return_warns_even_when_a_later_step_refuses
+test_forced_secondmate_child_polytoken_wiring_ownership
 test_forced_secondmate_child_scout_nested_clone_returns_clean
 test_forced_secondmate_dirty_child_return_warns_and_completes
 test_return_that_removes_copy_warns_cannot_verify
@@ -5117,6 +6044,7 @@ test_teardown_records_the_task_pipeline_spend
 test_teardown_skips_pipeline_spend_when_disabled
 test_teardown_records_unavailable_spend_for_a_gone_worktree
 test_parked_own_run_is_aborted_before_teardown
+test_parked_run_in_a_resolved_workspace_home_is_aborted
 test_parked_own_run_concludes_on_passed_with_override_after_abort
 test_parked_own_run_concludes_on_passed_with_skips_after_abort
 test_parked_run_advanced_past_unfetched_head_is_still_aborted

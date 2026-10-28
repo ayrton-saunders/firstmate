@@ -56,6 +56,47 @@ test_apply_advances_seq_and_source() {
   pass "apply advances seq under the armed gen and attributes the writing source"
 }
 
+test_conditional_apply_checks_sequence_under_writer_lock() {
+  local state gen fakebin real_mkdir pid rc i
+  state=$(new_state_dir conditional-lock)
+  gen=$("$EV" arm "$state" t1) || fail "conditional fixture did not arm"
+  fakebin=$(fm_fakebin "$TMP_ROOT/conditional-bin")
+  real_mkdir=$(command -v mkdir)
+  cat > "$fakebin/mkdir" <<'SH'
+#!/usr/bin/env bash
+if [ "${1:-}" = "$FM_TEST_BUSY_LOCK" ]; then
+  : > "$FM_TEST_BUSY_READY"
+  for ((i=0; i<300; i++)); do
+    [ ! -e "$FM_TEST_BUSY_RELEASE" ] || break
+    sleep 0.1
+  done
+fi
+exec "$FM_TEST_REAL_MKDIR" "$@"
+SH
+  chmod +x "$fakebin/mkdir"
+  PATH="$fakebin:$PATH" FM_TEST_REAL_MKDIR="$real_mkdir" FM_TEST_BUSY_LOCK="$state/t1.busy-state.lock" \
+    FM_TEST_BUSY_READY="$state/ready" FM_TEST_BUSY_RELEASE="$state/release" \
+    "$EV" apply "$state" t1 idle --gen "$gen" --expected-seq 1 \
+      --source fm-interrupt --event interrupt --turn-ended > "$state/close.out" 2>&1 &
+  pid=$!
+  for ((i=0; i<100; i++)); do [ ! -e "$state/ready" ] || break; sleep 0.1; done
+  [ -e "$state/ready" ] || { kill "$pid" 2>/dev/null; fail "conditional writer never reached lock acquisition"; }
+  "$EV" apply "$state" t1 busy --gen "$gen" --source polytoken-hook --event pre-user-prompt \
+    || fail "the competing prompt must publish"
+  : > "$state/release"
+  rc=0
+  wait "$pid" || rc=$?
+  [ "$rc" -ne 0 ] || fail "a conditional close overwrote the newer prompt"
+  assert_equals 'busy polytoken-hook pre-user-prompt 2' "$(fm_busy_record_read "$state" t1 | awk '{print $1,$2,$3,$4}')" \
+    "the newer prompt must retain its busy state and sequence"
+  [ ! -e "$state/t1.turn-ended" ] || fail "a rejected close emitted a turn-ended notification"
+  "$EV" apply "$state" t1 idle --gen "$gen" --expected-seq 2 --source fm-interrupt --event interrupt \
+    || fail "a matching conditional close must still apply"
+  assert_equals 'idle fm-interrupt interrupt 3' "$(fm_busy_record_read "$state" t1 | awk '{print $1,$2,$3,$4}')" \
+    "matching conditional apply must advance normally"
+  pass "conditional busy apply compares the observed sequence inside the writer lock"
+}
+
 test_apply_current_gen_reset() {
   local state out
   state=$(new_state_dir apply-current)
@@ -532,6 +573,29 @@ test_herdr_native_busy_only() {
   pass "herdr's native verdict is trusted for busy only, and records outrank it"
 }
 
+test_tern_native_busy_only() {
+  local state out gen verdict
+  state=$(new_state_dir tern-native)
+  # shellcheck disable=SC2329 # invoked indirectly through fm_busy_classify
+  fm_backend_busy_state() { printf '%s' "$FAKE_NATIVE"; }
+  FAKE_NATIVE=busy
+  out=$(fm_busy_classify tern 7:9 claude t1 "$state")
+  [ "$out" = "busy tern-native" ] || fail "tern native busy with no record must classify busy, got '$out'"
+  for verdict in idle blocked unknown; do
+    FAKE_NATIVE=$verdict
+    out=$(fm_busy_classify tern 7:9 claude t1 "$state")
+    [ "$out" = "unknown missing" ] || fail "tern native '$verdict' must NOT classify as a verdict, got '$out'"
+  done
+  # A valid record outranks the native verdict.
+  gen=$("$EV" arm "$state" t1)
+  "$EV" apply "$state" t1 idle --gen "$gen" --source claude-hook --event stop
+  FAKE_NATIVE=busy
+  out=$(fm_busy_classify tern 7:9 claude t1 "$state")
+  [ "$out" = "idle claude-hook" ] || fail "the adapter record must outrank tern's native verdict, got '$out'"
+  unset -f fm_backend_busy_state
+  pass "tern's native verdict is trusted for busy only (source tern-native), and records outrank it"
+}
+
 # The record parser runs inside sourcing callers (the watcher, the daemon, the
 # crew-state reader), so it must not disturb their shell: no clobbered
 # positional parameters and no changed glob setting.
@@ -593,10 +657,32 @@ test_progress_is_generation_bound_and_not_semantic_state() {
   pass "native progress is generation-bound, separately recorded, and cleared on arm and retire"
 }
 
+test_turn_ended_notification_is_generation_bound() {
+  local state gen
+  state=$(new_state_dir turn-ended)
+  gen=$("$EV" arm "$state" t1)
+  "$EV" apply "$state" t1 idle --gen "$gen" --source commandcode-mod --event run-end \
+    || fail "current idle event was refused"
+  [ ! -e "$state/t1.turn-ended" ] || fail "an idle event without --turn-ended notified"
+  "$EV" apply "$state" t1 idle --gen "$gen" --source commandcode-mod --event run-end --turn-ended \
+    || fail "current turn-ended event was refused"
+  [ -f "$state/t1.turn-ended" ] || fail "turn-ended notification missing"
+  rm "$state/t1.turn-ended"
+  "$EV" arm "$state" t1 >/dev/null
+  if "$EV" apply "$state" t1 idle --gen "$gen" --source commandcode-mod --event run-end --turn-ended 2>/dev/null; then
+    fail "stale turn-ended event was accepted"
+  fi
+  [ ! -e "$state/t1.turn-ended" ] || fail "stale turn-ended event woke the replacement"
+  if "$EV" progress "$state" t1 --gen "$gen" --turn-ended 2>/dev/null; then fail "--turn-ended accepted outside apply"; fi
+  pass "the turn-ended notification rides the apply generation check"
+}
+
 test_progress_is_generation_bound_and_not_semantic_state
+test_turn_ended_notification_is_generation_bound
 
 test_arm_seeds_busy_spawn
 test_apply_advances_seq_and_source
+test_conditional_apply_checks_sequence_under_writer_lock
 test_apply_current_gen_reset
 test_apply_unarmed_refused
 test_retire_serializes_and_rejects_stale_gen
@@ -623,6 +709,7 @@ test_kimi_unverified_gate
 test_cursor_ignores_rendered_and_native_signals
 test_dead_endpoint_overrides
 test_herdr_native_busy_only
+test_tern_native_busy_only
 test_record_read_leaves_caller_shell_intact
 test_boolean_view_never_promotes_unknown
 

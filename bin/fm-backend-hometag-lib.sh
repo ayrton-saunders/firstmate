@@ -3,9 +3,10 @@
 # for session-provider backends whose container has ONE namespace shared by
 # every firstmate home on the machine, with no native per-home split (cmux's
 # one app-global workspace list, zellij's one shared "firstmate" session's
-# tab bar). Without a per-home discriminator embedded in the actual
-# title/name, two firstmate homes (two secondmates, a primary plus a
-# secondmate, or two independent primary installations) whose task ids
+# tab bar, tern's one window-global session list). Without a per-home
+# discriminator embedded in the actual title/name, two firstmate homes (two
+# secondmates, a primary plus a secondmate, or two independent primary
+# installations) whose task ids
 # happen to collide can send/peek/close each other's tabs - the gap a
 # captain-directed no-mistakes review gate caught for cmux
 # (docs/cmux-backend.md) and this same tag mechanism was later ported to
@@ -14,14 +15,14 @@
 #
 # fm_backend_hometag() derives a short, stable tag: a readable prefix
 # ("firstmate" for the primary home, "2ndmate-<id>" for a secondmate home
-# carrying .fm-secondmate-home) plus a short hash of the resolved FM_ROOT
-# path, so distinct installations - including multiple primaries on one
+# carrying .fm-secondmate-home) plus a short hash of the resolved FM_HOME
+# path, so distinct operational homes - including multiple primaries on one
 # machine - never collide even though they share one backend-global
 # namespace. Callers source this file AFTER resolving their own
-# FM_HOME/FM_ROOT fallbacks (both adapters already do this for their own
+# FM_HOME/FM_ROOT fallbacks (every adapter already does this for its own
 # purposes before any other function runs).
 #
-# Moving/relocating a firstmate installation changes its FM_ROOT path and
+# Moving/relocating a firstmate home changes its FM_HOME path and
 # therefore its tag; titles created under the old tag simply stop matching -
 # an accepted limitation, no worse than the existing fact that a task's
 # recorded absolute worktree path does not survive a move either.
@@ -40,7 +41,7 @@ fm_backend_hometag() {
   else
     prefix="firstmate"
   fi
-  root=$(cd "$FM_ROOT" 2>/dev/null && pwd -P) || root=$FM_ROOT
+  root=$(cd "$FM_HOME" 2>/dev/null && pwd -P) || root=$FM_HOME
   if command -v shasum >/dev/null 2>&1; then
     hash=$(printf '%s' "$root" | shasum -a 256 | awk '{print substr($1,1,8)}')
   elif command -v sha256sum >/dev/null 2>&1; then

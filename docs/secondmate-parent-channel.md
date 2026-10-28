@@ -25,7 +25,7 @@ The [`fm-brief.sh` header](../bin/fm-brief.sh) owns the route-rendering flags.
 
 | Outcome | Durable evidence in the mate home | Published by |
 |---|---|---|
-| Ship child PR ready | the child's `done:` PR ready line, whose accepted spellings the publisher below owns; `pr=` in the child's record once registered | `bin/fm-inactive-reconcile.sh` on the next poll with the child's line; `bin/fm-pr-check.sh` at registration with the canonical URL |
+| Ship child PR ready | the child's `done:` PR ready line, whose accepted spellings the publisher below owns; `pr=` in the child's record once registered | `bin/fm-inactive-reconcile.sh` on the next poll with the child's line; `bin/fm-pr-check.sh` at registration with the canonical URL, or after the green report when [`config/ready-after-green`](configuration.md#pr-ready-line-after-green-configready-after-green) is set |
 | Scout child findings | the child's `done:` line plus `data/<child>/report.md` | `bin/fm-inactive-reconcile.sh` on the next poll, with the report pointer |
 | Child failed | the child's `failed:` line | `bin/fm-inactive-reconcile.sh` on the next poll |
 | Child decision escalated to the captain | the task held for the captain in the mate backlog | `bin/fm-captain-hold.sh hold`, and its answer by `answer` |
@@ -58,6 +58,7 @@ A missed-reply escalation includes the complete first sighting path and line num
 `tests/fm-captain-hold-lifecycle.test.sh` covers a mate home publishing a hold, its answer, and a distinct occurrence on re-hold, and a main home publishing nothing.
 `tests/fm-pr-merge.test.sh` covers the PR-ready line at registration and the merge outcome's upward report.
 `tests/fm-teardown.test.sh` covers teardown delivering a child's final line and refusing when the channel cannot be written.
+It also covers the registration-time ready line and its withholding until checks are green under `config/ready-after-green`.
 `tests/fm-brief.test.sh` pins the charter's channel rule against the route resolver.
 `tests/fm-remote-secondmate-lifecycle-e2e.test.sh` covers remote reseeding and remote-to-local publication, executing judgement, ledger, and steering commands while preserving authored Charter and Routing scope text.
 `tests/fm-secondmate-lifecycle-e2e.test.sh` covers local publication with relative home, state, and config inputs and preserved absolute spellings.

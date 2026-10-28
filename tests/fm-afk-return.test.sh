@@ -38,7 +38,7 @@ install_runner() {  # <case-dir>
   cp "$ROOT/bin/fm-hold-reason-lib.sh" "$dir/bin/"
   cp "$ROOT/bin/fm-backlog-transition-lib.sh" "$dir/bin/"
   # The merge-notification marker reader behind the brief's landed section.
-  cp "$ROOT/bin/fm-pr-lib.sh" "$dir/bin/"
+  cp "$ROOT/bin/fm-pr-lib.sh" "$ROOT/bin/fm-role-lib.sh" "$dir/bin/"
   fm_test_tasks_toml "$dir/home/.tasks.toml"
   printf '## In flight\n\n## Queued\n\n## Done\n' > "$dir/home/data/backlog.md"
   # The fake stop mirrors the real one's ordering: the away flag goes, then the
@@ -625,7 +625,7 @@ test_return_brief_lists_landed_work_awaiting_cleanup() {
   printf 'window=synthetic:fm-axi-mate\nbackend=tmux\nkind=secondmate\npr=https://github.com/example/child/pull/7\n' > "$dir/home/state/axi-mate.meta"
   printf 'done [at=1] [key=merged-childx]: merged childx https://github.com/example/child/pull/7\n' > "$dir/home/state/axi-mate.status"
   (
-    # shellcheck source=bin/fm-pr-lib.sh
+    # shellcheck source=/dev/null
     . "$ROOT/bin/fm-pr-lib.sh"
     fm_pr_poll_merge_mark_notified "$dir/home/state" landed github github.com example/landed 7
     fm_pr_poll_merge_mark_notified "$dir/home/state" axi-mate github github.com example/child 7
