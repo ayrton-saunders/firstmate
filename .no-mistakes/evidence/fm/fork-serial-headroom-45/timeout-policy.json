@@ -1,0 +1,44 @@
+{
+  "contract": "Parsed GitHub Actions workflow configuration, not a hosted execution",
+  "normal_job_budgets": {
+    "lint": {
+      "base_minutes": 30,
+      "head_minutes": 45
+    },
+    "tests-portable-parallel-1": {
+      "base_minutes": 30,
+      "head_minutes": 45
+    },
+    "tests-portable-parallel-2": {
+      "base_minutes": 30,
+      "head_minutes": 45
+    },
+    "tests-portable-serial": {
+      "base_minutes": "${{ (matrix.shard == 1 || matrix.shard == 2) && 45 || 30 }}",
+      "head_minutes": 45
+    },
+    "macos-stock-bash": {
+      "base_minutes": 30,
+      "head_minutes": 45
+    }
+  },
+  "expanded_serial_shard_budgets_minutes": {
+    "1": 45,
+    "2": 45,
+    "3": 45,
+    "4": 45,
+    "5": 45,
+    "6": 45,
+    "7": 45,
+    "8": 45,
+    "9": 45
+  },
+  "fast_job_budgets_minutes": {
+    "test-coverage": 5,
+    "invariants": 5,
+    "tests-timing-aggregate": 5
+  },
+  "heavy_job_budget_minutes": 75,
+  "heavy_family_step_budget_minutes": 20,
+  "all_other_workflow_semantics_unchanged": true
+}
