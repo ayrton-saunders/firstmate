@@ -1,0 +1,8 @@
+[
+  "route generation and invalid-route refusal: pass",
+  "retained remote publication, same-route retry, authored preservation, real append/ledger/ack: pass",
+  "remote-to-local seeding reaches parent channel and inbox without altering authored sections: pass",
+  "relative-home seeding executes from child against absolute parent paths: pass",
+  "relative-overrides seeding executes from child against absolute parent paths: pass",
+  "absolute-spelling seeding executes from child against absolute parent paths: pass"
+]
