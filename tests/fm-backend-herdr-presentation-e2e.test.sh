@@ -1579,7 +1579,7 @@ lab workspace get "$DUP2_WSID" >/dev/null 2>&1 || fail "duplicate-token recovery
 fm_backend_herdr_send_text_line "$HERDR_LAB_SESSION:$DUP1_PANE" 'sleep 900' \
   || fail "could not start the duplicate-live-agent risk process"
 DUP_PROCESS_READY=0
-for DUP_PROCESS_TRY in {1..50}; do
+for _ in {1..50}; do
   if [ "$(fm_backend_herdr_pane_process_state "$HERDR_LAB_SESSION" "$DUP1_PANE")" = other ]; then
     DUP_PROCESS_READY=1
     break
