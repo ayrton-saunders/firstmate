@@ -129,3 +129,149 @@ assert_not_contains "$(<"$TMP_ROOT/default-defer.err")" 'Discord admission recei
 assert_not_contains "$(<"$TMP_ROOT/default-defer.err")" 'Traceback' 'default-home capacity hook must not crash'
 [ ! -e "$DEFAULT_HOME/state/deferred-worker.meta" ] || fail 'deferred worker must not launch'
 pass 'Discord hook: unset FM_HOME preserves disabled default-home spawn and deferral'
+
+# Enabled mapped delivery uses a pinned, inert private-package fixture, never a
+# live Discord package/config. A journal marker detects even an accidental open.
+PY314=$(command -v python3.14 || true)
+if [ -z "$PY314" ]; then
+  printf 'SKIP: enabled Discord hook fixture requires CPython 3.14\n'
+  exit 0
+fi
+MAPPED_HOME="$TMP_ROOT/mapped-home"
+PACKAGE="$TMP_ROOT/package"
+mkdir -p "$MAPPED_HOME/config" "$MAPPED_HOME/state" "$PACKAGE/personal_discord" "$TMP_ROOT/send-tools"
+printf '' > "$PACKAGE/personal_discord/__init__.py"
+cat > "$PACKAGE/personal_discord/integration.py" <<'PY'
+class Integration:
+    @staticmethod
+    def identify_source(source):
+        return {'source_commit': 'fixture', 'source_digest': 'fixture'}
+PY
+cat > "$PACKAGE/personal_discord/journal.py" <<'PY'
+from pathlib import Path
+class Journal:
+    def __init__(self, path):
+        self.path = Path(path)
+        self.path.write_text('opened')
+    def record(self, family, permit):
+        raise ValueError('Unknown fixture permit')
+    def close(self):
+        pass
+PY
+cat > "$PACKAGE/personal_discord/routing.py" <<'PY'
+class Routing:
+    def __init__(self, journal):
+        self.journal = journal
+    def consume(self, *args, **kwargs):
+        self.journal.path.with_suffix('.consumed').write_text('consumed')
+        raise ValueError('Fixture must never consume')
+    def confirm(self, *args, **kwargs):
+        raise ValueError('Fixture must never confirm')
+PY
+"$PY314" - "$MAPPED_HOME" "$PACKAGE" "$ROOT" "$PY314" <<'PY'
+import hashlib, json, sys
+from pathlib import Path
+home, package, source, interpreter = map(lambda p: Path(p).resolve(), sys.argv[1:])
+config = dict(schema=2, enabled=True, home=str(home), package_root=str(package),
+              hashes={str(p.relative_to(package)): hashlib.sha256(p.read_bytes()).hexdigest()
+                      for p in (package / 'personal_discord').glob('*.py')},
+              journal=str(home / 'journal'), routes=[dict(target='mapped', project='fixture')],
+              projects={'fixture': str(source)}, python_executable=str(interpreter),
+              source=str(source), source_commit='fixture', source_digest='fixture')
+(home / 'config/discord-integration.json').write_text(json.dumps(config))
+PY
+cat > "$TMP_ROOT/send-tools/tmux" <<'SH'
+#!/usr/bin/env bash
+case "$1" in
+  display-message) printf '%%1\n' ;;
+  capture-pane) printf 'ordinary prompt\n' ;;
+  send-keys) : ;;
+esac
+SH
+chmod +x "$TMP_ROOT/send-tools/tmux"
+fm_write_meta "$MAPPED_HOME/state/mapped.meta" 'window=sess:fm-mapped' 'backend=tmux' 'harness=pi' 'kind=ship' 'spawn_gen=fixture-gen'
+run_mapped_send() {
+  env -u FM_DISCORD_AUTH PATH="$TMP_ROOT/send-tools:$PATH" FM_HOME="$MAPPED_HOME" \
+    FM_ROOT_OVERRIDE="$MAPPED_HOME" FM_SEND_SETTLE=0 \
+    bash "$ROOT/bin/fm-send.sh" mapped 'local supervisory text'
+}
+run_mapped_send >"$TMP_ROOT/mapped.out" 2>"$TMP_ROOT/mapped.err" \
+  || fail "mapped local send must succeed: $(<"$TMP_ROOT/mapped.err")"
+assert_contains "$(<"$MAPPED_HOME/state/mapped.inbox/001.msg")" 'local supervisory text' 'mapped local send must reach durable inbox'
+assert_not_contains "$(<"$TMP_ROOT/mapped.err")" 'reconcile its receipt' 'mapped local send must not report confirmation failure'
+[ ! -e "$MAPPED_HOME/journal" ] || fail 'local send must not open journal'
+[ ! -e "$MAPPED_HOME/journal.consumed" ] || fail 'local send must not consume a permit'
+pass 'Discord hook: mapped local supervisory send delivers without a journal or permit'
+
+mapped_hook() {
+  FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" "$@"
+}
+receipt="$MAPPED_HOME/state/mapped.inbox/001.msg"
+env -u FM_DISCORD_AUTH FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" confirm-send local "$receipt" \
+  || fail 'local receipt must confirm without a permit'
+mkdir -p "$MAPPED_HOME/state/mapped.inbox/handled"
+mv "$receipt" "$MAPPED_HOME/state/mapped.inbox/handled/001.msg"
+env -u FM_DISCORD_AUTH FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" confirm-send local "$receipt" \
+  || fail 'handled local receipt must confirm without a permit'
+for bad_receipt in "$MAPPED_HOME/state/mapped.inbox/002.msg" "$MAPPED_HOME/state/unmapped.inbox/001.msg"; do
+  if env -u FM_DISCORD_AUTH FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" confirm-send local "$bad_receipt" >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail 'missing or unmapped receipt must refuse'
+  fi
+done
+[ ! -e "$MAPPED_HOME/journal" ] || fail 'local confirmation must not open journal'
+pass 'Discord hook: local confirmation verifies exact durable mapped receipt, including handled records'
+
+# Presence identifies the Discord lane even when the supplied credential is
+# empty (missing token) or malformed. It must never fall back to local authority.
+for permit in '' invalid; do
+  if printf 'private lane text' | FM_DISCORD_AUTH="$permit" mapped_hook send mapped sess:fm-mapped "$MAPPED_HOME/state/mapped.meta" tmux >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail 'Discord lane with missing/invalid permit must refuse'
+  fi
+  assert_not_contains "$(<"$TMP_ROOT/err")" 'private lane text' 'refusal must not echo payload'
+  [ ! -e "$MAPPED_HOME/journal" ] || fail 'malformed permit must refuse before journal access'
+done
+if printf 'private lane text' | FM_DISCORD_AUTH=00000000000000000000000000000000 mapped_hook send mapped sess:fm-mapped "$MAPPED_HOME/state/mapped.meta" tmux >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+  fail 'unknown well-formed permit must refuse'
+fi
+[ -f "$MAPPED_HOME/journal" ] || fail 'well-formed permit must undergo journal lookup'
+[ ! -e "$MAPPED_HOME/journal.consumed" ] || fail 'unknown permit must not be consumed'
+rm "$MAPPED_HOME/journal"
+pass 'Discord hook: Discord lane missing, malformed and unknown permits refuse before consume'
+
+for payload in '/native' 'ordinary'; do
+  metadata="$MAPPED_HOME/state/mapped.meta"
+  [ "$payload" != ordinary ] || metadata=''
+  if printf '%s' "$payload" | env -u FM_DISCORD_AUTH FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" send mapped sess:fm-mapped "$metadata" tmux >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail 'parser-native invocation and explicit-terminal metadata bypass must refuse'
+  fi
+done
+if printf 'ordinary' | env -u FM_DISCORD_AUTH FM_HOME="$MAPPED_HOME" FM_SEND_EXPECTED_SPAWN_GEN=other python3 -I "$HOOK" send mapped sess:fm-mapped "$MAPPED_HOME/state/mapped.meta" tmux >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+  fail 'local send must retain caller generation fence'
+fi
+[ ! -e "$MAPPED_HOME/journal" ] || fail 'local safety refusals must not open journal'
+pass 'Discord hook: local sends retain parser, metadata and generation protections'
+
+for generation in '' 'bad|generation'; do
+  fm_write_meta "$MAPPED_HOME/state/mapped.meta" 'window=sess:fm-mapped' 'backend=tmux' 'harness=pi' "spawn_gen=$generation"
+  if printf 'ordinary' | env -u FM_DISCORD_AUTH FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" send mapped sess:fm-mapped "$MAPPED_HOME/state/mapped.meta" tmux >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail 'missing or malformed local endpoint generation must refuse'
+  fi
+done
+fm_write_meta "$MAPPED_HOME/state/mapped.meta" 'window=sess:fm-mapped' 'backend=tmux' 'harness=codex' 'spawn_gen=fixture-gen'
+if printf '\044native' | env -u FM_DISCORD_AUTH FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" send mapped sess:fm-mapped "$MAPPED_HOME/state/mapped.meta" tmux >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+  fail 'Codex parser-native invocation must refuse'
+fi
+if python3 -c 'print("x" * 24577, end="")' | env -u FM_DISCORD_AUTH FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" send mapped sess:fm-mapped "$MAPPED_HOME/state/mapped.meta" tmux >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+  fail 'oversize local payload must refuse'
+fi
+if printf 'ordinary' | env -u FM_DISCORD_AUTH FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" send mapped remote:mapped "$MAPPED_HOME/state/mapped.meta" remote >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+  fail 'permit-free local authority must not extend to remote sends'
+fi
+mv "$MAPPED_HOME/state/mapped.inbox" "$MAPPED_HOME/state/saved-inbox"
+printf 'not an inbox directory' > "$MAPPED_HOME/state/mapped.inbox"
+if run_mapped_send >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+  fail 'genuinely failed local inbox delivery must not report success'
+fi
+[ ! -e "$MAPPED_HOME/journal" ] || fail 'local safety checks must not access journal'
+[ ! -e "$MAPPED_HOME/journal.consumed" ] || fail 'local safety checks must not consume permits'
+pass 'Discord hook: bounded local authority retains lifecycle, payload and delivery failure checks'
