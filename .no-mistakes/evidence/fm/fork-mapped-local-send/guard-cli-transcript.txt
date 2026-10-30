@@ -1,0 +1,6 @@
+Disposable enabled configuration: {"enabled": true, "schema": 1}
+$ env -u FM_DISCORD_AUTH FM_HOME=<disposable-home> python3 -I bin/fm-discord-hook.py send mapped isolated:mapped "" tmux
+stdin: <sensitive supervisory payload>
+exit: 1
+stdout: ''
+stderr: error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit

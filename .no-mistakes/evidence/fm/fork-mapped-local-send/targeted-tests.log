@@ -1,0 +1,14 @@
+ok - Discord hook: absent integration preserves legacy delivery
+ok - Discord hook: disabled integration preserves legacy delivery
+ok - Discord hook: malformed configuration refuses without echoing private payload
+ok - Discord hook: incomplete enabled configuration refuses
+ok - Discord hook: non-object and non-boolean enablement refuse
+ok - Discord hook: symlink configuration refuses
+ok - Discord hook: actual inbox preserves absent/disabled behavior and reconciles optional failures
+ok - Discord hook: unset FM_HOME preserves disabled default-home inbox behavior
+ok - Discord hook: unset FM_HOME preserves disabled default-home spawn and deferral
+ok - Discord hook: mapped local supervisory send delivers without a journal or permit
+ok - Discord hook: permit-free confirmation refuses before journal access without disclosing payload or path
+ok - Discord hook: Discord lane missing, malformed and unknown permits refuse before consume
+ok - Discord hook: local sends retain parser, metadata and generation protections
+ok - Discord hook: bounded local authority retains lifecycle, payload and delivery failure checks
