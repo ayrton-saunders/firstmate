@@ -15,6 +15,14 @@ Absent config/discord-integration.json preserves legacy behavior.
 An enabled config binds schema=2, canonical home, private package root and hashes,
 parent journal, routes [{target,project}], projects {canonical key:absolute root}.
 FM_DISCORD_AUTH names a parent-issued one-use permit, never a transport claim.
+Its presence selects Discord-lane authority even when empty or malformed.
+Only send to a local mapped task with FM_DISCORD_AUTH absent may use ordinary
+supervisory inbox text without opening the journal or consuming a permit.
+Configuration, endpoint identity, generation fences, payload bounds and native
+invocation restrictions still apply; remote sends and mapped project spawns
+still require permits.
+Permit-free sends emit no route information and need no confirm-send call;
+confirm-send without FM_DISCORD_AUTH is refused before journal access.
 No success is returned after consuming a permit until its transaction commits.
 Consumed permits are deliberately not retryable without lifecycle reconciliation.
 The local parent issues permits through the pinned integration release's admin API.
@@ -105,9 +113,15 @@ def guard(args):
         return
     if not args or args[0] not in ('send', 'spawn', 'capacity-deferred', 'outcome', 'ready', 'confirm-send'):
         raise ValueError('Unknown hook operation')
+    # Lane origin is explicit: a present FM_DISCORD_AUTH selects Discord permit
+    # authority (even if empty/invalid); absence selects local supervisory text.
+    # Never infer origin from a mapped target, route, or caller identity.
+    discord_lane = 'FM_DISCORD_AUTH' in os.environ
     if args[0] == 'confirm-send':
         if len(args) != 3 or args[1] not in ('local', 'remote'):
             raise ValueError('Exact owning delivery receipt required')
+        if not discord_lane:
+            raise ValueError('Mapped routing requires a typed parent-issued lane permit')
         journal_type = importlib.import_module('personal_discord.journal').Journal
         routing_type = importlib.import_module('personal_discord.routing').Routing
         journal = journal_type(config['journal'])
@@ -206,11 +220,21 @@ def guard(args):
     if args[0] == 'send' and not generation:
         raise ValueError('Enabled mapped endpoint requires a recorded lifecycle generation')
     permit = os.environ.get('FM_DISCORD_AUTH', '')
-    if len(permit) != 32 or any(c not in '0123456789abcdef' for c in permit):
+    local_send = args[0] == 'send' and candidate_backend != 'remote' and not discord_lane
+    if not local_send and (len(permit) != 32 or any(c not in '0123456789abcdef' for c in permit)):
         raise ValueError('Mapped routing requires a typed parent-issued lane permit')
     text = sys.stdin.buffer.read(24577)
     if len(text) > 24576:
         raise ValueError('Mapped route payload exceeds bounded authority envelope')
+    if local_send:
+        if text.startswith(b'/') or text.startswith(b'$') and meta_value(Path(args[3]), 'harness') == 'codex':
+            raise ValueError('Mapped work must use ordinary inbox text, not a parser-native invocation')
+        expected_generation = os.environ.get('FM_SEND_EXPECTED_SPAWN_GEN', '')
+        if expected_generation and expected_generation != generation:
+            raise ValueError('Existing caller generation fence conflicts with the typed permit')
+        if '|' in generation or len(generation) > 96:
+            raise ValueError('Malformed endpoint generation')
+        return
     journal_type = importlib.import_module('personal_discord.journal').Journal
     routing_type = importlib.import_module('personal_discord.routing').Routing
     journal = journal_type(config['journal'])
