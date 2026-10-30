@@ -15,6 +15,14 @@ Absent config/discord-integration.json preserves legacy behavior.
 An enabled config binds schema=2, canonical home, private package root and hashes,
 parent journal, routes [{target,project}], projects {canonical key:absolute root}.
 FM_DISCORD_AUTH names a parent-issued one-use permit, never a transport claim.
+Its presence selects Discord-lane authority even when empty or malformed.
+Only send to a local mapped task with FM_DISCORD_AUTH absent may use ordinary
+supervisory inbox text without opening the journal or consuming a permit.
+Configuration, endpoint identity, generation fences, payload bounds and native
+invocation restrictions still apply; remote sends and mapped project spawns
+still require permits.
+Permit-free sends emit no route information and need no confirm-send call;
+confirm-send without FM_DISCORD_AUTH is refused before journal access.
 No success is returned after consuming a permit until its transaction commits.
 Consumed permits are deliberately not retryable without lifecycle reconciliation.
 The local parent issues permits through the pinned integration release's admin API.

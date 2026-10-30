@@ -2074,7 +2074,8 @@ This repository contains only the parent lifecycle hook, not the private bot cor
 Leave the integration configuration absent for ordinary operation.
 The hook's [header and help](../bin/fm-discord-hook.py) own the exact configuration, release-pinning requirements, permit interface, and invocation mechanics; this is not a standalone bot setup path.
 
-When enabled, explicitly mapped worker text routes and project spawns require parent-issued authority rather than treating transport input as authorization.
+When enabled, ordinary local supervisory text can still reach explicitly mapped workers without consuming Discord permits; per-domain bot scoping does not restrict the primary's own coordination.
+Discord-lane sends, remote mapped sends, and mapped project spawns still require parent-issued permits rather than treating transport input as authorization.
 Mapped endpoint aliases cannot bypass the guard through direct terminal text, and mapped work cannot use parser-native invocations.
 Unmapped work retains its ordinary routing behavior after configuration validation and endpoint identity checks.
 A proven absent unrelated mapped endpoint does not block routing; an indeterminate identity lookup refuses delivery rather than risking a mapped terminal bypass.
@@ -2082,7 +2083,7 @@ Capacity deferral remains a no-launch outcome and does not consume dispatch auth
 Once a permit is consumed, reconcile lifecycle state before retrying; a failed command is not authority to reuse it.
 Inbox drain attempts to renew parent readiness, and durable inbox replies record private outcome digests rather than approving public finals.
 Readiness or outcome-recording failure warns without undoing the underlying inbox operation; receipt-recording failure after a delivered steer likewise warns against resending.
-[Portable regression coverage](../tests/fm-discord-hook.test.sh) checks inactive compatibility and safe rejection without the private core.
+[Portable regression coverage](../tests/fm-discord-hook.test.sh) checks inactive compatibility and, with CPython 3.14, fixture-backed local delivery and fail-closed lane separation without the private core.
 
 ## Relay (.env)
 
