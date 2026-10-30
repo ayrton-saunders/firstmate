@@ -112,18 +112,8 @@ def guard(args):
     if args[0] == 'confirm-send':
         if len(args) != 3 or args[1] not in ('local', 'remote'):
             raise ValueError('Exact owning delivery receipt required')
-        if args[1] == 'local' and not discord_lane:
-            receipt = Path(args[2])
-            for route in config['routes']:
-                expected = home / 'state' / (route['target'] + '.inbox')
-                if receipt.parent.resolve() == expected.resolve():
-                    if not receipt.name.endswith('.msg') or not receipt.stem.isdigit():
-                        raise ValueError('Receipt is not in the exact mapped task inbox')
-                    actual = receipt if receipt.is_file() else expected / 'handled' / receipt.name
-                    if not actual.is_file() or actual.is_symlink():
-                        raise ValueError('Durable owning inbox receipt absent')
-                    return
-            raise ValueError('Receipt is not in the exact mapped task inbox')
+        if not discord_lane:
+            raise ValueError('Mapped routing requires a typed parent-issued lane permit')
         journal_type = importlib.import_module('personal_discord.journal').Journal
         routing_type = importlib.import_module('personal_discord.routing').Routing
         journal = journal_type(config['journal'])

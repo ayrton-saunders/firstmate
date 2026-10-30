@@ -207,19 +207,16 @@ mapped_hook() {
   FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" "$@"
 }
 receipt="$MAPPED_HOME/state/mapped.inbox/001.msg"
-env -u FM_DISCORD_AUTH FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" confirm-send local "$receipt" \
-  || fail 'local receipt must confirm without a permit'
-mkdir -p "$MAPPED_HOME/state/mapped.inbox/handled"
-mv "$receipt" "$MAPPED_HOME/state/mapped.inbox/handled/001.msg"
-env -u FM_DISCORD_AUTH FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" confirm-send local "$receipt" \
-  || fail 'handled local receipt must confirm without a permit'
-for bad_receipt in "$MAPPED_HOME/state/mapped.inbox/002.msg" "$MAPPED_HOME/state/unmapped.inbox/001.msg"; do
-  if env -u FM_DISCORD_AUTH FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" confirm-send local "$bad_receipt" >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
-    fail 'missing or unmapped receipt must refuse'
+for delivery in local remote; do
+  if printf 'private confirmation payload' | env -u FM_DISCORD_AUTH FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" confirm-send "$delivery" "$receipt" >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail 'permit-free confirmation must refuse'
   fi
+  [ ! -s "$TMP_ROOT/out" ] || fail 'refused confirmation must not emit output'
+  [ "$(<"$TMP_ROOT/err")" = 'error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit' ] \
+    || fail 'confirmation refusal must use a fixed category without payload or path'
+  [ ! -e "$MAPPED_HOME/journal" ] || fail 'permit-free confirmation must not open journal'
 done
-[ ! -e "$MAPPED_HOME/journal" ] || fail 'local confirmation must not open journal'
-pass 'Discord hook: local confirmation verifies exact durable mapped receipt, including handled records'
+pass 'Discord hook: permit-free confirmation refuses before journal access without disclosing payload or path'
 
 # Presence identifies the Discord lane even when the supplied credential is
 # empty (missing token) or malformed. It must never fall back to local authority.
