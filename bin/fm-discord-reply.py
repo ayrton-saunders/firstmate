@@ -89,6 +89,11 @@ def reply(args):
     require('FM_HOME' in os.environ and Path(os.environ['FM_HOME']).is_absolute(),
             'explicit absolute parent home required')
     home = Path(os.environ['FM_HOME']).resolve(strict=True)
+    source = Path(__file__).resolve().parent.parent
+    guard = subprocess.run(['/bin/bash', '-c', '. "$1"; fm_refuse_if_gate_agent', '_',
+                            str(source / 'bin/fm-gate-refuse-lib.sh')],
+                           capture_output=True, timeout=10)
+    require(guard.returncode == 0, 'parent lifecycle authority required')
     config = configuration(home)
     routes = [route for route in config['routes'] if route['target'] == target]
     require(len(routes) == 1, 'exact mapped route required')
@@ -119,6 +124,9 @@ def reply(args):
                        'FM_CONFIG_OVERRIDE': str(home / 'config'), 'FM_PROJECTS_OVERRIDE': str(home / 'projects'),
                        'TMPDIR': str(home / 'state'), 'GIT_TERMINAL_PROMPT': '0',
                        'PYTHONDONTWRITEBYTECODE': '1', 'LC_ALL': 'C'}
+        for key in ('NO_MISTAKES_GATE', 'FM_SUPERVISION_ACTOR', 'PI_CODING_AGENT'):
+            if key in os.environ:
+                environment[key] = os.environ[key]
         egress = journal_type(config['egress'])
         try:
             integration = integration_type(parent_type(journal, config['mapping']), config['ingress'], egress,

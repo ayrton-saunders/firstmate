@@ -12,7 +12,7 @@ fi
 fm_git_init_commit "$TMP_ROOT/source"
 mkdir -p "$TMP_ROOT/source/bin"
 cp "$ROOT/bin/fm-discord-reply.py" "$ROOT/bin/fm-discord-hook.py" \
-  "$ROOT/bin/fm-discord-verify-pins.py" "$TMP_ROOT/source/bin/"
+  "$ROOT/bin/fm-discord-verify-pins.py" "$ROOT/bin/fm-gate-refuse-lib.sh" "$TMP_ROOT/source/bin/"
 for name in fm-inbox.sh fm-send.sh fm-spawn.sh; do
   printf 'inert fixture for %s\n' "$name" > "$TMP_ROOT/source/bin/$name"
 done
@@ -79,7 +79,7 @@ class Journal:
         self.db.close()
 '''
 
-INTEGRATION = '''import hashlib, json, subprocess
+INTEGRATION = '''import hashlib, json, os, subprocess
 from .journal import digest
 
 class Integration:
@@ -98,6 +98,8 @@ class Integration:
         assert environment['FM_CONFIG_OVERRIDE'] == str(home/'config')
         assert environment['FM_PROJECTS_OVERRIDE'] == str(home/'projects')
         assert environment['HOME'] == str(home)
+        for key in ('NO_MISTAKES_GATE', 'FM_SUPERVISION_ACTOR', 'PI_CODING_AGENT'):
+            assert environment.get(key) == os.environ.get(key)
     def approve_update(self, ident, **body):
         fixture = self.j.fixture()
         binding = fixture['binding']
@@ -125,7 +127,11 @@ class Reply(unittest.TestCase):
         self.source = self.world / 'source'
         shutil.copytree(root / 'source', self.source)
         self.home = self.world / 'home'
-        (self.home / 'config').mkdir(parents=True)
+        self.home.mkdir()
+        if self._testMethodName.startswith('test_gate_lab_'):
+            subprocess.run(['/bin/bash', '-c', '. "$1"; fm_gate_lab_mark "$2"', '_',
+                            str(self.source/'bin/fm-gate-refuse-lib.sh'), str(self.home)], check=True)
+        (self.home / 'config').mkdir()
         (self.home / 'state/pending-replies').mkdir(parents=True)
         self.package = self.world / 'package'
         package = self.package / 'personal_discord'
@@ -195,6 +201,44 @@ class Reply(unittest.TestCase):
     def refuse(self, reason, **kwargs):
         self.invoke(reason,**kwargs)
         self.assertEqual(self.approvals(),[])
+
+    def gate_environment(self, marker='review'):
+        environment = {key:'' for key in os.environ if key.startswith('FM_') and key.endswith('_OVERRIDE')}
+        environment.update(NO_MISTAKES_GATE=marker, FM_GATE_REFUSE_BYPASS='',
+                           FM_SUPERVISION_ACTOR='main', PI_CODING_AGENT='1')
+        return environment
+
+    def test_gate_refuses_before_configuration_and_journals(self):
+        before = {path:Path(path).read_bytes() for path in
+                  (self.config['journal'], self.config['egress'], self.return_path)}
+        original_config = self.config_path.read_text()
+        for marker in ('review', ''):
+            for config in (original_config, '{invalid configuration'):
+                with self.subTest(marker=marker, config=config):
+                    self.config_path.write_text(config)
+                    self.refuse('parent lifecycle authority required', env=self.gate_environment(marker))
+                    for path, content in before.items():
+                        self.assertEqual(Path(path).read_bytes(), content)
+                    for key in ('journal', 'egress'):
+                        self.assertFalse(Path(self.config[key]).with_suffix('.opened').exists())
+
+    def test_gate_lab_permits_approved_final_and_preserves_authority_signals(self):
+        for directory in ('data', 'projects'):
+            (self.home/directory).mkdir()
+        environment = self.gate_environment()
+        environment.update(FM_ROOT_OVERRIDE=str(self.source), FM_STATE_OVERRIDE=str(self.home/'state'),
+                           FM_CONFIG_OVERRIDE=str(self.home/'config'))
+        self.invoke(env=environment)
+        self.assertEqual(len(self.approvals()), 1)
+
+    def test_gate_lab_rejects_nonstock_override(self):
+        for directory in ('data', 'projects'):
+            (self.home/directory).mkdir()
+        environment = self.gate_environment()
+        environment['FM_STATE_OVERRIDE'] = str(self.world/'other-state')
+        self.refuse('parent lifecycle authority required', env=environment)
+        for key in ('journal', 'egress'):
+            self.assertFalse(Path(self.config[key]).with_suffix('.opened').exists())
 
     def test_final_uses_existing_binding_and_exact_approved_words(self):
         words = 'Your preferred option is available.'
