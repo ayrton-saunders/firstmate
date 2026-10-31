@@ -361,6 +361,10 @@
       "audience": "maintainer-architecture"
     },
     {
+      "path": "docs/discord-owner-reply-install.md",
+      "audience": "operator-current"
+    },
+    {
       "path": "docs/discord-owner-reply-pins.md",
       "audience": "operator-current"
     },

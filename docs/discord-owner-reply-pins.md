@@ -74,6 +74,7 @@ Only the owner can establish that those backups coherently represent the intende
 
 ## Owner actions after a source update
 
+Use the [owner install-and-test sheet](discord-owner-reply-install.md) for the coordinated Mac/Harbour procedure and round-trip acceptance.
 Do not update the parent pin alone and restart intake.
 The required transition is:
 

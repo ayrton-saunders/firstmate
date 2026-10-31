@@ -2074,6 +2074,7 @@ This repository contains parent-side commands and the lifecycle hook, not the pr
 Leave the integration configuration absent for ordinary operation.
 The hook's [header and help](../bin/fm-discord-hook.py) own the exact configuration, release-pinning requirements, permit interface, and invocation mechanics; this is not a standalone bot setup path.
 See [owner-reply pins](discord-owner-reply-pins.md) for the read-only source/config/manifest comparison and the required reconciliation and unfencing sequence after an update.
+The [owner install-and-test sheet](discord-owner-reply-install.md) coordinates both machines, owner approvals and the one-message round-trip proof.
 
 When enabled, ordinary local supervisory text can still reach explicitly mapped workers without consuming Discord permits; per-domain bot scoping does not restrict the primary's own coordination.
 Discord-lane sends, remote mapped sends, and mapped project spawns still require parent-issued permits rather than treating transport input as authorization.
