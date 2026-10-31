@@ -1,0 +1,94 @@
+
+SCENARIO: Owner checks matching source/config/manifest without opening journals
+$ /opt/homebrew/opt/python@3.14/bin/python3.14 -I <worktree>/bin/fm-discord-verify-pins.py --parent-config <worktree>/.validation-tmp/live-world/parent.json --transport-manifest <worktree>/.validation-tmp/live-world/transport.json
+exit: 0
+Discord source/config/manifest pins agree; journal epoch and fences not checked.
+Input bytes and mtimes unchanged; no new files or journal sidecars.
+
+SCENARIO: Owner verifies reconciled offline snapshots with clear fences
+$ /opt/homebrew/opt/python@3.14/bin/python3.14 -I <worktree>/bin/fm-discord-verify-pins.py --parent-config <worktree>/.validation-tmp/live-world/parent.json --transport-manifest <worktree>/.validation-tmp/live-world/transport.json --parent-journal-snapshot <worktree>/.validation-tmp/live-world/parent-snapshot.sqlite --transport-journal-snapshot <worktree>/.validation-tmp/live-world/transport-snapshot.sqlite
+exit: 0
+Discord source/config/manifest/remote-epoch pins agree; parent and transport intake/delivery fences are clear (offline snapshots only).
+Input bytes and mtimes unchanged; no new files or journal sidecars.
+
+SCENARIO: Wrong transport identity stops preflight
+$ /opt/homebrew/opt/python@3.14/bin/python3.14 -I <worktree>/bin/fm-discord-verify-pins.py --parent-config <worktree>/.validation-tmp/live-world/parent.json --transport-manifest <worktree>/.validation-tmp/live-world/transport.json
+exit: 1
+error: Discord pin verification refused: transport parent_identity source_commit mismatch; re-pin both sides before reconciliation
+Input bytes and mtimes unchanged; no new files or journal sidecars.
+
+SCENARIO: parent fenced stops offline readiness claim
+$ /opt/homebrew/opt/python@3.14/bin/python3.14 -I <worktree>/bin/fm-discord-verify-pins.py --parent-config <worktree>/.validation-tmp/live-world/parent.json --transport-manifest <worktree>/.validation-tmp/live-world/transport.json --parent-journal-snapshot <worktree>/.validation-tmp/live-world/parent-snapshot.sqlite --transport-journal-snapshot <worktree>/.validation-tmp/live-world/transport-snapshot.sqlite
+exit: 1
+error: Discord pin verification refused: parent intake or delivery remains fenced; reconcile before explicit unfencing
+Input bytes and mtimes unchanged; no new files or journal sidecars.
+
+SCENARIO: parent delivery_fenced stops offline readiness claim
+$ /opt/homebrew/opt/python@3.14/bin/python3.14 -I <worktree>/bin/fm-discord-verify-pins.py --parent-config <worktree>/.validation-tmp/live-world/parent.json --transport-manifest <worktree>/.validation-tmp/live-world/transport.json --parent-journal-snapshot <worktree>/.validation-tmp/live-world/parent-snapshot.sqlite --transport-journal-snapshot <worktree>/.validation-tmp/live-world/transport-snapshot.sqlite
+exit: 1
+error: Discord pin verification refused: parent intake or delivery remains fenced; reconcile before explicit unfencing
+Input bytes and mtimes unchanged; no new files or journal sidecars.
+
+SCENARIO: transport fenced stops offline readiness claim
+$ /opt/homebrew/opt/python@3.14/bin/python3.14 -I <worktree>/bin/fm-discord-verify-pins.py --parent-config <worktree>/.validation-tmp/live-world/parent.json --transport-manifest <worktree>/.validation-tmp/live-world/transport.json --parent-journal-snapshot <worktree>/.validation-tmp/live-world/parent-snapshot.sqlite --transport-journal-snapshot <worktree>/.validation-tmp/live-world/transport-snapshot.sqlite
+exit: 1
+error: Discord pin verification refused: transport intake or delivery remains fenced; reconcile before explicit unfencing
+Input bytes and mtimes unchanged; no new files or journal sidecars.
+
+SCENARIO: transport delivery_fenced stops offline readiness claim
+$ /opt/homebrew/opt/python@3.14/bin/python3.14 -I <worktree>/bin/fm-discord-verify-pins.py --parent-config <worktree>/.validation-tmp/live-world/parent.json --transport-manifest <worktree>/.validation-tmp/live-world/transport.json --parent-journal-snapshot <worktree>/.validation-tmp/live-world/parent-snapshot.sqlite --transport-journal-snapshot <worktree>/.validation-tmp/live-world/transport-snapshot.sqlite
+exit: 1
+error: Discord pin verification refused: transport intake or delivery remains fenced; reconcile before explicit unfencing
+Input bytes and mtimes unchanged; no new files or journal sidecars.
+
+SCENARIO: Restored parent epoch requires reconciliation
+$ /opt/homebrew/opt/python@3.14/bin/python3.14 -I <worktree>/bin/fm-discord-verify-pins.py --parent-config <worktree>/.validation-tmp/live-world/parent.json --transport-manifest <worktree>/.validation-tmp/live-world/transport.json --parent-journal-snapshot <worktree>/.validation-tmp/live-world/parent-snapshot.sqlite --transport-journal-snapshot <worktree>/.validation-tmp/live-world/transport-snapshot.sqlite
+exit: 1
+error: Discord pin verification refused: remembered parent epoch mismatch; reconcile remote-epoch before unfencing
+Input bytes and mtimes unchanged; no new files or journal sidecars.
+
+SCENARIO: Offline snapshot with WAL is refused rather than ignored
+$ /opt/homebrew/opt/python@3.14/bin/python3.14 -I <worktree>/bin/fm-discord-verify-pins.py --parent-config <worktree>/.validation-tmp/live-world/parent.json --transport-manifest <worktree>/.validation-tmp/live-world/transport.json --parent-journal-snapshot <worktree>/.validation-tmp/live-world/parent-snapshot.sqlite --transport-journal-snapshot <worktree>/.validation-tmp/live-world/transport-snapshot.sqlite
+exit: 1
+error: Discord pin verification refused: standalone offline journal snapshots required; use coherent backups without sidecars
+Input bytes and mtimes unchanged; no new files or journal sidecars.
+
+SCENARIO: Gate marker '1' blocks reply before malformed configuration
+$ /opt/homebrew/opt/python@3.14/bin/python3.14 -I <worktree>/bin/fm-discord-reply.py request domain Approved answer.
+exit: 1
+error: Discord reply refused: parent lifecycle authority required
+Input bytes and mtimes unchanged; no new files or journal sidecars.
+
+SCENARIO: Gate marker '1' blocks dispatch before malformed configuration
+$ /opt/homebrew/opt/python@3.14/bin/python3.14 -I <worktree>/bin/fm-discord-dispatch.py request domain Harmless question?
+exit: 1
+error: Discord dispatch refused: parent lifecycle authority required
+Input bytes and mtimes unchanged; no new files or journal sidecars.
+
+SCENARIO: Gate marker '' blocks reply before malformed configuration
+$ /opt/homebrew/opt/python@3.14/bin/python3.14 -I <worktree>/bin/fm-discord-reply.py request domain Approved answer.
+exit: 1
+error: Discord reply refused: parent lifecycle authority required
+Input bytes and mtimes unchanged; no new files or journal sidecars.
+
+SCENARIO: Gate marker '' blocks dispatch before malformed configuration
+$ /opt/homebrew/opt/python@3.14/bin/python3.14 -I <worktree>/bin/fm-discord-dispatch.py request domain Harmless question?
+exit: 1
+error: Discord dispatch refused: parent lifecycle authority required
+Input bytes and mtimes unchanged; no new files or journal sidecars.
+
+SCENARIO: Marked lab passes authority guard and reaches configuration validation
+$ /opt/homebrew/opt/python@3.14/bin/python3.14 -I <worktree>/bin/fm-discord-reply.py request domain Approved answer.
+exit: 1
+error: Discord reply refused: verify pinned configuration and existing approval; reconcile before retry
+Input bytes and mtimes unchanged; no new files or journal sidecars.
+
+SCENARIO: Marked lab cannot redirect state to another directory
+$ /opt/homebrew/opt/python@3.14/bin/python3.14 -I <worktree>/bin/fm-discord-reply.py request domain Approved answer.
+exit: 1
+error: Discord reply refused: parent lifecycle authority required
+Input bytes and mtimes unchanged; no new files or journal sidecars.
+
+Private runtime availability:
+personal_discord: None
+No approved private release is supplied in this repository; fake integration fixtures were not counted as live dispatch/publication.

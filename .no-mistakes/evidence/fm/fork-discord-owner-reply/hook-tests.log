@@ -1,0 +1,19 @@
+FM_TEST_BEGIN 2026-10-31T17:31:10Z tests/fm-discord-hook.test.sh family=unclassified expected_gate_skip=none
+ok - Discord hook: absent integration preserves legacy delivery
+ok - Discord hook: disabled integration preserves legacy delivery
+ok - Discord hook: malformed configuration refuses without echoing private payload
+ok - Discord hook: incomplete enabled configuration refuses
+ok - Discord hook: non-object and non-boolean enablement refuse
+ok - Discord hook: symlink configuration refuses
+ok - Discord hook: actual inbox preserves absent/disabled behavior and reconciles optional failures
+ok - Discord hook: unset FM_HOME preserves disabled default-home inbox behavior
+ok - Discord hook: unset FM_HOME preserves disabled default-home spawn and deferral
+ok - Discord hook: mapped local supervisory send delivers without a journal or permit
+ok - Discord hook: permit-free confirmation refuses before journal access without disclosing payload or path
+ok - Discord hook: Discord lane missing, malformed and unknown permits refuse before consume
+ok - Discord hook: local sends retain parser, metadata and generation protections
+ok - Discord hook: bounded local authority retains lifecycle, payload and delivery failure checks
+FM_TEST_END 2026-10-31T17:31:18Z tests/fm-discord-hook.test.sh exit=0 duration_ms=8215 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=8273
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=8215 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-discord-hook.test.sh duration_ms=8215

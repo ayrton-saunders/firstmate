@@ -1,0 +1,330 @@
+FM_TEST_BEGIN 2026-10-31T17:29:32Z tests/fm-discord-reply.test.sh family=unclassified expected_gate_skip=none
+test_changed_package_refuses_before_journal_open (__main__.Reply.test_changed_package_refuses_before_journal_open) ... ok
+test_changed_words_cannot_replace_approval (__main__.Reply.test_changed_words_cannot_replace_approval) ... ok
+test_disabled_absent_and_symlink_configuration_refuse_before_open (__main__.Reply.test_disabled_absent_and_symlink_configuration_refuse_before_open) ... ok
+test_fences_refuse (__main__.Reply.test_fences_refuse) ... ok
+test_final_uses_existing_binding_and_exact_approved_words (__main__.Reply.test_final_uses_existing_binding_and_exact_approved_words) ... ok
+test_gate_lab_permits_approved_final_and_preserves_authority_signals (__main__.Reply.test_gate_lab_permits_approved_final_and_preserves_authority_signals) ... ok
+test_gate_lab_rejects_nonstock_override (__main__.Reply.test_gate_lab_rejects_nonstock_override) ... ok
+test_gate_refuses_before_configuration_and_journals (__main__.Reply.test_gate_refuses_before_configuration_and_journals) ... ok
+test_identical_repeat_uses_same_final_even_after_lane_finishes (__main__.Reply.test_identical_repeat_uses_same_final_even_after_lane_finishes) ... ok
+test_mismatched_pin_refuses_before_journal_open (__main__.Reply.test_mismatched_pin_refuses_before_journal_open) ... ok
+test_missing_return_refuses (__main__.Reply.test_missing_return_refuses) ... ok
+test_no_false_success_when_publication_is_incomplete (__main__.Reply.test_no_false_success_when_publication_is_incomplete) ... ok
+test_non_active_lane_refuses (__main__.Reply.test_non_active_lane_refuses) ... ok
+test_pinned_interpreter_reexec_preserves_reply_entrypoint (__main__.Reply.test_pinned_interpreter_reexec_preserves_reply_entrypoint) ... ok
+test_preflight_verifier_agrees_on_offline_fixtures (__main__.Reply.test_preflight_verifier_agrees_on_offline_fixtures) ... ok
+test_reply_does_not_renew_or_require_intake_readiness (__main__.Reply.test_reply_does_not_renew_or_require_intake_readiness) ... ok
+test_stale_generation_or_scope_refuses (__main__.Reply.test_stale_generation_or_scope_refuses) ... ok
+test_symlink_and_duplicate_return_refuse (__main__.Reply.test_symlink_and_duplicate_return_refuse) ... ok
+test_unknown_request_or_route_refuses (__main__.Reply.test_unknown_request_or_route_refuses) ... ok
+test_unresolved_return_refuses_without_manufacturing_resolution (__main__.Reply.test_unresolved_return_refuses_without_manufacturing_resolution) ... ok
+test_unsafe_or_oversized_words_refuse_before_journal_open (__main__.Reply.test_unsafe_or_oversized_words_refuse_before_journal_open) ... ok
+test_wrong_project_or_task_binding_refuses (__main__.Reply.test_wrong_project_or_task_binding_refuses) ... ok
+test_wrong_return_home_task_or_correlation_refuses (__main__.Reply.test_wrong_return_home_task_or_correlation_refuses) ... ok
+
+----------------------------------------------------------------------
+Ran 23 tests in 2.290s
+
+OK
+Discord source/config/manifest pins agree; journal epoch and fences not checked.
+ok - Discord reply: approved final, authoritative return, isolation, replay and refusal paths
+FM_TEST_END 2026-10-31T17:29:34Z tests/fm-discord-reply.test.sh exit=0 duration_ms=2499 gate_skip=false
+FM_TEST_BEGIN 2026-10-31T17:29:34Z tests/fm-discord-dispatch.test.sh family=unclassified expected_gate_skip=none
+test_ambient_overrides_are_not_child_authority (__main__.Dispatch.test_ambient_overrides_are_not_child_authority) ... ok
+test_disabled_absent_and_symlink_config_refuse_before_journal (__main__.Dispatch.test_disabled_absent_and_symlink_config_refuse_before_journal) ... ok
+test_exact_payload_and_automatic_bindings (__main__.Dispatch.test_exact_payload_and_automatic_bindings) ... ok
+test_existing_intent_in_any_phase_refuses (__main__.Dispatch.test_existing_intent_in_any_phase_refuses) ... ok
+test_expired_readiness_refuses_before_correlation_creation (__main__.Dispatch.test_expired_readiness_refuses_before_correlation_creation) ... ok
+test_fences_refuse (__main__.Dispatch.test_fences_refuse) ... ok
+test_gate_agent_cannot_dispatch (__main__.Dispatch.test_gate_agent_cannot_dispatch) ... ok
+test_generation_change_before_send_refuses (__main__.Dispatch.test_generation_change_before_send_refuses) ... ok
+test_no_false_success_without_owning_confirmation (__main__.Dispatch.test_no_false_success_without_owning_confirmation) ... ok
+test_non_dispatchable_lane_refuses (__main__.Dispatch.test_non_dispatchable_lane_refuses) ... ok
+test_parser_options_markers_and_size_refuse_before_journal (__main__.Dispatch.test_parser_options_markers_and_size_refuse_before_journal) ... ok
+test_pinned_interpreter_reexec_keeps_dispatch_entrypoint (__main__.Dispatch.test_pinned_interpreter_reexec_keeps_dispatch_entrypoint) ... ok
+test_repeat_does_not_mint_replacement_authority (__main__.Dispatch.test_repeat_does_not_mint_replacement_authority) ... ok
+test_route_requires_real_secondmate_generation (__main__.Dispatch.test_route_requires_real_secondmate_generation) ... ok
+test_scope_admission_is_not_bypassed (__main__.Dispatch.test_scope_admission_is_not_bypassed) ... ok
+test_send_failure_retains_unknown_attempt_and_refuses_repeat (__main__.Dispatch.test_send_failure_retains_unknown_attempt_and_refuses_repeat) ... ok
+test_source_and_package_pins_refuse_before_journal (__main__.Dispatch.test_source_and_package_pins_refuse_before_journal) ... ok
+test_supervision_authority_survives_child_environment_sanitation (__main__.Dispatch.test_supervision_authority_survives_child_environment_sanitation) ... ok
+test_unknown_request_refuses (__main__.Dispatch.test_unknown_request_refuses) ... ok
+test_visual_work_is_not_silently_reclassified (__main__.Dispatch.test_visual_work_is_not_silently_reclassified) ... ok
+test_wrong_project_or_unknown_route_refuses (__main__.Dispatch.test_wrong_project_or_unknown_route_refuses) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 3.362s
+
+OK
+ok - Discord dispatch: exact payload, automatic binding, isolation, receipt and refusal paths
+FM_TEST_END 2026-10-31T17:29:38Z tests/fm-discord-dispatch.test.sh exit=0 duration_ms=3575 gate_skip=false
+FM_TEST_BEGIN 2026-10-31T17:29:38Z tests/fm-discord-verify-pins.test.sh family=unclassified expected_gate_skip=none
+test_agreement_without_private_runtime_journal_or_credentials (__main__.Pins.test_agreement_without_private_runtime_journal_or_credentials) ... ok
+test_dirty_lifecycle_file (__main__.Pins.test_dirty_lifecycle_file) ... ok
+test_each_transport_identity_pin_mismatch (__main__.Pins.test_each_transport_identity_pin_mismatch) ... ok
+test_git_unavailable (__main__.Pins.test_git_unavailable) ... FAIL
+test_invalid_enablement_or_schema (__main__.Pins.test_invalid_enablement_or_schema) ... ok
+test_invalid_parent_pins (__main__.Pins.test_invalid_parent_pins) ... ok
+test_malformed_json (__main__.Pins.test_malformed_json) ... ok
+test_malformed_transport_identity (__main__.Pins.test_malformed_transport_identity) ... ok
+test_mismatched_source_refuses_before_snapshot_access (__main__.Pins.test_mismatched_source_refuses_before_snapshot_access) ... ok
+test_missing_and_symlinked_lifecycle_files (__main__.Pins.test_missing_and_symlinked_lifecycle_files) ... ok
+test_noncanonical_home (__main__.Pins.test_noncanonical_home) ... ok
+test_offline_absent_observation_refuses (__main__.Pins.test_offline_absent_observation_refuses) ... ok
+test_offline_cannot_use_configured_live_journals (__main__.Pins.test_offline_cannot_use_configured_live_journals) ... ok
+test_offline_duplicate_identity_rows_refuse (__main__.Pins.test_offline_duplicate_identity_rows_refuse) ... ok
+test_offline_each_remembered_identity_pin_mismatch (__main__.Pins.test_offline_each_remembered_identity_pin_mismatch) ... ok
+test_offline_epoch_and_clear_fences_agree_without_private_runtime (__main__.Pins.test_offline_epoch_and_clear_fences_agree_without_private_runtime) ... ok
+test_offline_every_fence_refuses (__main__.Pins.test_offline_every_fence_refuses) ... ok
+test_offline_hardlinked_snapshots_cannot_prove_both_roles (__main__.Pins.test_offline_hardlinked_snapshots_cannot_prove_both_roles) ... ok
+test_offline_malformed_identity_rows_refuse (__main__.Pins.test_offline_malformed_identity_rows_refuse) ... ok
+test_offline_malformed_observation_refuses (__main__.Pins.test_offline_malformed_observation_refuses) ... ok
+test_offline_missing_schema_tables_refuse (__main__.Pins.test_offline_missing_schema_tables_refuse) ... ok
+test_offline_noncurrent_observation_revision_refuses (__main__.Pins.test_offline_noncurrent_observation_revision_refuses) ... ok
+test_offline_parent_restored_without_reconciliation (__main__.Pins.test_offline_parent_restored_without_reconciliation) ... /opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a662b60>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a662a70>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a662c50>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a662d40>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a662e30>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a662f20>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a663010>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6613f0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a661300>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a663100>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6614e0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6631f0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6632e0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6633d0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6615d0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6634c0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6635b0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6636a0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a663790>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a663880>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6616c0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a663970>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a663a60>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6617b0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a663b50>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a663c40>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a663d30>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a663e20>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a663f10>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cc040>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cc130>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cc220>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cc310>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cc400>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6618a0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cc4f0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cc5e0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a661990>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cc6d0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cc7c0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cc8b0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cc9a0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cca90>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6ccb80>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6ccc70>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6ccd60>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cce50>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6ccf40>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cd030>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cd120>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a661a80>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cd210>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cd300>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cd3f0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cd4e0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cd5d0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cd6c0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cd7b0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a661b70>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cd8a0>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cd990>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cda80>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a661c60>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cdb70>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cdc60>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cdd50>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cde40>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6cdf30>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a661d50>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6ce020>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:54: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a6ce110>
+  def __init__(self, path):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_offline_read_only_snapshots_need_no_sidecars (__main__.Pins.test_offline_read_only_snapshots_need_no_sidecars) ... ok
+test_offline_real_wal_refuses_without_ignoring_uncheckpointed_data (__main__.Pins.test_offline_real_wal_refuses_without_ignoring_uncheckpointed_data) ... ok
+test_offline_same_snapshot_cannot_prove_both_roles (__main__.Pins.test_offline_same_snapshot_cannot_prove_both_roles) ... ok
+test_offline_snapshots_must_be_supplied_together (__main__.Pins.test_offline_snapshots_must_be_supplied_together) ... ok
+test_offline_symlink_missing_relative_and_corrupt_snapshots_refuse (__main__.Pins.test_offline_symlink_missing_relative_and_corrupt_snapshots_refuse) ... ok
+test_offline_uncheckpointed_sidecars_refuse (__main__.Pins.test_offline_uncheckpointed_sidecars_refuse) ... ok
+test_oversized_config (__main__.Pins.test_oversized_config) ... ok
+test_parent_commit_mismatch (__main__.Pins.test_parent_commit_mismatch) ... ok
+test_parent_digest_mismatch (__main__.Pins.test_parent_digest_mismatch) ... ok
+test_relative_and_missing_config (__main__.Pins.test_relative_and_missing_config) ... ok
+test_symlink_config (__main__.Pins.test_symlink_config) ... ok
+test_wrong_invoked_source (__main__.Pins.test_wrong_invoked_source) ... ok
+
+======================================================================
+FAIL: test_git_unavailable (__main__.Pins.test_git_unavailable)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "<stdin>", line 165, in test_git_unavailable
+  File "<stdin>", line 70, in invoke
+AssertionError: 'parent source Git commit unavailable' not found in 'error: Discord pin verification refused: parent source commit mismatch; re-pin both sides before reconciliation\n'
+
+----------------------------------------------------------------------
+Ran 35 tests in 5.756s
+
+FAILED (failures=1)
+Discord source/config/manifest/remote-epoch pins agree; parent and transport intake/delivery fences are clear (offline snapshots only).
+FM_TEST_END 2026-10-31T17:29:44Z tests/fm-discord-verify-pins.test.sh exit=1 duration_ms=5976 gate_skip=false
+FM_TEST_SUMMARY total=3 failed=1 skipped_gate=0 duration_ms=12169
+FM_TEST_SUMMARY_FAMILY family=unclassified count=3 duration_ms=12050 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-discord-verify-pins.test.sh duration_ms=5976
+FM_TEST_SLOWEST rank=2 script=tests/fm-discord-dispatch.test.sh duration_ms=3575
+FM_TEST_SLOWEST rank=3 script=tests/fm-discord-reply.test.sh duration_ms=2499

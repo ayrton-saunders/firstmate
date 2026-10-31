@@ -1,0 +1,323 @@
+FM_TEST_BEGIN 2026-10-31T17:30:03Z tests/fm-discord-reply.test.sh family=unclassified expected_gate_skip=none
+test_changed_package_refuses_before_journal_open (__main__.Reply.test_changed_package_refuses_before_journal_open) ... ok
+test_changed_words_cannot_replace_approval (__main__.Reply.test_changed_words_cannot_replace_approval) ... ok
+test_disabled_absent_and_symlink_configuration_refuse_before_open (__main__.Reply.test_disabled_absent_and_symlink_configuration_refuse_before_open) ... ok
+test_fences_refuse (__main__.Reply.test_fences_refuse) ... ok
+test_final_uses_existing_binding_and_exact_approved_words (__main__.Reply.test_final_uses_existing_binding_and_exact_approved_words) ... ok
+test_gate_lab_permits_approved_final_and_preserves_authority_signals (__main__.Reply.test_gate_lab_permits_approved_final_and_preserves_authority_signals) ... ok
+test_gate_lab_rejects_nonstock_override (__main__.Reply.test_gate_lab_rejects_nonstock_override) ... ok
+test_gate_refuses_before_configuration_and_journals (__main__.Reply.test_gate_refuses_before_configuration_and_journals) ... ok
+test_identical_repeat_uses_same_final_even_after_lane_finishes (__main__.Reply.test_identical_repeat_uses_same_final_even_after_lane_finishes) ... ok
+test_mismatched_pin_refuses_before_journal_open (__main__.Reply.test_mismatched_pin_refuses_before_journal_open) ... ok
+test_missing_return_refuses (__main__.Reply.test_missing_return_refuses) ... ok
+test_no_false_success_when_publication_is_incomplete (__main__.Reply.test_no_false_success_when_publication_is_incomplete) ... ok
+test_non_active_lane_refuses (__main__.Reply.test_non_active_lane_refuses) ... ok
+test_pinned_interpreter_reexec_preserves_reply_entrypoint (__main__.Reply.test_pinned_interpreter_reexec_preserves_reply_entrypoint) ... ok
+test_preflight_verifier_agrees_on_offline_fixtures (__main__.Reply.test_preflight_verifier_agrees_on_offline_fixtures) ... ok
+test_reply_does_not_renew_or_require_intake_readiness (__main__.Reply.test_reply_does_not_renew_or_require_intake_readiness) ... ok
+test_stale_generation_or_scope_refuses (__main__.Reply.test_stale_generation_or_scope_refuses) ... ok
+test_symlink_and_duplicate_return_refuse (__main__.Reply.test_symlink_and_duplicate_return_refuse) ... ok
+test_unknown_request_or_route_refuses (__main__.Reply.test_unknown_request_or_route_refuses) ... ok
+test_unresolved_return_refuses_without_manufacturing_resolution (__main__.Reply.test_unresolved_return_refuses_without_manufacturing_resolution) ... ok
+test_unsafe_or_oversized_words_refuse_before_journal_open (__main__.Reply.test_unsafe_or_oversized_words_refuse_before_journal_open) ... ok
+test_wrong_project_or_task_binding_refuses (__main__.Reply.test_wrong_project_or_task_binding_refuses) ... ok
+test_wrong_return_home_task_or_correlation_refuses (__main__.Reply.test_wrong_return_home_task_or_correlation_refuses) ... ok
+
+----------------------------------------------------------------------
+Ran 23 tests in 2.366s
+
+OK
+Discord source/config/manifest pins agree; journal epoch and fences not checked.
+ok - Discord reply: approved final, authoritative return, isolation, replay and refusal paths
+FM_TEST_END 2026-10-31T17:30:05Z tests/fm-discord-reply.test.sh exit=0 duration_ms=2605 gate_skip=false
+FM_TEST_BEGIN 2026-10-31T17:30:05Z tests/fm-discord-dispatch.test.sh family=unclassified expected_gate_skip=none
+test_ambient_overrides_are_not_child_authority (__main__.Dispatch.test_ambient_overrides_are_not_child_authority) ... ok
+test_disabled_absent_and_symlink_config_refuse_before_journal (__main__.Dispatch.test_disabled_absent_and_symlink_config_refuse_before_journal) ... ok
+test_exact_payload_and_automatic_bindings (__main__.Dispatch.test_exact_payload_and_automatic_bindings) ... ok
+test_existing_intent_in_any_phase_refuses (__main__.Dispatch.test_existing_intent_in_any_phase_refuses) ... ok
+test_expired_readiness_refuses_before_correlation_creation (__main__.Dispatch.test_expired_readiness_refuses_before_correlation_creation) ... ok
+test_fences_refuse (__main__.Dispatch.test_fences_refuse) ... ok
+test_gate_agent_cannot_dispatch (__main__.Dispatch.test_gate_agent_cannot_dispatch) ... ok
+test_generation_change_before_send_refuses (__main__.Dispatch.test_generation_change_before_send_refuses) ... ok
+test_no_false_success_without_owning_confirmation (__main__.Dispatch.test_no_false_success_without_owning_confirmation) ... ok
+test_non_dispatchable_lane_refuses (__main__.Dispatch.test_non_dispatchable_lane_refuses) ... ok
+test_parser_options_markers_and_size_refuse_before_journal (__main__.Dispatch.test_parser_options_markers_and_size_refuse_before_journal) ... ok
+test_pinned_interpreter_reexec_keeps_dispatch_entrypoint (__main__.Dispatch.test_pinned_interpreter_reexec_keeps_dispatch_entrypoint) ... ok
+test_repeat_does_not_mint_replacement_authority (__main__.Dispatch.test_repeat_does_not_mint_replacement_authority) ... ok
+test_route_requires_real_secondmate_generation (__main__.Dispatch.test_route_requires_real_secondmate_generation) ... ok
+test_scope_admission_is_not_bypassed (__main__.Dispatch.test_scope_admission_is_not_bypassed) ... ok
+test_send_failure_retains_unknown_attempt_and_refuses_repeat (__main__.Dispatch.test_send_failure_retains_unknown_attempt_and_refuses_repeat) ... ok
+test_source_and_package_pins_refuse_before_journal (__main__.Dispatch.test_source_and_package_pins_refuse_before_journal) ... ok
+test_supervision_authority_survives_child_environment_sanitation (__main__.Dispatch.test_supervision_authority_survives_child_environment_sanitation) ... ok
+test_unknown_request_refuses (__main__.Dispatch.test_unknown_request_refuses) ... ok
+test_visual_work_is_not_silently_reclassified (__main__.Dispatch.test_visual_work_is_not_silently_reclassified) ... ok
+test_wrong_project_or_unknown_route_refuses (__main__.Dispatch.test_wrong_project_or_unknown_route_refuses) ... ok
+
+----------------------------------------------------------------------
+Ran 21 tests in 2.860s
+
+OK
+ok - Discord dispatch: exact payload, automatic binding, isolation, receipt and refusal paths
+FM_TEST_END 2026-10-31T17:30:08Z tests/fm-discord-dispatch.test.sh exit=0 duration_ms=3074 gate_skip=false
+FM_TEST_BEGIN 2026-10-31T17:30:08Z tests/fm-discord-verify-pins.test.sh family=unclassified expected_gate_skip=none
+test_agreement_without_private_runtime_journal_or_credentials (__main__.Pins.test_agreement_without_private_runtime_journal_or_credentials) ... ok
+test_dirty_lifecycle_file (__main__.Pins.test_dirty_lifecycle_file) ... ok
+test_each_transport_identity_pin_mismatch (__main__.Pins.test_each_transport_identity_pin_mismatch) ... ok
+test_git_unavailable (__main__.Pins.test_git_unavailable) ... ok
+test_invalid_enablement_or_schema (__main__.Pins.test_invalid_enablement_or_schema) ... ok
+test_invalid_parent_pins (__main__.Pins.test_invalid_parent_pins) ... ok
+test_malformed_json (__main__.Pins.test_malformed_json) ... ok
+test_malformed_transport_identity (__main__.Pins.test_malformed_transport_identity) ... ok
+test_mismatched_source_refuses_before_snapshot_access (__main__.Pins.test_mismatched_source_refuses_before_snapshot_access) ... ok
+test_missing_and_symlinked_lifecycle_files (__main__.Pins.test_missing_and_symlinked_lifecycle_files) ... ok
+test_noncanonical_home (__main__.Pins.test_noncanonical_home) ... ok
+test_offline_absent_observation_refuses (__main__.Pins.test_offline_absent_observation_refuses) ... ok
+test_offline_cannot_use_configured_live_journals (__main__.Pins.test_offline_cannot_use_configured_live_journals) ... ok
+test_offline_duplicate_identity_rows_refuse (__main__.Pins.test_offline_duplicate_identity_rows_refuse) ... ok
+test_offline_each_remembered_identity_pin_mismatch (__main__.Pins.test_offline_each_remembered_identity_pin_mismatch) ... ok
+test_offline_epoch_and_clear_fences_agree_without_private_runtime (__main__.Pins.test_offline_epoch_and_clear_fences_agree_without_private_runtime) ... ok
+test_offline_every_fence_refuses (__main__.Pins.test_offline_every_fence_refuses) ... ok
+test_offline_hardlinked_snapshots_cannot_prove_both_roles (__main__.Pins.test_offline_hardlinked_snapshots_cannot_prove_both_roles) ... ok
+test_offline_malformed_identity_rows_refuse (__main__.Pins.test_offline_malformed_identity_rows_refuse) ... ok
+test_offline_malformed_observation_refuses (__main__.Pins.test_offline_malformed_observation_refuses) ... ok
+test_offline_missing_schema_tables_refuse (__main__.Pins.test_offline_missing_schema_tables_refuse) ... ok
+test_offline_noncurrent_observation_revision_refuses (__main__.Pins.test_offline_noncurrent_observation_revision_refuses) ... ok
+test_offline_parent_restored_without_reconciliation (__main__.Pins.test_offline_parent_restored_without_reconciliation) ... /opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a896a70>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a896b60>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a896c50>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a896d40>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a896e30>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a896f20>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a897010>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a8953f0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a895300>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a897100>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a8954e0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a8971f0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a8972e0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a8973d0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a8955d0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a8974c0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a8975b0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a8976a0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a897790>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a897880>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a8956c0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a897970>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a897a60>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a8957b0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a897b50>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a897c40>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a897d30>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a897e20>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a897f10>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a900040>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a900130>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a900220>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a900310>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a900400>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a8958a0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a9004f0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a9005e0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a895990>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a9006d0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a9007c0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a9008b0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a9009a0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a900a90>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a900b80>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a900c70>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a900d60>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a900e50>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a900f40>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a901030>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a901120>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a895a80>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a901210>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a901300>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a9013f0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a9014e0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a9015d0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a9016c0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a9017b0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a895b70>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a9018a0>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a901990>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a901a80>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a895c60>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a901b70>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a901c60>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a901d50>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a901e40>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a901f30>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a895d50>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a902020>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/opt/homebrew/Cellar/python@3.14/3.14.10/Frameworks/Python.framework/Versions/3.14/lib/python3.14/pathlib/__init__.py:205: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x10a902110>
+  self._str_normcase_cached = str(self)
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+ok
+test_offline_read_only_snapshots_need_no_sidecars (__main__.Pins.test_offline_read_only_snapshots_need_no_sidecars) ... ok
+test_offline_real_wal_refuses_without_ignoring_uncheckpointed_data (__main__.Pins.test_offline_real_wal_refuses_without_ignoring_uncheckpointed_data) ... ok
+test_offline_same_snapshot_cannot_prove_both_roles (__main__.Pins.test_offline_same_snapshot_cannot_prove_both_roles) ... ok
+test_offline_snapshots_must_be_supplied_together (__main__.Pins.test_offline_snapshots_must_be_supplied_together) ... ok
+test_offline_symlink_missing_relative_and_corrupt_snapshots_refuse (__main__.Pins.test_offline_symlink_missing_relative_and_corrupt_snapshots_refuse) ... ok
+test_offline_uncheckpointed_sidecars_refuse (__main__.Pins.test_offline_uncheckpointed_sidecars_refuse) ... ok
+test_oversized_config (__main__.Pins.test_oversized_config) ... ok
+test_parent_commit_mismatch (__main__.Pins.test_parent_commit_mismatch) ... ok
+test_parent_digest_mismatch (__main__.Pins.test_parent_digest_mismatch) ... ok
+test_relative_and_missing_config (__main__.Pins.test_relative_and_missing_config) ... ok
+test_symlink_config (__main__.Pins.test_symlink_config) ... ok
+test_wrong_invoked_source (__main__.Pins.test_wrong_invoked_source) ... ok
+
+----------------------------------------------------------------------
+Ran 35 tests in 5.232s
+
+OK
+Discord source/config/manifest/remote-epoch pins agree; parent and transport intake/delivery fences are clear (offline snapshots only).
+ok - Discord pin verifier: identity agreement and refusals leave local fixtures unchanged
+FM_TEST_END 2026-10-31T17:30:14Z tests/fm-discord-verify-pins.test.sh exit=0 duration_ms=5445 gate_skip=false
+FM_TEST_SUMMARY total=3 failed=0 skipped_gate=0 duration_ms=11241
+FM_TEST_SUMMARY_FAMILY family=unclassified count=3 duration_ms=11124 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-discord-verify-pins.test.sh duration_ms=5445
+FM_TEST_SLOWEST rank=2 script=tests/fm-discord-dispatch.test.sh duration_ms=3074
+FM_TEST_SLOWEST rank=3 script=tests/fm-discord-reply.test.sh duration_ms=2605
