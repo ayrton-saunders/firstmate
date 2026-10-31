@@ -2070,7 +2070,7 @@ A fail-closed poll that already queued a wake, and a timeout, always print so th
 ## Private Discord parent integration
 
 The optional private Discord parent integration is separate from the shared Relay below.
-This repository contains only the parent lifecycle hook, not the private bot core; installing these source changes does not start a bot, publish that core, or activate Discord or media.
+This repository contains parent-side commands and the lifecycle hook, not the private bot core; installing these source changes does not start a bot, publish that core, or activate Discord or media.
 Leave the integration configuration absent for ordinary operation.
 The hook's [header and help](../bin/fm-discord-hook.py) own the exact configuration, release-pinning requirements, permit interface, and invocation mechanics; this is not a standalone bot setup path.
 See [owner-reply pins](discord-owner-reply-pins.md) for the read-only source/config/manifest comparison and the required reconciliation and unfencing sequence after an update.
@@ -2085,6 +2085,11 @@ Once a permit is consumed, reconcile lifecycle state before retrying; a failed c
 Inbox drain attempts to renew parent readiness, and durable inbox replies record private outcome digests rather than approving public finals.
 Readiness or outcome-recording failure warns without undoing the underlying inbox operation; receipt-recording failure after a delivered steer likewise warns against resending.
 [Portable regression coverage](../tests/fm-discord-hook.test.sh) checks inactive compatibility and, with CPython 3.14, fixture-backed local delivery and fail-closed lane separation without the private core.
+
+The [approved-reply command's help](../bin/fm-discord-reply.py) owns the parent-facing final-answer interface.
+It derives the accepted work bindings from the request and mapped route, requires an authoritative resolved return, and passes only the explicitly approved one-line answer to the pinned release's publication API.
+An identical retry repairs the same final event, while changed words cannot overwrite an existing approval; local publication does not prove Discord delivery.
+[Reply regression coverage](../tests/fm-discord-reply.test.sh) uses isolated fake journals and a fake lifecycle owner, without reading live custody or contacting Discord.
 
 ## Relay (.env)
 
