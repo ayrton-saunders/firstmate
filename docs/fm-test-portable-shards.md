@@ -37,6 +37,11 @@ The session-start hint retains its pre-optimization maximum until CI measures th
 The T3 Code backend suites carry the slowest successful Ubuntu samples from CI runs [39463576576](https://github.com/kunchenguid/firstmate/actions/runs/39463576576), [39814995718](https://github.com/kunchenguid/firstmate/actions/runs/39814995718), and [39883948163](https://github.com/kunchenguid/firstmate/actions/runs/39883948163) - 239245 ms for `tests/fm-backend-t3code.test.sh`, 57613 ms for `tests/fm-t3-mcp.test.sh`, 283 ms for `tests/fm-watch-inbox-meta.test.sh`, and the 51 ms and 52 ms live-guard skips for `tests/fm-backend-t3code-live-e2e.test.sh` and `tests/fm-backend-t3code-pr-tools-live-e2e.test.sh`.
 `tests/fm-backend-t3code.test.sh` and `tests/fm-t3-mcp.test.sh` run in the portable parallel lanes, so those two values sit in `portable_parallel_weight_hints`: every case id the backend suite spawns carries a per-run suffix and its cleanup removes only the `/tmp/fm-<id>` directories that run created, and both suites passed running concurrently with each other and beside another parallel suite (see [`fm-test-isolation-proof.md`](fm-test-isolation-proof.md)).
 
+The four Discord command, hook and verifier suites carry provisional macOS arm64 measurements from three complete serial scoped runs on 2026-10-31 with Bash 5.3.20 and CPython 3.14.10, until the next Ubuntu CI refresh.
+The slowest successful per-script samples are 3524 ms for dispatch, 8860 ms for the hook, 2632 ms for reply and 5988 ms for the verifier.
+Refresh those samples with `FM_LIVE=0 bash bin/fm-test-run.sh --jobs 1 --json /tmp/discord-timing.json tests/fm-discord-dispatch.test.sh tests/fm-discord-reply.test.sh tests/fm-discord-verify-pins.test.sh tests/fm-discord-hook.test.sh`, with `python3.14` available on `PATH`, and require the enabled fixtures to execute rather than skip.
+These hints replace the default weight without changing lane membership, timeout bounds, coverage assertions or the excluded local supervision test's CI coverage.
+
 ## Parallel lanes
 
 The two parallel lanes use longest-processing-time assignment over those hints.

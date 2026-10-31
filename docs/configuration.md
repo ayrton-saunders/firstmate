@@ -2070,9 +2070,11 @@ A fail-closed poll that already queued a wake, and a timeout, always print so th
 ## Private Discord parent integration
 
 The optional private Discord parent integration is separate from the shared Relay below.
-This repository contains only the parent lifecycle hook, not the private bot core; installing these source changes does not start a bot, publish that core, or activate Discord or media.
+This repository contains parent-side commands and the lifecycle hook, not the private bot core; installing these source changes does not start a bot, publish that core, or activate Discord or media.
 Leave the integration configuration absent for ordinary operation.
 The hook's [header and help](../bin/fm-discord-hook.py) own the exact configuration, release-pinning requirements, permit interface, and invocation mechanics; this is not a standalone bot setup path.
+See [owner-reply pins](discord-owner-reply-pins.md) for the read-only source/config/manifest comparison and its limits.
+The [owner install-and-test sheet](discord-owner-reply-install.md) coordinates both machines, owner approvals and the one-message round-trip proof.
 
 When enabled, ordinary local supervisory text can still reach explicitly mapped workers without consuming Discord permits; per-domain bot scoping does not restrict the primary's own coordination.
 Discord-lane sends, remote mapped sends, and mapped project spawns still require parent-issued permits rather than treating transport input as authorization.
@@ -2084,6 +2086,12 @@ Once a permit is consumed, reconcile lifecycle state before retrying; a failed c
 Inbox drain attempts to renew parent readiness, and durable inbox replies record private outcome digests rather than approving public finals.
 Readiness or outcome-recording failure warns without undoing the underlying inbox operation; receipt-recording failure after a delivered steer likewise warns against resending.
 [Portable regression coverage](../tests/fm-discord-hook.test.sh) checks inactive compatibility and, with CPython 3.14, fixture-backed local delivery and fail-closed lane separation without the private core.
+
+The [dispatch command's help](../bin/fm-discord-dispatch.py) owns assignment of a captured question to an existing mapped second mate, including scope limits, authority checks and retry refusals.
+[Dispatch regression coverage](../tests/fm-discord-dispatch.test.sh) uses inert local fixtures.
+
+The [approved-reply command's help](../bin/fm-discord-reply.py) owns the parent-facing final-answer interface, including return validation, gate-agent containment, replay and publication limits.
+[Reply regression coverage](../tests/fm-discord-reply.test.sh) uses isolated fake journals and a fake lifecycle owner, without reading live custody or contacting Discord.
 
 ## Relay (.env)
 
