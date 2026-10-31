@@ -23,7 +23,7 @@ The transport fences intake on a manifest identity mismatch, and fences intake a
 ## Read-only verification
 
 The [verification command's help](../bin/fm-discord-verify-pins.py) owns its flags and input requirements.
-Run the installed command on the parent machine with an explicit local copy of the intended transport manifest:
+Run the installed command on the parent machine with an explicit local copy of the intended transport manifest for a configuration-only comparison:
 
 ```sh
 python3 -I bin/fm-discord-verify-pins.py \
@@ -39,9 +39,38 @@ Discord source/config/manifest pins agree; journal epoch and fences not checked.
 
 A mismatch returns nonzero and names the disagreeing pin without printing private paths, tokens, or configuration contents.
 Disabled, malformed, missing, duplicate-key, oversized, or symlinked input files are refused rather than treated as agreement.
-The command uses only the standard Python library and a read-only Git query, without importing the private package, opening journals, reading bot credentials, contacting Harbour, or changing services.
-It verifies identity fields only, not the complete manifest schema, package hashes, readiness, domain mapping, or service health.
+This mode uses only the standard Python library and a read-only Git query, without opening journals.
+Neither mode imports the private package, reads bot credentials, contacts Harbour, or changes services.
+Neither mode verifies the complete manifest schema, package hashes, readiness, domain mapping, or service health.
 A copied manifest proves only that copy; the owner must ensure it is the manifest actually installed on the transport machine.
+
+### Remembered epoch and fences
+
+To include the remembered observation and unfencing checks, supply both standalone offline journal snapshots using the [command's snapshot flags](../bin/fm-discord-verify-pins.py).
+Create coherent backups through the private release's reviewed backup procedure, then transfer them to a local review directory.
+Never copy only a live SQLite main file: committed records may still be in its WAL.
+Do not use an active journal as a snapshot, even if it currently has no sidecars.
+
+```sh
+python3 -I bin/fm-discord-verify-pins.py \
+  --parent-config /absolute/parent-home/config/discord-integration.json \
+  --transport-manifest /absolute/review-copy/transport.json \
+  --parent-journal-snapshot /absolute/review-copy/parent.sqlite \
+  --transport-journal-snapshot /absolute/review-copy/transport.sqlite
+```
+
+A successful extended comparison prints exactly:
+
+```text
+Discord source/config/manifest/remote-epoch pins agree; parent and transport intake/delivery fences are clear (offline snapshots only).
+```
+
+The transport snapshot's `remote-epoch/parent` observation must match the configured parent identity and the parent snapshot's restore epoch.
+Both schema 2 snapshots must show clear intake and delivery fences.
+Missing or malformed observations, stale identities or epochs, remaining fences, incomplete snapshot arguments, identical snapshot files, configured live journal paths, and snapshots with WAL, SHM, or rollback-journal sidecars are refused.
+Snapshot connections are immutable and read-only; the command does not instantiate the private journal owner, create sidecars, reconcile an epoch, or clear a fence.
+The result describes the supplied snapshots, not current live readiness or delivery health.
+Only the owner can establish that those backups coherently represent the intended domain at the required point in the installation procedure.
 
 ## Owner actions after a source update
 
@@ -57,4 +86,4 @@ The required transition is:
 7. Restart the domain's installed service through its existing service manager and prove one owner message and one correlated final reply end to end.
 
 This comparison is not authority to perform those actions, and agreement is not evidence that reconciliation, unfencing, or the round trip has completed.
-The [portable regression](../tests/fm-discord-verify-pins.test.sh) exercises identity agreement, each mismatched identity field, dirty lifecycle source, and invalid inputs in temporary local fixtures, checking that verification changes no fixture files.
+The [portable regression](../tests/fm-discord-verify-pins.test.sh) exercises configuration and offline snapshot agreement, each mismatched identity field and restore epoch, every fence, dirty lifecycle source, and invalid inputs in temporary local fixtures, checking that verification changes no fixture files.
