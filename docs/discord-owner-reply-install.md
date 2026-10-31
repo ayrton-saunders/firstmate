@@ -163,6 +163,9 @@ Coding, visual input preparation, continuation and public follow-up authority ar
 
 These are development checks, not owner authorization to run the installation steps.
 Use disposable homes and short temporary paths, with live model guards disabled; inspect optional real-backend tests before running them on an operational machine.
+Preserve the intended development Bash and the suite's Python, Node and npm prerequisites when restricting `PATH` to exclude operational tools.
+The enabled Discord command and hook fixtures require `python3.14` by that name on `PATH`; an uppercase `SKIP:` line can accompany a zero exit and is not proof that those fixtures ran.
+Check the individual output as well as the runner summary and require all 21 dispatch and 20 reply cases to execute.
 The scoped executable tests are:
 
 ```sh
