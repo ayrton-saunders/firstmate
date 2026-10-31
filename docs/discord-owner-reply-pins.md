@@ -74,17 +74,7 @@ Only the owner can establish that those backups coherently represent the intende
 
 ## Owner actions after a source update
 
-Use the [owner install-and-test sheet](discord-owner-reply-install.md) for the coordinated Mac/Harbour procedure and round-trip acceptance.
+The [owner install-and-test sheet](discord-owner-reply-install.md) owns the coordinated Mac/Harbour cutover, reconciliation, explicit unfencing and round-trip acceptance procedure.
 Do not update the parent pin alone and restart intake.
-The required transition is:
-
-1. Fence and quiesce the relevant domain through the approved private release procedure, preserving all existing custody and outstanding work.
-2. Install the approved Firstmate source and any separately approved private release/runtime changes.
-3. Derive the new source identity once and apply it to both the parent configuration and the transport manifest's `parent_identity`, retaining the exact domain's home identity.
-4. Run the read-only comparison against the intended installed files and stop on any mismatch.
-5. Reconcile the transport's `remote-epoch/parent` identity and epoch against the authoritative parent, using the private release's reviewed recovery procedure rather than deleting journal history or guessing an epoch.
-6. Explicitly unfence intake and delivery only after reconciliation and outstanding obligations have been checked.
-7. Restart the domain's installed service through its existing service manager and prove one owner message and one correlated final reply end to end.
-
 This comparison is not authority to perform those actions, and agreement is not evidence that reconciliation, unfencing, or the round trip has completed.
 The [portable regression](../tests/fm-discord-verify-pins.test.sh) exercises configuration and offline snapshot agreement, each mismatched identity field and restore epoch, every fence, dirty lifecycle source, and invalid inputs in temporary local fixtures, checking that verification changes no fixture files.

@@ -14,8 +14,10 @@ local egress projection; transport delivery is separate and is not claimed here.
 Successful publication is silent. An identical repeat repairs the same event;
 changed words cannot replace an already approved final. After any error, inspect
 the existing approval before retrying; never invent another event identifier.
+The shared gate-agent guard runs before configuration or journal access; its
+existing disposable-lab exception remains owned by fm-gate-refuse-lib.sh.
 The enabled home configuration, source pins, package hashes and CPython 3.14
-runtime must pass the existing parent guard before any journal is opened.
+runtime must then pass the existing parent guard before any journal is opened.
 Pre-flight: bin/fm-discord-verify-pins.py --help
 Pin transition and snapshot limits: docs/discord-owner-reply-pins.md
 """

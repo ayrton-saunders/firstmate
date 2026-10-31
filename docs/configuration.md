@@ -2073,7 +2073,7 @@ The optional private Discord parent integration is separate from the shared Rela
 This repository contains parent-side commands and the lifecycle hook, not the private bot core; installing these source changes does not start a bot, publish that core, or activate Discord or media.
 Leave the integration configuration absent for ordinary operation.
 The hook's [header and help](../bin/fm-discord-hook.py) own the exact configuration, release-pinning requirements, permit interface, and invocation mechanics; this is not a standalone bot setup path.
-See [owner-reply pins](discord-owner-reply-pins.md) for the read-only source/config/manifest comparison and the required reconciliation and unfencing sequence after an update.
+See [owner-reply pins](discord-owner-reply-pins.md) for the read-only source/config/manifest comparison and its limits.
 The [owner install-and-test sheet](discord-owner-reply-install.md) coordinates both machines, owner approvals and the one-message round-trip proof.
 
 When enabled, ordinary local supervisory text can still reach explicitly mapped workers without consuming Discord permits; per-domain bot scoping does not restrict the primary's own coordination.
@@ -2087,15 +2087,10 @@ Inbox drain attempts to renew parent readiness, and durable inbox replies record
 Readiness or outcome-recording failure warns without undoing the underlying inbox operation; receipt-recording failure after a delivered steer likewise warns against resending.
 [Portable regression coverage](../tests/fm-discord-hook.test.sh) checks inactive compatibility and, with CPython 3.14, fixture-backed local delivery and fail-closed lane separation without the private core.
 
-The [dispatch command's help](../bin/fm-discord-dispatch.py) owns assignment of a captured question to an existing mapped second mate.
-It computes a read-only binding, obtains a real parent correlation, admits the queued lane through the pinned release, and sends the exact words once with a payload-bound permit.
-Coding approval, visual input preparation, continuation and public follow-up instructions remain outside this question-and-answer surface.
-Expired readiness, a lane that cannot be admitted, an existing intent, changed pins or missing delivery evidence refuse rather than minting replacement authority.
-[Dispatch regression coverage](../tests/fm-discord-dispatch.test.sh) verifies exact payload preservation, automatic bindings, confirmed delivery, domain isolation and refusal paths with inert local fixtures.
+The [dispatch command's help](../bin/fm-discord-dispatch.py) owns assignment of a captured question to an existing mapped second mate, including scope limits, authority checks and retry refusals.
+[Dispatch regression coverage](../tests/fm-discord-dispatch.test.sh) uses inert local fixtures.
 
-The [approved-reply command's help](../bin/fm-discord-reply.py) owns the parent-facing final-answer interface.
-It derives the accepted work bindings from the request and mapped route, requires an authoritative resolved return, and passes only the explicitly approved one-line answer to the pinned release's publication API.
-An identical retry repairs the same final event, while changed words cannot overwrite an existing approval; local publication does not prove Discord delivery.
+The [approved-reply command's help](../bin/fm-discord-reply.py) owns the parent-facing final-answer interface, including return validation, gate-agent containment, replay and publication limits.
 [Reply regression coverage](../tests/fm-discord-reply.test.sh) uses isolated fake journals and a fake lifecycle owner, without reading live custody or contacting Discord.
 
 ## Relay (.env)

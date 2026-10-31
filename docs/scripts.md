@@ -177,6 +177,7 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-public-followup-collect.sh` | Read and retire the typed terminal results a remote work home staged for the home that owes the public reply |
 | `fm-discord-hook.py`     | Optional private Discord parent lane guard ([configuration](configuration.md#private-discord-parent-integration)) |
 | `fm-discord-verify-pins.py` | Read-only parent source/config/transport identity comparison ([pins](discord-owner-reply-pins.md)) |
+| `fm-discord-dispatch.py` | Assign one captured owner question to a mapped second mate ([configuration](configuration.md#private-discord-parent-integration)) |
 | `fm-discord-reply.py` | Parent-approved one-line final from an authoritative correlated return ([configuration](configuration.md#private-discord-parent-integration)) |
 | `fm-inbox.sh`            | The captain's out-of-band capture surface: queue a note (optionally idempotent by request id), announce or repair its wake, record a durable primary reply, and emit bounded receipts and primary-readiness JSON |
 | `fm-mail.sh`             | General-purpose mail plane: read unseen IMAP mail, send one SMTP message, or surface new mail as a `check` wake via `poll` (configuration in the home's gitignored `.env`) |
