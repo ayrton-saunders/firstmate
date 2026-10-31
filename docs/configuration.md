@@ -2086,6 +2086,12 @@ Inbox drain attempts to renew parent readiness, and durable inbox replies record
 Readiness or outcome-recording failure warns without undoing the underlying inbox operation; receipt-recording failure after a delivered steer likewise warns against resending.
 [Portable regression coverage](../tests/fm-discord-hook.test.sh) checks inactive compatibility and, with CPython 3.14, fixture-backed local delivery and fail-closed lane separation without the private core.
 
+The [dispatch command's help](../bin/fm-discord-dispatch.py) owns assignment of a captured question to an existing mapped second mate.
+It computes a read-only binding, obtains a real parent correlation, admits the queued lane through the pinned release, and sends the exact words once with a payload-bound permit.
+Coding approval, visual input preparation, continuation and public follow-up instructions remain outside this question-and-answer surface.
+Expired readiness, a lane that cannot be admitted, an existing intent, changed pins or missing delivery evidence refuse rather than minting replacement authority.
+[Dispatch regression coverage](../tests/fm-discord-dispatch.test.sh) verifies exact payload preservation, automatic bindings, confirmed delivery, domain isolation and refusal paths with inert local fixtures.
+
 The [approved-reply command's help](../bin/fm-discord-reply.py) owns the parent-facing final-answer interface.
 It derives the accepted work bindings from the request and mapped route, requires an authoritative resolved return, and passes only the explicitly approved one-line answer to the pinned release's publication API.
 An identical retry repairs the same final event, while changed words cannot overwrite an existing approval; local publication does not prove Discord delivery.
