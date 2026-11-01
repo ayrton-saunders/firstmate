@@ -12,7 +12,8 @@ metadata:
 
 Keep preparation, checked publication, consumption and loaded activation distinct.
 `bin/fm-update.sh --help` and its header own exact interfaces and task-record mechanics.
-No-argument callers retain origin-only consumption; they never integrate or publish upstream changes.
+No-argument callers consume origin or the optional [self-update source](../../../docs/configuration.md#self-update-source-configself-update-source); they never integrate or publish upstream changes.
+Explicit pinned origin consumption remains independent of that optional source.
 Consumption needs no contributor role, but any integration publication loads `firstmate-self-repo` and uses normal task consent and delivery ownership.
 
 ## 1. Choose the bounded target
@@ -46,6 +47,7 @@ Conflict-free uptake needs only the applicable existing checks; do not run no-mi
 Real conflicts or demonstrated interoperability failures justify focused in-scope repairs, with resolved paths/diff/rationale and final-head inspection/test evidence retained.
 A real conflict alone does not require another merge approval; materially ambiguous behavior, changes to deliberate behavior, scope expansion, destructive changes and security-sensitive choices still escalate.
 For prose-only behavior, retain real evaluation evidence; file/source-string presence does not prove the instruction is obeyed.
+
 
 ## 3. Qualify the actual published head
 
