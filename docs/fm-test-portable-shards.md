@@ -15,6 +15,10 @@ All artifact records were cross-checked against the corresponding job's markers.
 This covered all 24 parallel and 201 serial members at that refresh; an existing live-capability skip is a portable-runner measurement, not a timing claim for the unavailable live integration.
 Observed maxima provide conservative packing weights, not an upper bound on future durations.
 
+The 2026-11-03 missing-hint refresh adds the 43 previously unmeasured serial members from the slowest successful per-script samples in green Ubuntu CI runs [41361609081](https://github.com/ayrton-saunders/firstmate/actions/runs/41361609081), [41664696427](https://github.com/kunchenguid/firstmate/actions/runs/41664696427), and [41664671888](https://github.com/kunchenguid/firstmate/actions/runs/41664671888).
+Their uploaded `fm-test-timing-aggregate` artifacts retain each sample's portable-serial lane identity, exit and duration; existing hints and native-Windows exceptions are unchanged.
+This refresh reduces the serial unhinted count from 43 of 286 to zero without changing membership, shard count, budgets or assertions.
+
 Two serial-5 jobs were cancelled at their 30-minute cap and uploaded no artifact.
 Their completed log markers supplement the complete runs, but a cancelled job's wall time is only a lower bound and its unfinished or never-started scripts have no completed sample.
 A failed script's duration is excluded even when its lane uploaded an artifact.
