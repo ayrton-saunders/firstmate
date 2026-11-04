@@ -76,14 +76,13 @@ It also requires `AGENTS.md`, `bin/`, and the effective state directory.
 For an in-scope primary, the guard counts in-flight work from `state/*.meta`.
 These sources also count toward supervision need:
 
-- A positive numeric PID on the first line of `state/.lock` that passes `kill -0` keeps inbox intake supervised even before a note arrives or after the last task finishes.
-  Primary scope and hook ownership checks still apply; this need signal alone does not prove consumer readiness.
-  `tests/fm-claude-stop-autoarm.test.sh` covers idle intake and intake after the last task finishes.
 - Registered `state/procevent/*.source` records require supervision even though they have no task metadata.
 - Every mode treats `state/x-watch.check.sh` as supervision need, so Relay polling remains guarded without an in-flight task.
 - A custom check registered with `bin/fm-check-register.sh` counts the same way, so an operator's home-level poll keeps running after the last task is torn down.
 
 The default cross-harness mode exits silently with no supervision need.
+A live session lock alone does not require supervision, so an idle Claude primary without any of the triggers above exits its Stop hook without arming inbox intake.
+Reliable pickup in that idle case is not delivered or verified by the bounded inbox wait and remains separately tracked as `fork-inbox-idle-primary-pickup`; the [outside-caller contract](voice-relay.md#outside-callers-submit-and-wait-for-completion) does not start a consumer.
 
 ### Strict watcher check at the turn boundary
 
@@ -573,7 +572,7 @@ That warning uses `bin/fm-supervision-instructions.sh --repair-line`, so it alwa
 
 - Child crewmate and scout worktrees are outside scope.
 - A valid secondmate home is in scope.
-  Its running primary is subject to the same [supervision-need predicate](#supervision-need), even when its fleet is idle.
+  An idle secondmate endpoint with none of the [supervision-need triggers](#supervision-need) remains healthy without a watcher.
 - The blocking and bounded-follow-up mechanisms are limited to the primary integrations listed above.
 - OpenCode headless mode and untrusted Grok project hooks remain fail-open at the host boundary.
 - Cursor's `stop` step does not fire in headless `cursor-agent -p`, the same class of limit as OpenCode headless; firstmate primaries run interactive.
