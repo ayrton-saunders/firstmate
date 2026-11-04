@@ -1,0 +1,134 @@
+LOCAL REAL-CLI VALIDATION: disposable home, synthetic requests, no model or operational primary.
+
+SCENARIO 1: Caller submits once, sees pending receipts, and receives a final refusal during a running wait.
+$ bin/fm-inbox.sh note --request-id lab-outside-001 --json Please perform the requested deployment and report its final result.
+{"schema":"fm-inbox-note.v1","outcome":"created","id":"1793813581-lfjxhq","request_id":"lab-outside-001","saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.inbox-live-iv6eby20/state/inbox/1793813581-lfjxhq.note"}
+exit=0 elapsed=0.179s
+$ bin/fm-inbox.sh note --request-id lab-outside-001 --json Please perform the requested deployment and report its final result.
+{"schema":"fm-inbox-note.v1","outcome":"replay","id":"1793813581-lfjxhq","request_id":"lab-outside-001","saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.inbox-live-iv6eby20/state/inbox/1793813581-lfjxhq.note"}
+exit=0 elapsed=0.049s
+$ bin/fm-inbox.sh receipts --all-pending --all-handled --all-replies
+{"schema":"fm-inbox-receipts.v1","home":"01M6KSF7QGW3HP3ZQS5R3WVREP/.inbox-live-iv6eby20","generated":"2026-11-04T17:33:01Z","pending":[{"id":"1793813581-lfjxhq","at":"2026-11-04T17:33:01Z","source":"text","request_id":"lab-outside-001","body":"Please perform the requested deployment and report its final result.","acknowledged":false,"announced":true,"reply":null}],"handled":[],"replies":[],"reply_cursor":"","omitted":[]}
+exit=0 elapsed=0.040s
+$ bin/fm-inbox.sh drain
+1793813581-lfjxhq
+    Please perform the requested deployment and report its final result.
+
+Work requests: keep pending until finished; record the final outcome with fm-inbox.sh reply <id> - BEFORE drain --ack. See fm-inbox.sh --help for the reply contract.
+Ack with: fm-inbox.sh drain --ack <id>...
+exit=0 elapsed=0.020s
+$ bin/fm-inbox.sh reply 1793813581-lfjxhq -
+replied 1793813581-lfjxhq
+exit=0 elapsed=0.116s
+$ bin/fm-inbox.sh wait 1793813581-lfjxhq --json --timeout 8
+{"schema":"fm-inbox-wait.v1","outcome":"answered","id":"1793813581-lfjxhq","acknowledged":false,"reply":{"id":"1793813581-lfjxhq","at":"2026-11-04T17:33:02Z","body":"Refused: publication requires explicit approval.\nNo deployment performed. \"Quoted\" caf\u00e9 \\ done.","cursor":"000000000001"}}
+exit=0
+$ bin/fm-inbox.sh drain --ack 1793813581-lfjxhq
+acked 1793813581-lfjxhq
+exit=0 elapsed=0.018s
+$ bin/fm-inbox.sh wait 1793813581-lfjxhq --timeout 0 --json
+{"schema":"fm-inbox-wait.v1","outcome":"answered","id":"1793813581-lfjxhq","acknowledged":true,"reply":{"id":"1793813581-lfjxhq","at":"2026-11-04T17:33:02Z","body":"Refused: publication requires explicit approval.\nNo deployment performed. \"Quoted\" caf\u00e9 \\ done.","cursor":"000000000001"}}
+exit=0 elapsed=0.038s
+$ bin/fm-inbox.sh wait 1793813581-lfjxhq --timeout 0
+answered 1793813581-lfjxhq
+Refused: publication requires explicit approval.
+No deployment performed. "Quoted" café \ done.
+exit=0 elapsed=0.040s
+$ bin/fm-inbox.sh receipts --all-pending --all-handled --all-replies
+{"schema":"fm-inbox-receipts.v1","home":"01M6KSF7QGW3HP3ZQS5R3WVREP/.inbox-live-iv6eby20","generated":"2026-11-04T17:33:02Z","pending":[],"handled":[{"id":"1793813581-lfjxhq","at":"2026-11-04T17:33:01Z","source":"text","request_id":"lab-outside-001","body":"Please perform the requested deployment and report its final result.","acknowledged":true,"announced":true,"reply":{"id":"1793813581-lfjxhq","at":"2026-11-04T17:33:02Z","body":"Refused: publication requires explicit approval.\nNo deployment performed. \"Quoted\" caf\u00e9 \\ done.","cursor":"000000000001"}}],"replies":[{"id":"1793813581-lfjxhq","at":"2026-11-04T17:33:02Z","body":"Refused: publication requires explicit approval.\nNo deployment performed. \"Quoted\" caf\u00e9 \\ done.","cursor":"000000000001"}],"reply_cursor":"000000000001","omitted":[]}
+exit=0 elapsed=0.042s
+Receipts retained alongside wait output for comparison.
+
+SCENARIO 2: Informational note is acknowledged during wait; no fabricated answer; missing note is distinct.
+$ bin/fm-inbox.sh note --json Informational only; no work or response required.
+{"schema":"fm-inbox-note.v1","outcome":"created","id":"1793813582-bQu7QW","request_id":null,"saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.inbox-live-iv6eby20/state/inbox/1793813582-bQu7QW.note"}
+exit=0 elapsed=0.203s
+$ bin/fm-inbox.sh drain --ack 1793813582-bQu7QW
+acked 1793813582-bQu7QW
+exit=0 elapsed=0.040s
+$ bin/fm-inbox.sh wait 1793813582-bQu7QW --timeout 8 --json
+{"schema":"fm-inbox-wait.v1","outcome":"handled","id":"1793813582-bQu7QW","acknowledged":true,"reply":null}
+exit=2
+$ bin/fm-inbox.sh wait never-submitted --timeout 0 --json
+{"schema":"fm-inbox-wait.v1","outcome":"unknown","id":"never-submitted","acknowledged":false,"reply":null}
+exit=4 elapsed=0.047s
+
+SCENARIO 3: Bounded timeout does not cancel or notify again; same id returns durable answer after retry.
+$ bin/fm-inbox.sh note --json Please calculate 6 times 7.
+{"schema":"fm-inbox-note.v1","outcome":"created","id":"1793813583-PdG6m5","request_id":null,"saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.inbox-live-iv6eby20/state/inbox/1793813583-PdG6m5.note"}
+exit=0 elapsed=0.198s
+$ bin/fm-inbox.sh wait 1793813583-PdG6m5 --timeout 1 --json
+{"schema":"fm-inbox-wait.v1","outcome":"timeout","id":"1793813583-PdG6m5","acknowledged":false,"reply":null}
+exit=3 elapsed=1.107s
+$ bin/fm-inbox.sh wait 1793813583-PdG6m5 --timeout 0 --json
+{"schema":"fm-inbox-wait.v1","outcome":"timeout","id":"1793813583-PdG6m5","acknowledged":false,"reply":null}
+exit=3 elapsed=0.049s
+$ bin/fm-inbox.sh reply 1793813583-PdG6m5 Result: 42
+replied 1793813583-PdG6m5
+exit=0 elapsed=0.090s
+$ bin/fm-inbox.sh wait 1793813583-PdG6m5 --timeout 0 --json
+{"schema":"fm-inbox-wait.v1","outcome":"answered","id":"1793813583-PdG6m5","acknowledged":false,"reply":{"id":"1793813583-PdG6m5","at":"2026-11-04T17:33:05Z","body":"Result: 42","cursor":"000000000002"}}
+exit=0 elapsed=0.037s
+
+SCENARIO 4: Invalid arguments and corrupt durable replies fail closed without queue mutation.
+$ bin/fm-inbox.sh wait 1793813583-PdG6m5 --timeout -1 --json
+
+stderr: fm-inbox: wait timeout must be an integer in 0..86400
+
+exit=1 elapsed=0.014s
+$ bin/fm-inbox.sh wait 1793813583-PdG6m5 --timeout 1.5 --json
+
+stderr: fm-inbox: wait timeout must be an integer in 0..86400
+
+exit=1 elapsed=0.015s
+$ bin/fm-inbox.sh wait 1793813583-PdG6m5 --timeout nope --json
+
+stderr: fm-inbox: wait timeout must be an integer in 0..86400
+
+exit=1 elapsed=0.013s
+$ bin/fm-inbox.sh wait 1793813583-PdG6m5 --timeout 86401 --json
+
+stderr: fm-inbox: wait timeout must be an integer in 0..86400
+
+exit=1 elapsed=0.014s
+$ bin/fm-inbox.sh wait 1793813583-PdG6m5 --timeout 99999999999999999999999999999 --json
+
+stderr: fm-inbox: wait timeout must be an integer in 0..86400
+
+exit=1 elapsed=0.014s
+$ bin/fm-inbox.sh wait
+
+stderr: fm-inbox: invalid or missing note id
+
+exit=1 elapsed=0.015s
+$ bin/fm-inbox.sh wait ../outside --json
+
+stderr: fm-inbox: invalid or missing note id
+
+exit=1 elapsed=0.014s
+$ bin/fm-inbox.sh wait 1793813583-PdG6m5 extra
+
+stderr: fm-inbox: wait takes exactly one note id
+
+exit=1 elapsed=0.014s
+$ bin/fm-inbox.sh wait 1793813583-PdG6m5 --bogus
+
+stderr: fm-inbox: unknown option for wait: --bogus
+
+exit=1 elapsed=0.014s
+$ bin/fm-inbox.sh wait 1793813583-PdG6m5 --timeout
+
+stderr: fm-inbox: wait --timeout requires seconds
+
+exit=1 elapsed=0.013s
+$ bin/fm-inbox.sh note --json Corrupt-record adversarial case
+{"schema":"fm-inbox-note.v1","outcome":"created","id":"1793813585-eT0Vsu","request_id":null,"saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.inbox-live-iv6eby20/state/inbox/1793813585-eT0Vsu.note"}
+exit=0 elapsed=0.173s
+$ bin/fm-inbox.sh wait 1793813585-eT0Vsu --timeout 0 --json
+
+stderr: fm-inbox: malformed reply record for 1793813585-eT0Vsu
+
+exit=1 elapsed=0.037s
+
+All four local real-CLI scenarios passed. Operational primary pickup was not attempted or simulated.
+Disposable home removed; all started waiter processes reaped.
