@@ -1,0 +1,23 @@
+Local outside-caller validation of target 9915993d507600aaf647bb319314292d36aba0b3
+
+Public CLI contract: PASS
+Ran the actual bin/fm-inbox.sh in a disposable worktree-local FM_HOME. Submitted an idempotent synthetic work request, observed a 1-second bounded timeout without changed note/wake bytes, then waited while a separate real reply command published Result: 42. The blocked waiter returned the exact multiline/Unicode answer before acknowledgement; a fresh caller process returned the same answer after acknowledgement. Bare handled, unknown ID, bad arguments/timeouts, and a deliberately malformed persisted reply produced their documented distinct exits. See cli-contract.json. The first driver invocation had an evidence-driver JSON parsing error on the expected empty error output; corrected the driver and re-ran it successfully. No product fix was needed for these checks.
+
+Running idle Claude primary, no tasks/checks: FAIL (acceptance gap)
+Actual Claude 2.1.318 with existing normal login, isolated configuration, marked disposable FM_HOME, private tmux, 120x40 terminal. The initial gate-linked checkout was excluded by the real primary-scope predicate, so the live check used an unmodified git-archive snapshot of the target inside the worktree, initialized as a disposable plain checkout. Only the lab's socket was used. No external imports were enabled. No credential store was changed.
+15:35:15Z: ready reported lock.state=held, live_harness=true, posture=present, wake_consumer=down/no-beacon, can_receive=false.
+Submitted live-idle-2 via note --json; note was saved and announced.
+wait --timeout 15 --json exited 3: outcome=timeout, acknowledged=false, reply=null.
+15:35:56Z: receipts still listed that note as pending, announced=true, reply=null. The primary had remained idle with no automatic handling turn. See idle-ready.json, idle-submission.json, idle-wait.json, idle-receipts.json, and idle-primary-pane.txt.
+A separate resume prompt later caused the primary to answer 50 and acknowledge that note. This required the extra prompt the requested outside-caller flow is intended to eliminate.
+
+Running supervised Claude primary, synthetic invoices: PASS
+Registered an intentionally quiet disposable custom check through the product's fm-check-register.sh, then resumed the primary once to establish normal supervision. ready reported wake_consumer=healthy and can_receive=true. After that setup, there was NO further caller/resume prompt.
+15:37:21Z: submitted live-supervised-3 asking for 26 + 19 + 8 and immediately ran wait --timeout 120 --json.
+15:37:35Z: wait exited 0, outcome=answered, acknowledged=true, reply.body="Total: 53. Arithmetic: 26 + 19 = 45, then 45 + 8 = 53."
+The actual Stop-hook feedback initiated the handling turn; the actual primary published the durable reply and acknowledged the note. See supervised-ready.json, supervised-submission.json, supervised-wait.json, final-primary-receipts.json, and final-primary-pane.txt.
+
+Targeted baseline: bash tests/fm-inbox.test.sh exited 0. No full suite, lint, formatting, static analysis, push, PR, or CI phase was run.
+Cleanup: the private tmux server, primary, watcher, host, and all captured descendants were stopped with identity checks; cleanup.json records no survivors. Lab homes and the disposable product snapshot were removed. The worktree is clean. No source changes were made.
+
+Overall: NO-GO. Bounded waiting and active-consumer pickup work, but a running idle primary without another supervision workload does not autonomously pick up a new request.

@@ -1,0 +1,7 @@
+Real Claude CLI launched on disposable private tmux socket (120x40).
+Normal-login stream-JSON attempt: claude -p --input-format stream-json --output-format stream-json --verbose --allowedTools Bash,Read --strict-mcp-config --mcp-config {"mcpServers":{}}
+Observed result: You've hit your 5-hour limit · resets 6:10pm (Europe/London)
+API status: 429; error: usage_limit_reached
+No login, account, credentials or normal user configuration changed.
+Disposable tmux server stopped; lab removed; no lab-referencing processes remain.
+Idle-primary automatic pickup and final LLM reply remain untested.

@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.318
+▝▜██████▀  Sonnet 5.5 · Claude API
+ ▝▝   ▝▝   ~/.no-mistakes/worktrees/5611073f0314/01M6KJKFYDRYW2GRP6S8EH13QT/.validation-primary/product
+
+▎ Auto mode is now Claude Code's default permission mode.
+▎ Auto mode lets Claude handle permission prompts automatically. Claude checks each tool call for risky actions and
+▎ prompt injection before executing, runs the ones it assesses as lower-risk, and blocks the rest.
+▎ https://code.claude.com/docs/en/permission-modes
+  1 more notice hidden
+
+❯ Captain-approved isolated lab: FM_HOME is the disposable lab home; use no other operational home. Run
+  bin/fm-session-start.sh if its current-session digest is not already present and handle any pending inbox request
+  under the normal contract. Do not modify source, spawn workers, publish, or alter credentials or configuration
+  outside FM_HOME. Then remain idle under the normal primary supervision protocol. This is a harmless local
+  arithmetic-work check.
+
+  Ran 4 shell commands
+  ⎿  1 action not run · permission denied
+     │ Reason: PreToolUse:Bash hook error:
+     │ {"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny"},"systemMessage":"[persistent-cd]
+     │ a persistent top-level directory change in the primary fi…
+
+⏺ Captain, the invoice total is 80: 17 + 28 = 45, and 45 + 35 = 80. I recorded that answer as the reply to your inbox
+  note and cleared the note.
+
+  The wake acknowledgement command printed nothing, so I can't confirm it registered. I changed no source, spawned no
+  workers, and touched nothing outside the lab home. I'm now idle under the normal supervision.
+
+✻ Sautéed for 15s · done 3:34 PM
+
+
+
+
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle)

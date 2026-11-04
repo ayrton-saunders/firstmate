@@ -1,0 +1,40 @@
+  The wake acknowledgement command printed nothing, so I can't confirm it registered. I changed no source, spawned no
+  workers, and touched nothing outside the lab home. I'm now idle under the normal supervision.
+
+✻ Sautéed for 15s · done 3:34 PM
+
+❯ Captain, resume normal supervision and reconcile the lab-only pending inbox. An intentionally quiet registered
+  lab-idle custom check now keeps this disposable home under supervision. Do not modify or unregister that check during
+  this lab. Do not publish or spawn anything. Once reconciled, become idle.
+
+  Ran 2 shell commands
+
+⏺ Captain, I've reconciled the lab inbox. The new note asked for the sum of 12, 31 and 7, which is 50 (12 + 31 = 43,
+  then 43 + 7 = 50). I recorded that as a private reply and cleared the note. Nothing was published or spawned, and I
+  left the lab-idle check alone.
+
+  The wake drain warned that the watcher was down, with no recent heartbeat from the registered check. I did not arm
+  anything by hand, since the Stop hook owns watcher recovery. I'm ending this turn now so it can take over, and I'm
+  idle under normal supervision.
+
+✻ Baked for 10s · done 3:36 PM
+
+⏺ Stop hook feedback
+
+  Ran 1 shell command
+
+⏺ 26+19+8=53.
+
+  Ran 1 shell command
+
+⏺ Captain, a new lab inbox note asked for the sum of 26, 19 and 8, which is 53 (26 + 19 = 45, then 45 + 8 = 53). I
+  recorded it as a private reply and cleared the note. I published nothing, spawned no workers, and changed no files.
+
+  I left the watcher alone, since the Stop hook re-arms it when this turn ends. I'm idle under supervision.
+
+✻ Crunched for 8s · done 3:37 PM
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯ resume normal supervision and reconcile the lab inbox
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle)

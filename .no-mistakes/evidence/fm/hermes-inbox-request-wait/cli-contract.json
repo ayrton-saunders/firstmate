@@ -1,0 +1,160 @@
+[
+  {
+    "command": "fm-inbox.sh note --request-id synthetic-work-1 --json Calculate 19 + 23 and report the result",
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-note.v1\",\"outcome\":\"created\",\"id\":\"1793806553-es28iV\",\"request_id\":\"synthetic-work-1\",\"saved\":true,\"announced\":true,\"acknowledged\":false,\"path\":\"{run-worktree}/.validation-inbox/state/inbox/1793806553-es28iV.note\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": "fm-inbox.sh note --request-id synthetic-work-1 --json retry of the same request",
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-note.v1\",\"outcome\":\"replay\",\"id\":\"1793806553-es28iV\",\"request_id\":\"synthetic-work-1\",\"saved\":true,\"announced\":true,\"acknowledged\":false,\"path\":\"{run-worktree}/.validation-inbox/state/inbox/1793806553-es28iV.note\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": "fm-inbox.sh wait 1793806553-es28iV --timeout 1 --json",
+    "exit": 3,
+    "stdout": "{\"schema\":\"fm-inbox-wait.v1\",\"outcome\":\"timeout\",\"id\":\"1793806553-es28iV\",\"acknowledged\":false,\"reply\":null}\n",
+    "stderr": ""
+  },
+  {
+    "observation": "Bounded timeout leaves original note and wake bytes unchanged",
+    "elapsed_seconds": 1.1119834999844898
+  },
+  {
+    "command": "fm-inbox.sh reply --json 1793806553-es28iV -",
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-reply.v1\",\"outcome\":\"created\",\"id\":\"1793806553-es28iV\",\"path\":\"{run-worktree}/.validation-inbox/state/inbox/.replies/1793806553-es28iV\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": "fm-inbox.sh wait 1793806553-es28iV --timeout 20 --json",
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-wait.v1\",\"outcome\":\"answered\",\"id\":\"1793806553-es28iV\",\"acknowledged\":false,\"reply\":{\"id\":\"1793806553-es28iV\",\"at\":\"2026-11-04T15:35:55Z\",\"body\":\"Result: 42\\nQuoted \\\"value\\\", slash \\\\ and caf\\u00e9\",\"cursor\":\"000000000001\"}}\n",
+    "stderr": ""
+  },
+  {
+    "command": "fm-inbox.sh drain --ack 1793806553-es28iV",
+    "exit": 0,
+    "stdout": "acked 1793806553-es28iV\n",
+    "stderr": ""
+  },
+  {
+    "command": "fm-inbox.sh wait 1793806553-es28iV --timeout 0 --json",
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-wait.v1\",\"outcome\":\"answered\",\"id\":\"1793806553-es28iV\",\"acknowledged\":true,\"reply\":{\"id\":\"1793806553-es28iV\",\"at\":\"2026-11-04T15:35:55Z\",\"body\":\"Result: 42\\nQuoted \\\"value\\\", slash \\\\ and caf\\u00e9\",\"cursor\":\"000000000001\"}}\n",
+    "stderr": ""
+  },
+  {
+    "command": "fm-inbox.sh receipts --all-pending --all-handled --all-replies",
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-receipts.v1\",\"home\":\"01M6KJKFYDRYW2GRP6S8EH13QT/.validation-inbox\",\"generated\":\"2026-11-04T15:35:56Z\",\"pending\":[],\"handled\":[{\"id\":\"1793806553-es28iV\",\"at\":\"2026-11-04T15:35:53Z\",\"source\":\"text\",\"request_id\":\"synthetic-work-1\",\"body\":\"Calculate 19 + 23 and report the result\",\"acknowledged\":true,\"announced\":true,\"reply\":{\"id\":\"1793806553-es28iV\",\"at\":\"2026-11-04T15:35:55Z\",\"body\":\"Result: 42\\nQuoted \\\"value\\\", slash \\\\ and caf\\u00e9\",\"cursor\":\"000000000001\"}}],\"replies\":[{\"id\":\"1793806553-es28iV\",\"at\":\"2026-11-04T15:35:55Z\",\"body\":\"Result: 42\\nQuoted \\\"value\\\", slash \\\\ and caf\\u00e9\",\"cursor\":\"000000000001\"}],\"reply_cursor\":\"000000000001\",\"omitted\":[]}\n",
+    "stderr": ""
+  },
+  {
+    "command": "fm-inbox.sh wait 1793806553-es28iV",
+    "exit": 0,
+    "stdout": "answered 1793806553-es28iV\nResult: 42\nQuoted \"value\", slash \\ and café\n",
+    "stderr": ""
+  },
+  {
+    "observation": "New caller process reads the exact durable final reply after acknowledgement; waiting never appended a wake",
+    "wait_seconds": 1.3571921249968
+  },
+  {
+    "command": "fm-inbox.sh note --json FYI only; no work or answer needed",
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-note.v1\",\"outcome\":\"created\",\"id\":\"1793806556-Y2fSAI\",\"request_id\":null,\"saved\":true,\"announced\":true,\"acknowledged\":false,\"path\":\"{run-worktree}/.validation-inbox/state/inbox/1793806556-Y2fSAI.note\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": "fm-inbox.sh drain --ack 1793806556-Y2fSAI",
+    "exit": 0,
+    "stdout": "acked 1793806556-Y2fSAI\n",
+    "stderr": ""
+  },
+  {
+    "command": "fm-inbox.sh wait 1793806556-Y2fSAI --timeout 0 --json",
+    "exit": 2,
+    "stdout": "{\"schema\":\"fm-inbox-wait.v1\",\"outcome\":\"handled\",\"id\":\"1793806556-Y2fSAI\",\"acknowledged\":true,\"reply\":null}\n",
+    "stderr": ""
+  },
+  {
+    "command": "fm-inbox.sh wait nonexistent-note --json --timeout 0",
+    "exit": 4,
+    "stdout": "{\"schema\":\"fm-inbox-wait.v1\",\"outcome\":\"unknown\",\"id\":\"nonexistent-note\",\"acknowledged\":false,\"reply\":null}\n",
+    "stderr": ""
+  },
+  {
+    "command": "fm-inbox.sh wait 1793806553-es28iV --timeout -1",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-inbox: wait timeout must be an integer in 0..86400\n"
+  },
+  {
+    "command": "fm-inbox.sh wait 1793806553-es28iV --timeout 1.5",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-inbox: wait timeout must be an integer in 0..86400\n"
+  },
+  {
+    "command": "fm-inbox.sh wait 1793806553-es28iV --timeout 86401",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-inbox: wait timeout must be an integer in 0..86400\n"
+  },
+  {
+    "command": "fm-inbox.sh wait 1793806553-es28iV --timeout bad",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-inbox: wait timeout must be an integer in 0..86400\n"
+  },
+  {
+    "command": "fm-inbox.sh wait 1793806553-es28iV --timeout 999999999999999999",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-inbox: wait timeout must be an integer in 0..86400\n"
+  },
+  {
+    "command": "fm-inbox.sh wait",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-inbox: invalid or missing note id\n"
+  },
+  {
+    "command": "fm-inbox.sh wait ../escape",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-inbox: invalid or missing note id\n"
+  },
+  {
+    "command": "fm-inbox.sh wait x y",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-inbox: wait takes exactly one note id\n"
+  },
+  {
+    "command": "fm-inbox.sh wait x --bogus",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-inbox: unknown option for wait: --bogus\n"
+  },
+  {
+    "command": "fm-inbox.sh wait x --timeout",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-inbox: wait --timeout requires seconds\n"
+  },
+  {
+    "command": "fm-inbox.sh note --json Synthetic damaged durable reply",
+    "exit": 0,
+    "stdout": "{\"schema\":\"fm-inbox-note.v1\",\"outcome\":\"created\",\"id\":\"1793806556-mge5iq\",\"request_id\":null,\"saved\":true,\"announced\":true,\"acknowledged\":false,\"path\":\"{run-worktree}/.validation-inbox/state/inbox/1793806556-mge5iq.note\"}\n",
+    "stderr": ""
+  },
+  {
+    "command": "fm-inbox.sh wait 1793806556-mge5iq --timeout 0 --json",
+    "exit": 1,
+    "stdout": "",
+    "stderr": "fm-inbox: malformed reply record for 1793806556-mge5iq\n"
+  }
+]

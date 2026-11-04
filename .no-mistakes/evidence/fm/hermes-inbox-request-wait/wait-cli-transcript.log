@@ -1,0 +1,111 @@
+Local real CLI, synthetic requests and operator-recorded replies; not an LLM pickup proof.
+$ bin/fm-inbox.sh note --request-id local-answer-1 --json Compute 19 plus 23 and report the result.
+{"schema":"fm-inbox-note.v1","outcome":"created","id":"1793807692-wrjca6","request_id":"local-answer-1","saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.wait-live-home/state/inbox/1793807692-wrjca6.note"}
+
+exit=0 elapsed=0.189s
+$ bin/fm-inbox.sh note --request-id local-answer-1 --json Compute 19 plus 23 and report the result.
+{"schema":"fm-inbox-note.v1","outcome":"replay","id":"1793807692-wrjca6","request_id":"local-answer-1","saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.wait-live-home/state/inbox/1793807692-wrjca6.note"}
+
+exit=0 elapsed=0.049s
+$ bin/fm-inbox.sh wait 1793807692-wrjca6 --timeout 20 --json [caller now waits]
+$ bin/fm-inbox.sh reply 1793807692-wrjca6 -
+replied 1793807692-wrjca6
+
+exit=0 elapsed=0.387s
+{"schema":"fm-inbox-wait.v1","outcome":"answered","id":"1793807692-wrjca6","acknowledged":false,"reply":{"id":"1793807692-wrjca6","at":"2026-11-04T15:54:53Z","body":"Result: 42\nQuoted \"answer\", slash \\ and unicode caf\u00e9\nsecond line","cursor":"000000000001"}}
+
+wait exit=0
+$ bin/fm-inbox.sh drain --ack 1793807692-wrjca6
+acked 1793807692-wrjca6
+
+exit=0 elapsed=0.021s
+$ bin/fm-inbox.sh wait 1793807692-wrjca6 --timeout 0 --json
+{"schema":"fm-inbox-wait.v1","outcome":"answered","id":"1793807692-wrjca6","acknowledged":true,"reply":{"id":"1793807692-wrjca6","at":"2026-11-04T15:54:53Z","body":"Result: 42\nQuoted \"answer\", slash \\ and unicode caf\u00e9\nsecond line","cursor":"000000000001"}}
+
+exit=0 elapsed=0.039s
+$ bin/fm-inbox.sh wait 1793807692-wrjca6 --timeout 0
+answered 1793807692-wrjca6
+Result: 42
+Quoted "answer", slash \ and unicode café
+second line
+
+exit=0 elapsed=0.039s
+SCENARIO durable answer before ack, after ack, retry dedup and separate-process reread: PASS
+$ bin/fm-inbox.sh note --request-id local-info-1 --json For information only: the dock is quiet.
+{"schema":"fm-inbox-note.v1","outcome":"created","id":"1793807693-hJsDlV","request_id":"local-info-1","saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.wait-live-home/state/inbox/1793807693-hJsDlV.note"}
+
+exit=0 elapsed=0.181s
+$ bin/fm-inbox.sh wait 1793807693-hJsDlV --timeout 20 --json [caller now waits]
+$ bin/fm-inbox.sh drain --ack 1793807693-hJsDlV
+acked 1793807693-hJsDlV
+
+exit=0 elapsed=0.046s
+{"schema":"fm-inbox-wait.v1","outcome":"handled","id":"1793807693-hJsDlV","acknowledged":true,"reply":null}
+
+wait exit=2
+$ bin/fm-inbox.sh wait absent-local-id --timeout 0 --json
+{"schema":"fm-inbox-wait.v1","outcome":"unknown","id":"absent-local-id","acknowledged":false,"reply":null}
+
+exit=4 elapsed=0.060s
+SCENARIO bare handled and unknown are distinct and never invent an answer: PASS
+$ bin/fm-inbox.sh note --request-id local-pending-1 --json Pending synthetic work: no consumer is running.
+{"schema":"fm-inbox-note.v1","outcome":"created","id":"1793807694-vkLaQs","request_id":"local-pending-1","saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.wait-live-home/state/inbox/1793807694-vkLaQs.note"}
+
+exit=0 elapsed=0.203s
+$ bin/fm-inbox.sh wait 1793807694-vkLaQs --timeout 1 --json
+{"schema":"fm-inbox-wait.v1","outcome":"timeout","id":"1793807694-vkLaQs","acknowledged":false,"reply":null}
+
+exit=3 elapsed=1.097s
+$ bin/fm-inbox.sh wait 1793807694-vkLaQs --timeout -1 --json
+
+fm-inbox: wait timeout must be an integer in 0..86400
+exit=1 elapsed=0.023s
+$ bin/fm-inbox.sh wait 1793807694-vkLaQs --timeout 1.5 --json
+
+fm-inbox: wait timeout must be an integer in 0..86400
+exit=1 elapsed=0.015s
+$ bin/fm-inbox.sh wait 1793807694-vkLaQs --timeout bad --json
+
+fm-inbox: wait timeout must be an integer in 0..86400
+exit=1 elapsed=0.014s
+$ bin/fm-inbox.sh wait 1793807694-vkLaQs --timeout 86401 --json
+
+fm-inbox: wait timeout must be an integer in 0..86400
+exit=1 elapsed=0.015s
+$ bin/fm-inbox.sh wait 1793807694-vkLaQs --timeout 999999999999999999999999999999 --json
+
+fm-inbox: wait timeout must be an integer in 0..86400
+exit=1 elapsed=0.014s
+$ bin/fm-inbox.sh wait
+
+fm-inbox: invalid or missing note id
+exit=1 elapsed=0.014s
+$ bin/fm-inbox.sh wait ../bad
+
+fm-inbox: invalid or missing note id
+exit=1 elapsed=0.013s
+$ bin/fm-inbox.sh wait 1793807694-vkLaQs extra
+
+fm-inbox: wait takes exactly one note id
+exit=1 elapsed=0.014s
+$ bin/fm-inbox.sh wait 1793807694-vkLaQs --bogus
+
+fm-inbox: unknown option for wait: --bogus
+exit=1 elapsed=0.013s
+$ bin/fm-inbox.sh wait 1793807694-vkLaQs --timeout
+
+fm-inbox: wait --timeout requires seconds
+exit=1 elapsed=0.013s
+$ bin/fm-inbox.sh reply 1793807694-vkLaQs Unable to finish: synthetic dependency unavailable.
+replied 1793807694-vkLaQs
+
+exit=0 elapsed=0.095s
+$ bin/fm-inbox.sh wait 1793807694-vkLaQs --timeout 0 --json
+{"schema":"fm-inbox-wait.v1","outcome":"answered","id":"1793807694-vkLaQs","acknowledged":false,"reply":{"id":"1793807694-vkLaQs","at":"2026-11-04T15:54:56Z","body":"Unable to finish: synthetic dependency unavailable.","cursor":"000000000002"}}
+
+exit=0 elapsed=0.036s
+$ bin/fm-inbox.sh wait 1793807694-vkLaQs --timeout 0 --json
+
+fm-inbox: malformed reply record for 1793807694-vkLaQs
+exit=1 elapsed=0.036s
+SCENARIO bounded timeout preserves request, retry retrieves real failure reply, invalid input/corrupt reply fail safely: PASS

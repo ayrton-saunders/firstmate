@@ -1,0 +1,40 @@
+⏺ Captain, the lab home is up and idle, waiting for inbox work.
+
+  - Session start: The digest ran once. The lab home is .validation-primary, inside the worktree, and the session lock
+    was acquired.
+  - Fleet state: No queued wakes, no work under way, and no away mode. The backlog, projects, secondmates, captain and
+    learnings files are all absent, which is expected for a fresh lab.
+  - Startup network checks: They were still running when the digest printed. GitHub auth, secondmate relaunch and
+    handoff delivery, and project clone refresh are unconfirmed. A failed or actionable result will arrive as a
+    notification.
+  - Supervision: The turn-end hook owns the watcher, so I am not arming anything myself.
+
+  I have not modified source, spawned workers, touched real fleet homes, or changed credentials or configuration.
+  Publication approval is unchanged.
+
+✻ Sautéed for 12s · done 3:30 PM
+▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔▔
+   Hooks
+   8 hooks on 4 events
+
+   This menu is read-only. To add or change a hook, edit settings.json or ask Claude. Learn more
+
+     PreToolUse  before tool execution
+   ❯ [Project] "$CLAUDE_PROJECT_DIR"/bin/fm-subagent-pretool-che…   .* · command
+     [Project] [ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || e…   Bash · command
+     [Project] [ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || e…   Bash · command
+
+     UserPromptSubmit  when the user submits a prompt
+     [Project] [ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || e…   command
+
+     SessionStart  when a new session is started
+     [Project] [ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || e…   command
+
+     Stop  right before Claude concludes its response
+     [Project] [ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || e…   command
+     [Project] [ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || e…   command
+     [Project] [ -z "${GROK_AGENT:-}${GROK_HOOK_EVENT:-}" ] || e…   command
+
+     All events
+
+   Enter to view · Esc to close
