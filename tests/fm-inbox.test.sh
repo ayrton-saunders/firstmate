@@ -544,3 +544,87 @@ run_inbox "$home" drain --ack "$did" >/dev/null || fail "drain --ack failed"
 assert_absent "$home/state/inbox/$did.note" "acked note leaves pending"
 assert_present "$home/state/inbox/handled/$did.note" "acked note is in handled"
 pass "drain --ack still moves the note to handled"
+
+# --- bounded outside-caller wait (local executable contract, not live pickup) --
+home=$(make_home wait)
+submitted=$(run_inbox "$home" note --request-id outside-1 --json "Please calculate the result")
+wid=$(printf '%s' "$submitted" | json_get id)
+# No consumer has run yet. Submission still durably saves its announcement.
+assert_equals "1" "$(count_wakes "$home")" "submission queues a wake without a consumer"
+queue_before=$(cksum < "$home/state/.wake-queue")
+note_before=$(cksum < "$home/state/inbox/$wid.note")
+set +e
+snapshot=$(run_inbox "$home" wait "$wid" --timeout 0 --json)
+rc=$?
+set -e
+assert_equals "3" "$rc" "pending snapshot times out distinctly"
+assert_equals timeout "$(printf '%s' "$snapshot" | json_get outcome)" "pending is not completion"
+assert_equals False "$(printf '%s' "$snapshot" | json_get acknowledged)" "pending is not acknowledged"
+assert_equals "$queue_before" "$(cksum < "$home/state/.wake-queue")" "wait does not append wakes"
+assert_equals "$note_before" "$(cksum < "$home/state/inbox/$wid.note")" "wait never mutates the note"
+assert_equals "1" "$(count_notes "$home")" "timeout leaves the request pending"
+
+# A local worker publishes the terminal reply while the caller is waiting.
+run_inbox "$home" wait --json "$wid" --timeout 30 > "$home/wait.json" &
+wait_pid=$!
+reply_body=$'Result: 42\nQuoted "value", slash \\ and unicode café\n\n'
+printf '%s' "$reply_body" | run_inbox "$home" reply "$wid" - >/dev/null
+wait "$wait_pid" || fail "wait should return as soon as the reply is recorded"
+assert_equals answered "$(json_get outcome < "$home/wait.json")" "reply terminates wait before ack"
+assert_equals False "$(json_get acknowledged < "$home/wait.json")" "answered does not imply ack"
+# Reply records append one newline only if absent, just like receipts.
+python3 -c 'import json,sys
+assert json.load(sys.stdin)["reply"]["body"] == sys.argv[1][:-1]' "$reply_body" < "$home/wait.json" \
+  || fail "wait must preserve recorded reply text including intentional trailing newlines"
+run_inbox "$home" drain --ack "$wid" >/dev/null
+answered=$(run_inbox "$home" wait "$wid" --timeout 0 --json)
+assert_equals answered "$(printf '%s' "$answered" | json_get outcome)" "reply wins after ack too"
+assert_equals True "$(printf '%s' "$answered" | json_get acknowledged)" "wait reports actual acknowledgement"
+assert_contains "$(run_inbox "$home" wait "$wid")" "Result: 42" "human wait prints the answer"
+assert_equals "$queue_before" "$(cksum < "$home/state/.wake-queue")" "repeated waits and replies do not wake"
+pass "bounded wait returns a durable answer without a second caller prompt"
+
+no_reply=$(run_inbox "$home" note --json "No action needed; just noting this")
+nrid=$(printf '%s' "$no_reply" | json_get id)
+run_inbox "$home" wait "$nrid" --json --timeout 30 > "$home/handled.json" &
+wait_pid=$!
+run_inbox "$home" drain --ack "$nrid" >/dev/null
+set +e
+wait "$wait_pid"
+rc=$?
+unknown=$(run_inbox "$home" wait absent --json --timeout 0)
+unknown_rc=$?
+set -e
+assert_equals "2" "$rc" "bare handled has its own exit status"
+assert_equals handled "$(json_get outcome < "$home/handled.json")" "handled is not invented success"
+assert_equals None "$(json_get reply < "$home/handled.json")" "handled has no fabricated reply"
+assert_equals "4" "$unknown_rc" "unknown id has its own exit status"
+assert_equals unknown "$(printf '%s' "$unknown" | json_get outcome)" "unknown outcome is machine readable"
+pass "handled without reply and unknown id are honest distinct outcomes"
+
+pending=$(run_inbox "$home" note --json "Still running")
+pid_note=$(printf '%s' "$pending" | json_get id)
+set +e
+run_inbox "$home" wait "$pid_note" --timeout 1 --json > "$home/timeout.json"
+rc=$?
+set -e
+assert_equals "3" "$rc" "a bounded wait expires without a consumer"
+assert_equals timeout "$(json_get outcome < "$home/timeout.json")" "timeout remains pending"
+for invalid in -1 1.5 nope 86401 999999999999999999999999999999; do
+  if run_inbox "$home" wait "$wid" --timeout "$invalid" >/dev/null 2>&1; then
+    fail "invalid timeout $invalid must be rejected"
+  fi
+done
+for args in 'wait' 'wait ../bad --json' 'wait x y' 'wait x --bogus' 'wait x --timeout'; do
+  # shellcheck disable=SC2086
+  if run_inbox "$home" $args >/dev/null 2>&1; then
+    fail "invalid wait arguments must be rejected: $args"
+  fi
+done
+# Malformed durable replies must not be called answered or handled.
+set +e
+run_inbox "$TMP_ROOT/malformed-reply" wait "$bad" --timeout 0 --json >/dev/null 2>&1
+rc=$?
+set -e
+assert_equals "1" "$rc" "malformed reply fails rather than inventing an answer"
+pass "wait validates bounds and record integrity"
