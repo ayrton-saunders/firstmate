@@ -1,0 +1,156 @@
+LIVE SETUP: real fm-send, real private tmux server 120x40, cat terminals as synthetic worker inputs; no Discord transport or identity implementation.
+COMMAND fm-send.sh mapped [synthetic payload; bytes=57] auth=absent EXIT=0
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  2 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the requested message WILL still be sent.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e {run-worktree}/.pi/extensions/fm-primary-turnend-guard.ts -e {run-worktree}/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+fm-send: doorbell not typed because the agent in workers:fm-mapped has exited; the steer is durably recorded at {run-worktree}/.l/state/mapped.inbox/001.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+COMMAND fm-send.sh unmapped [synthetic payload; bytes=57] auth=absent EXIT=0
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+fm-send: doorbell not typed because the agent in workers:fm-unmapped has exited; the steer is durably recorded at {run-worktree}/.l/state/unmapped.inbox/001.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+COMMAND fm-send.sh unmapped [synthetic payload; bytes=57] auth=present EXIT=0
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+fm-send: doorbell not typed because the agent in workers:fm-unmapped has exited; the steer is durably recorded at {run-worktree}/.l/state/unmapped.inbox/002.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+DURABLE RECEIPT mapped/001.msg:
+schema=fm-task-inbox.v1
+at=2026-11-04T15:36:37Z
+body-terminator=1
+--
+Continue synthetic local work.
+Preserve this second line.
+
+TERMINAL mapped:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+DURABLE RECEIPT unmapped/001.msg:
+schema=fm-task-inbox.v1
+at=2026-11-04T15:36:38Z
+body-terminator=1
+--
+Continue synthetic local work.
+Preserve this second line.
+
+DURABLE RECEIPT unmapped/002.msg:
+schema=fm-task-inbox.v1
+at=2026-11-04T15:36:38Z
+body-terminator=1
+--
+Continue synthetic local work.
+Preserve this second line.
+
+TERMINAL unmapped:
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+COMMAND fm-send.sh mapped [synthetic payload; bytes=40] auth=present EXIT=1
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: Discord lane fenced: stale source pin differs from the invoked parent source; reconcile the approved parent identity
+COMMAND fm-send.sh mapped [synthetic payload; bytes=40] auth=present EXIT=1
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: Discord lane fenced: stale source pin differs from the invoked parent source; reconcile the approved parent identity
+FENCE RECEIPT: mapped inbox remains one record; journal absent; payload withheld for both empty and typed Discord authority.
+COMMAND fm-send.sh mapped [synthetic payload; bytes=15] auth=absent EXIT=1
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit
+COMMAND fm-send.sh mapped [synthetic payload; bytes=24577] auth=absent EXIT=1
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit
+COMMAND fm-send.sh workers:fm-mapped [synthetic payload; bytes=49] auth=absent EXIT=1
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit
+COMMAND fm-send.sh mapped [synthetic payload; bytes=35] auth=absent EXIT=1
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit
+BOUNDARY RECEIPT: no additional mapped records, config pins unchanged, no journal created.
+LIVE SCENARIOS COMPLETED
+CLEANUP private tmux kill-server exit=0
+CLEANUP disposable home removed
