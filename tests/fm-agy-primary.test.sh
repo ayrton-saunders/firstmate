@@ -378,9 +378,8 @@ test_turnend_guard_agy_fleet_empty_and_healthy_close() {
   out=$(run_agy_stop "$dir" "$payload")
   status=$?
   expect_code 0 "$status" "empty fleet must exit 0"
-  assert_equals "continue" "$(printf '%s' "$out" | jq -r '.decision')" \
-    "a live primary must receive actionable wakes even without fleet work"
-  [ -e "$dir/state/arm-ran" ] || fail "a live primary must park for inbox intake"
+  assert_equals "{}" "$out" "empty fleet must return {}"
+  [ ! -e "$dir/state/arm-ran" ] || fail "empty fleet must not park"
 
   dir=$(make_primary_dir "$TMP_ROOT/stop-healthy")
   : > "$dir/state/task1.meta"
@@ -390,7 +389,7 @@ test_turnend_guard_agy_fleet_empty_and_healthy_close() {
   out=$(run_agy_stop "$dir" "$payload")
   assert_equals "{}" "$out" "a non-actionable close beside a healthy watcher must return {}"
   [ ! -e "$dir/state/.turnend-blocks" ] || fail "a healthy close must reset state/.turnend-blocks"
-  pass "fm-turnend-guard-agy: monitors an empty fleet's inbox and allows a healthy watcher close"
+  pass "fm-turnend-guard-agy: returns {} when the fleet is empty or a healthy watcher owns the home"
 }
 
 test_turnend_guard_agy_non_normal_termination_reasons() {
@@ -430,9 +429,7 @@ test_turnend_guard_agy_loop_ceiling() {
   rm -f "$dir/state/task1.meta"
   payload='{"sessionId":"s-1","conversationId":"c-1","executionNum":4,"terminationReason":"NO_TOOL_CALL"}'
   out=$(FM_AGY_TURNEND_LOOP_CEILING=4 run_agy_stop "$dir" "$payload")
-  assert_equals "continue" "$(printf '%s' "$out" | jq -r '.decision')" \
-    "a live primary still needs the ceiling notice after fleet work ends"
-  [ ! -e "$dir/state/arm-ran" ] || fail "the ceiling must not park after fleet work ends"
+  assert_equals "{}" "$out" "reaching the ceiling with nothing to supervise must return {}"
   pass "fm-turnend-guard-agy: the loop ceiling notifies once while supervision is needed, then passes through"
 }
 

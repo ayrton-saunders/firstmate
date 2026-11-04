@@ -267,15 +267,14 @@ test_cd_guard_renders_cursor_deny() {
 
 # --- PARK --------------------------------------------------------------------
 
-test_park_monitors_inbox_without_fleet_work() {
+test_park_silent_when_nothing_in_flight() {
   local dir out
   dir=$(make_primary_dir "$TMP_ROOT/park-idle")
   write_arm_fixture "$dir" actionable
   out=$(run_park "$dir")
-  [ -e "$dir/state/arm-ran" ] || fail "a live primary must arm for inbox intake even without fleet work"
-  [ "$(kind_of_followup "$out")" = watcher ] \
-    || fail "an idle primary must receive the arm's actionable wake: $out"
-  pass "cursor park: a live primary monitors inbox intake without fleet work"
+  [ -z "$out" ] || fail "the park emitted a follow-up with nothing in flight: $out"
+  [ ! -e "$dir/state/arm-ran" ] || fail "the park armed with nothing to supervise"
+  pass "cursor park: silent no-op when no supervision is needed"
 }
 
 test_park_delivers_actionable_wake_as_followup() {
@@ -900,7 +899,7 @@ test_autoarm_stands_down_on_cursor_payload
 test_sessionstart_run_stands_down_on_cursor_payload
 test_pretool_guards_deduplicate_and_render_cursor_deny
 test_cd_guard_renders_cursor_deny
-test_park_monitors_inbox_without_fleet_work
+test_park_silent_when_nothing_in_flight
 test_park_delivers_actionable_wake_as_followup
 test_park_never_exits_two
 test_park_repair_nag_is_bounded
