@@ -1859,52 +1859,15 @@ test_opencode_arm_plugin_decides_with_the_shared_predicate() {
   driver="$TMP_ROOT/arm-decision-driver.mjs"
   cat > "$driver" <<'EOF'
 import { existsSync, writeFileSync } from "node:fs";
-import { spawnSync } from "node:child_process";
 import { pathToFileURL } from "node:url";
 
 const state = `${process.env.FM_HOME}/state`;
-const config = `${process.env.FM_HOME}/config`;
 const armLog = process.env.FM_ARM_LOG;
 
-// The shared predicate verdict over the same state directory and the same lib
-// copy the delegation in the plugin sources.
-const probe = spawnSync(
-  "bash",
-  [
-    "-c",
-    '. "$1/bin/fm-supervision-lib.sh"; if fm_supervision_needed "$2"; then printf arm; else printf no-arm; fi',
-    "predicate-probe",
-    process.env.FM_ROOT_OVERRIDE,
-    state,
-  ],
-  { encoding: "utf8" },
-);
-const verdict = String(probe.stdout || "").trim();
-if (verdict !== "arm" && verdict !== "no-arm") {
-  console.error(`predicate probe failed (status ${probe.status}): ${probe.stderr}`);
-  process.exit(1);
-}
-
-// The two local overrides: an away record declines even when the predicate
-// reads needed, because away mode owns supervision through its daemon, and an
-// x-mode home arms before its relay poll is registered. Every other state
-// directory must match the shared verdict exactly.
-let expected;
-if (existsSync(`${state}/.afk`)) {
-  if (verdict !== "arm") {
-    console.error(`afk fixture lost its registered need: predicate said ${verdict}`);
-    process.exit(1);
-  }
-  expected = "no-arm";
-} else if (existsSync(`${config}/x-mode.env`)) {
-  if (verdict !== "no-arm") {
-    console.error(`x-mode fixture unexpectedly reads as needed: predicate said ${verdict}`);
-    process.exit(1);
-  }
-  expected = "arm";
-} else {
-  expected = verdict;
-}
+// Inbox pickup requires every live primary to arm even without fleet work.
+// Away mode is the exception: its daemon owns supervision instead.
+// This contract is the oracle, independent of the predicate implementation.
+const expected = existsSync(`${state}/.afk`) ? "no-arm" : "arm";
 
 const mod = await import(pathToFileURL(process.env.PLUGIN).href);
 const client = { session: { promptAsync: async () => {} } };

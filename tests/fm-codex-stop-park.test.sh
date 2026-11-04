@@ -339,7 +339,7 @@ test_failed_queue_delivery_latches_fallback() {
   pass "a failed native queue delivery latches the session to foreground fallback"
 }
 
-test_latched_fallback_stays_quiet_without_supervision_need() {
+test_latched_fallback_requires_inbox_supervision_without_fleet_work() {
   local home out
   home=$(make_home latched-idle opted-in)
   printf '%s' "$SESSION_ID" > "$home/state/.codex-park-fallback"
@@ -347,13 +347,13 @@ test_latched_fallback_stays_quiet_without_supervision_need() {
   out=$(under_codex "$home" "$REGISTER"'
     printf "%s" "$PAYLOAD" | "$PARK" --guard; echo "guard=$?"
   ' 2>&1)
-  assert_contains "$out" "guard=0" "a latched session with nothing to supervise must not block Stop: $out"
-  assert_equals ran "$(cat "$home/turnend-guard-ran" 2>/dev/null)" "the latched idle guard must defer to the turn-end guard"
-  pass "a latched fallback does not force a Stop turn when nothing needs supervision"
+  assert_contains "$out" "guard=2" "a live primary still needs inbox supervision after fleet work ends: $out"
+  assert_contains "$out" "foreground fallback" "the guard must report the latched delivery failure: $out"
+  pass "a latched fallback requires inbox supervision even without fleet work"
 }
 
-# A park holds a live arm while supervision stops being needed, with
-# state/.wake-queue left <queued|empty>; echoes the Stop hook's exit code.
+# A park holds a live arm after fleet work ends, with the wake queue either
+# queued or empty; the live primary must keep monitoring until a wake arrives.
 settle_idle_case() {  # <name> <queued|empty> [VAR=VAL ...]
   local name=$1 queue=$2 home
   shift 2
@@ -371,6 +371,9 @@ settle_idle_case() {  # <name> <queued|empty> [VAR=VAL ...]
       sleep 0.05
     done
     rm -f "$FM_HOME/state/fixture-task.meta"
+    sleep 0.5
+    kill -0 "$park" 2>/dev/null || echo "park stopped before an inbox wake"
+    rm -f "$FM_HOME/arm-hold"
     i=0
     while kill -0 "$park" 2>/dev/null && [ "$i" -lt 200 ]; do sleep 0.1; i=$((i + 1)); done
     kill -0 "$park" 2>/dev/null && { echo "park still running"; kill "$park"; }
@@ -385,22 +388,26 @@ test_settle_idle_delivers_a_queued_result_once() {
   home=$(settle_idle_case settle-queued queued)
   out=$(cat "$home/settle.out")
   assert_not_contains "$out" "park never armed" "fixture: $out"
-  assert_not_contains "$out" "park still running" "the park must settle once supervision is no longer needed: $out"
+  assert_not_contains "$out" "park stopped before an inbox wake" "the live primary must keep monitoring after fleet work ends: $out"
+  assert_not_contains "$out" "park still running" "the park must deliver the later wake: $out"
   assert_contains "$out" "stop=0" "a delivered final result must exit cleanly: $out"
   assert_equals delivered "$(outcome "$home")" "the park must record the delivered queued result"
   assert_equals 1 "$(queue_count "$home")" "exactly one native queue delivery must hand over the queued result"
-  assert_contains "$(cat "$home/queue.log")" "queue --thread $SESSION_ID --message Firstmate watcher wake: a final result is queued" \
-    "the queued result must reach this session's thread"
+  assert_contains "$(cat "$home/queue.log")" "queue --thread $SESSION_ID --message" \
+    "the wake must reach this session's thread"
+  assert_contains "$(cat "$home/queue.log")" "signal: fixture-task finished" \
+    "the later actionable wake must reach the primary"
   assert_absent "$home/state/.codex-park-fallback" "a delivered final result must not latch fallback"
   assert_absent "$home/state/.codex-park.lock" "the settled park must release its claim"
-  pass "a queued result left when supervision ends is delivered once and recorded as delivered"
+  pass "a live primary keeps monitoring after fleet work ends and delivers the later wake once"
 }
 
 test_settle_idle_failed_delivery_latches_fallback() {
   local home out
   home=$(settle_idle_case settle-failed queued FM_FAKE_CODEX_QUEUE_RC=1)
   out=$(cat "$home/settle.out")
-  assert_not_contains "$out" "park still running" "the park must settle once supervision is no longer needed: $out"
+  assert_not_contains "$out" "park stopped before an inbox wake" "the live primary must keep monitoring after fleet work ends: $out"
+  assert_not_contains "$out" "park still running" "the park must attempt the later wake: $out"
   assert_contains "$out" "stop=1" "a failed final delivery must fail the park: $out"
   assert_equals delivery-failed "$(outcome "$home")" "the park must record the failed final delivery"
   assert_equals "$SESSION_ID" "$(cat "$home/state/.codex-park-fallback" 2>/dev/null)" \
@@ -412,12 +419,13 @@ test_settle_idle_with_an_empty_queue_records_idle() {
   local home out
   home=$(settle_idle_case settle-empty empty)
   out=$(cat "$home/settle.out")
-  assert_not_contains "$out" "park still running" "the park must settle once supervision is no longer needed: $out"
-  assert_contains "$out" "stop=0" "an idle settle must exit cleanly: $out"
-  assert_equals idle "$(outcome "$home")" "an empty queue must record idle"
-  assert_equals 0 "$(queue_count "$home")" "an empty queue must make no native queue delivery"
-  assert_absent "$home/state/.codex-park-fallback" "an idle settle must not latch fallback"
-  pass "an empty queue when supervision ends records idle with no delivery"
+  assert_not_contains "$out" "park stopped before an inbox wake" "an empty queue must not end inbox monitoring: $out"
+  assert_not_contains "$out" "park still running" "the park must deliver the later wake: $out"
+  assert_contains "$out" "stop=0" "the later wake must exit cleanly: $out"
+  assert_equals delivered "$(outcome "$home")" "the later wake must be delivered"
+  assert_equals 1 "$(queue_count "$home")" "the later wake must make exactly one native delivery"
+  assert_absent "$home/state/.codex-park-fallback" "a successful inbox-monitoring cycle must not latch fallback"
+  pass "a live primary with an empty queue keeps monitoring until the next wake"
 }
 
 test_repeated_arm_failure_latches_fallback() {
@@ -535,7 +543,7 @@ test_single_flight_claim_admits_one_park
 test_stop_rearms_after_a_delivering_park_releases_its_claim delivered 1
 test_stop_rearms_after_a_delivering_park_releases_its_claim delivering 4
 test_failed_queue_delivery_latches_fallback
-test_latched_fallback_stays_quiet_without_supervision_need
+test_latched_fallback_requires_inbox_supervision_without_fleet_work
 test_settle_idle_delivers_a_queued_result_once
 test_settle_idle_failed_delivery_latches_fallback
 test_settle_idle_with_an_empty_queue_records_idle
