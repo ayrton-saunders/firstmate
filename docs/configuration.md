@@ -2485,7 +2485,8 @@ When enabled, ordinary local supervisory text can still reach explicitly mapped 
 Discord-lane sends, remote mapped sends, and mapped project spawns still require parent-issued permits rather than treating transport input as authorization.
 Mapped endpoint aliases cannot bypass the guard through direct terminal text, and mapped work cannot use parser-native invocations.
 Unmapped sends retain their ordinary routing behavior after configuration validation and endpoint identity checks, without loading the pinned Discord interpreter, package or parent source identity.
-For steering, stale parent `source`, `source_commit` or `source_digest` pins fence mapped targets only; the refusal names the Discord lane and the mismatched pin, comparing commit/digest pins against the current parent identity.
+Ordinary local supervisory sends also avoid the pinned Discord interpreter, package and parent source identity, including for mapped workers.
+For steering, stale parent `source`, `source_commit` or `source_digest` pins fence only Discord-lane and remote mapped sends, never ordinary local supervision; the refusal names the Discord lane and the mismatched pin, comparing commit/digest pins against the current parent identity.
 A proven absent unrelated mapped endpoint does not block routing; an indeterminate identity lookup refuses delivery rather than risking a mapped terminal bypass.
 Capacity deferral remains a no-launch outcome and does not consume dispatch authority.
 Once a permit is consumed, reconcile lifecycle state before retrying; a failed command is not authority to reuse it.

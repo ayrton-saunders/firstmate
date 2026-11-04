@@ -12,8 +12,8 @@ it records retryable no-launch evidence without consuming dispatch authority.
 Exact pre-marker message (send) or brief SHA256 (spawn) arrives on stdin.
 FM_HOME selects the invoking parent home, as in the owning lifecycle script.
 Absent config/discord-integration.json preserves legacy behavior.
-Unmapped sends resolve routing configuration only, never the pinned parent
-interpreter, package or source identity; mapped sends retain the identity fence.
+Unmapped sends and ordinary local supervisory sends resolve routing configuration
+only, never the pinned parent interpreter, package or source identity.
 An enabled config binds schema=2, canonical home, private package root and hashes,
 parent journal, routes [{target,project}], projects {canonical key:absolute root}.
 FM_DISCORD_AUTH names a parent-issued one-use permit, never a transport claim.
@@ -80,15 +80,12 @@ def load(home, *, routing_only=False):
         if not route['target'] or any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-' for c in route['target']):
             raise ValueError('Invalid mapped route identity')
     # Imported callers (dispatch/reply) retain full verification by default.
-    # Only the send classifier defers it until route membership is known.
     if not routing_only:
         verify_parent(config)
     return config
 
 
 def verify_parent(config):
-    # Resolve route membership before executing any pinned interpreter/package
-    # or identifying the parent source. Unmapped sends are not Discord work.
     interpreter = Path(config['python_executable'])
     if not interpreter.is_absolute() or not interpreter.is_file():
         raise ValueError('Pinned existing parent interpreter required')
@@ -241,12 +238,12 @@ def guard(args):
         raise ValueError('Invalid hook arguments')
     if project is None:
         return
-    if args[0] == 'send':
+    local_send = args[0] == 'send' and candidate_backend != 'remote' and not discord_lane
+    if args[0] == 'send' and not local_send:
         verify_parent(config)
     if args[0] == 'send' and not generation:
         raise ValueError('Enabled mapped endpoint requires a recorded lifecycle generation')
     permit = os.environ.get('FM_DISCORD_AUTH', '')
-    local_send = args[0] == 'send' and candidate_backend != 'remote' and not discord_lane
     if not local_send and (len(permit) != 32 or any(c not in '0123456789abcdef' for c in permit)):
         raise ValueError('Mapped routing requires a typed parent-issued lane permit')
     text = sys.stdin.buffer.read(24577)

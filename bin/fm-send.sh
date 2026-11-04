@@ -935,8 +935,7 @@ else
     exit 1
   fi
   # Resolve optional Discord membership before markers/correlation or delivery.
-  # The hook checks parent identity only for mapped routes; never preflight the
-  # parent release here, since a stale Discord pin must not fence other workers.
+  # Never preflight the parent release here.
   # Leave the hook's lane-specific fence diagnostic intact on stderr.
   if [ -e "$FM_HOME/config/discord-integration.json" ]; then
     DISCORD_ROUTE_INFO=$(printf '%s' "$MESSAGE" | FM_HOME="$FM_HOME" python3 -I "$SCRIPT_DIR/fm-discord-hook.py" send \
