@@ -427,18 +427,18 @@ test_resolves_outermost_claude_pid_in_nested_bgspare_chain() {
   pass "auto-arm: resolves the outermost pid of a nested contiguous claude ancestry (bg-spare chain)"
 }
 
-test_inbox_intake_when_fleet_idle() {
+test_inert_when_fleet_idle() {
   local dir out status
   dir=$(make_primary_dir "$TMP_ROOT/idle")
+  : > "$dir/state/.claude-autoarm-failure-notified"
+  : > "$dir/state/.claude-autoarm-failure-alarmed"
   write_arm_fixture "$dir" actionable
   out=$(run_autoarm "$dir" 2>/dev/null); status=$?
-  # Inbox intake must remain live even before the first note arrives. The
-  # outside-caller contract is the oracle: no unrelated task or registered
-  # check may be needed to deliver a new request to a running primary.
-  expect_code 2 "$status" "an idle primary must keep inbox intake armed: $out"
-  [ -e "$dir/state/arm-ran" ] || fail "idle primary stopped listening for inbox requests"
-  assert_contains "$out" "firstmate watcher wake" "idle primary must receive the actionable wake"
-  pass "auto-arm: keeps inbox intake live with no fleet work"
+  expect_code 0 "$status" "hook must exit 0 in an idle home with no X-mode poll"
+  [ ! -e "$dir/state/arm-ran" ] || fail "hook armed an idle home"
+  assert_present "$dir/state/.claude-autoarm-failure-notified" "idle state without positive recovery reset the failure notice"
+  assert_present "$dir/state/.claude-autoarm-failure-alarmed" "idle state without positive recovery reset the attended alarm"
+  pass "auto-arm: inert with nothing in flight and no X-mode need"
 }
 
 # --- the armed cycle ----------------------------------------------------------
@@ -1846,16 +1846,16 @@ test_superseded_owner_goes_silent_and_never_double_translates() {
   pass "auto-arm: a superseded owner goes silent - one supersession episode, one translation, no held mutex"
 }
 
-test_inbox_intake_survives_last_task() {
+test_need_vanished_mid_cycle_closes_quietly() {
   local dir out status
   dir=$(make_primary_dir "$TMP_ROOT/vanished")
   : > "$dir/state/task.meta"
   write_arm_fixture "$dir" meta-vanishes
   out=$(run_autoarm "$dir" 2>/dev/null); status=$?
-  expect_code 2 "$status" "finishing the last task must not stop inbox intake"
-  assert_contains "$out" "firstmate watcher wake" "idle primary must still receive the wake"
-  [ "$(epoch_outcome "$dir")" = rewake ] || fail "epoch must record outcome=rewake, got: $(epoch_outcome "$dir")"
-  pass "auto-arm: inbox intake survives the last task finishing"
+  expect_code 0 "$status" "an actionable close after the fleet went idle must not rewake"
+  [ -z "$out" ] || fail "vanished-need close produced output: $out"
+  [ "$(epoch_outcome "$dir")" = clean ] || fail "epoch must record outcome=clean, got: $(epoch_outcome "$dir")"
+  pass "auto-arm: need vanishing mid-cycle closes without a rewake"
 }
 
 test_afk_mid_cycle_suppresses_rewake() {
@@ -2222,7 +2222,7 @@ test_inert_when_lock_held_by_other_harness
 test_inert_when_afk
 test_stale_lock_recovery_preserves_afk_and_need_gates
 test_resolves_outermost_claude_pid_in_nested_bgspare_chain
-test_inbox_intake_when_fleet_idle
+test_inert_when_fleet_idle
 test_actionable_close_rewakes_with_reason
 test_actionable_close_with_live_successor_rewakes_once
 test_attached_cycle_end_starts_handling_successor
@@ -2264,7 +2264,7 @@ test_recycled_bridge_claim_stays_open_on_session_id_match
 test_identityless_ledger_never_defers
 test_superseded_owner_never_reinvokes_the_arm
 test_superseded_owner_goes_silent_and_never_double_translates
-test_inbox_intake_survives_last_task
+test_need_vanished_mid_cycle_closes_quietly
 test_afk_mid_cycle_suppresses_rewake
 test_active_in_marked_secondmate_home
 test_long_poll_grace_reaches_arm_wrapper
