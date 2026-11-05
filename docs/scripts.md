@@ -121,7 +121,7 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-tangle-lib.sh`       | Shared default-branch resolution and primary-checkout tangle classification          |
 | `fm-timeout-lib.sh`      | Single owner of hard-bounded command execution and its fallback watchdog |
 | `fm-timing-lib.sh`       | Single owner of the deferred network stage's per-step elapsed-time records, inert unless a run asks for them |
-| `fm-supervision-lib.sh`  | Shared in-flight-work-without-fresh-watcher-beacon predicate                         |
+| `fm-supervision-lib.sh`  | Shared [supervision-need](turnend-guard.md#supervision-need) and watcher-beacon freshness predicates |
 | `fm-ff-lib.sh`           | Shared guarded fast-forward/reconcile helper for origin pulls and secondmate syncs, with durable divergence markers |
 | `fm-lock-lib.sh`         | Shared "is this git lock provably abandoned?" proof used by teardown and fleet-sync   |
 | `fm-config-inherit-lib.sh` | Shared primary-to-secondmate inherited local-material propagation and config-reread delivery |
@@ -185,7 +185,7 @@ The shared no-mistakes gate lifecycle boundary is summarized in [architecture.md
 | `fm-discord-verify-pins.py` | Read-only parent source/config/transport identity comparison ([pins](discord-owner-reply-pins.md)) |
 | `fm-discord-dispatch.py` | Assign one captured owner question to a mapped second mate ([configuration](configuration.md#private-discord-parent-integration)) |
 | `fm-discord-reply.py` | Parent-approved one-line final from an authoritative correlated return ([configuration](configuration.md#private-discord-parent-integration)) |
-| `fm-inbox.sh`            | The captain's out-of-band capture surface: queue a note (optionally idempotent by request id), announce or repair its wake, record a durable primary reply, and emit bounded receipts and primary-readiness JSON |
+| `fm-inbox.sh`            | The captain's out-of-band capture surface: queue a note (optionally idempotent by request id), announce or repair its wake, record a durable primary reply, wait boundedly for completion, and emit receipts and primary-readiness JSON ([outside caller flow](voice-relay.md#outside-callers-submit-and-wait-for-completion)) |
 | `fm-mail.sh`             | General-purpose mail plane: read unseen IMAP mail, send one SMTP message, or surface new mail as a `check` wake via `poll` (configuration in the home's gitignored `.env`) |
 | `fm-mail.py`             | The IMAP/SMTP engine behind `fm-mail.sh` |
 | `fm-mail-check.sh`       | Standing received-mail poll: `arm` registers a watcher check that runs `fm-mail.sh poll` on the watcher cadence (new mail still wakes via the poll; the check's own line also wakes unless the poll is a proven no-op), `disarm` removes it |

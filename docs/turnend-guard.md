@@ -35,7 +35,7 @@ The turn-end guard closes the remaining gap at the primary's own turn boundary.
 
 The guard acts at that boundary when both of these hold:
 
-- Work, a process-event source, a registered custom check, or Relay polling needs supervision.
+- The [supervision-need predicate](#supervision-need) requires supervision.
 - No identity-matched watcher has a fresh beacon.
 
 The beacon is `state/.last-watcher-beat`, which `bin/fm-watch.sh` touches every cycle, as [Guard grace and the poll cadence](#guard-grace-and-the-poll-cadence) describes.
@@ -81,6 +81,8 @@ These sources also count toward supervision need:
 - A custom check registered with `bin/fm-check-register.sh` counts the same way, so an operator's home-level poll keeps running after the last task is torn down.
 
 The default cross-harness mode exits silently with no supervision need.
+A live session lock alone does not require supervision, so an idle Claude primary without any of the triggers above exits its Stop hook without arming inbox intake.
+Reliable pickup in that idle case is not delivered or verified by the bounded inbox wait and remains separately tracked as `fork-inbox-idle-primary-pickup`; the [outside-caller contract](voice-relay.md#outside-callers-submit-and-wait-for-completion) does not start a consumer.
 
 ### Strict watcher check at the turn boundary
 
@@ -573,7 +575,7 @@ That warning uses `bin/fm-supervision-instructions.sh --repair-line`, so it alwa
 
 - Child crewmate and scout worktrees are outside scope.
 - A valid secondmate home is in scope.
-  An idle secondmate endpoint with no Relay poll remains healthy because it has no supervision need.
+  An idle secondmate endpoint with none of the [supervision-need triggers](#supervision-need) remains healthy without a watcher.
 - The blocking and bounded-follow-up mechanisms are limited to the primary integrations listed above.
 - OpenCode headless mode and untrusted Grok project hooks remain fail-open at the host boundary.
 - Cursor's `stop` step does not fire in headless `cursor-agent -p`, the same class of limit as OpenCode headless; firstmate primaries run interactive.
