@@ -12,6 +12,8 @@ it records retryable no-launch evidence without consuming dispatch authority.
 Exact pre-marker message (send) or brief SHA256 (spawn) arrives on stdin.
 FM_HOME selects the invoking parent home, as in the owning lifecycle script.
 Absent config/discord-integration.json preserves legacy behavior.
+Unmapped sends and ordinary local supervisory sends resolve routing configuration
+only, never the pinned parent interpreter, package or source identity.
 An enabled config binds schema=2, canonical home, private package root and hashes,
 parent journal, routes [{target,project}], projects {canonical key:absolute root}.
 FM_DISCORD_AUTH names a parent-issued one-use permit, never a transport claim.
@@ -46,7 +48,11 @@ def unique(pairs):
     return result
 
 
-def load(home):
+class ParentIdentityFence(ValueError):
+    """Safe diagnostic containing only pin names and public source hashes."""
+
+
+def load(home, *, routing_only=False):
     path = home / 'config/discord-integration.json'
     if not path.exists():
         return None
@@ -62,6 +68,24 @@ def load(home):
     optional = {'mapping', 'ingress', 'egress', 'assets'}
     if not fields <= set(config) or set(config) - fields - optional or config['schema'] != 2 or config['home'] != str(home):
         raise ValueError('Integration schema/home mismatch')
+    if (not Path(config['journal']).is_absolute() or not config['routes'] or not config['projects']
+            or any(not isinstance(root, str) or not Path(root).is_absolute() for root in config['projects'].values())):
+        raise ValueError('Integration journal/routes/projects missing')
+    if (any(not isinstance(route, dict) for route in config['routes'])
+            or len({route.get('target') for route in config['routes']}) != len(config['routes'])):
+        raise ValueError('Ambiguous mapped route identity')
+    for route in config['routes']:
+        if set(route) != {'target', 'project'} or route['project'] not in config['projects']:
+            raise ValueError('Invalid explicit integration mapping')
+        if not route['target'] or any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-' for c in route['target']):
+            raise ValueError('Invalid mapped route identity')
+    # Imported callers (dispatch/reply) retain full verification by default.
+    if not routing_only:
+        verify_parent(config)
+    return config
+
+
+def verify_parent(config):
     interpreter = Path(config['python_executable'])
     if not interpreter.is_absolute() or not interpreter.is_file():
         raise ValueError('Pinned existing parent interpreter required')
@@ -77,25 +101,22 @@ def load(home):
              for item in (package / 'personal_discord').glob('*.py') if not item.is_symlink()}
     if not files or files != config['hashes']:
         raise ValueError('Integration release hash mismatch')
-    if (not Path(config['journal']).is_absolute() or not config['routes'] or not config['projects']
-            or any(not isinstance(root, str) or not Path(root).is_absolute() for root in config['projects'].values())):
-        raise ValueError('Integration journal/routes/projects missing')
-    if (any(not isinstance(route, dict) for route in config['routes'])
-            or len({route.get('target') for route in config['routes']}) != len(config['routes'])):
-        raise ValueError('Ambiguous mapped route identity')
-    for route in config['routes']:
-        if set(route) != {'target', 'project'} or route['project'] not in config['projects']:
-            raise ValueError('Invalid explicit integration mapping')
-        if not route['target'] or any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-' for c in route['target']):
-            raise ValueError('Invalid mapped route identity')
     source = Path(__file__).resolve().parent.parent
     if str(source) != config['source']:
-        raise ValueError('Invoked source differs from the approved parent release')
+        raise ParentIdentityFence('Discord lane fenced: stale source pin differs from the invoked parent source; reconcile the approved parent identity')
     sys.path.insert(0, str(package))
     identity = importlib.import_module('personal_discord.integration').Integration.identify_source(source)
-    if identity != {key: config[key] for key in ('source_commit', 'source_digest')}:
-        raise ValueError('Approved parent source commit/digest changed')
-    return config
+    if not isinstance(identity, dict) or set(identity) != {'source_commit', 'source_digest'}:
+        raise ValueError('Invalid parent source identity')
+    stale = [key for key in ('source_commit', 'source_digest') if identity.get(key) != config[key]]
+    if stale:
+        def public_hash(value):
+            return value if isinstance(value, str) and len(value) in (40, 64) and all(c in '0123456789abcdef' for c in value) else '<non-hash>'
+        current = ', '.join(key + '=' + public_hash(identity.get(key))
+                            for key in ('source_commit', 'source_digest'))
+        raise ParentIdentityFence('Discord lane fenced: stale ' + ', '.join(stale) +
+                                  ' pin(s) against current parent identity (' + current +
+                                  '); reconcile the approved parent identity')
 
 
 def meta_value(path, key):
@@ -108,7 +129,7 @@ def meta_value(path, key):
 
 def guard(args):
     home = Path(os.environ['FM_HOME']).resolve(strict=True)
-    config = load(home)
+    config = load(home, routing_only=bool(args and args[0] == 'send'))
     if config is None:
         return
     if not args or args[0] not in ('send', 'spawn', 'capacity-deferred', 'outcome', 'ready', 'confirm-send'):
@@ -217,10 +238,12 @@ def guard(args):
         raise ValueError('Invalid hook arguments')
     if project is None:
         return
+    local_send = args[0] == 'send' and candidate_backend != 'remote' and not discord_lane
+    if args[0] == 'send' and not local_send:
+        verify_parent(config)
     if args[0] == 'send' and not generation:
         raise ValueError('Enabled mapped endpoint requires a recorded lifecycle generation')
     permit = os.environ.get('FM_DISCORD_AUTH', '')
-    local_send = args[0] == 'send' and candidate_backend != 'remote' and not discord_lane
     if not local_send and (len(permit) != 32 or any(c not in '0123456789abcdef' for c in permit)):
         raise ValueError('Mapped routing requires a typed parent-issued lane permit')
     text = sys.stdin.buffer.read(24577)
@@ -283,6 +306,9 @@ if __name__ == '__main__':
         sys.exit(0)
     try:
         guard(sys.argv[1:])
+    except ParentIdentityFence as error:
+        print('error: ' + str(error), file=sys.stderr)
+        sys.exit(1)
     except (ValueError, KeyError, TypeError, ImportError, OSError, RuntimeError, sqlite3.Error, subprocess.SubprocessError) as error:
         # Fixed categories only: never echo message, private paths or tokens.
         print('error: Discord parent routing guard refused: ' + type(error).__name__ +

@@ -142,10 +142,15 @@ PACKAGE="$TMP_ROOT/package"
 mkdir -p "$MAPPED_HOME/config" "$MAPPED_HOME/state" "$PACKAGE/personal_discord" "$TMP_ROOT/send-tools"
 printf '' > "$PACKAGE/personal_discord/__init__.py"
 cat > "$PACKAGE/personal_discord/integration.py" <<'PY'
+import os
+from pathlib import Path
 class Integration:
     @staticmethod
     def identify_source(source):
-        return {'source_commit': 'fixture', 'source_digest': 'fixture'}
+        marker = os.environ.get('FM_TEST_DISCORD_IDENTITY_MARKER')
+        if marker:
+            Path(marker).write_text('identified')
+        return {'source_commit': 'a' * 40, 'source_digest': 'b' * 64}
 PY
 cat > "$PACKAGE/personal_discord/journal.py" <<'PY'
 from pathlib import Path
@@ -177,7 +182,7 @@ config = dict(schema=2, enabled=True, home=str(home), package_root=str(package),
                       for p in (package / 'personal_discord').glob('*.py')},
               journal=str(home / 'journal'), routes=[dict(target='mapped', project='fixture')],
               projects={'fixture': str(source)}, python_executable=str(interpreter),
-              source=str(source), source_commit='fixture', source_digest='fixture')
+              source=str(source), source_commit='a' * 40, source_digest='b' * 64)
 (home / 'config/discord-integration.json').write_text(json.dumps(config))
 PY
 cat > "$TMP_ROOT/send-tools/tmux" <<'SH'
@@ -202,6 +207,53 @@ assert_not_contains "$(<"$TMP_ROOT/mapped.err")" 'reconcile its receipt' 'mapped
 [ ! -e "$MAPPED_HOME/journal" ] || fail 'local send must not open journal'
 [ ! -e "$MAPPED_HOME/journal.consumed" ] || fail 'local send must not consume a permit'
 pass 'Discord hook: mapped local supervisory send delivers without a journal or permit'
+
+
+cp "$MAPPED_HOME/config/discord-integration.json" "$TMP_ROOT/current-config.json"
+"$PY314" - "$MAPPED_HOME/config/discord-integration.json" <<'PY'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+config = json.loads(path.read_text())
+config.update(source_commit='stale-commit', source_digest='stale-digest')
+path.write_text(json.dumps(config))
+PY
+fm_write_meta "$MAPPED_HOME/state/unmapped.meta" 'window=sess:fm-unmapped' 'backend=tmux' 'harness=pi' 'kind=ship' 'spawn_gen=fixture-gen'
+for lane in ordinary typed; do
+  lane_env=(-u FM_DISCORD_AUTH)
+  [ "$lane" != typed ] || lane_env=(FM_DISCORD_AUTH=00000000000000000000000000000000)
+  for target in unmapped mapped; do
+    rm -f "$TMP_ROOT/identity-marker"
+    rc=0
+    env "${lane_env[@]}" PATH="$TMP_ROOT/send-tools:$PATH" FM_HOME="$MAPPED_HOME" \
+      FM_ROOT_OVERRIDE="$MAPPED_HOME" FM_SEND_SETTLE=0 \
+      FM_TEST_DISCORD_IDENTITY_MARKER="$TMP_ROOT/identity-marker" \
+      bash "$ROOT/bin/fm-send.sh" "$target" 'stale pin steer' \
+      >"$TMP_ROOT/stale.out" 2>"$TMP_ROOT/stale.err" || rc=$?
+    if [ "$target" = unmapped ] || [ "$lane" = ordinary ]; then
+      [ "$rc" -eq 0 ] || fail "stale parent pin must not fence $target $lane steer: $(<"$TMP_ROOT/stale.err")"
+      [ ! -e "$TMP_ROOT/identity-marker" ] || fail 'ordinary steer must not identify the parent source'
+      assert_not_contains "$(<"$TMP_ROOT/stale.err")" 'Discord lane fenced' 'ordinary steer must not report a Discord fence'
+      assert_not_contains "$(<"$TMP_ROOT/stale.err")" 'Discord parent routing guard refused' 'ordinary steer must not report a Discord guard refusal'
+    else
+      [ "$rc" -ne 0 ] || fail 'stale parent pin must fence mapped Discord steer'
+      [ -f "$TMP_ROOT/identity-marker" ] || fail 'Discord steer must identify the parent source'
+      assert_contains "$(<"$TMP_ROOT/stale.err")" 'Discord lane fenced' 'fence must name the lane'
+      assert_contains "$(<"$TMP_ROOT/stale.err")" 'source_commit' 'fence must identify stale commit pin'
+      assert_contains "$(<"$TMP_ROOT/stale.err")" 'source_digest' 'fence must identify stale digest pin'
+      assert_contains "$(<"$TMP_ROOT/stale.err")" 'current parent identity' 'fence must name the comparison identity'
+      assert_contains "$(<"$TMP_ROOT/stale.err")" 'source_commit=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' 'fence must give current parent commit'
+      assert_contains "$(<"$TMP_ROOT/stale.err")" 'source_digest=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' 'fence must give current parent digest'
+      assert_not_contains "$(<"$TMP_ROOT/stale.err")" 'stale pin steer' 'fence must not echo payload'
+    fi
+  done
+done
+[ "$(find "$MAPPED_HOME/state/unmapped.inbox" -maxdepth 1 -name '*.msg' | wc -l | tr -d ' ')" -eq 2 ] || fail 'all unmapped steers must be durable'
+assert_contains "$(<"$MAPPED_HOME/state/mapped.inbox/002.msg")" 'stale pin steer' 'mapped ordinary steer must be durable despite stale pins'
+[ ! -e "$MAPPED_HOME/state/mapped.inbox/003.msg" ] || fail 'fenced Discord sends must not deliver'
+[ ! -e "$MAPPED_HOME/journal" ] || fail 'stale source must not open journal'
+cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
+pass 'Discord hook: stale parent identity fences Discord sends but not local supervision'
 
 mapped_hook() {
   FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" "$@"

@@ -934,7 +934,9 @@ else
     echo "error: a text steer requires a nonempty message; nothing was sent (an empty marked request would deliver only marker and correlation bytes and leave the parent waiting on a reply to nothing)" >&2
     exit 1
   fi
-  # Optional parent-issued authority, before markers/correlation or delivery.
+  # Resolve optional Discord membership before markers/correlation or delivery.
+  # Never preflight the parent release here.
+  # Leave the hook's lane-specific fence diagnostic intact on stderr.
   if [ -e "$FM_HOME/config/discord-integration.json" ]; then
     DISCORD_ROUTE_INFO=$(printf '%s' "$MESSAGE" | FM_HOME="$FM_HOME" python3 -I "$SCRIPT_DIR/fm-discord-hook.py" send \
       "$RAW_TARGET" "$T" "$TARGET_META" "$TARGET_BACKEND") || exit 1
