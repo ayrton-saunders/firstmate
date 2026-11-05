@@ -1220,7 +1220,7 @@ test_opencode2_raw_launch_preserves_verbatim_escape_hatch() {
   out=$(FM_TEST_OPENCODE_TURN=never FM_TEST_ENTER_LOG="$enter_log" FM_OPENCODE_DELIVERY_POLLS=2 \
     run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR" "$raw")
   expect_code 0 "$?" "raw OpenCode 2 must not wait for canonical standalone plugin proof: $out"
-  launch=$(cat "$LAUNCH_LOG")
+  launch=$(fm_test_launch_unframe "$(cat "$LAUNCH_LOG")")
   [ "$launch" = "export COMPACT_ADVISER_DISABLE=1; $(task_inbox_export "$HOME_DIR" "$id")$(fm_test_launch_git_prefix "$launch")env -u CURSOR_AGENT -u CURSOR_INVOKED_AS -u GEMINI_CLI $raw" ] \
     || fail "raw OpenCode launch was rewritten: $launch"
   assert_equals 1 "$(wc -l < "$enter_log" | tr -d ' ')" "raw launch must receive no delivery-gate Enter"
