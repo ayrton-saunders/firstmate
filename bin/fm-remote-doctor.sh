@@ -2,7 +2,9 @@
 # Check, and optionally repair, one remote account's second-mate readiness.
 #
 # Usage:
-#   bin/fm-on.sh <secondmate-id|ssh-alias> fm-remote-doctor.sh [--fix] [--backend herdr|rex|any]
+#   fm-remote-doctor.sh [--herdr-session NAME] [--fix] [--backend herdr|rex|any]
+# Normally invoked through fm-on.sh; that transport alone supplies the route's
+# optional session flag, so callers must not override it.
 #
 # Run it through fm-on.sh so the fixed entrypoint invokes this readiness owner
 # over its plain SSH bootstrap. The command reports the same filesystem-composed
@@ -10,7 +12,7 @@
 # worker itself.
 #
 # A remote second mate runs on one session-provider backend: herdr (the
-# default) in the dedicated fm-remote session, or rex on the host's own
+# default) in the route-selected session (legacy fm-remote), or rex on the host's own
 # persistent rex server in a 2ndmate-<id>-<hash> session. --backend names the
 # one to verify; the default `any` resolves herdr when its CLI is present, then
 # rex, so a host offering both is still verified for the default backend. On
@@ -73,6 +75,14 @@ SCRIPT_DIR=${SCRIPT_SELF%/*}
 [ "$SCRIPT_DIR" != "$SCRIPT_SELF" ] || SCRIPT_DIR=.
 SCRIPT_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR" && pwd -P)
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(CDPATH='' cd "$SCRIPT_DIR/.." && pwd -P)}"
+# shellcheck source=bin/fm-herdr-session-lib.sh
+. "$SCRIPT_DIR/fm-herdr-session-lib.sh"
+HERDR_SESSION_NAME=$FM_REMOTE_HERDR_LEGACY_SESSION
+if [ "${1:-}" = --herdr-session ]; then
+  if [ "$#" -lt 2 ] || ! fm_remote_herdr_session_validate "$2"; then printf 'error: invalid Herdr session\n' >&2; exit 2; fi
+  HERDR_SESSION_NAME=$2
+  shift 2
+fi
 # shellcheck source=bin/fm-remote-job-lib.sh
 . "$SCRIPT_DIR/fm-remote-job-lib.sh"
 # shellcheck source=bin/fm-tasks-axi-lib.sh
@@ -89,16 +99,46 @@ OPTIONAL_TOOLS=(tmux no-mistakes gh)
 # The server API revision Firstmate's rex adapter is verified against
 # (bin/backends/rex.sh's FM_BACKEND_REX_MIN_API).
 REX_MIN_API=5
-LAUNCH_AGENT_LABEL=dev.firstmate.herdr.fm-remote
+LAUNCH_AGENT_LABEL=$(fm_remote_herdr_session_label "$HERDR_SESSION_NAME")
 # The dedicated remote-secondmate session. The user's interactive Herdr work
 # remains in the separate default session, which this readiness check never
 # requires or changes.
-HERDR_SESSION_NAME=fm-remote
 LAUNCH_AGENT_DIR="${HOME:-}/Library/LaunchAgents"
 LAUNCH_AGENT_PLIST="$LAUNCH_AGENT_DIR/$LAUNCH_AGENT_LABEL.plist"
 LAUNCH_AGENT_LOG_DIR="${HOME:-}/Library/Logs"
 LAUNCH_AGENT_LOG="$LAUNCH_AGENT_LOG_DIR/$LAUNCH_AGENT_LABEL.log"
 ENTRYPOINT_LINK="${HOME:-}/.local/bin/fm-remote-entrypoint.sh"
+
+# APFS is commonly case-insensitive. Refuse alternate spellings before even
+# unrelated --fix work writes files, and check loaded labels as well as paths.
+require_session_paths_unambiguous() {
+  local dir path base folded wanted labels label
+  for dir in "$LAUNCH_AGENT_DIR" "$LAUNCH_AGENT_LOG_DIR"; do
+    [ -d "$dir" ] || continue
+    for path in "$dir"/*; do
+      [ -e "$path" ] || [ -L "$path" ] || continue
+      base=${path##*/}
+      folded=$(printf '%s' "$base" | LC_ALL=C tr '[:upper:]' '[:lower:]')
+      for wanted in "$LAUNCH_AGENT_LABEL.plist" "$LAUNCH_AGENT_LABEL.log"; do
+        if [ "$base" != "$wanted" ] && { [ "$folded" = "$(printf '%s' "$wanted" | LC_ALL=C tr '[:upper:]' '[:lower:]')" ] || [ "$path" -ef "$dir/$wanted" ]; }; then
+          printf 'error: case-folded Herdr session path collision: %s\n' "$path" >&2
+          return 1
+        fi
+      done
+    done
+  done
+  if [ "$(uname -s 2>/dev/null)" = Darwin ] && command -v launchctl >/dev/null 2>&1; then
+    labels=$(launchctl print "gui/$(id -u)" 2>/dev/null | grep -oE 'dev\.firstmate\.herdr\.[A-Za-z0-9._-]+' || true)
+    while IFS= read -r label; do
+      [ -n "$label" ] || continue
+      if [ "$label" != "$LAUNCH_AGENT_LABEL" ] && [ "$(printf '%s' "$label" | LC_ALL=C tr '[:upper:]' '[:lower:]')" = "$(printf '%s' "$LAUNCH_AGENT_LABEL" | LC_ALL=C tr '[:upper:]' '[:lower:]')" ]; then
+        printf 'error: case-folded Herdr launchd label collision: %s\n' "$label" >&2
+        return 1
+      fi
+    done <<< "$labels"
+  fi
+}
+require_session_paths_unambiguous || exit 1
 
 usage() { sed -n '2,5p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 
@@ -233,7 +273,7 @@ herdr_server_birth() {
     printf 'unproven\n'
     return 0
   fi
-  birth=$(fm_remote_herdr_owner_birth "$owner")
+  birth=$(fm_remote_herdr_owner_birth "$owner" "$HERDR_SESSION_NAME")
   printf '%s %s\n' "$birth" "$owner"
 }
 
@@ -859,9 +899,9 @@ check_herdr_server() {
         record herdr-server "human: session $HERDR_SESSION_NAME is running but lsof does not resolve, so its server's birth cannot be proven" \
           "install lsof on that account so the launch agent and this check can tell an Aqua-born server from one started over SSH"
         ;;
-      unproven)
-        record herdr-server "fixable: session $HERDR_SESSION_NAME is running but no herdr process can be shown to own its socket, so its birth cannot be proven" \
-          "rerun this command with --fix so the launch agent takes the session over (its current panes close and the parent firstmate relaunches its mates)"
+      unproven|unknown\ *)
+        record herdr-server "human: session $HERDR_SESSION_NAME ownership cannot be proven; refusing takeover" \
+          "resolve ownership explicitly before attempting recovery"
         ;;
       *)
         record herdr-server "fixable: session $HERDR_SESSION_NAME is served by pid ${birth#* } born outside the Aqua login session (${birth%% *}), so its panes cannot reach the login keychain" \
@@ -912,7 +952,7 @@ run_checks() { # <resolved-login-shell>
   check_gui_session
   check_remote_job_worker
   # Backend infrastructure is checked only for the selected backend: herdr
-  # needs the Aqua-owned fm-remote server, rex needs a persistent personal rex
+  # needs its selected Aqua-owned session server, rex needs a persistent personal rex
   # server, and the no-backend gap has nothing further to prove.
   case "$DOCTOR_BACKEND" in
     herdr)
@@ -932,6 +972,7 @@ fix_report() { # <check> applied|failed <text>
 
 write_launch_agent() { # <resolved-login-shell>
   local shell=$1 herdr_bin tmp
+  require_session_paths_unambiguous || return 1
   if ! herdr_bin=$(command -v herdr 2>/dev/null); then
     fix_report launchagent failed "herdr does not resolve, so no launch agent was written"
     return 1
@@ -963,6 +1004,7 @@ write_launch_agent() { # <resolved-login-shell>
 # next login. Both are safe to repeat.
 reload_launch_agent() { # <check-to-report-under>
   local report=$1 out
+  require_session_paths_unambiguous || return 1
   [ -f "$LAUNCH_AGENT_PLIST" ] || {
     fix_report "$report" failed "there is no launch agent to load at $LAUNCH_AGENT_PLIST"
     return 1
@@ -1024,7 +1066,26 @@ link_entrypoint() {
 }
 
 apply_fixes() { # <resolved-login-shell>
-  local shell=$1 i name value launch_agent_written=0 launch_agent_reloaded=0 remote_job_fixed=0
+  local shell=$1 i name value birth launch_agent_written=0 launch_agent_reloaded=0 remote_job_fixed=0
+  if [ "$PLATFORM" = darwin ] && [ "$DOCTOR_BACKEND" = herdr ]; then
+    if herdr_server_running; then
+      birth=$(herdr_server_birth)
+      case "$birth" in
+        launchd\ *|worker\ *|ssh\ *) ;;
+        *) fix_report herdr-server failed "ownership is unproven or contradictory; refusing repair without explicit recovery"; return 0 ;;
+      esac
+    fi
+    if [ "$HERDR_SESSION_NAME" != "$FM_REMOTE_HERDR_LEGACY_SESSION" ]; then
+      if { [ -e "$LAUNCH_AGENT_PLIST" ] || [ -L "$LAUNCH_AGENT_PLIST" ]; } && ! launch_agent_contract_matches "$shell"; then
+        fix_report launchagent failed "custom session agent identity is unproven; preserving its plist"
+        return 0
+      fi
+      if launchctl print "user/$UID_NUM/$LAUNCH_AGENT_LABEL" >/dev/null 2>&1 || { launchctl print "gui/$UID_NUM/$LAUNCH_AGENT_LABEL" >/dev/null 2>&1 && ! launch_agent_loaded_contract_matches "$shell"; }; then
+        fix_report launchagent failed "custom session loaded ownership is contradictory; refusing replacement"
+        return 0
+      fi
+    fi
+  fi
   repair_required_wrappers
   i=0
   while [ "$i" -lt "${#CHECK_NAMES[@]}" ]; do

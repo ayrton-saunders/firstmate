@@ -457,11 +457,13 @@ setup_remote_case() {  # <case-dir> <id> <ssh-mode>
     echo "effort=default"
     echo "home=$dir/$id-home"
     echo "remote_host=remote-mac"
+    echo "remote_root=/srv/fm"
+    echo "remote_herdr_session=fm-remote"
     echo "remote_backend=herdr"
     echo "remote_target=fm-remote:2ndmate-$id"
   } > "$dir/home/state/$id.meta"
-  printf -- '- %s - remote domain (host: remote-mac; root: /srv/fm; home: /srv/%s; scope: things; projects: p; added 2026-09-03)\n' \
-    "$id" "$id" > "$dir/home/data/secondmates.md"
+  printf -- '- %s - remote domain (host: remote-mac; root: /srv/fm; home: %s; scope: things; projects: p; added 2026-09-03)\n' \
+    "$id" "$dir/$id-home" > "$dir/home/data/secondmates.md"
   cat > "$fb/fake-ssh" <<'SH'
 #!/usr/bin/env bash
 set -u

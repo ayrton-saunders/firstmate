@@ -34,6 +34,8 @@ set -u
 
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+# shellcheck source=bin/fm-secondmate-registry-lib.sh
+. "$ROOT/bin/fm-secondmate-registry-lib.sh"
 
 BASE_PATH=${FM_TEST_BASE_PATH:-/usr/bin:/bin:/usr/sbin:/sbin}
 fm_git_identity fmtest fmtest@example.com
@@ -777,8 +779,11 @@ make_remote_probe_world() {
   mkdir -p "$w/home/state" "$w/home/data" "$w/home/config"
   cat > "$w/home/state/rsm1.meta" <<EOF
 window=remote:rsm1
+endpoint_task_id=rsm1
 kind=secondmate
 harness=claude
+worktree=/remote/rsm1-home
+remote_root=/remote/root
 remote_host=lab-host
 remote_backend=herdr
 remote_herdr_session=fm-remote
@@ -869,8 +874,11 @@ make_remote_probe_world_rex() {
   mkdir -p "$w/home/state" "$w/home/data" "$w/home/config"
   cat > "$w/home/state/rsm1.meta" <<EOF
 window=remote:rsm1
+endpoint_task_id=rsm1
 kind=secondmate
 harness=claude
+worktree=/remote/rsm1-home
+remote_root=/remote/root
 remote_host=lab-host
 remote_backend=rex
 remote_rex_session_id=session:00000001-0000-7000-8000-000000000002
@@ -974,20 +982,46 @@ test_remote_full_probe_rex_readiness_verdicts() {
 }
 
 test_remote_full_probe_legacy_record_defaults_herdr() {
-  local w out
+  local w out key before bad missing_binding empty_binding
   w=$(make_remote_probe_world_rex probe-legacy)
 
   # A record written before rex existed carries no remote_backend; it is a
   # herdr route, so the gate asks the doctor about herdr and a herdr route
   # reply keeps it alive.
-  sed -i.bak '/^remote_backend=/d;/^remote_rex_/d' "$w/home/state/rsm1.meta"
+  sed -i.bak '/^remote_backend=/d;/^remote_rex_/d;/^remote_target=/d' "$w/home/state/rsm1.meta"
   rm -f "$w/home/state/rsm1.meta.bak"
   printf 'remote_herdr_session=fm-remote\nremote_target=fm-remote:w1:p1\n' >> "$w/home/state/rsm1.meta"
   out=$(probe_remote "$w" full FM_FAKE_ROUTE_BACKEND=herdr)
   [ "$out" = 'alive|alive|0|||' ] || fail "a legacy route should stay alive on herdr, got: $out"
   grep -q -- '--backend herdr' "$w/ssh.log" \
     || fail "a legacy record did not ask the remote doctor about herdr: $(cat "$w/ssh.log")"
-  pass "full probe: a record without remote_backend stays a herdr route"
+  cp "$w/home/state/rsm1.meta" "$w/legacy-proof.meta"
+  missing_binding=$(secondmate_registry_parent_binding "$w/home/state/rsm1.meta")
+  printf 'remote_backend=\n' >> "$w/home/state/rsm1.meta"
+  empty_binding=$(secondmate_registry_parent_binding "$w/home/state/rsm1.meta")
+  [ "$missing_binding" != "$empty_binding" ] || fail "sampled binding confused backend absence with an explicit empty field"
+  cp "$w/legacy-proof.meta" "$w/home/state/rsm1.meta"
+  for key in remote_herdr_session remote_target; do
+    awk -F= -v key="$key" '$1 != key' "$w/legacy-proof.meta" > "$w/home/state/rsm1.meta"
+    cp "$w/home/state/rsm1.meta" "$w/refusal.before"
+    before=$(wc -l < "$w/ssh.log" | tr -d ' ')
+    out=$(probe_remote "$w" full FM_FAKE_ROUTE_BACKEND=herdr)
+    case "$out" in skipped\|*) ;; *) fail "legacy proof accepted missing $key: $out" ;; esac
+    [ "$(wc -l < "$w/ssh.log" | tr -d ' ')" = "$before" ] || fail "missing legacy $key reached SSH"
+    cmp -s "$w/refusal.before" "$w/home/state/rsm1.meta" || fail "missing legacy $key evidence changed"
+  done
+  for bad in 'backend=rex' 'remote_backend=' $'remote_backend=herdr\nremote_backend=herdr' 'remote_herdr_session=fm-remote' 'remote_target=fm-remote:w1:p1'; do
+    cp "$w/legacy-proof.meta" "$w/home/state/rsm1.meta"
+    printf '%s\n' "$bad" >> "$w/home/state/rsm1.meta"
+    cp "$w/home/state/rsm1.meta" "$w/refusal.before"
+    before=$(wc -l < "$w/ssh.log" | tr -d ' ')
+    out=$(probe_remote "$w" full FM_FAKE_ROUTE_BACKEND=herdr)
+    case "$out" in skipped\|*) ;; *) fail "legacy proof accepted contradictory or duplicate evidence: $bad ($out)" ;; esac
+    [ "$(wc -l < "$w/ssh.log" | tr -d ' ')" = "$before" ] || fail "contradictory legacy proof reached SSH"
+    cmp -s "$w/refusal.before" "$w/home/state/rsm1.meta" || fail "contradictory legacy evidence changed"
+  done
+  cp "$w/legacy-proof.meta" "$w/home/state/rsm1.meta"
+  pass "full probe: a pre-Rex parent is readable only with exact explicit Herdr session/target proof and no contradictory or duplicate identity"
 }
 
 test_tmux_agent_state_classifies

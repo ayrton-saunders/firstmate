@@ -32,6 +32,7 @@ TMUX_STATE="$TMP_ROOT/remote-tmux.state"
 # charter render assertions and the delivery checks below cannot drift apart.
 PARENT_ROUTE_INBOX="$REMOTE_HOME/state/parent-route/ios.inbox"
 CLAIMS="$TMP_ROOT/claims"
+NAMING_PARENTS=()
 mkdir -p "$PARENT/data" "$PARENT/state" "$PARENT/config" "$PARENT/projects" "$REMOTE_ROOT" "$CLAIMS"
 cleanup() {
   local worker_pid=''
@@ -42,8 +43,10 @@ cleanup() {
     kill "$watch_pid" 2>/dev/null || true
     wait "$watch_pid" 2>/dev/null || true
   fi
-  FM_HOME="$PARENT" FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" \
-    "$ROOT/bin/fm-procevent.sh" sweep-home >/dev/null 2>&1 || true
+  for parent_cleanup in "$PARENT" "${NAMING_PARENTS[@]+"${NAMING_PARENTS[@]}"}"; do
+    FM_HOME="$parent_cleanup" FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" \
+      "$ROOT/bin/fm-procevent.sh" sweep-home >/dev/null 2>&1 || true
+  done
   if [ -f "$TMP_ROOT/remote-jobs/worker.pid" ]; then
     worker_pid=$(cat "$TMP_ROOT/remote-jobs/worker.pid")
     # The published pid is the serving child; killing it alone lets its
@@ -153,6 +156,7 @@ argv_b64=$4
 command_fields=$(perl -MMIME::Base64=decode_base64 -e '
   my $data=decode_base64($ARGV[0]);
   my @args=split(/\0/, $data);
+  splice @args, 1, 2 if (($args[1] // "") eq "--herdr-session");
   print join("\t", map { defined $_ ? $_ : "" } @args[0..2]);
 ' "$argv_b64")
 IFS=$'\t' read -r command_name _command_action command_rel <<EOF
@@ -176,6 +180,11 @@ if [ "$command_name" = fm-remote-doctor.sh ]; then
   printf '%s %s\n' "${FM_FAKE_SSH_MODE:-normal}" "${_command_action:--}" >> "$FM_FAKE_DOCTOR_LOG"
   case "${FM_FAKE_SSH_MODE:-normal}" in
     unreachable) exit 255 ;;
+    doctor-route-change)
+      perl -pi -e 's/session: fm-fleet-a;/session: fm-other;/' "$FM_FAKE_SESSION_CHANGE_REG"
+      printf 'check herdr-server=ok: fixture ready\n'
+      exit 0
+      ;;
     doctor-fix-unknown)
       if [ "${_command_action:-}" = --fix ]; then
         printf 'fix launchagent=applied: wrote the Aqua-scoped launch agent\n'
@@ -538,7 +547,7 @@ fi
 mkdir -p "$TMP_ROOT/seed-parent/data" "$TMP_ROOT/seed-parent/state"
 FM_SECONDMATE_CHARTER='Failing seed charter.' FM_SECONDMATE_SCOPE='failed seed' \
   FM_FAKE_SSH_MODE=provision-block-fail seed_env "$ROOT/bin/fm-remote-home-seed.sh" \
-  seed-fail remote-mac "$REMOTE_ROOT" "$TMP_ROOT/seed-fail-home" --no-projects \
+  --herdr-session fm-failed seed-fail remote-mac "$REMOTE_ROOT" "$TMP_ROOT/seed-fail-home" --no-projects \
   > "$TMP_ROOT/seed-fail.out" 2>&1 &
 seed_fail_pid=$!
 seed_wait=0
@@ -567,7 +576,7 @@ pass "remote seed rollback preserves serialized competing routes"
 : > "$DOCTOR_LOG"
 if FM_SECONDMATE_CHARTER='Unknown readiness charter.' FM_SECONDMATE_SCOPE='unknown readiness' \
   FM_FAKE_SSH_MODE=doctor-fix-unknown seed_env "$ROOT/bin/fm-remote-home-seed.sh" \
-  seed-unknown remote-mac "$REMOTE_ROOT" "$TMP_ROOT/seed-unknown-home" --no-projects \
+  --herdr-session fm-unknown seed-unknown remote-mac "$REMOTE_ROOT" "$TMP_ROOT/seed-unknown-home" --no-projects \
   > "$TMP_ROOT/seed-unknown.out" 2>&1; then
   fail "seeding claimed success after readiness repair completion became unknown"
 fi
@@ -575,6 +584,7 @@ assert_grep 'remote readiness completion is unknown' "$TMP_ROOT/seed-unknown.out
   "unknown readiness did not report its distinct completion state"
 assert_grep '- seed-unknown ' "$TMP_ROOT/seed-parent/data/secondmates.md" \
   "unknown readiness removed the registered route"
+assert_grep 'session: fm-unknown;' "$TMP_ROOT/seed-parent/data/secondmates.md" "unknown readiness lost the selected session"
 assert_present "$TMP_ROOT/seed-parent/data/seed-unknown/brief.md" \
   "unknown readiness removed the scaffolded brief"
 assert_absent "$TMP_ROOT/seed-unknown-home" \
@@ -1577,9 +1587,13 @@ cp "$PARENT/state/ios.meta" "$TMP_ROOT/parent-ios-rex-good.meta"
 awk '/^remote_backend=/{print "remote_backend=herdr"; next} {print}' \
   "$PARENT/state/ios.meta" > "$PARENT/state/ios.meta.new"
 mv -f "$PARENT/state/ios.meta.new" "$PARENT/state/ios.meta"
+drift_ssh_before=$(cat "$SSH_COUNT")
+cp "$PARENT/state/ios.meta" "$TMP_ROOT/parent-ios-drift.meta"
 BOOT_DRIFT=$(remote_env "$ROOT/bin/fm-bootstrap.sh")
-assert_contains "$BOOT_DRIFT" "runs on backend 'rex', but this home recorded 'herdr'" \
-  "the full sweep did not report the recorded/remote backend drift"
+assert_contains "$BOOT_DRIFT" 'remote route disagrees with its parent endpoint record' \
+  "the full sweep did not refuse the contradictory parent backend identity"
+[ "$(cat "$SSH_COUNT")" = "$drift_ssh_before" ] || fail "contradictory parent identity reached SSH"
+cmp -s "$PARENT/state/ios.meta" "$TMP_ROOT/parent-ios-drift.meta" || fail "contradictory parent evidence changed"
 mv -f "$TMP_ROOT/parent-ios-rex-good.meta" "$PARENT/state/ios.meta"
 
 # A named key reaches the rex endpoint through its recorded route: the parent's
@@ -1942,5 +1956,92 @@ assert_grep 'fm-remote-secondmate-control.sh retire <id> [--force]' "$TMP_ROOT/r
 assert_no_grep 'already-retired' "$TMP_ROOT/retired-bogus.out" "an invalid retire option reported a retirement"
 assert_absent "$REMOTE_HOME" "retiring an absent home recreated it"
 pass "an absent remote home retires only with the dispatcher's arguments and is never recreated"
+
+# The preceding backend cases install synthetic tools in this fixture root.
+# Preserve them as a fixture revision so custom-session update exercises a clean
+# source rather than correctly refusing the test's own uncommitted fake tools.
+[ "$(git -C "$REMOTE_ROOT" remote get-url origin)" = "file://$REMOTE_ORIGIN" ] || fail "fixture origin changed before custom naming checks"
+if [ -n "$(git -C "$REMOTE_ROOT" status --porcelain)" ]; then
+  git -C "$REMOTE_ROOT" add -A
+  git -C "$REMOTE_ROOT" commit -qm 'Prepare custom-session fixture tools'
+  git -C "$REMOTE_ROOT" push -q origin main
+fi
+
+# Independent primaries reuse one route id on the same fake account.
+ORIGINAL_PARENT=$PARENT
+for lane in a b; do
+  PARENT="$TMP_ROOT/naming-primary-$lane"
+  NAMING_PARENTS+=("$PARENT")
+  mkdir -p "$PARENT/data" "$PARENT/state" "$PARENT/config"
+  printf 'codex\n' > "$PARENT/config/secondmate-harness"
+  session="fm-fleet-$lane"
+  lane_home="$TMP_ROOT/naming-home-$lane"
+  reset_remote_herdr_fixture "$HERDR_STATE.$session"
+  FM_SECONDMATE_CHARTER='Own the isolated naming fixture.' \
+    remote_env "$ROOT/bin/fm-remote-home-seed.sh" --herdr-session "$session" naming remote-mac "$REMOTE_ROOT" "$lane_home" --no-projects >/dev/null \
+    || fail "custom seed failed for $lane"
+  assert_grep "home: $lane_home; session: $session;" "$PARENT/data/secondmates.md" "seed lost session"
+  if [ "$lane" = a ]; then
+    cp "$PARENT/data/secondmates.md" "$TMP_ROOT/naming-route.before"
+    export FM_FAKE_SESSION_CHANGE_REG="$PARENT/data/secondmates.md"
+    if FM_FAKE_SSH_MODE=doctor-route-change remote_env "$ROOT/bin/fm-spawn.sh" naming --secondmate >/dev/null 2>&1; then fail "route change during readiness accepted"; fi
+    assert_absent "$lane_home/state/parent-route/naming.meta" "changed route reached endpoint launch"
+    assert_absent "$PARENT/state/naming.meta" "changed route published parent metadata"
+    cp "$TMP_ROOT/naming-route.before" "$PARENT/data/secondmates.md"
+    unset FM_FAKE_SESSION_CHANGE_REG
+  fi
+  remote_env "$ROOT/bin/fm-spawn.sh" naming --secondmate >/dev/null || fail "custom launch failed for $lane"
+  assert_grep "remote_herdr_session=$session" "$PARENT/state/naming.meta" "parent publication lost custom session"
+  assert_grep "herdr_session=$session" "$lane_home/state/parent-route/naming.meta" "remote publication lost custom session"
+done
+for lane in a b; do
+  PARENT="$TMP_ROOT/naming-primary-$lane"
+  session="fm-fleet-$lane"
+  lane_home="$TMP_ROOT/naming-home-$lane"
+  other=a; [ "$lane" != a ] || other=b
+  other_home="$TMP_ROOT/naming-home-$other"
+  cp "$HERDR_STATE.fm-fleet-$other" "$TMP_ROOT/naming-sibling.state"
+  cp "$other_home/state/parent-route/naming.meta" "$TMP_ROOT/naming-sibling.meta"
+  [ "$(remote_env "$ROOT/bin/fm-on.sh" naming fm-remote-secondmate-control.sh state naming)" = alive ] || fail "custom state failed"
+  route=$(remote_env "$ROOT/bin/fm-on.sh" naming fm-remote-secondmate-control.sh route naming)
+  assert_contains "$route" "herdr_session=$session" "route returned another session"
+  remote_env "$ROOT/bin/fm-on.sh" naming fm-remote-secondmate-control.sh send naming 'isolated steer' fire-and-forget >/dev/null || fail "custom send failed"
+  remote_env "$ROOT/bin/fm-on.sh" naming fm-remote-secondmate-control.sh key naming Enter >/dev/null || fail "custom key failed"
+  for verb in capture observe sync update; do
+    remote_env "$ROOT/bin/fm-on.sh" naming fm-remote-secondmate-control.sh "$verb" naming >/dev/null || fail "custom $verb failed"
+  done
+  endpoint="$lane_home/state/parent-route/naming.meta"
+  cp "$endpoint" "$TMP_ROOT/naming-endpoint.before"
+  for key in herdr_session window; do
+    replacement="fm-fleet-$other"; [ "$key" != window ] || replacement="fm-fleet-$other:alien"
+    awk -F= -v key="$key" -v replacement="$replacement" '$1==key {print key "=" replacement;next} {print}' "$TMP_ROOT/naming-endpoint.before" > "$endpoint"
+    cp "$endpoint" "$TMP_ROOT/naming-contradiction"
+    before_calls=$(wc -l < "$HERDR_LOG" | tr -d ' ')
+    for verb in route capture observe sync update retire; do
+      if remote_env "$ROOT/bin/fm-on.sh" naming fm-remote-secondmate-control.sh "$verb" naming >/dev/null 2>&1; then fail "custom $verb accepted contradictory $key"; fi
+    done
+    [ "$(wc -l < "$HERDR_LOG" | tr -d ' ')" = "$before_calls" ] || fail "contradictory endpoint accessed a session"
+    cmp -s "$endpoint" "$TMP_ROOT/naming-contradiction" || fail "contradictory evidence changed"
+    cp "$TMP_ROOT/naming-endpoint.before" "$endpoint"
+  done
+  cp "$PARENT/state/naming.meta" "$TMP_ROOT/naming-parent.before"
+  sed "s/remote_herdr_session=$session/remote_herdr_session=fm-fleet-$other/" "$TMP_ROOT/naming-parent.before" > "$PARENT/state/naming.meta"
+  calls_before=$(cat "$SSH_COUNT")
+  if remote_env "$ROOT/bin/fm-on.sh" naming fm-remote-secondmate-control.sh send naming forbidden >/dev/null 2>&1; then fail "parent mismatch accepted"; fi
+  [ "$(cat "$SSH_COUNT")" = "$calls_before" ] || fail "parent mismatch reached SSH"
+  cp "$TMP_ROOT/naming-parent.before" "$PARENT/state/naming.meta"
+  reset_remote_herdr_fixture "$HERDR_STATE.$session"
+  remote_env "$ROOT/bin/fm-spawn.sh" naming --secondmate >/dev/null || fail "custom recovery failed"
+  assert_grep "remote_target=$session:" "$PARENT/state/naming.meta" "recovery moved sessions"
+  cmp -s "$HERDR_STATE.fm-fleet-$other" "$TMP_ROOT/naming-sibling.state" || fail "custom operations mutated sibling session"
+  cmp -s "$other_home/state/parent-route/naming.meta" "$TMP_ROOT/naming-sibling.meta" || fail "custom operations mutated sibling endpoint"
+done
+for lane in a b; do
+  PARENT="$TMP_ROOT/naming-primary-$lane"
+  remote_env "$ROOT/bin/fm-teardown.sh" naming >/dev/null || fail "custom retirement failed for $lane"
+  assert_absent "$TMP_ROOT/naming-home-$lane" "custom retirement retained its home"
+done
+PARENT=$ORIGINAL_PARENT
+pass "two primary homes preserve distinct sessions through seed, launch, access, refusal, sync, update, recovery and retirement"
 
 echo "ALL TESTS PASSED"

@@ -144,7 +144,7 @@ run_update() {
     FM_SSH_BIN="${FM_TEST_SSH_BIN:-ssh}" \
     FM_STATE_OVERRIDE="$w/home/state" FM_DATA_OVERRIDE="$w/home/data" \
     FM_CONFIG_OVERRIDE="$w/home/config" FM_PROJECTS_OVERRIDE="$w/home/projects" \
-    FM_ROOT_OVERRIDE="$w/main" FM_HOME="$w/home" "$UPDATE" "$@" 2>/dev/null
+    FM_ROOT_OVERRIDE="$w/main" FM_HOME="$w/home" "$UPDATE" "$@" 2>"${FM_TEST_UPDATE_STDERR:-/dev/null}"
 }
 
 # --- T1: main + secondmate behind, instruction change; FF, not a merge ------
@@ -271,8 +271,12 @@ argv_b64=$4
 decode() { printf '%s' "$1" | base64 --decode 2>/dev/null || printf '%s' "$1" | base64 -D; }
 rargs=()
 while IFS= read -r -d '' a; do rargs+=("$a"); done < <(decode "$argv_b64")
+if [ "${rargs[1]:-}" = --herdr-session ]; then rargs=("${rargs[0]}" "${rargs[@]:3}"); fi
 case "${rargs[1]:-}" in
-  update) printf 'synced: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n' ;;
+  update)
+    [ "${FM_TEST_REMOTE_UPDATE_FAIL_SECOND:-0}:${rargs[2]:-}" != 1:sm2 ] || exit 1
+    printf 'synced: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n'
+    ;;
   state) printf 'alive\n' ;;
   *) exit 91 ;;
 esac
@@ -287,20 +291,35 @@ harness=claude
 kind=secondmate
 home=/srv/sm1
 remote_host=remote-mac
+remote_root=/srv/fm
 remote_backend=herdr
+remote_herdr_session=fm-remote
+remote_target=fm-remote:p1
 EOF
   printf -- '- sm1 - remote domain (host: remote-mac; root: /srv/fm; home: /srv/sm1; scope: things; projects: p; added 2026-09-03)\n' \
     > "$w/home/data/secondmates.md"
 
+  sed 's/sm1/sm2/g; s/fm-remote/fm-two/g' "$w/home/state/sm1.meta" > "$w/home/state/sm2.meta"
+  printf -- '- sm2 - second remote domain (host: remote-mac; root: /srv/fm; home: /srv/sm2; session: fm-two; scope: things; projects: p; added 2026-09-03)\n' >> "$w/home/data/secondmates.md"
   out=$(FM_TEST_SSH_BIN="$fake_ssh" run_update "$w")
 
+  assert_contains "$out" "remote secondmate sm2: updated on remote-mac" "a shared host suppressed the second home update"
+  assert_contains "$out" "restart-secondmates: fm-sm1 fm-sm2" "a shared code root suppressed per-home restart verification"
   assert_contains "$out" "remote secondmate sm1: updated on remote-mac" \
     "the legacy remote advance was not accepted"
   assert_contains "$out" "restart-secondmates: fm-sm1" \
     "a live remote mate on the new tip must restart even when the host reports no instruction diff"
   assert_contains "$out" "nudge-secondmates: none" \
     "a restarted remote mate must not also be steered"
-  pass "T3e a legacy remote advance still restarts the live remote mate"
+  cp "$w/home/state/sm1.meta" "$w/sm1.before"
+  cp "$w/home/state/sm2.meta" "$w/sm2.before"
+  out=$(FM_TEST_UPDATE_STDERR="$w/partial.err" FM_TEST_REMOTE_UPDATE_FAIL_SECOND=1 FM_TEST_SSH_BIN="$fake_ssh" run_update "$w")
+  assert_contains "$(cat "$w/partial.err")" 'remote secondmate sm2: skipped on remote-mac:' "one-home update failure was hidden"
+  assert_contains "$out" 'restart-secondmates: fm-sm1' "successful sibling lost its restart result"
+  assert_not_contains "$out" 'restart-secondmates: fm-sm1 fm-sm2' "failed home was scheduled for restart"
+  cmp -s "$w/home/state/sm1.meta" "$w/sm1.before" || fail "partial update changed first endpoint evidence"
+  cmp -s "$w/home/state/sm2.meta" "$w/sm2.before" || fail "partial update changed second endpoint evidence"
+  pass "T3e legacy and custom homes on one host retain separate update and restart results, including partial failure"
 }
 
 # --- T4: dirty secondmate is skipped, its edit preserved -------------------

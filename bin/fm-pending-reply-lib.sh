@@ -137,6 +137,9 @@ _FM_PENDING_REPLY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/n
 # here would re-expand the same transitive graph.
 . "$_FM_PENDING_REPLY_LIB_DIR/fm-classify-lib.sh"
 
+# shellcheck source=bin/fm-secondmate-registry-lib.sh
+. "$_FM_PENDING_REPLY_LIB_DIR/fm-secondmate-registry-lib.sh"
+
 FM_PENDING_REPLY_SCHEMA='fm-pending-reply.v1'
 FM_PENDING_REPLY_CORR_RE='corr=[A-Fa-f0-9]{16}'
 FM_PENDING_REPLY_GRACE_DEFAULT=120
@@ -264,11 +267,15 @@ fm_pending_reply_sighting_display() {  # <encoded-sighting>
 }
 
 fm_pending_reply_corr_reusable() {  # <state-dir> <corr_id> <task_id>
-  local state=$1 corr=$2 task_id=$3 rec phase delivered
+  local state=$1 corr=$2 task_id=$3 rec phase delivered binding
   printf '%s' "$corr" | grep -Eq '^[A-Fa-f0-9]{16}$' || return 1
   rec=$(fm_pending_reply_path "$state" "$corr")
   [ -f "$rec" ] || return 1
   [ "$(fm_pending_reply_get "$rec" task_id)" = "$task_id" ] || return 1
+  if [ -n "$(fm_meta_get "$state/$task_id.meta" remote_host)" ]; then
+    binding=$(fm_pending_reply_get "$rec" remote_binding)
+    [ -n "$binding" ] && [ "$binding" = "$(secondmate_registry_parent_binding "$state/$task_id.meta")" ] || return 1
+  fi
   phase=$(fm_pending_reply_get "$rec" phase)
   case "$phase" in
     awaiting_report|recovery_sending|recovery_sent) return 0 ;;
@@ -328,7 +335,10 @@ fm_pending_reply_embed_corr() {  # <message> <corr_id> <result-var>
 # Does not deliver anything. Fails if parent paths cannot be prepared.
 fm_pending_reply_create() {  # <parent-home> <state-dir> <task_id> <request-text>
   local parent_home=$1 state=$2 task_id=$3 request_text=$4
-  local dir rec corr now summary status_path tmp
+  local dir rec corr now summary status_path tmp remote_binding=
+  if [ -n "$(fm_meta_get "$state/$task_id.meta" remote_host)" ]; then
+    remote_binding=$(secondmate_registry_parent_binding "$state/$task_id.meta") || return 1
+  fi
   [ -n "$parent_home" ] && [ -n "$state" ] && [ -n "$task_id" ] || return 2
   dir=$(fm_pending_reply_dir "$state")
   mkdir -p "$dir" || return 1
@@ -362,6 +372,7 @@ task_id=$task_id
 parent_home=$parent_home
 parent_status=$status_path
 parent_status_scan_signature=
+remote_binding=$remote_binding
 request_summary=$summary
 created_epoch=$now
 delivered_epoch=
@@ -965,7 +976,7 @@ fm_pending_reply_recovery_message() {  # <record-path>
 fm_pending_reply_send_recovery() {  # <state-dir> <corr_id>
   local state=$1 corr=$2
   local rec phase completed delivered attempted grace now age task_id msg parent_home send_status=0
-  local sender_pid sender_identity status_file lock
+  local sender_pid sender_identity status_file lock remote_binding
   local STATE FM_WAKE_QUEUE FM_WAKE_QUEUE_LOCK
   rec=$(fm_pending_reply_path "$state" "$corr")
   [ -f "$rec" ] || return 1
@@ -989,6 +1000,10 @@ fm_pending_reply_send_recovery() {  # <state-dir> <corr_id>
   age=$((now - completed))
   [ "$age" -ge "$grace" ] || return 1
   task_id=$(fm_pending_reply_get "$rec" task_id)
+  remote_binding=$(fm_pending_reply_get "$rec" remote_binding)
+  if [ -n "$(fm_meta_get "$state/$task_id.meta" remote_host)" ]; then
+    [ -n "$remote_binding" ] && [ "$remote_binding" = "$(secondmate_registry_parent_binding "$state/$task_id.meta")" ] || return 1
+  fi
   # A remote mate's report may exist and simply not have been mirrored yet.
   fm_pending_reply_missing_report_is_evidence "$state" "$task_id" "$completed" || return 1
   # config/wait-no-turns: a mate waiting on its own open decision or blocker
@@ -1034,6 +1049,7 @@ fm_pending_reply_send_recovery() {  # <state-dir> <corr_id>
     if [ -z "$parent_home" ] || [ ! -d "$parent_home" ]; then
       send_status=1
     elif ! env FM_HOME="$parent_home" FM_PENDING_REPLY_EXISTING_CORR="$corr" \
+      FM_REMOTE_EXPECTED_PARENT_BINDING="$remote_binding" \
       "$_FM_PENDING_REPLY_LIB_DIR/fm-send.sh" "$task_id" "$msg"; then
       send_status=1
     fi
@@ -1562,7 +1578,7 @@ _fm_pending_reply_select_needing_work() {  # <record-path>...
 # settled record costs no lock and no fork, and the per-record path below runs,
 # unchanged, only for the records that selection returns.
 fm_pending_reply_tick() {  # <state-dir>
-  local state=$1 dir rec corr task_id phase delivered meta backend target label busy sm_home harness remote_host
+  local state=$1 dir rec corr task_id phase delivered meta backend target label busy sm_home harness remote_host remote_binding
   local observation observation_task found i
   local -a observation_tasks=() observation_values=() records=() selected=()
   dir=$(fm_pending_reply_dir "$state")
@@ -1647,6 +1663,10 @@ fm_pending_reply_tick() {  # <state-dir>
     harness=
     if [ -f "$meta" ]; then
       remote_host=$(fm_meta_get "$meta" remote_host)
+      remote_binding=$(fm_pending_reply_get "$rec" remote_binding)
+      if [ -n "$remote_host" ]; then
+        [ -n "$remote_binding" ] && [ "$remote_binding" = "$(secondmate_registry_parent_binding "$meta")" ] || continue
+      fi
       backend=$(fm_backend_of_meta "$meta")
       target=$(fm_backend_target_of_meta "$meta")
       sm_home=$(fm_meta_get "$meta" home)
@@ -1668,7 +1688,7 @@ fm_pending_reply_tick() {  # <state-dir>
         done
         if [ "$found" = 0 ]; then
           if [ -n "$remote_host" ]; then
-            observation=$("$_FM_PENDING_REPLY_LIB_DIR/fm-on.sh" "$task_id" \
+            observation=$(FM_REMOTE_EXPECTED_PARENT_BINDING="$remote_binding" "$_FM_PENDING_REPLY_LIB_DIR/fm-on.sh" "$task_id" \
               fm-remote-secondmate-control.sh observe "$task_id" < /dev/null 2>/dev/null || printf 'unknown')
             case "$observation" in busy|idle|fallback-idle|unknown) ;; *) observation=unknown ;; esac
           else

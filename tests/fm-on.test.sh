@@ -68,12 +68,16 @@ case "\${1:-}:\${2:-}" in
 esac
 SH
 cp "$ROOT/bin/fm-remote-doctor.sh" "$ROOT/bin/fm-tasks-axi-lib.sh" \
-  "$ROOT/bin/fm-remote-herdr-owner-lib.sh" "$ROOT/bin/fm-backend.sh" "$REMOTE_ROOT/bin/"
+  "$ROOT/bin/fm-remote-herdr-owner-lib.sh" "$ROOT/bin/fm-herdr-session-lib.sh" "$ROOT/bin/fm-backend.sh" "$REMOTE_ROOT/bin/"
 mkdir -p "$REMOTE_ROOT/bin/backends"
 cp "$ROOT/bin/backends/herdr.sh" "$REMOTE_ROOT/bin/backends/herdr.sh"
 cat > "$REMOTE_ROOT/bin/fm-mutate.sh" <<'SH'
 #!/usr/bin/env bash
 printf 'mutation\n' >> "$1"
+SH
+cat > "$REMOTE_ROOT/bin/fm-remote-secondmate-control.sh" <<'SH'
+#!/usr/bin/env bash
+printf '%s\n' "$@"
 SH
 chmod +x "$REMOTE_ROOT/bin"/*.sh
 chmod +x "$REMOTE_ROOT/bin/tasks-axi"
@@ -546,5 +550,48 @@ set -e
 [ "$(cat "$SSH_COUNT")" -eq 1 ] || fail "ambiguous completion was retried"
 [ "$(grep -c mutation "$REMOTE_HOME/mutations")" -eq 1 ] || fail "ambiguous mutation did not execute exactly once"
 pass "unreachable and ambiguous transport failures are surfaced without retry"
+
+# Exercise the public parser and encoded route surface without a live server.
+. "$ROOT/bin/fm-secondmate-registry-lib.sh"
+legacy='- a - A (host: remote-mac; root: /code; home: /a; scope: work; projects: ; added 2026-11-09)'
+secondmate_registry_parse_line "$legacy" || fail "legacy route refused"
+[ "$SECONDMATE_REGISTRY_SESSION" = fm-remote ] || fail "legacy default changed"
+local_line='- a - A (home: /a; scope: work; projects: ; added 2026-11-09)'
+secondmate_registry_parse_line "$local_line" || fail "local route refused"
+[ -z "$SECONDMATE_REGISTRY_SESSION" ] || fail "local route acquired a session"
+for name in fm-one FM.One_2 "$(printf '%064d' 0)"; do
+  secondmate_registry_parse_line "${legacy/; scope:/; session: $name; scope:}" || fail "valid name refused: $name"
+  [ "$SECONDMATE_REGISTRY_SESSION" = "$name" ] || fail "session not preserved exactly"
+done
+for name in '' default . .. -option _hidden .hidden 'bad name' 'bad/name' 'a; session: b' "$(printf '%065d' 0)"; do
+  if secondmate_registry_parse_line "${legacy/; scope:/; session: $name; scope:}"; then fail "invalid session accepted: $name"; fi
+  [ -z "$SECONDMATE_REGISTRY_ID" ] || fail "failed parse retained prior identity"
+done
+if secondmate_registry_parse_line "${local_line/; scope:/; session: fm-one; scope:}"; then fail "local session accepted"; fi
+pass "registry resolves legacy, local and custom sessions and rejects invalid or duplicate fields"
+write_registry
+saved_line=$(cat "$LOCAL_HOME/data/secondmates.md")
+printf '%s\n' "${saved_line/; scope:/; session: Fleet.A; scope:}" > "$LOCAL_HOME/data/secondmates.md"
+out=$(fm_on ios fm-remote-secondmate-control.sh state ios)
+[ "$out" = $'--herdr-session\nFleet.A\nstate\nios' ] || fail "custom route argv was not injected before existing args: $out"
+out=$(fm_on ios fm-remote-secondmate-control.sh send ios --herdr-session)
+[ "$out" = $'--herdr-session\nFleet.A\nsend\nios\n--herdr-session' ] || fail "a literal steer body was interpreted as a session override: $out"
+ssh_before=$(cat "$SSH_COUNT")
+for override in --herdr-session --herdr-session=other; do
+  if fm_on ios fm-remote-secondmate-control.sh "$override" other state ios >/dev/null 2>&1; then fail "caller session override accepted"; fi
+done
+[ "$(cat "$SSH_COUNT")" = "$ssh_before" ] || fail "caller override reached SSH"
+# A custom route never retries as legacy against a version without the option.
+cat > "$REMOTE_ROOT/bin/fm-remote-secondmate-control.sh" <<'SH'
+#!/usr/bin/env bash
+case "${1:-}" in --*) exit 2 ;; esac
+printf 'legacy-only\n'
+SH
+if fm_on ios fm-remote-secondmate-control.sh state ios >/dev/null 2>&1; then fail "old remote accepted custom routing"; fi
+[ "$(cat "$SSH_COUNT")" -eq "$((ssh_before + 1))" ] || fail "unsupported custom option retried"
+write_registry
+out=$(fm_on ios fm-remote-secondmate-control.sh state ios)
+[ "$out" = legacy-only ] || fail "legacy transport changed"
+pass "custom argv is route-owned, override refusal precedes SSH, and old remotes never fall back"
 
 echo "ALL TESTS PASSED"

@@ -111,6 +111,8 @@ Linked and standalone local homes retain their own origin semantics; remote rout
 Parent-targeted startup convergence is different from origin consumption and does not migrate an origin.
 Dirty, unique-divergent, unsafe and unreachable homes stay preserved; retain their durable reconciliation records.
 No successful primary update implies every home reached the same revision.
+Enumerate each remote home, not unique SSH hosts: a shared code root does not replace per-home update and restart verification.
+Keep each route's recorded session binding through the pass; the [remote identity and upgrade rules](../../../docs/remote-secondmates.md#refused-and-unsupported-launches) refuse contradictory records and preserve unknown completion.
 
 For the entire emitted restart list, use `fm-secondmate-restart.sh` with the active `FM_HOME`; skip an empty list.
 Its existing persistence replies, ownership checks and current-incarnation reconciliation remain authoritative, including concurrent automatic relaunch and interrupted operations.

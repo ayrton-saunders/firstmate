@@ -128,6 +128,8 @@ cleanup_json_files() {
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=bin/fm-secondmate-registry-lib.sh
+. "$SCRIPT_DIR/fm-secondmate-registry-lib.sh"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
@@ -746,7 +748,7 @@ prefetch_task_current_states() {
 
 task_json_lines() {
   local meta original_meta id kind harness mode yolo project worktree home projects spawn_gen backend target status_log report_path
-  local remote_host remote_root current_file endpoint_file observation_line index=0
+  local remote_host remote_root remote_session remote_binding current_file endpoint_file observation_line index=0
   local pr pr_source event_json current_json endpoint_exists agent_alive meta_json status_json report_json worktree_json home_json
   local last_event_raw current_state current_source pending_decision blocked_event report_present=0 pr_from_status
   local open_decisions_tsv open_decisions_json
@@ -769,7 +771,11 @@ task_json_lines() {
     branch=$(meta_value "$meta" branch)
     remote_host=$(meta_value "$meta" remote_host)
     remote_root=$(meta_value "$meta" remote_root)
+    remote_session=
+    remote_binding=
     if [ -n "$remote_host" ]; then
+      remote_session=$(meta_value "$meta" remote_herdr_session)
+      remote_binding=$(secondmate_registry_parent_binding "$meta")
       backend=$(meta_value "$meta" remote_backend)
       [ -n "$backend" ] || backend=unknown
       target=$(meta_value "$meta" remote_target)
@@ -873,6 +879,8 @@ task_json_lines() {
       --arg target "$target" \
       --arg remote_host "$remote_host" \
       --arg remote_root "$remote_root" \
+      --arg remote_session "$remote_session" \
+      --arg remote_binding "$remote_binding" \
       --arg pr "$pr" \
       --arg pr_source "$pr_source" \
       --arg pr_head "$(meta_value "$meta" pr_head)" \
@@ -900,7 +908,7 @@ task_json_lines() {
         project:($project // ""),
         spawn_gen:($spawn_gen | if . == "" then null else . end),
         backend:$backend,
-        remote:(if $remote_host == "" then null else {host:$remote_host,root:$remote_root} end),
+        remote:(if $remote_host == "" then null else {host:$remote_host,root:$remote_root,session:$remote_session,binding:$remote_binding} end),
         paths:{
           meta:$meta_path,
           status_log:$status_log,
@@ -1225,7 +1233,22 @@ registry_secondmates_json() {
     else
       lines_in_window=0
     fi
-    records=$(printf "%s\n" "$window" | jq -Rn "$parse_filter") || exit 3
+    . "$9/fm-secondmate-registry-lib.sh"
+    records=$(
+      while IFS= read -r line || [ -n "$line" ]; do
+        [[ "$line" == "- "* ]] || continue
+        if secondmate_registry_parse_line "$line"; then
+          printf '%s\0' "$SECONDMATE_REGISTRY_ID" "$SECONDMATE_REGISTRY_HOME" \
+            "$SECONDMATE_REGISTRY_HOST" "$SECONDMATE_REGISTRY_ROOT" "$SECONDMATE_REGISTRY_SESSION" "$SECONDMATE_REGISTRY_REMOTE" ''
+        else
+          id=${line#- }; id=${id%% *}
+          printf '%s\0' "$id" '' '' '' '' 0 'malformed secondmate registry entry'
+        fi
+      done <<< "$window" | jq -Rs '
+        split("\u0000") | . as $fields | [range(0; length-1; 7) as $i | $fields[$i:($i+7)]
+          | {id:.[0],home:.[1],host:.[2],root:.[3],session:.[4],remote:(.[5]=="1"),registered:true,registry_error:(.[6] | if .=="" then null else . end)}]'
+    ) || exit 3
+    records=$(printf "%s\n" "$records" | jq "$parse_filter") || exit 3
     records_in_window=$(printf "%s" "$records" | jq "length") || exit 3
     records_truncated=false
     if [ "$records_in_window" -gt "$max_records" ]; then records_truncated=true; fi
@@ -1240,18 +1263,7 @@ registry_secondmates_json() {
 BASH
   )
   parse_filter=$(cat <<'JQ'
-      [ inputs
-        | select(startswith("- "))
-        | (capture("^- (?<id>[^[:space:]]+)")?) as $id
-        | select($id != null)
-        | ([capture("^.*\\(host:[[:space:]]*(?<host>[^;)]*);[[:space:]]*root:[[:space:]]*(?<root>[^;)]*);[[:space:]]*home:[[:space:]]*(?<home>[^;)]*);[[:space:]]*scope:[[:space:]]*.*;[[:space:]]*projects:[[:space:]]*[^;)]*;[[:space:]]*added[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}\\)[[:space:]]*$")?][0] // null) as $remote
-        | ([capture("^.*\\(home:[[:space:]]*(?<home>[^;)]*);[[:space:]]*scope:[[:space:]]*.*;[[:space:]]*projects:[[:space:]]*[^;)]*;[[:space:]]*added[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}\\)[[:space:]]*$")?][0] // null) as $local
-        | ($local // $remote) as $route
-        | (($local == null) and ($remote != null)) as $is_remote
-        | {id:$id.id,home:($route.home // null),host:(if $is_remote then $remote.host else null end),root:(if $is_remote then $remote.root else null end),
-           remote:$is_remote,registered:true,
-           registry_error:(if $route == null or ($route.home | length) == 0 then "registry entry has no home" else null end)} ]
-      | group_by(.id)
+      group_by(.id)
       | map(if length > 1 then .[0] + {registry_error:"duplicate secondmate id in registry"} else .[0] end)
 JQ
   )
@@ -1271,7 +1283,7 @@ JQ
   out=$(fm_run_timed "$FM_SNAPSHOT_REGISTRY_TIMEOUT" bash -c "$script" \
     fm-secondmate-registry "$reg" "$FM_SNAPSHOT_REGISTRY_LINES" \
     "$FM_SNAPSHOT_REGISTRY_BYTES" "$FM_SNAPSHOT_REGISTRY_RECORDS" "$reg" "$SNAPSHOT_NOW" \
-    "$parse_filter" "$output_filter" 2>/dev/null)
+    "$parse_filter" "$output_filter" "$SCRIPT_DIR" 2>/dev/null)
   rc=$?
   if [ "$rc" -eq 0 ] && printf '%s' "$out" | jq -e '
     .available == true and (.records | type) == "array"
@@ -1723,7 +1735,7 @@ parent_evidence_reconciliation_json() {  # <summary-json-file> <activities-json>
 
 secondmate_current_json() {  # <parent-tasks-json-file> <output-file>
   local tasks_file=$1 output_file=$2 registry_file union_file records_file rows total_registered total shown truncated
-  local row id home host remote registered registry_error task sampled_spawn_gen status_file status_observation_file event_raw event_note event_age observed_epoch observed_age
+  local row id home host remote registered registry_error task sampled_spawn_gen status_file status_observation_file event_raw event_note event_age observed_epoch observed_age route_root route_session
   local activity_scan activities decisions reconciliation provenance freshness reason summary_file summary_sampled summary_valid summary_invalidity state terminal terminal_contradiction contradiction
   local summary_source summary_age summary_observed summary_freshness cache_path collection_status collection_slot summary_index=0
   local seen_homes=''
@@ -1787,6 +1799,13 @@ secondmate_current_json() {  # <parent-tasks-json-file> <output-file>
     fi
 
     reason=$registry_error
+    if [ "$remote" = true ] && [ "$(printf '%s' "$task" | jq -r '.id // ""')" != "" ]; then
+      route_root=$(printf '%s' "$row" | jq -r '.root // ""')
+      route_session=$(printf '%s' "$row" | jq -r '.session // ""')
+      if ! secondmate_registry_parent_matches "$SNAPSHOT_TASK_DIR/$id.meta" "$id" "$host" "$route_root" "$home" "$route_session"; then
+        reason="remote registry and parent endpoint identity disagree"
+      fi
+    fi
     summary_index=$((summary_index + 1))
     summary_file="$SNAPSHOT_COLLECT_DIR/selected-summary-$summary_index.json"
     printf '{}\n' > "$summary_file" || return 1
@@ -1940,7 +1959,8 @@ EOF
     --argjson total "$total" \
     --argjson shown "$shown" \
     --argjson truncated "$truncated" \
-    '{registry:$registry[0],records:.,total_registered:$total_registered,total:$total,shown:$shown,truncated:$truncated}' \
+    --slurpfile tasks "$tasks_file" \
+    '{registry:$registry[0],records:map(. as $r | ([$registry[0].records[]? | select(.id == $r.id)][0] // {}) as $route | . + {session:$route.session,remote_binding:([$tasks[0][]? | select(.id == $r.id) | .remote.binding][0] // "")}),total_registered:$total_registered,total:$total,shown:$shown,truncated:$truncated}' \
     "$records_file" > "$output_file"
 }
 

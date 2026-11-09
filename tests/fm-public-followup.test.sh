@@ -2475,7 +2475,8 @@ make_remote_route() {  # <home> <secondmate-id>
   cat > "$home/data/secondmates.md" <<EOF
 - $id - remote lane (host: remote-mac; root: $REMOTE_FIXTURE_ROOT; home: $remote_home; scope: relay work; projects: firstmate; added 2026-08-02)
 EOF
-  fm_write_meta "$home/state/$id.meta" "kind=secondmate" "home=$remote_home" \
+  fm_write_meta "$home/state/$id.meta" "kind=secondmate" "home=$remote_home" "worktree=$remote_home" \
+    "endpoint_task_id=$id" "remote_backend=herdr" "remote_herdr_session=fm-remote" "remote_target=fm-remote:fixture-$id" \
     "remote_host=remote-mac" "remote_root=$REMOTE_FIXTURE_ROOT"
   printf '%s\n' "$remote_home"
 }
@@ -2641,7 +2642,8 @@ test_remote_retire_refuses_reassigned_route() {
   cat > "$home/data/secondmates.md" <<EOF
 - mate - replacement lane (host: remote-mac; root: $REMOTE_FIXTURE_ROOT; home: $replacement; scope: relay work; projects: firstmate; added 2026-08-03)
 EOF
-  fm_write_meta "$home/state/mate.meta" "kind=secondmate" "home=$replacement" \
+  fm_write_meta "$home/state/mate.meta" "kind=secondmate" "home=$replacement" "worktree=$replacement" \
+    "endpoint_task_id=mate" "remote_backend=herdr" "remote_herdr_session=fm-remote" "remote_target=fm-remote:fixture-mate" \
     "remote_host=remote-mac" "remote_root=$REMOTE_FIXTURE_ROOT"
   fm_write_meta "$replacement/state/work-reused.meta" \
     "status=working" "x_request=req-remote-replacement" "x_request_ts=1700000000" "x_followups=1"

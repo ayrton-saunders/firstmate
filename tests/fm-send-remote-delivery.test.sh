@@ -185,6 +185,8 @@ setup_remote_parent_home() {  # <name> <remote-home> -> echoes home dir
     "kind=secondmate" \
     "mode=secondmate" \
     "yolo=off" \
+    "home=$2" \
+    "worktree=$2" \
     "remote_host=remote-mac" \
     "remote_root=/remote/root" \
     "remote_backend=herdr" \
@@ -508,7 +510,7 @@ test_remote_send_revalidates_parent_route_after_retirement_lock() {
 }
 
 test_remote_expected_host_revalidates_final_route() {
-  local dir fb ssh_log home rhome rc err count
+  local dir fb ssh_log home rhome rc err count ssh_before
   dir="$TMP_ROOT/remote-expected-host"; mkdir -p "$dir"
   fb=$(make_stubs "$dir"); ssh_log="$dir/ssh.log"; : > "$ssh_log"
   rhome=$(setup_remote_secondmate_home remote-expected-host)
@@ -534,7 +536,45 @@ test_remote_expected_host_revalidates_final_route() {
     "a mismatched expected remote host did not report the route replacement: $err"
   count=$(remote_inbox_records "$rhome" | grep -c . || true)
   [ "$count" = 1 ] || fail "a mismatched expected remote host reached the remote inbox"
-  pass "fm-send remote: expected host is enforced by final route validation"
+  rc=0
+  ssh_before=$(wc -l < "$ssh_log" | tr -d ' ')
+  send_env "$fb" "$home" "$ssh_log" FM_SEND_EXPECTED_REMOTE_SESSION=other \
+    "$SEND" rsm --fire-and-forget 3333333333333333 'stale expected session' \
+    >"$dir/session.out" 2>"$dir/session.err" || rc=$?
+  [ "$rc" -ne 0 ] || fail "stale expected session reported delivery"
+  [ "$(wc -l < "$ssh_log" | tr -d ' ')" = "$ssh_before" ] || fail "stale expected session reached SSH"
+  pass "fm-send remote: expected host and session are enforced before transport"
+}
+
+test_custom_remote_binding() {
+  local dir fb ssh_log home rhome rc corr rec
+  dir="$TMP_ROOT/custom-binding"; mkdir -p "$dir"
+  fb=$(make_stubs "$dir"); ssh_log="$dir/ssh.log"; : > "$ssh_log"
+  rhome=$(setup_remote_secondmate_home custom-binding)
+  home=$(setup_remote_parent_home custom-binding "$rhome")
+  for meta in "$home/state/rsm.meta" "$rhome/state/parent-route/rsm.meta"; do
+    sed 's/fm-remote:/Fleet.A:/g; s/session=fm-remote/session=Fleet.A/' "$meta" > "$dir/meta.next"
+    mv "$dir/meta.next" "$meta"
+  done
+  sed 's/; scope:/; session: Fleet.A; scope:/' "$home/data/secondmates.md" > "$dir/reg.next"
+  mv "$dir/reg.next" "$home/data/secondmates.md"
+  rc=0
+  send_env "$fb" "$home" "$ssh_log" "$SEND" rsm 'custom route steer' >"$dir/out" 2>"$dir/err" || rc=$?
+  expect_code 0 "$rc" "custom session steer failed: $(cat "$dir/err")"
+  [ "$(remote_inbox_records "$rhome" | grep -c .)" = 1 ] || fail "custom steer missed its inbox"
+  send_env "$fb" "$home" "$ssh_log" "$ROOT/bin/fm-on.sh" rsm fm-remote-secondmate-control.sh \
+    send rsm --herdr-session fire-and-forget >"$dir/literal.out" 2>"$dir/literal.err" \
+    || fail "a literal session-flag message was treated as an override: $(cat "$dir/literal.err")"
+  [ "$(remote_inbox_records "$rhome" | grep -c .)" = 2 ] || fail "literal flag text missed its custom-session inbox"
+  rec=$(pending_record "$home")
+  corr=$(fm_pending_reply_get "$rec" corr_id)
+  [ -n "$(fm_pending_reply_get "$rec" remote_binding)" ] || fail "pending request omitted route binding"
+  cp "$rec" "$dir/request.before"
+  sed 's/Fleet.A/Fleet.B/g' "$home/state/rsm.meta" > "$dir/meta.next"
+  mv "$dir/meta.next" "$home/state/rsm.meta"
+  if fm_pending_reply_corr_reusable "$home/state" "$corr" rsm; then fail "pending request replayed after session change"; fi
+  cmp -s "$rec" "$dir/request.before" || fail "refused replay changed request evidence"
+  pass "custom remote steers retain their exact session binding for idempotent recovery"
 }
 
 test_remote_resolve_key_closes_at_enqueue() {
@@ -826,6 +866,7 @@ test_remote_fire_and_forget_never_arms_reply_recovery
 test_remote_send_revalidates_after_retirement_lock
 test_remote_send_revalidates_parent_route_after_retirement_lock
 test_remote_expected_host_revalidates_final_route
+test_custom_remote_binding
 test_remote_resolve_key_closes_at_enqueue
 test_remote_slash_rides_inbox
 test_remote_real_failure_still_fails

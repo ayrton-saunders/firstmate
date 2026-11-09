@@ -78,6 +78,9 @@ MATCHES=0
 HOST=
 ROOT=
 HOME_PATH=
+SESSION=
+ROUTE_LINE=
+ROUTE_ID=
 while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in '- '*) ;; *) continue ;; esac
   secondmate_registry_parse_line "$line" || die "malformed secondmate registry entry: $line"
@@ -87,6 +90,9 @@ while IFS= read -r line || [ -n "$line" ]; do
     HOST=$SECONDMATE_REGISTRY_HOST
     ROOT=$SECONDMATE_REGISTRY_ROOT
     HOME_PATH=$SECONDMATE_REGISTRY_HOME
+    SESSION=$SECONDMATE_REGISTRY_SESSION
+    ROUTE_ID=$SECONDMATE_REGISTRY_ID
+    ROUTE_LINE=$line
   fi
 done < "$REG"
 [ "$MATCHES" -gt 0 ] || die "no remote secondmate or SSH alias matches '$ROUTE'"
@@ -100,6 +106,39 @@ for configured_path in "$ROOT" "$HOME_PATH"; do
   case "$configured_path" in *'//'*) die "configured remote root or home contains an empty path component" ;; esac
 done
 
+[ -z "${FM_REMOTE_EXPECTED_ROUTE_LINE:-}" ] || [ "$FM_REMOTE_EXPECTED_ROUTE_LINE" = "$ROUTE_LINE" ] \
+  || die "remote route changed during operation; preserving records"
+
+# Route identity is checked here for every caller, including file-only update
+# and recovery paths. Never let a changed registry redirect a recorded endpoint.
+PARENT_META="${FM_STATE_OVERRIDE:-$FM_HOME/state}/$ROUTE_ID.meta"
+[ -z "${FM_REMOTE_EXPECTED_PARENT_BINDING:-}" ] || [ "$(secondmate_registry_parent_binding "$PARENT_META")" = "$FM_REMOTE_EXPECTED_PARENT_BINDING" ] \
+  || die "parent remote binding changed before transport; preserving records"
+if [ -e "$PARENT_META" ] || [ -L "$PARENT_META" ]; then
+  PARENT_BINDING=$(secondmate_registry_parent_binding "$PARENT_META") || die "invalid parent binding"
+  secondmate_registry_parent_matches "$PARENT_META" "$ROUTE_ID" "$HOST" "$ROOT" "$HOME_PATH" "$SESSION" \
+    || die "$SECONDMATE_REGISTRY_ERROR"
+fi
+[ -z "${FM_SEND_EXPECTED_REMOTE_SESSION:-}" ] || [ "$FM_SEND_EXPECTED_REMOTE_SESSION" = "$SESSION" ] \
+  || die "remote route session changed before transport"
+case "$COMMAND" in
+  fm-remote-doctor.sh|fm-remote-secondmate-control.sh)
+    SESSION_OPTION_ARGS=("$@")
+    if [ "$COMMAND" = fm-remote-secondmate-control.sh ] && [ "${1:-}" = send ] && [ "$#" -ge 3 ]; then
+      # A send's third argument is opaque message data, never an option.
+      SESSION_OPTION_ARGS[2]=
+    fi
+    for arg in ${SESSION_OPTION_ARGS[@]+"${SESSION_OPTION_ARGS[@]}"}; do
+      case "$arg" in --herdr-session|--herdr-session=*) die "route session cannot be overridden by a caller" ;; esac
+    done
+    if [ "$SESSION" != "$FM_REMOTE_HERDR_LEGACY_SESSION" ]; then
+      set -- --herdr-session "$SESSION" "$@"
+    fi
+    ;;
+esac
+secondmate_registry_line_for_id "$REG" "$ROUTE_ID" && [ "$SECONDMATE_REGISTRY_LINE" = "$ROUTE_LINE" ] \
+  || die "remote route changed before transport; preserving records"
+
 ROOT_B64=$(printf '%s' "$ROOT" | encode_base64)
 HOME_B64=$(printf '%s' "$HOME_PATH" | encode_base64)
 ARGV_B64=$(printf '%s\0' "$COMMAND" "$@" | encode_base64)
@@ -111,6 +150,13 @@ case "$ALIVE_COUNT_MAX" in ''|*[!0-9]*) die "FM_SSH_ALIVE_COUNT_MAX must be a po
 [ "$ALIVE_INTERVAL" -gt 0 ] || die "FM_SSH_ALIVE_INTERVAL must be a positive integer: $ALIVE_INTERVAL"
 [ "$ALIVE_COUNT_MAX" -gt 0 ] || die "FM_SSH_ALIVE_COUNT_MAX must be a positive integer: $ALIVE_COUNT_MAX"
 
+if [ -n "${PARENT_BINDING:-}" ]; then
+  [ "$(secondmate_registry_parent_binding "$PARENT_META")" = "$PARENT_BINDING" ] || die "parent binding changed before transport"
+elif [ -e "$PARENT_META" ] || [ -L "$PARENT_META" ]; then
+  die "parent binding appeared during route resolution; preserving records"
+fi
+secondmate_registry_line_for_id "$REG" "$ROUTE_ID" && [ "$SECONDMATE_REGISTRY_LINE" = "$ROUTE_LINE" ] \
+  || die "remote route changed before transport; preserving records"
 SSH_ARGS=(
   -o ForwardAgent=no
   -o ClearAllForwardings=yes

@@ -189,4 +189,14 @@ fm_pr_poll_artifacts_valid "$HOME_DIR/state" ios "$ROOT/bin/fm-pr-poll.sh" \
   || fail "a remote relaunch broke PR poll authentication by writing harness/model/effort after pr="
 pass "a remote relaunch keeps an already-armed PR poll authenticating"
 
+reset_meta
+awk '!/^remote_backend=/' "$HOME_DIR/state/ios.meta" > "$HOME_DIR/state/ios.meta.next"
+mv "$HOME_DIR/state/ios.meta.next" "$HOME_DIR/state/ios.meta"
+OUT=$(run_relaunch ios claude claude-opus-5-5 medium); RC=$?
+expect_code 0 "$RC" "a fully proved pre-Rex parent should retain relaunch compatibility"$'\n'"$OUT"
+assert_grep 'harness=claude' "$HOME_DIR/state/ios.meta" "legacy relaunch did not publish the confirmed runtime"
+if grep -q '^remote_backend=' "$HOME_DIR/state/ios.meta"; then fail "legacy readability proof filled a missing backend field"; fi
+assert_grep 'remote_herdr_session=fm-remote' "$HOME_DIR/state/ios.meta" "legacy relaunch lost its explicit session evidence"
+pass "a pre-Rex parent relaunch uses exact existing session/target proof without filling backend metadata"
+
 echo "ALL TESTS PASSED"

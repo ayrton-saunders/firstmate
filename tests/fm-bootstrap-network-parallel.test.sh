@@ -217,11 +217,11 @@ SH
   write_remote_registry_line "$home/data/secondmates.md" charlie host-charlie "$charlie_root" "$charlie_home"
 
   fm_write_secondmate_meta "$home/state/alpha.meta" "$alpha_home"
-  printf 'remote_host=host-alpha\n' >> "$home/state/alpha.meta"
+  printf 'remote_host=host-alpha\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:p1\n' "$alpha_root" >> "$home/state/alpha.meta"
   fm_write_secondmate_meta "$home/state/bravo.meta" "$bravo_home"
-  printf 'remote_host=host-bravo\n' >> "$home/state/bravo.meta"
+  printf 'remote_host=host-bravo\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:p1\n' "$bravo_root" >> "$home/state/bravo.meta"
   fm_write_secondmate_meta "$home/state/charlie.meta" "$charlie_home"
-  printf 'remote_host=host-charlie\n' >> "$home/state/charlie.meta"
+  printf 'remote_host=host-charlie\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:p1\n' "$charlie_root" >> "$home/state/charlie.meta"
 
   fm_git_init_commit "$home/projects/alpha"
   fm_git_add_origin "$home/projects/alpha" "$dir/alpha.origin.git"
@@ -353,7 +353,7 @@ test_remote_inheritance_failure_names_its_own_error_not_an_unchanged_item() {
   : > "$home/data/secondmates.md"
   write_remote_registry_line "$home/data/secondmates.md" sm host-sm "$sm_root" "$sm_home"
   fm_write_secondmate_meta "$home/state/sm.meta" "$sm_home"
-  printf 'remote_host=host-sm\n' >> "$home/state/sm.meta"
+  printf 'remote_host=host-sm\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:p1\n' "$sm_root" >> "$home/state/sm.meta"
 
   fm_git_init_commit "$home/projects/alpha"
   fm_git_add_origin "$home/projects/alpha" "$dir/alpha.origin.git"
@@ -509,7 +509,7 @@ convergence_fixture() {
     mkdir -p "$dir/remote/$id/root" "$dir/remote/$id/home"
     write_remote_registry_line "$CF_HOME/data/secondmates.md" "$id" "$host" "$dir/remote/$id/root" "$dir/remote/$id/home"
     fm_write_secondmate_meta "$CF_HOME/state/$id.meta" "$dir/remote/$id/home"
-    printf 'remote_host=%s\n' "$host" >> "$CF_HOME/state/$id.meta"
+    printf 'remote_host=%s\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:p1\n' "$host" "$dir/remote/$id/root" >> "$CF_HOME/state/$id.meta"
   done
 }
 

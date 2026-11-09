@@ -50,6 +50,8 @@ setup_remote_home() {  # <name> -> echoes home dir with remote meta + registry
     "harness=claude" \
     "kind=secondmate" \
     "mode=secondmate" \
+    "home=/remote/home" \
+    "worktree=/remote/home" \
     "remote_host=remote-mac" \
     "remote_root=/remote/root" \
     "remote_backend=herdr" \

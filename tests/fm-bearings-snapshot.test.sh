@@ -260,11 +260,12 @@ make_remote_ledger_fleet() {  # <parent-home> <count>
     remote_home="$TMP_ROOT/remote-ledger-home-$i"
     mkdir -p "$remote_home/state"
     remote_home=$(cd "$remote_home" && pwd -P)
-    printf -- '- %s - ledger fixture (host: host-%s; root: /remote/root; home: %s; scope: fixture; projects: sample; added 2026-09-01)\n' \
-      "$id" "$i" "$remote_home" >> "$parent/data/secondmates.md"
+    printf -- '- %s - ledger fixture (host: host-%s; root: /remote/root; home: %s; session: fm-ledger-%s; scope: fixture; projects: sample; added 2026-09-01)\n' \
+      "$id" "$i" "$remote_home" "$i" >> "$parent/data/secondmates.md"
     fm_write_meta "$parent/state/$id.meta" \
       "kind=secondmate" "mode=secondmate" "harness=pi" \
-      "remote_host=host-$i" "remote_root=/remote/root" "home=$remote_home"
+      "remote_host=host-$i" "remote_root=/remote/root" "home=$remote_home" "worktree=$remote_home" \
+      "endpoint_task_id=$id" "remote_backend=herdr" "remote_herdr_session=fm-ledger-$i" "remote_target=fm-ledger-$i:p1"
     write_remote_home_summary "$remote_home" 1000
     i=$((i + 1))
   done
@@ -3196,6 +3197,30 @@ SH
   pass "large local snapshot overlaps local reads with byte-identical serial and concurrent projections"
 }
 
+test_custom_route_snapshot_identity() {
+  local parent fakebin raw before
+  parent=$(make_home custom-session-snapshot)
+  make_remote_ledger_fleet "$parent" 1
+  fakebin=$(make_remote_ledger_ssh "$parent/remote-ssh")
+  mkdir -p "$parent/ledger-active"
+  : > "$parent/ledger-calls.log"; : > "$parent/ledger-pids.log"
+  raw=$(BEARINGS="$ROOT/bin/fm-fleet-snapshot.sh" run_remote_ledger_bearings "$parent" "$fakebin" 1100) || fail "custom route snapshot failed"
+  printf '%s' "$raw" | jq -e '
+    (.tasks | any(.id=="ledger-1" and .remote.session=="fm-ledger-1" and (.remote.binding|length)>0)) and
+    (.secondmate_current.registry.records | any(.id=="ledger-1" and .session=="fm-ledger-1")) and
+    (.secondmate_current.records | any(.id=="ledger-1" and .session=="fm-ledger-1" and (.remote_binding|length)>0))
+  ' >/dev/null || fail "snapshot omitted resolved route or recorded session identity: $raw"
+  cp "$parent/state/ledger-1.meta" "$parent/parent.before"
+  sed 's/session: fm-ledger-1;/session: fm-other;/' "$parent/data/secondmates.md" > "$parent/route.next"
+  mv "$parent/route.next" "$parent/data/secondmates.md"
+  before=$(wc -l < "$parent/ledger-calls.log" | tr -d ' ')
+  raw=$(BEARINGS="$ROOT/bin/fm-fleet-snapshot.sh" run_remote_ledger_bearings "$parent" "$fakebin" 1100) || fail "mismatched snapshot failed"
+  printf '%s' "$raw" | jq -e '.secondmate_current.records | any(.id=="ledger-1" and .current.state=="unknown" and (.current.reason|contains("identity disagree")))' >/dev/null || fail "snapshot trusted a contradictory session: $raw"
+  [ "$(wc -l < "$parent/ledger-calls.log" | tr -d ' ')" = "$before" ] || fail "contradictory snapshot reached remote transport"
+  cmp -s "$parent/parent.before" "$parent/state/ledger-1.meta" || fail "snapshot changed endpoint evidence"
+  pass "snapshot publishes exact custom session bindings and suppresses contradictory routes"
+}
+
 test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache() {
   local parent fakebin json i remote_home pid collector_pid sleeper_pid duplicate_base cache_file candidate tmp approved_pr
   parent=$(make_home concurrent-remote-ledgers)
@@ -3459,6 +3484,7 @@ fm_test_run \
   test_current_state_uses_captured_status_observation \
   test_relaunched_task_does_not_inherit_reused_endpoint_state \
   test_large_local_snapshot_overlaps_local_reads_without_projection_drift \
+  test_custom_route_snapshot_identity \
   test_remote_ledgers_share_one_concurrent_budget_and_fall_back_to_cache \
   test_a_remote_home_without_any_ledger_is_explicitly_unreadable_without_remote_compute \
   test_domain_alpha_stale_parent_event_does_not_become_current_work \

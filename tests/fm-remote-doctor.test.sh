@@ -39,14 +39,15 @@ ln -sf "$(command -v git)" "$TOOLS/git"
 ln -sf "$(command -v jq)" "$TOOLS/jq"
 BASE_PATH="$TOOLS:/usr/bin:/bin:/usr/sbin:/sbin"
 
-# Real socket-owner holders for the Darwin birth check: jq blocked on a fifo
+# Real socket-owner holders for the Darwin birth check: bash blocked on a fifo
 # this test keeps open, with exactly the marker environment each birth needs.
-JQ=$(command -v jq)
+HOLDER_BASH=$(command -v bash)
 HOLDER_FD=5
 hold() { # <marker-env...> -> HOLDER_PID
   local fifo="$TMP_ROOT/holder-$HOLDER_FD.fifo"
   mkfifo "$fifo"
-  env -i "$@" "$JQ" . "$fifo" &
+  # shellcheck disable=SC2016 # evaluated by the isolated holder shell.
+  env -i "$@" "$HOLDER_BASH" -c 'IFS= read -r line < "$1"' _ "$fifo" &
   HOLDER_PID=$!
   HOLDER_PIDS+=("$HOLDER_PID")
   eval "exec ${HOLDER_FD}>\"\$fifo\""
@@ -125,7 +126,10 @@ case "${1:-}" in
         printf 'interactive default job\n'
         ;;
       */*/*) [ -f "$loaded" ] || exit 113; cat "$loaded" ;;
-      *) [ -f "$FM_FAKE_STATE/gui-session" ] || exit 113 ;;
+      *)
+        [ -f "$FM_FAKE_STATE/gui-session" ] || exit 113
+        [ ! -f "$FM_FAKE_STATE/gui-labels" ] || cat "$FM_FAKE_STATE/gui-labels"
+        ;;
     esac
     exit 0
     ;;
@@ -163,7 +167,7 @@ arguments = {
 	$FM_FAKE_LOGIN_SHELL
 	-l
 	-c
-	exec '$FM_FAKE_GUARD' '$FM_FAKE_HERDR_BIN' 'fm-remote'
+	exec '$FM_FAKE_GUARD' '$FM_FAKE_HERDR_BIN' '${FM_FAKE_HERDR_SESSION:-fm-remote}'
 }
 stdout path = $FM_FAKE_LAUNCH_AGENT_LOG
 stderr path = $FM_FAKE_LAUNCH_AGENT_LOG
@@ -308,6 +312,7 @@ doctor() {
     FM_FAKE_LAUNCHCTL_LOG="$CASE_LAUNCHCTL_LOG" \
     FM_FAKE_FORBIDDEN_LOG="$CASE_FORBIDDEN_LOG" \
     FM_FAKE_HERDR_RUNNING="$CASE_HERDR_RUNNING" \
+    FM_FAKE_HERDR_SESSION="${CASE_SESSION:-fm-remote}" \
     FM_FAKE_HERDR_BIN="$CASE_BIN/herdr" \
     FM_FAKE_HERDR_SOCKET="$CASE_STATE/herdr.sock" \
     FM_FAKE_GUARD="$GUARD" \
@@ -629,15 +634,22 @@ printf '%s\n' "$BACKGROUND_HOLDER_PID" > "$CASE_STATE/socket-owner"
 printf 'background job\n' > "$CASE_STATE/user-loaded-$LABEL"
 doctor
 expect_code 1 "$DOCTOR_RC" "a label loaded in the user domain was reported Aqua-born"
-assert_contains "$DOCTOR_OUT" "check herdr-server=fixable: session fm-remote is served by pid $BACKGROUND_HOLDER_PID born outside the Aqua login session (unknown)" \
-  "the user-domain owner was not tagged fixable"
+assert_contains "$DOCTOR_OUT" 'check herdr-server=human: session fm-remote ownership cannot be proven; refusing takeover' \
+  "the contradictory owner was not reported for explicit recovery"
 rm -f "$CASE_STATE/user-loaded-$LABEL"
 
 printf '%s\n' "$XPC_ZERO_HOLDER_PID" > "$CASE_STATE/socket-owner"
 doctor
 expect_code 1 "$DOCTOR_RC" "an XPC_SERVICE_NAME=0 owner was reported Aqua-born"
-assert_contains "$DOCTOR_OUT" "check herdr-server=fixable: session fm-remote is served by pid $XPC_ZERO_HOLDER_PID born outside the Aqua login session (unknown)" \
-  "the inherited XPC marker was not tagged fixable"
+assert_contains "$DOCTOR_OUT" 'check herdr-server=human: session fm-remote ownership cannot be proven; refusing takeover' \
+  "the inherited XPC marker was not reported for explicit recovery"
+: > "$CASE_LAUNCHCTL_LOG"
+cp "$CASE_PLIST" "$CASE_STATE/plist.before"
+doctor --fix
+expect_code 1 "$DOCTOR_RC" "unknown ownership was repaired without explicit recovery"
+assert_not_contains "$(cat "$CASE_LAUNCHCTL_LOG")" kickstart "unknown ownership reached restart"
+assert_not_contains "$(cat "$CASE_LAUNCHCTL_LOG")" bootstrap "unknown ownership reached replacement"
+cmp -s "$CASE_PLIST" "$CASE_STATE/plist.before" || fail "unknown ownership changed the agent record"
 
 printf '%s\n' "$WORKER_HOLDER_PID" > "$CASE_STATE/socket-owner"
 doctor
@@ -679,8 +691,8 @@ rm -f "$CASE_STATE/socket-owner"
 : > "$CASE_STATE/socket-owner"
 doctor
 expect_code 1 "$DOCTOR_RC" "a session with no provable owner was reported ready"
-assert_contains "$DOCTOR_OUT" 'check herdr-server=fixable: session fm-remote is running but no herdr process can be shown to own its socket' \
-  "an unprovable owner was not tagged fixable"
+assert_contains "$DOCTOR_OUT" 'check herdr-server=human: session fm-remote ownership cannot be proven; refusing takeover' \
+  "an unprovable owner was not reported for explicit recovery"
 pass "a session served outside the Aqua login session is fixable and --fix retakes it through launchd"
 
 # --- no GUI login session: every dependent gap stays human -------------------
@@ -1087,3 +1099,45 @@ assert_contains "$DOCTOR_OUT" 'check remote-job-worker=ok:' \
 assert_not_contains "$DOCTOR_OUT" 'check herdr-server=' "the herdr server was checked for rex on linux"
 [ ! -s "$CASE_LAUNCHCTL_LOG" ] || fail "the linux rex path invoked launchctl"
 pass "a Linux host verifies rex without any Aqua-specific requirement"
+
+LABEL=dev.firstmate.herdr.Fleet.A
+new_case Darwin with-herdr gui
+CASE_SESSION=Fleet.A
+hold XPC_SERVICE_NAME=dev.firstmate.herdr.Fleet.A
+AQUA_HOLDER_PID=$HOLDER_PID
+doctor --herdr-session Fleet.A --fix
+expect_code 0 "$DOCTOR_RC" "custom session readiness did not converge"
+assert_contains "$DOCTOR_OUT" 'check herdr-server=ok: session Fleet.A' "custom readiness fell back"
+[ -f "$CASE_PLIST" ] || fail "custom launch agent plist missing"
+assert_grep 'Fleet.A' "$CASE_PLIST" "custom launch agent identity missing"
+assert_not_contains "$(cat "$CASE_LAUNCHCTL_LOG")" dev.firstmate.herdr.fm-remote "custom repair touched legacy agent"
+pass "custom readiness uses the selected session label and launch-agent paths"
+for where in LaunchAgents Logs; do
+  new_case Darwin with-herdr gui
+  CASE_SESSION=Fleet.A
+  mkdir -p "$CASE_HOME/Library/$where"
+  extension=plist; [ "$where" != Logs ] || extension=log
+  printf 'sibling evidence\n' > "$CASE_HOME/Library/$where/dev.firstmate.herdr.fleet.a.$extension"
+  doctor --herdr-session Fleet.A --fix
+  expect_code 1 "$DOCTOR_RC" "case-folded session path collision accepted"
+  assert_contains "$DOCTOR_OUT" 'case-folded Herdr session path collision' "collision reason missing"
+  assert_not_contains "$(cat "$CASE_LAUNCHCTL_LOG")" bootstrap "collision reached launchd mutation"
+  [ "$(cat "$CASE_HOME/Library/$where/dev.firstmate.herdr.fleet.a.$extension")" = 'sibling evidence' ] || fail "collision evidence changed"
+done
+pass "case-folded plist and log collisions refuse before any repair"
+new_case Darwin with-herdr gui
+CASE_SESSION=Fleet.A
+printf 'dev.firstmate.herdr.fleet.a\n' > "$CASE_STATE/gui-labels"
+doctor --herdr-session Fleet.A --fix
+expect_code 1 "$DOCTOR_RC" "case-folded loaded label collision accepted"
+assert_contains "$DOCTOR_OUT" 'case-folded Herdr launchd label collision' "loaded collision was not named"
+assert_not_contains "$(cat "$CASE_LAUNCHCTL_LOG")" bootstrap "loaded collision reached mutation"
+new_case Darwin with-herdr gui
+CASE_SESSION=Fleet.A
+mkdir -p "$(dirname "$CASE_PLIST")"
+printf 'unproven exact-name agent\n' > "$CASE_PLIST"
+doctor --herdr-session Fleet.A --fix
+expect_code 1 "$DOCTOR_RC" "custom agent with contradictory contract was replaced"
+[ "$(cat "$CASE_PLIST")" = 'unproven exact-name agent' ] || fail "contradictory custom plist was overwritten"
+assert_not_contains "$(cat "$CASE_LAUNCHCTL_LOG")" bootstrap "contradictory custom agent reached replacement"
+pass "custom loaded-label collisions and contradictory agent contracts preserve all evidence"

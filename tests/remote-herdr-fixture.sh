@@ -39,6 +39,17 @@ SOCKET='$socket'
 SH
   cat >> "$script" <<'SH'
 printf '%s\n' "$*" >> "$LOG"
+# Model independent session contents on the same fake account. Legacy callers
+# retain the original state path and exact behavior.
+session=${HERDR_SESSION:-default}
+argv=("$@")
+for ((j=0; j<${#argv[@]}; j++)); do
+  [ "${argv[$j]}" != --session ] || session=${argv[$((j+1))]}
+done
+if [ "$session" != fm-remote ] && [ "$session" != default ]; then
+  STATE="$STATE.$session"
+  if [ ! -f "$STATE" ]; then printf '{"next":1,"workspaces":[],"tabs":[],"typed":{},"working":{}}\n' > "$STATE"; fi
+fi
 jq_state() { jq "$@" "$STATE"; }
 save() { tmp="$STATE.tmp.$$"; cat > "$tmp" && mv "$tmp" "$STATE"; }
 ws=""; label=""; cwd=""; pane=""
@@ -113,7 +124,11 @@ case "${1:-} ${2:-}" in
     fi
     ;;
   "session list"*)
-    printf '{"sessions":[{"name":"default","running":true,"socket_path":"%s"},{"name":"fm-remote","running":true,"socket_path":"%s"}]}\n' "$SOCKET" "$SOCKET" ;;
+    if [ "$session" = fm-remote ] || [ "$session" = default ]; then
+      printf '{"sessions":[{"name":"default","running":true,"socket_path":"%s"},{"name":"fm-remote","running":true,"socket_path":"%s"}]}\n' "$SOCKET" "$SOCKET"
+    else
+      printf '{"sessions":[{"name":"default","running":true,"socket_path":"%s"},{"name":"fm-remote","running":true,"socket_path":"%s"},{"name":"%s","running":true,"socket_path":"%s"}]}\n' "$SOCKET" "$SOCKET" "$session" "$SOCKET"
+    fi ;;
 esac
 exit 0
 SH

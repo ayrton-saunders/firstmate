@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Host-local lifecycle control for the remote secondmate home selected by fm-on.
 #
-# Usage:
+# Usage (an optional route-owned --herdr-session NAME precedes the command):
 #   fm-remote-secondmate-control.sh launch <id> <harness> <model|-> <effort|-> {herdr|rex} [traceparent]
 #   fm-remote-secondmate-control.sh relaunch <id> <harness> <model|default|-> <effort|default|->
 #   fm-remote-secondmate-control.sh state <id>
@@ -17,7 +17,7 @@
 #
 # Remote placement ends here, but the second-mate agent runs only on a
 # session-provider backend whose server survives every SSH disconnection that
-# supervises it: herdr in the dedicated fm-remote session, or rex in this
+# supervises it: herdr in the selected route session (legacy fm-remote), or rex in this
 # home's own 2ndmate-<id>-<hash> session on the host's personal rex server.
 # Launch refuses any other selection rather than reading this home's
 # config/backend. The user's interactive sessions remain for the user's work.
@@ -39,7 +39,7 @@
 # agent's endpoint record; the home's own
 # state/*.meta remains reserved for workers the secondmate supervises.
 # Retirement closes only this secondmate's panes or workspace and never
-# stops fm-remote or removes a sibling secondmate's workspace or panes.
+# stops the selected session or removes a sibling secondmate's workspace or panes.
 #
 # Relaunch is not a second lifecycle implementation: it runs the ORDINARY local
 # control plane here, because from this host the mate is a plain local
@@ -62,7 +62,23 @@ FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 TARGET_HOME=${FM_HOME:?FM_HOME is required}
 CONTROL_STATE="$TARGET_HOME/state/parent-route"
 CONTROL_DATA="$TARGET_HOME/data/.parent-route"
-REMOTE_HERDR_SESSION=fm-remote
+# shellcheck source=bin/fm-herdr-session-lib.sh
+. "$SCRIPT_DIR/fm-herdr-session-lib.sh"
+REMOTE_HERDR_SESSION=$FM_REMOTE_HERDR_LEGACY_SESSION
+if [ "${1:-}" = --herdr-session ]; then
+  if [ "$#" -lt 2 ] || ! fm_remote_herdr_session_validate "$2"; then printf 'error: invalid Herdr session\n' >&2; exit 2; fi
+  REMOTE_HERDR_SESSION=$2
+  shift 2
+fi
+SESSION_OPTION_ARGS=("$@")
+if [ "${1:-}" = send ] && [ "$#" -ge 3 ]; then
+  # Preserve the legacy text-body surface; only structural argv owns options.
+  SESSION_OPTION_ARGS[2]=
+fi
+for arg in ${SESSION_OPTION_ARGS[@]+"${SESSION_OPTION_ARGS[@]}"}; do
+  case "$arg" in --herdr-session|--herdr-session=*) printf 'error: duplicate or misplaced Herdr session option\n' >&2; exit 2 ;; esac
+done
+case "${1:-}" in --*) printf 'error: unsupported option\n' >&2; exit 2 ;; esac
 # Rex starts a missing server as exit-empty, which remote readiness refuses and
 # cannot repair while it answers, so nothing this control plane runs may start
 # one: bin/fm-remote-doctor.sh --fix alone starts the persistent server.
@@ -303,7 +319,7 @@ cmd_launch() {
   fi
   [ -f "$meta" ] || die "remote launch returned without endpoint metadata"
   # remote_endpoint_load's per-backend record checks are the post-spawn
-  # verification: herdr session fm-remote plus target, or rex's id trio and a
+  # verification: the selected herdr session plus target, or rex's id trio and a
   # local unix:// server endpoint.
   remote_endpoint_require "$id"
   print_route "$id"
@@ -471,6 +487,7 @@ cmd_sync() {
   local id=$1 commit report out
   validate_id "$id"
   validate_home "$id"
+  if [ -e "$(meta_path "$id")" ] || [ -L "$(meta_path "$id")" ]; then remote_endpoint_require "$id"; fi
   if [ "$#" -ge 2 ]; then
     commit=$2
     case "$commit" in *[!0-9a-f]*) die "sync target must be a full 40-character commit id" ;; esac
@@ -501,6 +518,7 @@ cmd_update() {
   local id=$1 update_out root_status
   validate_id "$id"
   validate_home "$id"
+  if [ -e "$(meta_path "$id")" ] || [ -L "$(meta_path "$id")" ]; then remote_endpoint_require "$id"; fi
   if ! update_out=$(FM_HOME="$FM_ROOT" FM_ROOT_OVERRIDE="$FM_ROOT" \
     "$SCRIPT_DIR/fm-update.sh" 2>&1); then
     [ -z "$update_out" ] || printf '%s\n' "$update_out" >&2
