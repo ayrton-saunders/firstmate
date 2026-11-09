@@ -294,19 +294,10 @@ Every claude pane under such a server falls back to a stale plaintext credential
 ### How the guard converges on one server
 
 Herdr's own SSH remote attach starts a server born in another session when it finds none.
-At boot, that server wins the `fm-remote` socket, because sshd accepts connections before the login session exists.
-The guard is what makes the launch agent converge.
-It acts only on the selected session's socket:
-
-| Socket owner | Guard action |
-| --- | --- |
-| Nothing | Execs the server in the foreground under launchd. |
-| An Aqua-born server | Exits 0. |
-| Proven SSH-born server | Authorized repair takes the session over through its launch agent. |
-| Unproven or contradictory ownership | Refuses takeover and preserves the server for explicit recovery. |
-
-`KeepAlive={SuccessfulExit=false}` lets that exit 0 rest instead of respawning against a held socket.
-The guard's header owns the decision table, and [`bin/fm-remote-herdr-owner-lib.sh`](../bin/fm-remote-herdr-owner-lib.sh) owns the birth markers it reads.
+At boot, that server can win the selected session's socket, because sshd accepts connections before the login session exists.
+The [guard's header](../bin/fm-remote-herdr-guard.sh) owns the convergence decision table; unproven or contradictory ownership refuses takeover and requires explicit recovery.
+`KeepAlive={SuccessfulExit=false}` lets a verified Aqua-owner exit rest instead of respawning against a held socket.
+[`bin/fm-remote-herdr-owner-lib.sh`](../bin/fm-remote-herdr-owner-lib.sh) owns the birth markers it reads.
 
 ### Other repairs and limits
 
@@ -397,7 +388,7 @@ So each of these projects is refused rather than provisioned:
 
 The seed takes these steps:
 
-1. It records `host:`, `root:`, and `home:` in `data/secondmates.md`.
+1. It records the remote binding in `data/secondmates.md` using the [route schema](../.agents/skills/secondmate-provisioning/SKILL.md#routing-table).
 2. It gates the host on readiness.
 3. It sends a bounded manifest.
 4. It lets the remote host clone its own Firstmate home and project origins.
@@ -467,8 +458,11 @@ Placement is per backend:
 ### Refused and unsupported launches
 
 - An explicit request for any backend other than herdr or rex is refused rather than honored, and the remote host refuses one too.
-- The complete primary/route/host/code-root/home/session binding must agree with the parent record before transport and publication, and with the remote home marker, backend, endpoint session, and session-qualified target before endpoint access.
-  Missing endpoint evidence or a disagreement refuses with all records preserved: no adoption, fallback, automatic move, deletion, or forced retirement.
+- The complete primary/route/host/code-root/home/session binding must agree with the parent record before transport and publication.
+  Remote endpoint validation requires the home marker, exactly one `kind=secondmate`, and endpoint `home` and `worktree` matching the selected remote home, alongside the backend's explicit identity evidence.
+  Custom-session requests carry the requested route ID and, when parent metadata exists, its expected backend and target to the route-aware execution boundary.
+  Legacy requests preserve their existing wire arguments: control commands carry the route ID positionally, while doctor and direct file/inheritance commands derive it from the selected home's marker and do not receive the parent's expected backend or target.
+  Missing required endpoint evidence or a detected disagreement refuses with all records preserved: no adoption, fallback, automatic move, deletion, or forced retirement.
 - An existing remote endpoint recorded outside its backend's contract - a Herdr session other than the persisted route session, or a Rex route whose recorded server is not a local `unix://` endpoint - is classified as unverified and left untouched.
   Launch, liveness recovery, control, and retirement refuse it until an operator explicitly migrates it, instead of attempting a live cutover.
 - A launch after a host has drifted out of readiness fails with the doctor's own gap text instead of leaving a half-created endpoint.
@@ -526,6 +520,7 @@ Either outcome preserves this ordinary reply-bearing request's pending-reply exp
 If delivery remains unconfirmed, only the exact `FM_PENDING_REPLY_EXISTING_CORR=<id>` resend command printed by `fm-send` is safe to run later.
 That command preserves the request body and lets the remote enqueue deduplicate onto the same record.
 A plain rerun mints a different correlation and is not idempotent.
+Resend eligibility also depends on the [pending-reply binding guard](../bin/fm-pending-reply-lib.sh); an old correlation cannot be reused against a changed or unproved remote binding.
 When deduplication finds that the worker already moved the matching record into `handled/`, the resend exits successfully without ringing the doorbell again.
 
 ### Swallowed doorbells
@@ -692,6 +687,7 @@ Move a live remote second mate onto a newly pinned harness, model, or effort wit
 Session start and every remote launch converge the persistent remote home on the primary's own default-branch commit rather than on the Firstmate copy that host keeps.
 The [`secondmate-provisioning` skill](../.agents/skills/secondmate-provisioning/SKILL.md) owns the guarded convergence contract, including the distinct `/updatefirstmate` behavior, and [`bin/fm-remote-secondmate-control.sh`](../bin/fm-remote-secondmate-control.sh) owns the commit-import mechanics.
 Neither session start nor launch moves the host's own Firstmate copy.
+Updates visit every registered remote home even when several share one host or code root; each home gets its own result and restart verification.
 An unsafe or unavailable target is reported and left untouched.
 A completed sync reports which watched instruction paths its advance changed.
 The primary needs that fact because it cannot diff a checkout it cannot read.
@@ -712,7 +708,6 @@ It refuses while any of these holds:
 - The primary has an unfinished backlog outbox.
 - A routed reply remains unresolved.
 
-Updates visit every registered remote home even when several share one host or code root; each home gets its own result and restart verification.
 Herdr retirement closes only the retiring secondmate's panes or `2ndmate-<id>` workspace in its recorded session, never the shared session or a sibling's workspace or panes.
 Naming does not couple session lifecycle to the primary's process or network connection.
 Rex retirement follows the [recorded-block and empty-session cleanup contract](rex-backend.md#cleanup-and-the-absence-proof), never stopping the shared server.

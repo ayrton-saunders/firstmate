@@ -34,6 +34,7 @@
 #   parent_home=            absolute parent FM_HOME
 #   parent_status=          absolute path of parent state/<task_id>.status
 #   parent_status_scan_signature=
+#   remote_binding=         sampled parent endpoint identity (empty for local tasks)
 #   request_summary=        short sanitized summary (no secrets by design)
 #   created_epoch=          when the expectation was created
 #   delivered_epoch=        when the marked request was confirmed delivered
@@ -87,6 +88,14 @@
 # fm-send --resolve-key (bin/fm-send.sh header): it must speak the close note
 # owned below (fm_pending_reply_resolved_note), because a bare answered: note is
 # not a reserved-key transition and would leave the decision open.
+#
+# Remote binding guard: correlation reuse and recovery delivery require the
+# record's nonempty remote_binding to match the current parent endpoint binding.
+# A changed or absent binding (including pre-upgrade pending records) forbids
+# replay. The watcher reconciles available parent replies, then opens a keyed
+# pending-reply-binding-unverified escalation if the request remains unresolved;
+# it never silently abandons the request or adopts the new endpoint identity.
+# tests/fm-pending-reply.test.sh covers this refusal and escalation boundary.
 #
 # Retryable undelivered escalation: a delivery-unknown escalation reports that
 # the request may never have reached the mate, so the request stays the owner's
