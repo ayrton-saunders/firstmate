@@ -1,6 +1,22 @@
 #!/usr/bin/env bash
 # Source-safe execution-boundary checks for route-owned remote operations.
 
+fm_remote_endpoint_guard() {
+  local session=${1:-fm-remote} id home=${FM_HOME:?FM_HOME is required}
+  [ -e "$home/.fm-secondmate-home" ] || [ -L "$home/.fm-secondmate-home" ] || {
+    [ "${FM_REMOTE_JOB_ACTIVE:-0}" != 1 ] && return 0
+    printf 'error: remote home ownership is unavailable\n' >&2
+    return 1
+  }
+  id=$(<"$home/.fm-secondmate-home")
+  case "$id" in ''|*[!A-Za-z0-9._-]*) return 1 ;; esac
+  . "$(dirname "${BASH_SOURCE[0]}")/fm-backend.sh"
+  fm_remote_endpoint_validate "$home" "$id" "$session" || {
+    printf 'error: %s\n' "$REMOTE_ENDPOINT_ERROR" >&2
+    return 1
+  }
+}
+
 fm_remote_endpoint_options() {
   FM_REMOTE_ENDPOINT_OPTION_COUNT=0
   FM_REMOTE_EXPECTED_BACKEND=

@@ -523,7 +523,7 @@ cmd_home_transfer() {
   validate_id "$id"
   validate_home "$id"
   if [ -n "$FM_REMOTE_EXPECTED_TARGET" ] || [ -e "$(meta_path "$id")" ] || [ -L "$(meta_path "$id")" ]; then remote_endpoint_require "$id"; fi
-  exec "$SCRIPT_DIR/$command" "$@"
+  exec "$SCRIPT_DIR/$command" --herdr-session "$REMOTE_HERDR_SESSION" "$@"
 }
 
 cmd_retire() {

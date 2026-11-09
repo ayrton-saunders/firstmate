@@ -129,10 +129,12 @@ if [ -n "${PARENT_BINDING:-}" ]; then
   EXPECTED_TARGET=$(secondmate_registry_meta_field "$PARENT_META" remote_target) || die "parent endpoint target is missing"
   [ -n "$EXPECTED_TARGET" ] || die "parent endpoint target is empty"
 fi
-case "$COMMAND" in
-  fm-remote-file.sh) set -- file "$ROUTE_ID" "$@"; COMMAND=fm-remote-secondmate-control.sh ;;
-  fm-remote-inherit.sh) set -- inherit "$ROUTE_ID" "$@"; COMMAND=fm-remote-secondmate-control.sh ;;
-esac
+if [ "$SESSION" != "$FM_REMOTE_HERDR_LEGACY_SESSION" ]; then
+  case "$COMMAND" in
+    fm-remote-file.sh) set -- file "$ROUTE_ID" "$@"; COMMAND=fm-remote-secondmate-control.sh ;;
+    fm-remote-inherit.sh) set -- inherit "$ROUTE_ID" "$@"; COMMAND=fm-remote-secondmate-control.sh ;;
+  esac
+fi
 case "$COMMAND" in
   fm-remote-doctor.sh|fm-remote-secondmate-control.sh)
     SESSION_OPTION_ARGS=("$@")
@@ -143,7 +145,7 @@ case "$COMMAND" in
     for arg in ${SESSION_OPTION_ARGS[@]+"${SESSION_OPTION_ARGS[@]}"}; do
       case "$arg" in --herdr-session|--herdr-session=*|--expected-backend|--expected-backend=*|--expected-target|--expected-target=*|--route-id|--route-id=*) die "route session cannot be overridden by a caller" ;; esac
     done
-    if [ -n "$EXPECTED_TARGET" ]; then
+    if [ "$SESSION" != "$FM_REMOTE_HERDR_LEGACY_SESSION" ] && [ -n "$EXPECTED_TARGET" ]; then
       set -- --expected-backend "$EXPECTED_BACKEND" --expected-target "$EXPECTED_TARGET" "$@"
       if [ "$COMMAND" = fm-remote-doctor.sh ]; then set -- --route-id "$ROUTE_ID" "$@"; fi
     fi

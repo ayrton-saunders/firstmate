@@ -592,6 +592,19 @@ SH
 if fm_on ios fm-remote-secondmate-control.sh state ios >/dev/null 2>&1; then fail "old remote accepted custom routing"; fi
 [ "$(cat "$SSH_COUNT")" -eq "$((ssh_before + 1))" ] || fail "unsupported custom option retried"
 write_registry
+mkdir -p "$LOCAL_HOME/state"
+cat > "$LOCAL_HOME/state/ios.meta" <<EOF
+kind=secondmate
+endpoint_task_id=ios
+remote_host=remote-mac
+remote_root=$REMOTE_ROOT
+home=$REMOTE_HOME
+worktree=$REMOTE_HOME
+backend=herdr
+remote_backend=herdr
+remote_herdr_session=fm-remote
+remote_target=fm-remote:pane-a
+EOF
 out=$(fm_on ios fm-remote-secondmate-control.sh state ios)
 [ "$out" = legacy-only ] || fail "legacy transport changed"
 pass "custom argv is route-owned, override refusal precedes SSH, and old remotes never fall back"
