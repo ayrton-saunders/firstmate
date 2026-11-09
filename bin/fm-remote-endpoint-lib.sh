@@ -49,9 +49,12 @@ fm_remote_endpoint_validate() {
   fi
   REMOTE_ENDPOINT_BACKEND=$FM_BACKEND_VALIDATED_BACKEND
   REMOTE_ENDPOINT_TARGET=$FM_BACKEND_VALIDATED_TARGET
-  if { [ -n "${FM_REMOTE_EXPECTED_BACKEND:-}" ] && [ "$REMOTE_ENDPOINT_BACKEND" != "$FM_REMOTE_EXPECTED_BACKEND" ]; } ||
-    { [ -n "${FM_REMOTE_EXPECTED_TARGET:-}" ] && [ "$REMOTE_ENDPOINT_TARGET" != "$FM_REMOTE_EXPECTED_TARGET" ]; }; then
-    REMOTE_ENDPOINT_ERROR="remote endpoint disagrees with requested backend or target"
+  if [ -n "${FM_REMOTE_EXPECTED_BACKEND:-}" ] && [ "$REMOTE_ENDPOINT_BACKEND" != "$FM_REMOTE_EXPECTED_BACKEND" ]; then
+    REMOTE_ENDPOINT_ERROR="remote secondmate $id endpoint is recorded on backend '$REMOTE_ENDPOINT_BACKEND', expected '$FM_REMOTE_EXPECTED_BACKEND'; refusing access until it is explicitly migrated"
+    return 1
+  fi
+  if [ -n "${FM_REMOTE_EXPECTED_TARGET:-}" ] && [ "$REMOTE_ENDPOINT_TARGET" != "$FM_REMOTE_EXPECTED_TARGET" ]; then
+    REMOTE_ENDPOINT_ERROR="remote endpoint disagrees with requested target"
     return 1
   fi
   case "$REMOTE_ENDPOINT_BACKEND" in

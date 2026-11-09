@@ -65,6 +65,7 @@ argv_b64=$4
 command_fields=$(perl -MMIME::Base64=decode_base64 -e '
   my $data=decode_base64($ARGV[0]);
   my @args=split(/\0/, $data);
+  splice @args, 1, 2 while (($args[1] // "") =~ /^(--herdr-session|--expected-backend|--expected-target|--route-id)$/);
   print join("\t", map { defined $_ ? $_ : "" } @args[0..5]);
 ' "$argv_b64")
 IFS=$'\t' read -r cmd action id harness model effort <<EOF

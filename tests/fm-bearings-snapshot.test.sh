@@ -285,6 +285,12 @@ remote_home=$(perl -MMIME::Base64=decode_base64 -e 'print decode_base64($ARGV[0]
 args=()
 while IFS= read -r -d '' arg; do args+=("$arg"); done \
   < <(perl -MMIME::Base64=decode_base64 -e 'print decode_base64($ARGV[0])' "$4")
+while [ "${args[1]:-}" = --herdr-session ] || [ "${args[1]:-}" = --expected-backend ] || [ "${args[1]:-}" = --expected-target ]; do
+  args=("${args[0]}" "${args[@]:3}")
+done
+if [ "${args[0]:-}:${args[1]:-}" = fm-remote-secondmate-control.sh:file ]; then
+  args=(fm-remote-file.sh "${args[@]:3}")
+fi
 printf '%s\t%s\n' "$remote_home" "${args[0]:-}" >> "$FM_TEST_LEDGER_CALL_LOG"
 if [ -f "$remote_home/state/slow-ledger-read" ]; then
   active_marker="$FM_TEST_LEDGER_ACTIVE_DIR/collector-$$"

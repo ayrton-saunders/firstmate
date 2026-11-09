@@ -105,13 +105,6 @@ fi
 
 # shellcheck source=bin/fm-backend.sh
 . "$SCRIPT_DIR/fm-backend.sh"
-# shellcheck source=bin/fm-ff-lib.sh
-. "$SCRIPT_DIR/fm-ff-lib.sh"
-# shellcheck source=bin/fm-pending-reply-lib.sh
-. "$SCRIPT_DIR/fm-pending-reply-lib.sh"
-# shellcheck source=bin/fm-task-inbox-lib.sh
-. "$SCRIPT_DIR/fm-task-inbox-lib.sh"
-
 validate_home() { # <id>
   local id=$1 marker
   [ -d "$TARGET_HOME" ] && [ ! -L "$TARGET_HOME" ] || die "remote secondmate home is unavailable or unsafe"
@@ -131,6 +124,27 @@ remote_endpoint_load() {
 remote_endpoint_require() {
   remote_endpoint_load "$1" || die "$REMOTE_ENDPOINT_ERROR"
 }
+
+case "${1:-}" in
+  launch|relaunch|state|route|send|send-stdin|key|capture|observe|sync|update|retire|file|inherit) ;;
+  *) usage ;;
+esac
+validate_id "${2:-}"
+validate_home "$2"
+if [ -n "$FM_REMOTE_EXPECTED_TARGET" ] || [ -e "$(meta_path "$2")" ] || [ -L "$(meta_path "$2")" ]; then
+  if ! remote_endpoint_load "$2"; then
+    if [ "$1" = state ]; then
+      printf 'error: %s\n' "$REMOTE_ENDPOINT_ERROR" >&2
+      printf 'unverified\n'
+      exit 0
+    fi
+    die "$REMOTE_ENDPOINT_ERROR"
+  fi
+fi
+
+. "$SCRIPT_DIR/fm-ff-lib.sh"
+. "$SCRIPT_DIR/fm-pending-reply-lib.sh"
+. "$SCRIPT_DIR/fm-task-inbox-lib.sh"
 
 # A rex endpoint is pinned to the server endpoint its launch recorded: reads
 # through a different ambient resolution (a re-pointed personal socket, or a
@@ -320,6 +334,7 @@ cmd_relaunch() {
     "$SCRIPT_DIR/fm-harness.sh" validate-native-effort "$harness" "$model" "$effort" || return 1
   fi
   remote_endpoint_require "$id"
+  FM_REMOTE_EXPECTED_BACKEND=$REMOTE_ENDPOINT_BACKEND
   [ "$model" != - ] || model=default
   [ "$effort" != - ] || effort=default
   control_args=("$id" relaunch --harness "$harness" --model "$model" --effort "$effort")
@@ -502,6 +517,15 @@ cmd_update() {
   cmd_sync "$id"
 }
 
+cmd_home_transfer() {
+  local command=$1 id=$2
+  shift 2
+  validate_id "$id"
+  validate_home "$id"
+  if [ -n "$FM_REMOTE_EXPECTED_TARGET" ] || [ -e "$(meta_path "$id")" ] || [ -L "$(meta_path "$id")" ]; then remote_endpoint_require "$id"; fi
+  exec "$SCRIPT_DIR/$command" "$@"
+}
+
 cmd_retire() {
   local id=$1 force=${2:-} recorded_server current_server
   validate_id "$id"
@@ -543,6 +567,8 @@ case "${1:-}" in
   sync) shift; [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage; cmd_sync "$@" ;;
   update) shift; [ "$#" -eq 1 ] || usage; cmd_update "$@" ;;
   retire) shift; [ "$#" -ge 1 ] && [ "$#" -le 2 ] || usage; cmd_retire "$@" ;;
+  file) shift; [ "$#" -ge 2 ] || usage; cmd_home_transfer fm-remote-file.sh "$@" ;;
+  inherit) shift; [ "$#" -eq 6 ] || usage; cmd_home_transfer fm-remote-inherit.sh "$@" ;;
   ''|-h|--help|help) usage ;;
   *) die "unknown command: $1" ;;
 esac

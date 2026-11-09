@@ -130,6 +130,10 @@ if [ -n "${PARENT_BINDING:-}" ]; then
   [ -n "$EXPECTED_TARGET" ] || die "parent endpoint target is empty"
 fi
 case "$COMMAND" in
+  fm-remote-file.sh) set -- file "$ROUTE_ID" "$@"; COMMAND=fm-remote-secondmate-control.sh ;;
+  fm-remote-inherit.sh) set -- inherit "$ROUTE_ID" "$@"; COMMAND=fm-remote-secondmate-control.sh ;;
+esac
+case "$COMMAND" in
   fm-remote-doctor.sh|fm-remote-secondmate-control.sh)
     SESSION_OPTION_ARGS=("$@")
     if [ "$COMMAND" = fm-remote-secondmate-control.sh ] && [ "${1:-}" = send ] && [ "$#" -ge 3 ]; then
