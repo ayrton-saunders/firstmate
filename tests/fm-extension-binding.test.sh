@@ -2244,10 +2244,16 @@ REMOTE_FAKEBIN=$(fm_fakebin "$TMP_ROOT/remote-fakebin")
 REMOTE_SSH_COUNT="$TMP_ROOT/remote-ssh.count"
 mkdir -p "$H_REMOTE_CONTROL/data" "$H_REMOTE" "$REMOTE_ROOT/bin"
 printf 'fixture\n' > "$REMOTE_ROOT/AGENTS.md"
+mkdir -p "$H_REMOTE/state/parent-route"
+printf 'ios\n' > "$H_REMOTE/.fm-secondmate-home"
+fm_write_meta "$H_REMOTE/state/parent-route/ios.meta" \
+  "kind=secondmate" "home=$H_REMOTE" "worktree=$H_REMOTE" "project=-" \
+  "backend=herdr" "endpoint_task_id=ios" "window=fm-remote:p1" \
+  "herdr_session=fm-remote" "herdr_workspace_id=w1" "herdr_tab_id=t1" "herdr_pane_id=p1"
 for remote_file in \
   fm-extension.mjs fm-extension-launch-barrier.mjs fm-extension.sh fm-procevent.sh fm-procevent-lib.sh fm-procevent-extension-capture.pl fm-procevent-lavish.sh \
   fm-pr-lib.sh fm-role-lib.sh fm-wake-lib.sh fm-path-lib.sh fm-remote-entrypoint.sh fm-remote-job-lib.sh \
-  fm-remote-job-worker.sh; do
+  fm-remote-job-worker.sh fm-remote-endpoint-lib.sh fm-herdr-session-lib.sh fm-backend.sh; do
   cp "$ROOT/bin/$remote_file" "$REMOTE_ROOT/bin/$remote_file"
 done
 chmod +x "$REMOTE_ROOT/bin"/fm-*.sh "$REMOTE_ROOT/bin/fm-extension.mjs" "$REMOTE_ROOT/bin/fm-extension-launch-barrier.mjs"

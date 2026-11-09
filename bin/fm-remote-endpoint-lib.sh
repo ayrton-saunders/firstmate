@@ -2,6 +2,7 @@
 # Source-safe execution-boundary checks for route-owned remote operations.
 
 fm_remote_endpoint_command_options() {
+  # shellcheck source=bin/fm-herdr-session-lib.sh
   . "$(dirname "${BASH_SOURCE[0]}")/fm-herdr-session-lib.sh"
   FM_REMOTE_COMMAND_SESSION=$FM_REMOTE_HERDR_LEGACY_SESSION
   FM_REMOTE_COMMAND_OPTION_COUNT=0
@@ -45,6 +46,7 @@ fm_remote_endpoint_guard() {
     && [ -z "${FM_REMOTE_EXPECTED_BACKEND:-}${FM_REMOTE_EXPECTED_TARGET:-}" ]; then
     return 0
   fi
+  # shellcheck source=bin/fm-backend.sh
   . "$(dirname "${BASH_SOURCE[0]}")/fm-backend.sh"
   fm_remote_endpoint_validate "$home" "$id" "$session" || {
     printf 'error: %s\n' "$REMOTE_ENDPOINT_ERROR" >&2
@@ -84,6 +86,8 @@ fm_remote_endpoint_validate() {
   REMOTE_ENDPOINT_BACKEND=
   REMOTE_ENDPOINT_TARGET=
   meta="$home/state/parent-route/$id.meta"
+  # Shared output consumed by fm-remote-secondmate-control.sh.
+  # shellcheck disable=SC2034
   REMOTE_ENDPOINT_META=$meta
   if [ ! -d "$home" ] || [ -L "$home" ] || [ ! -f "$home/.fm-secondmate-home" ] || [ -L "$home/.fm-secondmate-home" ]; then
     REMOTE_ENDPOINT_ERROR="remote home marker is unavailable or unsafe"

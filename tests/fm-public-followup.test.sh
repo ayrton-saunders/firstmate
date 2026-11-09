@@ -2472,6 +2472,12 @@ make_remote_route() {  # <home> <secondmate-id>
   remote_home="$TMP_ROOT/$(basename "$home")-remote-$id"
   mkdir -p "$remote_home/state" "$remote_home/data"
   remote_home=$(cd "$remote_home" && pwd -P)
+  mkdir -p "$remote_home/state/parent-route"
+  printf '%s\n' "$id" > "$remote_home/.fm-secondmate-home"
+  fm_write_meta "$remote_home/state/parent-route/$id.meta" \
+    "kind=secondmate" "home=$remote_home" "worktree=$remote_home" "project=-" \
+    "backend=herdr" "endpoint_task_id=$id" "window=fm-remote:fixture-$id" \
+    "herdr_session=fm-remote" "herdr_workspace_id=w1" "herdr_tab_id=t1" "herdr_pane_id=fixture-$id"
   cat > "$home/data/secondmates.md" <<EOF
 - $id - remote lane (host: remote-mac; root: $REMOTE_FIXTURE_ROOT; home: $remote_home; scope: relay work; projects: firstmate; added 2026-08-02)
 EOF
@@ -2527,8 +2533,13 @@ test_remote_secondmate_loop_delivers_and_retires() {
   fm_write_meta "$remote/state/work-remote.meta" \
     "x_request=req-remote-close" "x_request_ts=1700000000" "x_followups=1"
 
-  # The trap condition, pinned so this case can never go vacuous: a remote route
-  # has no local home path to record, which is exactly what used to dead-end.
+  # The fake remote home is visible on this machine; model the registry emitted
+  # on a real parent, where that path cannot resolve locally.
+  sed 's|^work_home_path=.*|work_home_path=|' \
+    "$home/state/public-followup/registry/pf-remote-close" > "$home/registration.tmp"
+  mv "$home/registration.tmp" "$home/state/public-followup/registry/pf-remote-close"
+  chmod 600 "$home/state/public-followup/registry/pf-remote-close"
+  # The trap condition: a remote route has no local home path to record.
   [ -z "$(sed -n 's/^work_home_path=//p' "$home/state/public-followup/registry/pf-remote-close")" ] \
     || fail "a remote work home must register with no local path"
 
@@ -3107,6 +3118,11 @@ test_remote_route_loss_fails_brief_and_collection() {
   home=$(make_home remote-route-lost)
   remote=$(make_remote_route "$home" mini-default)
   seed_repro_commitment "$home" pf-route-lost req-route-lost secondmate:mini-default work-lost
+  # Model the real parent's registration: fake-host paths are not local homes.
+  sed 's|^work_home_path=.*|work_home_path=|' \
+    "$home/state/public-followup/registry/pf-route-lost" > "$home/registration.tmp"
+  mv "$home/registration.tmp" "$home/state/public-followup/registry/pf-route-lost"
+  chmod 600 "$home/state/public-followup/registry/pf-route-lost"
 
   out=$(run_pf "$home" brief pf-route-lost) || fail "brief failed before route loss: $out"
   command=$(brief_emit_command "$out")

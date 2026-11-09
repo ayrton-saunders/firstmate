@@ -70,6 +70,7 @@ if [ "${1:-}" = --herdr-session ]; then
   REMOTE_HERDR_SESSION=$2
   shift 2
 fi
+# shellcheck source=bin/fm-remote-endpoint-lib.sh
 . "$SCRIPT_DIR/fm-remote-endpoint-lib.sh"
 fm_remote_endpoint_options "$@" || { printf 'error: invalid endpoint options\n' >&2; exit 2; }
 shift "$FM_REMOTE_ENDPOINT_OPTION_COUNT"
@@ -142,8 +143,11 @@ if [ -n "$FM_REMOTE_EXPECTED_TARGET" ] || [ -e "$(meta_path "$2")" ] || [ -L "$(
   fi
 fi
 
+# shellcheck source=bin/fm-ff-lib.sh
 . "$SCRIPT_DIR/fm-ff-lib.sh"
+# shellcheck source=bin/fm-pending-reply-lib.sh
 . "$SCRIPT_DIR/fm-pending-reply-lib.sh"
+# shellcheck source=bin/fm-task-inbox-lib.sh
 . "$SCRIPT_DIR/fm-task-inbox-lib.sh"
 
 # A rex endpoint is pinned to the server endpoint its launch recorded: reads

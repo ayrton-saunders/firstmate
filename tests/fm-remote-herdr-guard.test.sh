@@ -223,7 +223,6 @@ WORKER_PID=$HOLDER_PID
 hold SSH_CONNECTION='100.102.217.78 51234 100.100.1.2 22' SSH_CLIENT='100.102.217.78 51234 22'
 SSH_PID=$HOLDER_PID
 hold FM_NOTHING_TO_SEE=1
-UNMARKED_PID=$HOLDER_PID
 hold_under herdr --session "$SESSION" remote-client-bridge
 BRIDGE_CHILD_PID=$HOLDER_PID
 hold_under 'sshd-session:' kunchen@notty

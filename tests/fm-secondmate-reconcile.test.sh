@@ -108,8 +108,10 @@ make_remote_secondmate_home() {  # <name> -> echoes remote home dir
   printf '%s\n' "$1" > "$rh/.fm-secondmate-home"
   printf '# remote secondmate home fixture\n' > "$rh/AGENTS.md"
   cat > "$rh/state/parent-route/$1.meta" <<META
+kind=secondmate
+home=$rh
 window=fm-remote:p1
-worktree=-
+worktree=$rh
 project=-
 backend=herdr
 endpoint_task_id=$1
