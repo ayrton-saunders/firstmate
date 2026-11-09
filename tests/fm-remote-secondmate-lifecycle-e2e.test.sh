@@ -997,6 +997,7 @@ cp "$remote_route_meta" "$TMP_ROOT/remote-ios-before-legacy.meta"
 cat > "$remote_route_meta" <<EOF
 window=firstmate:fm-ios
 worktree=$REMOTE_HOME
+home=$REMOTE_HOME
 project=$REMOTE_ROOT
 harness=codex
 kind=secondmate
@@ -1010,8 +1011,8 @@ remote_env "$ROOT/bin/fm-on.sh" ios fm-remote-secondmate-control.sh launch ios c
 legacy_alive_rc=$?
 set -e
 [ "$legacy_alive_rc" -ne 0 ] || fail "remote control reused an alive legacy tmux endpoint"
-assert_grep "endpoint is recorded on backend 'tmux', expected 'herdr'" "$TMP_ROOT/legacy-alive-refusal.out" \
-  "remote refusal did not name the endpoint's recorded backend"
+assert_grep 'remote endpoint is not recorded on herdr or rex' "$TMP_ROOT/legacy-alive-refusal.out" \
+  "remote refusal did not reject the unsupported endpoint backend"
 cmp -s "$TMP_ROOT/remote-ios-legacy-before-refusal.meta" "$remote_route_meta" \
   || fail "remote refusal changed the legacy endpoint metadata"
 assert_present "$TMUX_STATE" "remote refusal killed the alive legacy endpoint"
@@ -1272,11 +1273,8 @@ assert_contains "$UPDATE_OUT" 'synced:' "remote update did not report a host-loc
 assert_present "$REMOTE_HOME/REMOTE_UPDATE_PROBE" "remote update did not materialize the code-root commit"
 pass "remote update imports and fast-forwards the persistent home on its configured host"
 
-# The remote restart verb is not a second implementation: its host-local leg runs
-# the ORDINARY control plane against a record that is plain and local on that
-# host. These two refusals can only come from that plane's own pre-stop
-# capability tables, and they leave the live agent exactly as it was - which is
-# the whole safety property of asking before anything is stopped.
+# Remote restart must reject an unverified harness or contradictory endpoint
+# ownership before stopping the live agent or rewriting the endpoint record.
 RELAUNCH_UNVERIFIED=$(remote_env "$ROOT/bin/fm-on.sh" ios fm-remote-secondmate-control.sh \
   relaunch ios notaharness - - 2>&1) && fail "an unverified runtime should refuse a remote restart"
 assert_contains "$RELAUNCH_UNVERIFIED" 'unverified remote secondmate harness' \
@@ -1286,14 +1284,17 @@ cp "$RELAUNCH_ROUTE_META" "$TMP_ROOT/ios-before-relaunch.meta"
 mkdir -p "$TMP_ROOT/not-a-checkout"
 sed "s|^worktree=.*|worktree=$TMP_ROOT/not-a-checkout|" \
   "$TMP_ROOT/ios-before-relaunch.meta" > "$RELAUNCH_ROUTE_META"
+cp "$RELAUNCH_ROUTE_META" "$TMP_ROOT/ios-mismatched-relaunch.meta"
 RELAUNCH_CHECKPOINT=$(remote_env "$ROOT/bin/fm-on.sh" ios fm-remote-secondmate-control.sh \
-  relaunch ios codex - - 2>&1) && fail "a restart with no accountable checkout should refuse"
-assert_contains "$RELAUNCH_CHECKPOINT" 'refusing to relaunch without a checkout whose unlanded work can be accounted for' \
-  "the host-local restart did not reach the control plane's own pre-stop checkpoint"
+  relaunch ios codex - - 2>&1) && fail "a restart with contradictory endpoint ownership should refuse"
+assert_contains "$RELAUNCH_CHECKPOINT" 'remote endpoint worktree does not match the selected secondmate home' \
+  "remote restart did not reject contradictory endpoint ownership"
+cmp -s "$TMP_ROOT/ios-mismatched-relaunch.meta" "$RELAUNCH_ROUTE_META" \
+  || fail "a refused remote restart changed the contradictory endpoint record"
 cp "$TMP_ROOT/ios-before-relaunch.meta" "$RELAUNCH_ROUTE_META"
 [ "$(remote_env "$ROOT/bin/fm-on.sh" ios fm-remote-secondmate-control.sh state ios)" = alive ] \
   || fail "a refused remote restart must leave the running agent untouched"
-pass "the remote restart verb delegates to the host-local control plane and refuses before stopping anything"
+pass "remote restart rejects unverified harnesses and contradictory ownership before mutation"
 
 
 rm -f "$TMP_ROOT/doctor.repaired"
@@ -1457,6 +1458,7 @@ cp "$PARENT/data/secondmates.md" "$TMP_ROOT/registry-before-liveness-legacy.md"
 cat > "$remote_route_meta" <<EOF
 window=firstmate:fm-ios
 worktree=$REMOTE_HOME
+home=$REMOTE_HOME
 project=$REMOTE_ROOT
 harness=codex
 kind=secondmate
