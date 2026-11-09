@@ -1330,7 +1330,7 @@ _fm_pending_reply_maybe_escalate_locked() {  # <state-dir> <corr_id>
     binding=$(fm_pending_reply_get "$rec" remote_binding)
     if [ -z "$binding" ] || [ "$binding" != "$(secondmate_registry_parent_binding "$meta")" ]; then
       case "$phase" in resolved|escalated) return 0 ;; esac
-      kind=binding-unverified
+      kind='binding-unverified'
     fi
   fi
   case "$kind:$phase" in
