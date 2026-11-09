@@ -31,7 +31,7 @@
 set -eu
 
 PROTOCOL=1
-DOCTOR_SHA256=442342cc7a293a6ec068d0994edb4e260849333af1845577ccd4ebf0b420750d
+DOCTOR_SHA256=dd3cc9c56ec33671b39892c53d2e511c18a454379b0f957f9af71b9dfdb45cb5
 REAL_SOURCE=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "${BASH_SOURCE[0]}" 2>/dev/null) ||
   REAL_SOURCE=$(realpath "${BASH_SOURCE[0]}" 2>/dev/null) ||
   REAL_SOURCE=${BASH_SOURCE[0]}
@@ -130,33 +130,6 @@ fi
 ARGV=()
 while IFS= read -r -d '' arg; do ARGV+=("$arg"); done < "$TMP/argv"
 [ "${#ARGV[@]}" -ge 1 ] || die "argv contains no command"
-if [ "${ARGV[0]}" = --expected-endpoint ]; then
-  [ "${#ARGV[@]}" -ge 6 ] || die "incomplete expected endpoint identity"
-  EXPECTED_ID=${ARGV[1]}
-  EXPECTED_SESSION=${ARGV[2]}
-  EXPECTED_BACKEND=${ARGV[3]}
-  EXPECTED_TARGET=${ARGV[4]}
-  case "$EXPECTED_ID" in ''|*[!A-Za-z0-9._-]*) die "invalid expected endpoint id" ;; esac
-  [ -f "$HOME_PATH/.fm-secondmate-home" ] && [ ! -L "$HOME_PATH/.fm-secondmate-home" ] &&
-    [ "$(<"$HOME_PATH/.fm-secondmate-home")" = "$EXPECTED_ID" ] || die "remote home marker disagrees with requested endpoint"
-  # shellcheck source=bin/fm-backend.sh
-  . "$ROOT/bin/fm-backend.sh"
-  ENDPOINT_META="$HOME_PATH/state/parent-route/$EXPECTED_ID.meta"
-  fm_backend_validate_task_endpoint "$ENDPOINT_META" "$EXPECTED_ID" || die "remote endpoint identity is unverified"
-  [ "$FM_BACKEND_VALIDATED_BACKEND" = "$EXPECTED_BACKEND" ] &&
-    [ "$FM_BACKEND_VALIDATED_TARGET" = "$EXPECTED_TARGET" ] || die "remote endpoint disagrees with requested backend or target"
-  case "$EXPECTED_BACKEND" in
-    herdr)
-      [ "$(fm_backend_meta_exact_value "$ENDPOINT_META" herdr_session)" = "$EXPECTED_SESSION" ] || die "remote endpoint disagrees with requested session"
-      case "$EXPECTED_TARGET" in "$EXPECTED_SESSION":?*) ;; *) die "remote endpoint target is outside the requested session" ;; esac
-      ;;
-    rex)
-      case "$(fm_backend_meta_exact_value "$ENDPOINT_META" rex_server)" in unix://?*) ;; *) die "remote endpoint is not a host-local Rex server" ;; esac
-      ;;
-    *) die "unsupported expected remote backend" ;;
-  esac
-  ARGV=("${ARGV[@]:5}")
-fi
 COMMAND=${ARGV[0]}
 case "$COMMAND" in fm-*.sh) ;; *) die "command is outside the fm-*.sh namespace: $COMMAND" ;; esac
 case "$COMMAND" in */*|*..*) die "command contains a path or traversal: $COMMAND" ;; esac

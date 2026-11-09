@@ -121,6 +121,14 @@ if [ -e "$PARENT_META" ] || [ -L "$PARENT_META" ]; then
 fi
 [ -z "${FM_SEND_EXPECTED_REMOTE_SESSION:-}" ] || [ "$FM_SEND_EXPECTED_REMOTE_SESSION" = "$SESSION" ] \
   || die "remote route session changed before transport"
+EXPECTED_BACKEND=
+EXPECTED_TARGET=
+if [ -n "${PARENT_BINDING:-}" ]; then
+  EXPECTED_BACKEND=$(secondmate_registry_meta_field "$PARENT_META" remote_backend || true)
+  [ -n "$EXPECTED_BACKEND" ] || EXPECTED_BACKEND=herdr
+  EXPECTED_TARGET=$(secondmate_registry_meta_field "$PARENT_META" remote_target) || die "parent endpoint target is missing"
+  [ -n "$EXPECTED_TARGET" ] || die "parent endpoint target is empty"
+fi
 case "$COMMAND" in
   fm-remote-doctor.sh|fm-remote-secondmate-control.sh)
     SESSION_OPTION_ARGS=("$@")
@@ -129,8 +137,12 @@ case "$COMMAND" in
       SESSION_OPTION_ARGS[2]=
     fi
     for arg in ${SESSION_OPTION_ARGS[@]+"${SESSION_OPTION_ARGS[@]}"}; do
-      case "$arg" in --herdr-session|--herdr-session=*) die "route session cannot be overridden by a caller" ;; esac
+      case "$arg" in --herdr-session|--herdr-session=*|--expected-backend|--expected-backend=*|--expected-target|--expected-target=*|--route-id|--route-id=*) die "route session cannot be overridden by a caller" ;; esac
     done
+    if [ -n "$EXPECTED_TARGET" ]; then
+      set -- --expected-backend "$EXPECTED_BACKEND" --expected-target "$EXPECTED_TARGET" "$@"
+      if [ "$COMMAND" = fm-remote-doctor.sh ]; then set -- --route-id "$ROUTE_ID" "$@"; fi
+    fi
     if [ "$SESSION" != "$FM_REMOTE_HERDR_LEGACY_SESSION" ]; then
       set -- --herdr-session "$SESSION" "$@"
     fi
@@ -141,15 +153,7 @@ secondmate_registry_line_for_id "$REG" "$ROUTE_ID" && [ "$SECONDMATE_REGISTRY_LI
 
 ROOT_B64=$(printf '%s' "$ROOT" | encode_base64)
 HOME_B64=$(printf '%s' "$HOME_PATH" | encode_base64)
-if [ -n "${PARENT_BINDING:-}" ]; then
-  EXPECTED_BACKEND=$(secondmate_registry_meta_field "$PARENT_META" remote_backend || true)
-  [ -n "$EXPECTED_BACKEND" ] || EXPECTED_BACKEND=herdr
-  EXPECTED_TARGET=$(secondmate_registry_meta_field "$PARENT_META" remote_target) || die "parent endpoint target is missing"
-  [ -n "$EXPECTED_TARGET" ] || die "parent endpoint target is empty"
-  ARGV_B64=$(printf '%s\0' --expected-endpoint "$ROUTE_ID" "$SESSION" "$EXPECTED_BACKEND" "$EXPECTED_TARGET" "$COMMAND" "$@" | encode_base64)
-else
-  ARGV_B64=$(printf '%s\0' "$COMMAND" "$@" | encode_base64)
-fi
+ARGV_B64=$(printf '%s\0' "$COMMAND" "$@" | encode_base64)
 SSH_BIN=${FM_SSH_BIN:-ssh}
 ALIVE_INTERVAL=${FM_SSH_ALIVE_INTERVAL:-15}
 ALIVE_COUNT_MAX=${FM_SSH_ALIVE_COUNT_MAX:-3}

@@ -70,13 +70,17 @@ if [ "${1:-}" = --herdr-session ]; then
   REMOTE_HERDR_SESSION=$2
   shift 2
 fi
+. "$SCRIPT_DIR/fm-remote-endpoint-lib.sh"
+fm_remote_endpoint_options "$@" || { printf 'error: invalid endpoint options\n' >&2; exit 2; }
+shift "$FM_REMOTE_ENDPOINT_OPTION_COUNT"
+[ -z "$FM_REMOTE_ROUTE_ID" ] || { printf 'error: unexpected route id option\n' >&2; exit 2; }
 SESSION_OPTION_ARGS=("$@")
 if [ "${1:-}" = send ] && [ "$#" -ge 3 ]; then
   # Preserve the legacy text-body surface; only structural argv owns options.
   SESSION_OPTION_ARGS[2]=
 fi
 for arg in ${SESSION_OPTION_ARGS[@]+"${SESSION_OPTION_ARGS[@]}"}; do
-  case "$arg" in --herdr-session|--herdr-session=*) printf 'error: duplicate or misplaced Herdr session option\n' >&2; exit 2 ;; esac
+  case "$arg" in --herdr-session|--herdr-session=*|--expected-backend|--expected-backend=*|--expected-target|--expected-target=*|--route-id|--route-id=*) printf 'error: duplicate or misplaced Herdr session option\n' >&2; exit 2 ;; esac
 done
 case "${1:-}" in --*) printf 'error: unsupported option\n' >&2; exit 2 ;; esac
 # Rex starts a missing server as exit-empty, which remote readiness refuses and
@@ -121,50 +125,7 @@ validate_home() { # <id>
 meta_path() { printf '%s/%s.meta\n' "$CONTROL_STATE" "$1"; }
 
 remote_endpoint_load() {
-  local id=$1 herdr_session rex_server
-  REMOTE_ENDPOINT_ERROR=
-  REMOTE_ENDPOINT_META=$(meta_path "$id")
-  if ! fm_backend_validate_task_endpoint "$REMOTE_ENDPOINT_META" "$id" 2>/dev/null; then
-    REMOTE_ENDPOINT_ERROR="remote secondmate $id endpoint metadata is invalid; refusing access until it is explicitly migrated"
-    return 1
-  fi
-  REMOTE_ENDPOINT_BACKEND=$FM_BACKEND_VALIDATED_BACKEND
-  REMOTE_ENDPOINT_TARGET=$FM_BACKEND_VALIDATED_TARGET
-  case "$REMOTE_ENDPOINT_BACKEND" in
-    herdr)
-      herdr_session=$(fm_backend_meta_exact_value "$REMOTE_ENDPOINT_META" herdr_session 2>/dev/null || true)
-      if [ "$herdr_session" != "$REMOTE_HERDR_SESSION" ]; then
-        REMOTE_ENDPOINT_ERROR="remote secondmate $id endpoint is recorded in Herdr session '${herdr_session:-missing}', expected '$REMOTE_HERDR_SESSION'; refusing access until it is explicitly migrated"
-        return 1
-      fi
-      case "$REMOTE_ENDPOINT_TARGET" in
-        "$REMOTE_HERDR_SESSION":?*) ;;
-        *)
-          REMOTE_ENDPOINT_ERROR="remote secondmate $id endpoint target '$REMOTE_ENDPOINT_TARGET' is outside Herdr session '$REMOTE_HERDR_SESSION'; refusing access until it is explicitly migrated"
-          return 1
-          ;;
-      esac
-      ;;
-    rex)
-      # The validator above already binds rex_session_id/rex_window_id/
-      # rex_block_id and the <session-uuid>:<block-uuid> target. The remote
-      # contract adds the locality gate: the recorded server must be a unix://
-      # endpoint on this host, because every endpoint operation here resolves
-      # against that host-local socket.
-      rex_server=$(fm_backend_meta_exact_value "$REMOTE_ENDPOINT_META" rex_server 2>/dev/null || true)
-      case "$rex_server" in
-        unix://*) ;;
-        *)
-          REMOTE_ENDPOINT_ERROR="remote secondmate $id endpoint is recorded on Rex server '${rex_server:-missing}', which is not a local unix:// endpoint; refusing access until it is explicitly migrated"
-          return 1
-          ;;
-      esac
-      ;;
-    *)
-      REMOTE_ENDPOINT_ERROR="remote secondmate $id endpoint is recorded on backend '$REMOTE_ENDPOINT_BACKEND'; a remote secondmate runs only on herdr or rex; refusing access until it is explicitly migrated"
-      return 1
-      ;;
-  esac
+  fm_remote_endpoint_validate "$TARGET_HOME" "$1" "$REMOTE_HERDR_SESSION"
 }
 
 remote_endpoint_require() {
@@ -197,7 +158,10 @@ remote_agent_state() { # <backend> <target> <meta>
 state_value() { # <id>; prints recovery-grade state
   local id=$1 meta
   meta=$(meta_path "$id")
-  [ -f "$meta" ] && [ ! -L "$meta" ] || { printf 'missing\n'; return 0; }
+  if [ ! -e "$meta" ] && [ ! -L "$meta" ] && [ -z "$FM_REMOTE_EXPECTED_TARGET" ]; then
+    printf 'missing\n'
+    return 0
+  fi
   if ! remote_endpoint_load "$id"; then
     printf 'error: %s\n' "$REMOTE_ENDPOINT_ERROR" >&2
     printf 'unverified\n'
@@ -265,9 +229,8 @@ cmd_launch() {
   # detached daemon no SSH session owns. bin/fm-remote-doctor.sh is the
   # readiness owner for whichever backend the parent selected.
   case "$selected_backend" in herdr|rex) ;; *) die "a remote secondmate runs only on the herdr or rex backend, not '$selected_backend'" ;; esac
-  mkdir -p "$CONTROL_STATE" "$CONTROL_DATA"
   meta=$(meta_path "$id")
-  if [ -f "$meta" ]; then
+  if [ -n "$FM_REMOTE_EXPECTED_TARGET" ] || [ -e "$meta" ] || [ -L "$meta" ]; then
     # A recorded endpoint is refused against the backend this launch asked
     # for, not against the whole remote set: 'expected <selected>' names the
     # request exactly as the old herdr-only message did. Other load failures
@@ -304,6 +267,9 @@ cmd_launch() {
   # already fast-forwarded this home to ITS primary commit and pushed inherited
   # local material, so this spawn must not redo either against this host's own
   # Firstmate copy, which would target the wrong checkout.
+  mkdir -p "$CONTROL_STATE" "$CONTROL_DATA"
+  FM_REMOTE_EXPECTED_BACKEND=$selected_backend
+  FM_REMOTE_EXPECTED_TARGET=
   ARGS=("$id" "$TARGET_HOME" --secondmate --harness "$harness" --backend "$selected_backend")
   [ "$model" = - ] || ARGS+=(--model "$model")
   [ "$effort" = - ] || ARGS+=(--effort "$effort")
@@ -373,6 +339,7 @@ cmd_relaunch() {
   # endpoint's own republished metadata - rather than trusting these argv
   # values - is what makes that record correct even when relaunch resolved
   # "default" against a configured pin this call never saw.
+  FM_REMOTE_EXPECTED_TARGET=
   print_route "$id"
 }
 
@@ -487,7 +454,7 @@ cmd_sync() {
   local id=$1 commit report out
   validate_id "$id"
   validate_home "$id"
-  if [ -e "$(meta_path "$id")" ] || [ -L "$(meta_path "$id")" ]; then remote_endpoint_require "$id"; fi
+  if [ -n "$FM_REMOTE_EXPECTED_TARGET" ] || [ -e "$(meta_path "$id")" ] || [ -L "$(meta_path "$id")" ]; then remote_endpoint_require "$id"; fi
   if [ "$#" -ge 2 ]; then
     commit=$2
     case "$commit" in *[!0-9a-f]*) die "sync target must be a full 40-character commit id" ;; esac
@@ -518,7 +485,7 @@ cmd_update() {
   local id=$1 update_out root_status
   validate_id "$id"
   validate_home "$id"
-  if [ -e "$(meta_path "$id")" ] || [ -L "$(meta_path "$id")" ]; then remote_endpoint_require "$id"; fi
+  if [ -n "$FM_REMOTE_EXPECTED_TARGET" ] || [ -e "$(meta_path "$id")" ] || [ -L "$(meta_path "$id")" ]; then remote_endpoint_require "$id"; fi
   if ! update_out=$(FM_HOME="$FM_ROOT" FM_ROOT_OVERRIDE="$FM_ROOT" \
     "$SCRIPT_DIR/fm-update.sh" 2>&1); then
     [ -z "$update_out" ] || printf '%s\n' "$update_out" >&2
