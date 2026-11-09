@@ -40,6 +40,10 @@
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+. "$SCRIPT_DIR/fm-remote-endpoint-lib.sh"
+fm_remote_endpoint_command_options "$@" || exit 2
+shift "$FM_REMOTE_COMMAND_OPTION_COUNT"
+fm_remote_endpoint_command_guard || exit 1
 # shellcheck source=bin/fm-public-followup-lib.sh
 . "$SCRIPT_DIR/fm-public-followup-lib.sh"
 

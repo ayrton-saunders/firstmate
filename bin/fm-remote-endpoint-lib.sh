@@ -1,15 +1,41 @@
 #!/usr/bin/env bash
 # Source-safe execution-boundary checks for route-owned remote operations.
 
+fm_remote_endpoint_command_options() {
+  . "$(dirname "${BASH_SOURCE[0]}")/fm-herdr-session-lib.sh"
+  FM_REMOTE_COMMAND_SESSION=$FM_REMOTE_HERDR_LEGACY_SESSION
+  FM_REMOTE_COMMAND_OPTION_COUNT=0
+  if [ "${1:-}" = --herdr-session ]; then
+    [ "$#" -ge 2 ] || return 1
+    fm_remote_herdr_session_validate "$2" || return 1
+    FM_REMOTE_COMMAND_SESSION=$2
+    FM_REMOTE_COMMAND_OPTION_COUNT=2
+    shift 2
+  fi
+  fm_remote_endpoint_options "$@" || return 1
+  FM_REMOTE_COMMAND_OPTION_COUNT=$((FM_REMOTE_COMMAND_OPTION_COUNT + FM_REMOTE_ENDPOINT_OPTION_COUNT))
+}
+
+fm_remote_endpoint_command_guard() {
+  if [ "${FM_REMOTE_JOB_ACTIVE:-0}" = 1 ] || [ "$FM_REMOTE_COMMAND_OPTION_COUNT" -gt 0 ]; then
+    fm_remote_endpoint_guard "$FM_REMOTE_COMMAND_SESSION"
+  fi
+}
+
 fm_remote_endpoint_guard() {
-  local session=${1:-fm-remote} id home=${FM_HOME:?FM_HOME is required}
+  local session=${1:?session is required} id home=${FM_HOME:?FM_HOME is required}
   [ -e "$home/.fm-secondmate-home" ] || [ -L "$home/.fm-secondmate-home" ] || {
     [ "${FM_REMOTE_JOB_ACTIVE:-0}" != 1 ] && return 0
     printf 'error: remote home ownership is unavailable\n' >&2
     return 1
   }
+  [ -d "$home" ] && [ ! -L "$home" ] && [ -f "$home/.fm-secondmate-home" ] && [ ! -L "$home/.fm-secondmate-home" ] || return 1
   id=$(<"$home/.fm-secondmate-home")
   case "$id" in ''|*[!A-Za-z0-9._-]*) return 1 ;; esac
+  if [ "${2:-}" = provision ] && [ ! -e "$home/state/parent-route/$id.meta" ] && [ ! -L "$home/state/parent-route/$id.meta" ] \
+    && [ -z "${FM_REMOTE_EXPECTED_BACKEND:-}${FM_REMOTE_EXPECTED_TARGET:-}" ]; then
+    return 0
+  fi
   . "$(dirname "${BASH_SOURCE[0]}")/fm-backend.sh"
   fm_remote_endpoint_validate "$home" "$id" "$session" || {
     printf 'error: %s\n' "$REMOTE_ENDPOINT_ERROR" >&2
@@ -50,7 +76,7 @@ fm_remote_endpoint_validate() {
   REMOTE_ENDPOINT_TARGET=
   meta="$home/state/parent-route/$id.meta"
   REMOTE_ENDPOINT_META=$meta
-  if [ ! -f "$home/.fm-secondmate-home" ] || [ -L "$home/.fm-secondmate-home" ]; then
+  if [ ! -d "$home" ] || [ -L "$home" ] || [ ! -f "$home/.fm-secondmate-home" ] || [ -L "$home/.fm-secondmate-home" ]; then
     REMOTE_ENDPOINT_ERROR="remote home marker is unavailable or unsafe"
     return 1
   fi
@@ -63,6 +89,15 @@ fm_remote_endpoint_validate() {
     REMOTE_ENDPOINT_ERROR="remote secondmate $id endpoint metadata is invalid; refusing access until it is explicitly migrated"
     return 1
   fi
+  local field expected value
+  for field in kind home worktree; do
+    case "$field" in kind) expected=secondmate ;; *) expected=$home ;; esac
+    value=$(fm_backend_meta_exact_value "$meta" "$field" 2>/dev/null) || value=
+    if [ "$value" != "$expected" ]; then
+      REMOTE_ENDPOINT_ERROR="remote endpoint $field does not match the selected secondmate home"
+      return 1
+    fi
+  done
   REMOTE_ENDPOINT_BACKEND=$FM_BACKEND_VALIDATED_BACKEND
   REMOTE_ENDPOINT_TARGET=$FM_BACKEND_VALIDATED_TARGET
   if [ -n "${FM_REMOTE_EXPECTED_BACKEND:-}" ] && [ "$REMOTE_ENDPOINT_BACKEND" != "$FM_REMOTE_EXPECTED_BACKEND" ]; then

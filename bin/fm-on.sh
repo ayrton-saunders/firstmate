@@ -136,7 +136,7 @@ if [ "$SESSION" != "$FM_REMOTE_HERDR_LEGACY_SESSION" ]; then
   esac
 fi
 case "$COMMAND" in
-  fm-remote-doctor.sh|fm-remote-secondmate-control.sh)
+  fm-remote-doctor.sh|fm-remote-secondmate-control.sh|fm-remote-home-provision.sh|fm-remote-delta-read.sh|fm-backlog-receive.sh|fm-public-followup-collect.sh|fm-x-followup.sh|fm-extension.sh|fm-startup-memory-budget.sh)
     SESSION_OPTION_ARGS=("$@")
     if [ "$COMMAND" = fm-remote-secondmate-control.sh ] && [ "${1:-}" = send ] && [ "$#" -ge 3 ]; then
       # A send's third argument is opaque message data, never an option.

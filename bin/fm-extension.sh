@@ -4,6 +4,10 @@ set -eu
 set -o pipefail
 
 SCRIPT_DIR=$(CDPATH='' cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
+. "$SCRIPT_DIR/fm-remote-endpoint-lib.sh"
+fm_remote_endpoint_command_options "$@" || exit 2
+shift "$FM_REMOTE_COMMAND_OPTION_COUNT"
+fm_remote_endpoint_command_guard || exit 1
 if [ "${1:-}" = remote-bind ]; then
   [ "$#" -ge 4 ] || { printf 'usage: %s remote-bind <secondmate-id> <package-root> <bind-options...>\n' "$0" >&2; exit 2; }
   route=$2

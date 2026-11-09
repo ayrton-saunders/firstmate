@@ -480,6 +480,12 @@ printf '%s\n' "${rargs[*]}" >> "$FM_FAKE_SSH_LOG"
 case "${FM_FAKE_SSH_MODE:-ok}" in
   unreachable) exit 255 ;;
 esac
+while :; do
+  case "${rargs[1]:-}" in
+    --herdr-session|--expected-backend|--expected-target|--route-id) rargs=("${rargs[0]}" "${rargs[@]:3}") ;;
+    *) break ;;
+  esac
+done
 case "${rargs[1]:-}" in
   send-stdin)
     # Model the live remote mate: act on the instruction and report back on the

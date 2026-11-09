@@ -23,6 +23,9 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+. "$SCRIPT_DIR/fm-remote-endpoint-lib.sh"
+fm_remote_endpoint_command_options "$@" || exit 2
+shift "$FM_REMOTE_COMMAND_OPTION_COUNT"
 FM_HOME=${FM_HOME:?FM_HOME is required}
 MAX_MANIFEST_BYTES=1048576
 
@@ -160,6 +163,10 @@ if [ -e "$FM_HOME" ] || [ -L "$FM_HOME" ]; then
         || die "remote home has unsafe operational directory: $operational_dir"
     fi
   done
+  if [ -e "$FM_HOME/.fm-secondmate-home" ] || [ -L "$FM_HOME/.fm-secondmate-home" ]; then
+    [ "$(<"$FM_HOME/.fm-secondmate-home")" = "$ID" ] || die "existing remote home belongs to another secondmate"
+    fm_remote_endpoint_guard "$FM_REMOTE_COMMAND_SESSION" provision || exit 1
+  fi
   mkdir -p "$TMP/before/data"
   for rel in data/charter.md data/projects.md .fm-secondmate-home .fm-secondmate-parent; do
     existing="$FM_HOME/$rel"

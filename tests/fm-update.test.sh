@@ -271,7 +271,12 @@ argv_b64=$4
 decode() { printf '%s' "$1" | base64 --decode 2>/dev/null || printf '%s' "$1" | base64 -D; }
 rargs=()
 while IFS= read -r -d '' a; do rargs+=("$a"); done < <(decode "$argv_b64")
-if [ "${rargs[1]:-}" = --herdr-session ]; then rargs=("${rargs[0]}" "${rargs[@]:3}"); fi
+while :; do
+  case "${rargs[1]:-}" in
+    --herdr-session|--expected-backend|--expected-target|--route-id) rargs=("${rargs[0]}" "${rargs[@]:3}") ;;
+    *) break ;;
+  esac
+done
 case "${rargs[1]:-}" in
   update)
     [ "${FM_TEST_REMOTE_UPDATE_FAIL_SECOND:-0}:${rargs[2]:-}" != 1:sm2 ] || exit 1

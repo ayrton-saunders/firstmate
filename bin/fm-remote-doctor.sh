@@ -93,7 +93,7 @@ if [ -n "$FM_REMOTE_ROUTE_ID" ]; then
 elif [ -n "$FM_REMOTE_EXPECTED_BACKEND$FM_REMOTE_EXPECTED_TARGET" ]; then
   printf 'error: endpoint expectation requires a route id\n' >&2
   exit 2
-elif [ -f "${FM_HOME:?FM_HOME is required}/.fm-secondmate-home" ]; then
+elif [ -n "${FM_HOME:-}" ] && [ -f "$FM_HOME/.fm-secondmate-home" ]; then
   DOCTOR_ROUTE_ID=$(<"$FM_HOME/.fm-secondmate-home")
   if [ -e "$FM_HOME/state/parent-route/$DOCTOR_ROUTE_ID.meta" ] || [ -L "$FM_HOME/state/parent-route/$DOCTOR_ROUTE_ID.meta" ]; then
     fm_remote_endpoint_guard "$HERDR_SESSION_NAME" || exit 1

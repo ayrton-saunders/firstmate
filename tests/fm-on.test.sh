@@ -607,6 +607,20 @@ remote_target=fm-remote:pane-a
 EOF
 out=$(fm_on ios fm-remote-secondmate-control.sh state ios)
 [ "$out" = legacy-only ] || fail "legacy transport changed"
+for command in fm-remote-doctor.sh fm-remote-file.sh fm-remote-inherit.sh; do
+  cat > "$REMOTE_ROOT/bin/$command" <<'SH'
+#!/usr/bin/env bash
+printf '%s\0' "$@" > "$FM_HOME/legacy-argv"
+SH
+  chmod +x "$REMOTE_ROOT/bin/$command"
+done
+git -C "$REMOTE_ROOT" add bin
+git -C "$REMOTE_ROOT" commit -qm 'Install legacy wire probes'
+for command in fm-remote-doctor.sh fm-remote-file.sh fm-remote-inherit.sh; do
+  printf '%s\0' legacy-probe '' 'two words' > "$TMP_ROOT/legacy-expected"
+  fm_on ios "$command" legacy-probe '' 'two words' || fail "legacy $command refused"
+  cmp -s "$TMP_ROOT/legacy-expected" "$REMOTE_HOME/legacy-argv" || fail "legacy $command arguments changed with published parent"
+done
 pass "custom argv is route-owned, override refusal precedes SSH, and old remotes never fall back"
 
 cp "$ROOT/bin/"*.sh "$REMOTE_ROOT/bin/"
@@ -618,6 +632,8 @@ mkdir -p "$LOCAL_HOME/state" "$REMOTE_HOME/state/parent-route" "$REMOTE_HOME/bin
 printf 'ios\n' > "$REMOTE_HOME/.fm-secondmate-home"
 git -C "$REMOTE_ROOT" add bin
 git -C "$REMOTE_ROOT" commit -qm 'Install execution-boundary fixture'
+saved_line=$(cat "$LOCAL_HOME/data/secondmates.md")
+printf '%s\n' "${saved_line/; scope:/; session: Fleet.A; scope:}" > "$LOCAL_HOME/data/secondmates.md"
 cat > "$LOCAL_HOME/state/ios.meta" <<EOF
 kind=secondmate
 endpoint_task_id=ios
@@ -627,12 +643,15 @@ home=$REMOTE_HOME
 worktree=$REMOTE_HOME
 backend=herdr
 remote_backend=herdr
-remote_herdr_session=fm-remote
-remote_target=fm-remote:pane-a
+remote_herdr_session=Fleet.A
+remote_target=Fleet.A:pane-a
 EOF
 write_endpoint() {
+  [ "$1" != fm-remote ] || set -- Fleet.A "$2"
   cat > "$REMOTE_HOME/state/parent-route/ios.meta" <<EOF
 backend=herdr
+kind=secondmate
+home=$REMOTE_HOME
 endpoint_task_id=ios
 project=firstmate
 worktree=$REMOTE_HOME
@@ -643,7 +662,7 @@ herdr_tab_id=tab-a
 herdr_pane_id=$2
 EOF
 }
-for mismatch in session target backend marker missing; do
+for mismatch in session target backend marker missing kind home worktree duplicate-kind; do
   write_endpoint fm-remote pane-a
   printf 'ios\n' > "$REMOTE_HOME/.fm-secondmate-home"
   case "$mismatch" in
@@ -652,6 +671,8 @@ for mismatch in session target backend marker missing; do
     backend)
       cat > "$REMOTE_HOME/state/parent-route/ios.meta" <<EOF
 backend=rex
+kind=secondmate
+home=$REMOTE_HOME
 endpoint_task_id=ios
 project=firstmate
 worktree=$REMOTE_HOME
@@ -662,6 +683,12 @@ rex_block_id=block:33333333-3333-4333-8333-333333333333
 rex_server=unix:///tmp/rex-fixture.sock
 EOF
       ;;
+    kind|home|worktree)
+      case "$mismatch" in kind) wrong_value=ship ;; *) wrong_value=/other-home ;; esac
+      sed "s|^$mismatch=.*|$mismatch=$wrong_value|" "$REMOTE_HOME/state/parent-route/ios.meta" > "$TMP_ROOT/wrong-ownership"
+      mv "$TMP_ROOT/wrong-ownership" "$REMOTE_HOME/state/parent-route/ios.meta"
+      ;;
+    duplicate-kind) printf 'kind=secondmate\n' >> "$REMOTE_HOME/state/parent-route/ios.meta" ;;
     marker) printf 'other\n' > "$REMOTE_HOME/.fm-secondmate-home" ;;
     missing) rm "$REMOTE_HOME/state/parent-route/ios.meta" ;;
   esac
@@ -680,7 +707,7 @@ done
 write_endpoint fm-remote pane-a
 printf 'ios\n' > "$REMOTE_HOME/.fm-secondmate-home"
 route=$(fm_on ios fm-remote-secondmate-control.sh route ios) || fail "matching route refused"
-assert_contains "$route" 'target=fm-remote:pane-a' "matching route returned the wrong target"
+assert_contains "$route" 'target=Fleet.A:pane-a' "matching route returned the wrong target"
 body='inherited fixture'
 bytes=${#body}
 hash=$(printf '%s' "$body" | shasum -a 256 | awk '{print $1}')
@@ -694,6 +721,16 @@ for parent_present in yes no; do
   assert_absent "$REMOTE_HOME/state/handoff" "contradictory file write created handoff state"
   printf 'private endpoint data\n' > "$REMOTE_HOME/state/home-summary.json"
   if fm_on ios fm-remote-file.sh get state/home-summary.json >/dev/null 2>&1; then fail "contradictory file read accepted with parent=$parent_present"; fi
+  expected_refusal="expected 'Fleet.A'"
+  [ "$parent_present" != yes ] || expected_refusal='remote endpoint disagrees with requested target'
+  for command in fm-remote-doctor.sh fm-remote-delta-read.sh fm-backlog-receive.sh fm-public-followup-collect.sh fm-x-followup.sh fm-extension.sh fm-startup-memory-budget.sh; do
+    if refusal=$(fm_on ios "$command" 2>&1); then fail "contradictory endpoint accepted $command with parent=$parent_present"; fi
+    assert_contains "$refusal" "$expected_refusal" "$command failed for a reason other than identity disagreement"
+  done
+  printf 'schema=fm-remote-home-provision.v1\nid_b64=aW9z\ncharter_b64=Zml4dHVyZQ==\nproject_count=0\n' > "$TMP_ROOT/provision-manifest"
+  if refusal=$(fm_on --stdin ios fm-remote-home-provision.sh < "$TMP_ROOT/provision-manifest" 2>&1); then fail "contradictory provisioning accepted with parent=$parent_present"; fi
+  assert_contains "$refusal" "$expected_refusal" "provisioning failed for a reason other than identity disagreement"
+  assert_absent "$REMOTE_HOME/data/charter.md" "contradictory provisioning wrote charter"
   [ "$parent_present" = yes ] || mv "$TMP_ROOT/unpublished-parent" "$LOCAL_HOME/state/ios.meta"
 done
 write_endpoint fm-remote pane-a
@@ -722,18 +759,18 @@ done
 export FM_REMOTE_JOB_STATE_ROOT="$TMP_ROOT/remote-jobs"
 account_home=$(cd ~ && pwd -P)
 fm_remote_job_stage "$account_home" "$REMOTE_ROOT" "$REMOTE_HOME" fm-remote-secondmate-control.sh \
-  --expected-backend herdr --expected-target fm-remote:pane-a send ios 'stale queued steer' </dev/null >/dev/null || fail "could not stage queued send"
+  --herdr-session Fleet.A --expected-backend herdr --expected-target Fleet.A:pane-a send ios 'stale queued steer' </dev/null >/dev/null || fail "could not stage queued send"
 send_job=$FM_REMOTE_JOB_ID
 [ "$(cat "$FM_REMOTE_JOB_JOBS/$send_job/state")" = queued ] || fail "send did not queue behind relaunch"
 touch "$TMP_ROOT/relaunch.release"
 wait "$relaunch_pid" || fail "ordinary relaunch failed"
 relaunch_pid=
-assert_grep 'target=fm-remote:pane-b' "$TMP_ROOT/relaunch.out" "relaunch did not return its new target"
+assert_grep 'target=Fleet.A:pane-b' "$TMP_ROOT/relaunch.out" "relaunch did not return its new target"
 fm_remote_job_wait "$account_home" "$send_job" || fail "queued send did not complete"
 [ "$FM_REMOTE_JOB_EXIT" -ne 0 ] || fail "queued send accepted the replaced endpoint"
 assert_absent "$REMOTE_HOME/state/parent-route/ios.inbox" "stale queued send wrote an inbox"
 assert_absent "$TMP_ROOT/herdr.log" "stale queued send accessed Herdr"
-assert_grep 'window=fm-remote:pane-b' "$REMOTE_HOME/state/parent-route/ios.meta" "refused send changed the replacement endpoint"
+assert_grep 'window=Fleet.A:pane-b' "$REMOTE_HOME/state/parent-route/ios.meta" "refused send changed the replacement endpoint"
 fm_remote_job_reap "$account_home" "$send_job" || fail "could not reap refused send"
 pass "a send queued behind relaunch refuses its stale target at execution"
 

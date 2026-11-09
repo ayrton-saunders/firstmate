@@ -59,6 +59,10 @@ argv_b64=${4:-}
 cmd=$(python3 -c 'import sys, base64
 raw = base64.b64decode(sys.argv[1])
 parts = [p.decode() for p in raw.split(b"\0") if p]
+while len(parts) > 1 and parts[1] in ("--herdr-session", "--expected-backend", "--expected-target", "--route-id"):
+    del parts[1:3]
+if len(parts) > 2 and parts[0] == "fm-remote-secondmate-control.sh" and parts[1] in ("file", "inherit"):
+    parts = ["fm-remote-" + parts[1] + ".sh"] + parts[3:]
 print(parts[0] if parts else "")
 print(parts[1] if len(parts) > 1 else "")
 print(parts[2] if len(parts) > 2 else "")
@@ -425,6 +429,10 @@ shift 2 || true
 argv_b64=${4:-}
 cmd=$(python3 -c 'import sys, base64
 parts = [p.decode() for p in base64.b64decode(sys.argv[1]).split(b"\0") if p]
+while len(parts) > 1 and parts[1] in ("--herdr-session", "--expected-backend", "--expected-target", "--route-id"):
+    del parts[1:3]
+if len(parts) > 2 and parts[0] == "fm-remote-secondmate-control.sh" and parts[1] in ("file", "inherit"):
+    parts = ["fm-remote-" + parts[1] + ".sh"] + parts[3:]
 print("\n".join((parts + ["", "", ""])[:3]))' "$argv_b64")
 command_name=$(printf '%s\n' "$cmd" | sed -n '1p')
 subcommand=$(printf '%s\n' "$cmd" | sed -n '2p')

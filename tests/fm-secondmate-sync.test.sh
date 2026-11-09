@@ -964,8 +964,15 @@ cmd=${rargs[0]}
 [ "$cmd" != fm-remote-doctor.sh ] || exit 0
 # An older remote Firstmate copy rejects a command shape it does not know with
 # the usage status, which is exactly what a parent-targeted sync meets there.
+verb_index=1
+while :; do
+  case "${rargs[$verb_index]:-}" in
+    --herdr-session|--expected-backend|--expected-target|--route-id) verb_index=$((verb_index + 2)) ;;
+    *) break ;;
+  esac
+done
 if [ "${FM_TEST_REMOTE_LEG_REJECT_SYNC:-0}" = 1 ] \
-  && [ "$cmd" = fm-remote-secondmate-control.sh ] && [ "${rargs[1]:-}" = sync ]; then
+  && [ "$cmd" = fm-remote-secondmate-control.sh ] && [ "${rargs[$verb_index]:-}" = sync ]; then
   printf 'Host-local lifecycle control for the remote secondmate home selected by fm-on.\n'
   exit 2
 fi
