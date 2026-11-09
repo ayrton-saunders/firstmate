@@ -594,4 +594,64 @@ out=$(fm_on ios fm-remote-secondmate-control.sh state ios)
 [ "$out" = legacy-only ] || fail "legacy transport changed"
 pass "custom argv is route-owned, override refusal precedes SSH, and old remotes never fall back"
 
+mkdir -p "$LOCAL_HOME/state" "$REMOTE_HOME/state/parent-route"
+printf 'ios\n' > "$REMOTE_HOME/.fm-secondmate-home"
+cat > "$LOCAL_HOME/state/ios.meta" <<EOF
+kind=secondmate
+endpoint_task_id=ios
+remote_host=remote-mac
+remote_root=$REMOTE_ROOT
+home=$REMOTE_HOME
+worktree=$REMOTE_HOME
+backend=herdr
+remote_backend=herdr
+remote_herdr_session=fm-remote
+remote_target=fm-remote:pane-a
+EOF
+write_endpoint() {
+  cat > "$REMOTE_HOME/state/parent-route/ios.meta" <<EOF
+backend=herdr
+endpoint_task_id=ios
+project=firstmate
+worktree=$REMOTE_HOME
+window=$1:$2
+herdr_session=$1
+herdr_workspace_id=workspace-a
+herdr_tab_id=tab-a
+herdr_pane_id=$2
+EOF
+}
+for mismatch in session target backend marker missing; do
+  write_endpoint fm-remote pane-a
+  printf 'ios\n' > "$REMOTE_HOME/.fm-secondmate-home"
+  case "$mismatch" in
+    session) write_endpoint fm-other pane-a ;;
+    target) write_endpoint fm-remote pane-b ;;
+    backend)
+      cat > "$REMOTE_HOME/state/parent-route/ios.meta" <<EOF
+backend=rex
+endpoint_task_id=ios
+project=firstmate
+worktree=$REMOTE_HOME
+window=11111111-1111-4111-8111-111111111111:33333333-3333-4333-8333-333333333333
+rex_session_id=session:11111111-1111-4111-8111-111111111111
+rex_window_id=window:22222222-2222-4222-8222-222222222222
+rex_block_id=block:33333333-3333-4333-8333-333333333333
+rex_server=unix:///tmp/rex-fixture.sock
+EOF
+      ;;
+    marker) printf 'other\n' > "$REMOTE_HOME/.fm-secondmate-home" ;;
+    missing) rm "$REMOTE_HOME/state/parent-route/ios.meta" ;;
+  esac
+  cp "$LOCAL_HOME/state/ios.meta" "$TMP_ROOT/parent-before"
+  if fm_on ios fm-mutate.sh "$TMP_ROOT/identity-mutation" >/dev/null 2>&1; then fail "$mismatch identity disagreement allowed mutation"; fi
+  assert_absent "$TMP_ROOT/identity-mutation" "$mismatch identity disagreement mutated the remote home"
+  cmp -s "$LOCAL_HOME/state/ios.meta" "$TMP_ROOT/parent-before" || fail "identity refusal changed parent evidence"
+done
+write_endpoint fm-remote pane-a
+printf 'ios\n' > "$REMOTE_HOME/.fm-secondmate-home"
+fm_on ios fm-mutate.sh "$TMP_ROOT/identity-mutation" || fail "matching endpoint identity refused an ordinary operation"
+assert_grep mutation "$TMP_ROOT/identity-mutation" "matching identity did not reach the requested command"
+pass "all routed commands verify parent and remote identity before mutation"
+
 echo "ALL TESTS PASSED"

@@ -141,7 +141,15 @@ secondmate_registry_line_for_id "$REG" "$ROUTE_ID" && [ "$SECONDMATE_REGISTRY_LI
 
 ROOT_B64=$(printf '%s' "$ROOT" | encode_base64)
 HOME_B64=$(printf '%s' "$HOME_PATH" | encode_base64)
-ARGV_B64=$(printf '%s\0' "$COMMAND" "$@" | encode_base64)
+if [ -n "${PARENT_BINDING:-}" ]; then
+  EXPECTED_BACKEND=$(secondmate_registry_meta_field "$PARENT_META" remote_backend || true)
+  [ -n "$EXPECTED_BACKEND" ] || EXPECTED_BACKEND=herdr
+  EXPECTED_TARGET=$(secondmate_registry_meta_field "$PARENT_META" remote_target) || die "parent endpoint target is missing"
+  [ -n "$EXPECTED_TARGET" ] || die "parent endpoint target is empty"
+  ARGV_B64=$(printf '%s\0' --expected-endpoint "$ROUTE_ID" "$SESSION" "$EXPECTED_BACKEND" "$EXPECTED_TARGET" "$COMMAND" "$@" | encode_base64)
+else
+  ARGV_B64=$(printf '%s\0' "$COMMAND" "$@" | encode_base64)
+fi
 SSH_BIN=${FM_SSH_BIN:-ssh}
 ALIVE_INTERVAL=${FM_SSH_ALIVE_INTERVAL:-15}
 ALIVE_COUNT_MAX=${FM_SSH_ALIVE_COUNT_MAX:-3}

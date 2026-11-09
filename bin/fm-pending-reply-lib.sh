@@ -1002,7 +1002,10 @@ fm_pending_reply_send_recovery() {  # <state-dir> <corr_id>
   task_id=$(fm_pending_reply_get "$rec" task_id)
   remote_binding=$(fm_pending_reply_get "$rec" remote_binding)
   if [ -n "$(fm_meta_get "$state/$task_id.meta" remote_host)" ]; then
-    [ -n "$remote_binding" ] && [ "$remote_binding" = "$(secondmate_registry_parent_binding "$state/$task_id.meta")" ] || return 1
+    if [ -z "$remote_binding" ] || [ "$remote_binding" != "$(secondmate_registry_parent_binding "$state/$task_id.meta")" ]; then
+      fm_pending_reply_maybe_escalate "$state" "$corr" || true
+      return 1
+    fi
   fi
   # A remote mate's report may exist and simply not have been mirrored yet.
   fm_pending_reply_missing_report_is_evidence "$state" "$task_id" "$completed" || return 1
@@ -1169,6 +1172,9 @@ fm_pending_reply_escalation_payload() {  # <record-path> <kind>
     delivery-unknown)
       token='pending-reply-delivery-unknown'
       ;;
+    binding-unverified)
+      token='pending-reply-binding-unverified'
+      ;;
     recovery-delivery)
       outcome=$(fm_pending_reply_get "$rec" recovery_delivery_outcome)
       case "$outcome" in failed|unknown) ;; *) return 1 ;; esac
@@ -1191,7 +1197,7 @@ fm_pending_reply_escalation_line() {  # <status-file> <record-path> <corr_id>
   while IFS= read -r line || [ -n "$line" ]; do
     [ "$(status_line_verb "$line")" = blocked ] || continue
     _fm_status_untimed "$line" untimed
-    for kind in missed delivery-unknown recovery-delivery; do
+    for kind in missed delivery-unknown recovery-delivery binding-unverified; do
       payload=$(fm_pending_reply_escalation_payload "$rec" "$kind") || continue
       case "$untimed" in
         "blocked [key=$own_key]: $payload"|"blocked: $payload") found=$line; break ;;
@@ -1299,7 +1305,7 @@ fm_pending_reply_maybe_escalate() {  # <state-dir> <corr_id>
 _fm_pending_reply_maybe_escalate_locked() {  # <state-dir> <corr_id>
   local state=$1 corr=$2
   local rec phase completed now payload parent_status line kind first display
-  local delivered task_id meta sm_home remote_host grace age key new_episode
+  local delivered task_id meta sm_home remote_host grace age key new_episode binding
   rec=$(fm_pending_reply_path "$state" "$corr")
   [ -f "$rec" ] || return 1
   phase=$(fm_pending_reply_get "$rec" phase)
@@ -1308,8 +1314,19 @@ _fm_pending_reply_maybe_escalate_locked() {  # <state-dir> <corr_id>
     phase=$(fm_pending_reply_get "$rec" phase)
     [ "$phase" = delivery_unknown ] || return 0
   fi
-  case "$phase" in
-    recovery_sent)
+  task_id=$(fm_pending_reply_get "$rec" task_id)
+  meta="$state/${task_id}.meta"
+  kind=
+  if [ -n "$(fm_meta_get "$meta" remote_host)" ]; then
+    binding=$(fm_pending_reply_get "$rec" remote_binding)
+    if [ -z "$binding" ] || [ "$binding" != "$(secondmate_registry_parent_binding "$meta")" ]; then
+      case "$phase" in resolved|escalated) return 0 ;; esac
+      kind=binding-unverified
+    fi
+  fi
+  case "$kind:$phase" in
+    binding-unverified:*) ;;
+    :recovery_sent)
       completed=$(fm_pending_reply_get "$rec" recovery_turn_completed_epoch)
       [ -n "$completed" ] || return 1
       # Grace runs from the recovery turn's completion, the same anchor the
@@ -1324,12 +1341,10 @@ _fm_pending_reply_maybe_escalate_locked() {  # <state-dir> <corr_id>
       fm_pending_reply_missing_report_is_evidence "$state" \
         "$(fm_pending_reply_get "$rec" task_id)" "$completed" || return 1
       ;;
-    delivery_unknown|recovery_failed|recovery_unknown) ;;
+    :delivery_unknown|:recovery_failed|:recovery_unknown) ;;
     *) return 1 ;;
   esac
   delivered=$(fm_pending_reply_get "$rec" delivered_epoch)
-  task_id=$(fm_pending_reply_get "$rec" task_id)
-  meta="$state/${task_id}.meta"
   if [ -n "$delivered" ] && [ -f "$meta" ]; then
     remote_host=$(fm_meta_get "$meta" remote_host)
     sm_home=$(fm_meta_get "$meta" home)
@@ -1346,9 +1361,10 @@ _fm_pending_reply_maybe_escalate_locked() {  # <state-dir> <corr_id>
   fi
   # A resolve that failed on a later field write has still committed resolved.
   [ "$(fm_pending_reply_get "$rec" phase)" = "$phase" ] || return 1
-  case "$phase" in
-    delivery_unknown) kind=delivery-unknown ;;
-    recovery_failed|recovery_unknown) kind='recovery-delivery' ;;
+  case "$kind:$phase" in
+    binding-unverified:*) ;;
+    :delivery_unknown) kind=delivery-unknown ;;
+    :recovery_failed|:recovery_unknown) kind='recovery-delivery' ;;
     *) kind=missed ;;
   esac
   payload=$(fm_pending_reply_escalation_payload "$rec" "$kind") || return 1
@@ -1665,7 +1681,10 @@ fm_pending_reply_tick() {  # <state-dir>
       remote_host=$(fm_meta_get "$meta" remote_host)
       remote_binding=$(fm_pending_reply_get "$rec" remote_binding)
       if [ -n "$remote_host" ]; then
-        [ -n "$remote_binding" ] && [ "$remote_binding" = "$(secondmate_registry_parent_binding "$meta")" ] || continue
+        if [ -z "$remote_binding" ] || [ "$remote_binding" != "$(secondmate_registry_parent_binding "$meta")" ]; then
+          fm_pending_reply_maybe_escalate "$state" "$corr" || true
+          continue
+        fi
       fi
       backend=$(fm_backend_of_meta "$meta")
       target=$(fm_backend_target_of_meta "$meta")
