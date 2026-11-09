@@ -1271,7 +1271,8 @@ test_bootstrap_syncs_remote_home_to_primary_commit() {
   printf 'remote_host=host-sm\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:p1\n' "$w/coderoot" >> "$home/state/sm.meta"
   mkdir -p "$w/sm/state/parent-route"
   fm_write_meta "$w/sm/state/parent-route/sm.meta" \
-    'window=fm-remote:p1' 'endpoint_task_id=sm' 'worktree=-' 'project=-' \
+    'window=fm-remote:p1' 'endpoint_task_id=sm' 'kind=secondmate' \
+    "home=$w/sm" "worktree=$w/sm" 'project=-' \
     'backend=herdr' 'harness=codex' 'herdr_session=fm-remote' \
     'herdr_workspace_id=w1' 'herdr_tab_id=t1' 'herdr_pane_id=p1'
 

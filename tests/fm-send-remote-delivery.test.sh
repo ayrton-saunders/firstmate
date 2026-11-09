@@ -160,7 +160,9 @@ setup_remote_secondmate_home() {  # <name> -> echoes remote home dir
   printf '# remote secondmate home fixture\n' > "$rh/AGENTS.md"
   fm_write_meta "$rh/state/parent-route/rsm.meta" \
     "window=fm-remote:p1" \
-    "worktree=-" \
+    "kind=secondmate" \
+    "home=$rh" \
+    "worktree=$rh" \
     "project=-" \
     "backend=herdr" \
     "endpoint_task_id=rsm" \

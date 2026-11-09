@@ -23,14 +23,23 @@ fm_remote_endpoint_command_guard() {
 }
 
 fm_remote_endpoint_guard() {
-  local session=${1:?session is required} id home=${FM_HOME:?FM_HOME is required}
+  local session=${1:?session is required} id=${FM_REMOTE_ROUTE_ID:-} marker home=${FM_HOME:?FM_HOME is required}
+  if [ -z "$id" ] && [ "$session" != "$FM_REMOTE_HERDR_LEGACY_SESSION" ]; then
+    printf 'error: requested remote route identity is unavailable\n' >&2
+    return 1
+  fi
   [ -e "$home/.fm-secondmate-home" ] || [ -L "$home/.fm-secondmate-home" ] || {
     [ "${FM_REMOTE_JOB_ACTIVE:-0}" != 1 ] && return 0
     printf 'error: remote home ownership is unavailable\n' >&2
     return 1
   }
   [ -d "$home" ] && [ ! -L "$home" ] && [ -f "$home/.fm-secondmate-home" ] && [ ! -L "$home/.fm-secondmate-home" ] || return 1
-  id=$(<"$home/.fm-secondmate-home")
+  marker=$(<"$home/.fm-secondmate-home")
+  if [ -n "$id" ] && [ "$marker" != "$id" ]; then
+    printf 'error: remote home belongs to %s, not %s\n' "$marker" "$id" >&2
+    return 1
+  fi
+  [ -n "$id" ] || id=$marker
   case "$id" in ''|*[!A-Za-z0-9._-]*) return 1 ;; esac
   if [ "${2:-}" = provision ] && [ ! -e "$home/state/parent-route/$id.meta" ] && [ ! -L "$home/state/parent-route/$id.meta" ] \
     && [ -z "${FM_REMOTE_EXPECTED_BACKEND:-}${FM_REMOTE_EXPECTED_TARGET:-}" ]; then

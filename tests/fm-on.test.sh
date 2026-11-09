@@ -741,6 +741,30 @@ printf '%s' "$body" | fm_on --stdin ios fm-remote-file.sh put state/handoff/fixt
 [ "$(cat "$REMOTE_HOME/state/handoff/fixture.outbox.md")" = "$body" ] || fail "matching file write lost bytes"
 pass "execution checks protect inheritance and files even before parent publication"
 
+mv "$LOCAL_HOME/state/ios.meta" "$TMP_ROOT/unpublished-parent"
+cp "$REMOTE_HOME/state/parent-route/ios.meta" "$TMP_ROOT/owned-endpoint"
+saved_line=$(cat "$LOCAL_HOME/data/secondmates.md")
+for binding in ios:android android:ios; do
+  requested_id=${binding%%:*}
+  observed_id=${binding#*:}
+  printf '%s\n' "${saved_line/- ios -/- $requested_id -}" > "$LOCAL_HOME/data/secondmates.md"
+  printf '%s\n' "$observed_id" > "$REMOTE_HOME/.fm-secondmate-home"
+  sed "s/^endpoint_task_id=ios$/endpoint_task_id=$observed_id/" "$TMP_ROOT/owned-endpoint" > "$REMOTE_HOME/state/parent-route/$observed_id.meta"
+  cp "$REMOTE_HOME/state/parent-route/$observed_id.meta" "$TMP_ROOT/foreign-endpoint"
+  for command in fm-remote-doctor.sh fm-remote-delta-read.sh fm-backlog-receive.sh fm-public-followup-collect.sh fm-x-followup.sh fm-extension.sh fm-startup-memory-budget.sh fm-remote-file.sh fm-remote-inherit.sh; do
+    if refusal=$(fm_on "$requested_id" "$command" --fix 2>&1); then fail "$command accepted a different route's home"; fi
+    assert_contains "$refusal" "remote home belongs to $observed_id, not $requested_id" "$command did not compare the requested route id"
+  done
+  cmp -s "$TMP_ROOT/foreign-endpoint" "$REMOTE_HOME/state/parent-route/$observed_id.meta" || fail "route refusal changed the foreign endpoint"
+  [ "$(cat "$REMOTE_HOME/.fm-secondmate-home")" = "$observed_id" ] || fail "route refusal changed the foreign marker"
+  assert_absent "$TMP_ROOT/herdr.log" "route refusal reached Herdr repair"
+done
+printf '%s\n' "$saved_line" > "$LOCAL_HOME/data/secondmates.md"
+printf 'ios\n' > "$REMOTE_HOME/.fm-secondmate-home"
+cp "$TMP_ROOT/owned-endpoint" "$REMOTE_HOME/state/parent-route/ios.meta"
+mv "$TMP_ROOT/unpublished-parent" "$LOCAL_HOME/state/ios.meta"
+pass "parentless custom requests refuse another route's home in both directions"
+
 cat > "$REMOTE_ROOT/bin/fm-control.sh" <<SH
 #!/usr/bin/env bash
 printf 'started\n' > "$TMP_ROOT/relaunch.started"

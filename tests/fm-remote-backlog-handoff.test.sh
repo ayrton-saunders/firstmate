@@ -64,6 +64,8 @@ printf 'ios\n' > "$REMOTE/.fm-secondmate-home"
 mkdir -p "$REMOTE/state/parent-route"
 cat > "$REMOTE/state/parent-route/ios.meta" <<EOF
 backend=herdr
+kind=secondmate
+home=$REMOTE
 endpoint_task_id=ios
 project=firstmate
 worktree=$REMOTE

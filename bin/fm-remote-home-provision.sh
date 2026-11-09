@@ -119,6 +119,7 @@ if [ -n "$PARENT_HOST_B64" ]; then
 fi
 ID=$(cat "$TMP/id")
 safe_id "$ID" || die "manifest carries an unsafe secondmate id"
+[ -z "$FM_REMOTE_ROUTE_ID" ] || [ "$FM_REMOTE_ROUTE_ID" = "$ID" ] || die "manifest disagrees with the requested route id"
 case "$COUNT" in ''|*[!0-9]*) die "manifest project count is invalid" ;; esac
 [ -s "$TMP/charter" ] || die "manifest charter is empty"
 [ -z "$(LC_ALL=C tr -cd '\000' < "$TMP/charter")" ] || die "manifest charter contains NUL bytes"

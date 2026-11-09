@@ -87,9 +87,7 @@ fi
 fm_remote_endpoint_options "$@" || { printf 'error: invalid endpoint options\n' >&2; exit 2; }
 shift "$FM_REMOTE_ENDPOINT_OPTION_COUNT"
 if [ -n "$FM_REMOTE_ROUTE_ID" ]; then
-  . "$SCRIPT_DIR/fm-backend.sh"
-  fm_remote_endpoint_validate "${FM_HOME:?FM_HOME is required}" "$FM_REMOTE_ROUTE_ID" "$HERDR_SESSION_NAME" \
-    || { printf 'error: %s\n' "$REMOTE_ENDPOINT_ERROR" >&2; exit 1; }
+  fm_remote_endpoint_guard "$HERDR_SESSION_NAME" provision || exit 1
 elif [ -n "$FM_REMOTE_EXPECTED_BACKEND$FM_REMOTE_EXPECTED_TARGET" ]; then
   printf 'error: endpoint expectation requires a route id\n' >&2
   exit 2

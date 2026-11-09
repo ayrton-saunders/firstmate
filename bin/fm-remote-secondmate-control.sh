@@ -523,7 +523,7 @@ cmd_home_transfer() {
   validate_id "$id"
   validate_home "$id"
   if [ -n "$FM_REMOTE_EXPECTED_TARGET" ] || [ -e "$(meta_path "$id")" ] || [ -L "$(meta_path "$id")" ]; then remote_endpoint_require "$id"; fi
-  export FM_REMOTE_COMMAND_SESSION=$REMOTE_HERDR_SESSION FM_REMOTE_EXPECTED_BACKEND FM_REMOTE_EXPECTED_TARGET
+  export FM_REMOTE_COMMAND_SESSION=$REMOTE_HERDR_SESSION FM_REMOTE_ROUTE_ID=$id FM_REMOTE_EXPECTED_BACKEND FM_REMOTE_EXPECTED_TARGET
   exec "$SCRIPT_DIR/$command" "$@"
 }
 

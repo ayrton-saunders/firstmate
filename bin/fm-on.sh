@@ -147,9 +147,9 @@ case "$COMMAND" in
     done
     if [ "$SESSION" != "$FM_REMOTE_HERDR_LEGACY_SESSION" ] && [ -n "$EXPECTED_TARGET" ]; then
       set -- --expected-backend "$EXPECTED_BACKEND" --expected-target "$EXPECTED_TARGET" "$@"
-      if [ "$COMMAND" = fm-remote-doctor.sh ]; then set -- --route-id "$ROUTE_ID" "$@"; fi
     fi
     if [ "$SESSION" != "$FM_REMOTE_HERDR_LEGACY_SESSION" ]; then
+      if [ "$COMMAND" != fm-remote-secondmate-control.sh ]; then set -- --route-id "$ROUTE_ID" "$@"; fi
       set -- --herdr-session "$SESSION" "$@"
     fi
     ;;
