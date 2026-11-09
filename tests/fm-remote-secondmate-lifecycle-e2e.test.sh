@@ -1385,7 +1385,7 @@ assert_grep 'herdr_session=fm-remote' "$remote_route_meta" \
   "the watcher relaunch did not re-record the pinned remote Herdr session"
 assert_grep '- ios ' "$PARENT/data/secondmates.md" \
   "the watcher relaunch changed the registry route"
-[ "$(remote_env "$ROOT/bin/fm-on.sh" ios fm-remote-secondmate-control.sh state ios)" = alive ] \
+[ "$(FM_STATE_OVERRIDE="$WATCH_STATE" remote_env "$ROOT/bin/fm-on.sh" ios fm-remote-secondmate-control.sh state ios)" = alive ] \
   || fail "the auto-relaunched remote endpoint did not read alive"
 # Production relaunch updates the parent route meta and inheritance generation
 # in place; the dedicated watch state above kept the rest of this suite's
