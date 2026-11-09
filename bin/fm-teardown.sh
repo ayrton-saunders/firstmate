@@ -1152,7 +1152,8 @@ remote_outbox_cleanup() {
 }
 
 remote_secondmate_teardown() {
-  local remote_host remote_root remote_home kind route_host route_root route_home out rc tmp
+  local remote_host remote_root remote_home kind route_host route_root route_home out rc tmp route_line
+  local FM_REMOTE_EXPECTED_ROUTE_LINE FM_REMOTE_EXPECTED_PARENT_BINDING
   remote_host=$(fm_meta_get "$META" remote_host)
   [ -n "$remote_host" ] || return 3
   kind=$(fm_meta_get "$META" kind)
@@ -1167,6 +1168,12 @@ remote_secondmate_teardown() {
   route_home=$SECONDMATE_REGISTRY_HOME
   [ "$route_host" = "$remote_host" ] && [ "$route_root" = "$remote_root" ] && [ "$route_home" = "$remote_home" ] \
     || { echo "REFUSED: remote secondmate metadata does not match its registry route" >&2; return 1; }
+  secondmate_registry_parent_matches "$META" "$ID" "$route_host" "$route_root" "$route_home" "$SECONDMATE_REGISTRY_SESSION" \
+    || { echo "REFUSED: $SECONDMATE_REGISTRY_ERROR" >&2; return 1; }
+  route_line=$SECONDMATE_REGISTRY_LINE
+  FM_REMOTE_EXPECTED_ROUTE_LINE=$route_line
+  FM_REMOTE_EXPECTED_PARENT_BINDING=$(secondmate_registry_parent_binding "$META") || return 1
+  export FM_REMOTE_EXPECTED_ROUTE_LINE FM_REMOTE_EXPECTED_PARENT_BINDING
   handoff_wake_retire_validate || return 1
   remote_recovery_paths_validate initial || return 1
   if [ "$FORCE" != --force ] && [ "$REMOTE_OUTBOX_PRESENT" -eq 1 ]; then
@@ -1197,6 +1204,10 @@ remote_secondmate_teardown() {
   fi
   if [ "$rc" -eq "$TEARDOWN_LOST_SLOT_EXIT" ]; then
     printf '%s\n' "$out" | grep -E '^(warning: treehouse return left pool slot |  )' >&2 || true
+  fi
+  if ! secondmate_registry_line_for_id "$SECONDMATE_REG" "$ID" || [ "$SECONDMATE_REGISTRY_LINE" != "$route_line" ] || [ "$(secondmate_registry_parent_binding "$META")" != "$FM_REMOTE_EXPECTED_PARENT_BINDING" ]; then
+    echo "error: remote route changed during retirement; preserving all local evidence" >&2
+    return 1
   fi
   teardown_export_records "$STATE" "$ID" || return 1
   remote_recovery_paths_validate recheck || {

@@ -107,7 +107,8 @@ hold() {
   # Open read-write so this never blocks on the reader; the holder sees EOF
   # only when the descriptor closes at exit.
   eval "exec ${HOLDER_FD}<>\"\$fifo\""
-  env -i "$@" "$JQ" . "$fifo" &
+  # shellcheck disable=SC2016 # evaluated by the isolated holder shell.
+  env -i "$@" "$(command -v bash)" -c 'IFS= read -r line < "$1"' _ "$fifo" &
   HOLDER_PID=$!
   HOLDER_PIDS+=("$HOLDER_PID")
   HOLDER_FD=$((HOLDER_FD + 1))
@@ -121,8 +122,9 @@ hold_under() {
   rm -f "$fifo" "$pidfile"
   mkfifo "$fifo"
   eval "exec ${HOLDER_FD}<>\"\$fifo\""
-  ( export FM_HOLDER_JQ="$JQ" FM_HOLDER_FIFO="$fifo" FM_HOLDER_PIDFILE="$pidfile"
-    exec -a "$argv0" bash -c 'env -i FM_HOLDER=1 "$FM_HOLDER_JQ" . "$FM_HOLDER_FIFO" & printf "%s\n" "$!" > "$FM_HOLDER_PIDFILE"; wait' "$@" ) &
+  ( FM_HOLDER_JQ=$(command -v bash)
+    export FM_HOLDER_JQ FM_HOLDER_FIFO="$fifo" FM_HOLDER_PIDFILE="$pidfile"
+    exec -a "$argv0" bash -c 'env -i FM_HOLDER=1 "$FM_HOLDER_JQ" -c '\''IFS= read -r line < "$1"'\'' _ "$FM_HOLDER_FIFO" & printf "%s\n" "$!" > "$FM_HOLDER_PIDFILE"; wait' "$@" ) &
   HOLDER_PIDS+=("$!")
   HOLDER_FD=$((HOLDER_FD + 1))
   local i=0
@@ -221,7 +223,6 @@ WORKER_PID=$HOLDER_PID
 hold SSH_CONNECTION='100.102.217.78 51234 100.100.1.2 22' SSH_CLIENT='100.102.217.78 51234 22'
 SSH_PID=$HOLDER_PID
 hold FM_NOTHING_TO_SEE=1
-UNMARKED_PID=$HOLDER_PID
 hold_under herdr --session "$SESSION" remote-client-bridge
 BRIDGE_CHILD_PID=$HOLDER_PID
 hold_under 'sshd-session:' kunchen@notty
@@ -256,20 +257,18 @@ printf '%s\n' "$BACKGROUND_PID" > "$CASE_OWNER"
 load_job gui dev.firstmate.herdr.fm-remote
 load_job user dev.firstmate.herdr.fm-remote
 guard
-expect_code 0 "$GUARD_RC" "the guard failed to take over a label also loaded in the user domain"
-assert_stop_before_start
-assert_contains "$GUARD_OUT" "pid $BACKGROUND_PID born outside the Aqua login session (unknown)" \
-  "a user-domain label was trusted as Aqua"
+expect_code 1 "$GUARD_RC" "the guard accepted contradictory domain ownership"
+assert_not_started "contradictory ownership started a server"
+assert_not_contains "$(herdr_calls)" 'server stop' "contradictory ownership stopped a server"
 
 new_case running
 printf '%s\n' "$XPC_ZERO_PID" > "$CASE_OWNER"
 guard
-expect_code 0 "$GUARD_RC" "the guard failed to take over an XPC_SERVICE_NAME=0 owner"
-assert_stop_before_start
-assert_contains "$GUARD_OUT" "pid $XPC_ZERO_PID born outside the Aqua login session (unknown)" \
-  "XPC_SERVICE_NAME=0 was trusted as Aqua"
+expect_code 1 "$GUARD_RC" "the guard accepted unproven XPC ownership"
+assert_not_started "unproven ownership started a server"
+assert_not_contains "$(herdr_calls)" 'server stop' "unproven ownership stopped a server"
 
-for foreign in "ssh $SSH_PID" "ssh $BRIDGE_CHILD_PID" "ssh $SSHD_CHILD_PID" "unknown $UNMARKED_PID"; do
+for foreign in "ssh $SSH_PID" "ssh $BRIDGE_CHILD_PID" "ssh $SSHD_CHILD_PID"; do
   new_case running
   printf '%s\n' "${foreign#* }" > "$CASE_OWNER"
   guard
@@ -279,16 +278,17 @@ for foreign in "ssh $SSH_PID" "ssh $BRIDGE_CHILD_PID" "ssh $SSHD_CHILD_PID" "unk
   assert_contains "$GUARD_OUT" "pid ${foreign#* } born outside the Aqua login session (${foreign%% *})" \
     "the guard did not name the foreign owner and its birth"
 done
-pass "background, inherited-XPC, SSH-born, SSH-descended, and unprovable owners are taken over"
+pass "only positively proven SSH-born owners are eligible for authorized takeover"
 
 # --- an owner nobody can prove is treated as foreign -------------------------
 
 new_case running
 guard
-expect_code 0 "$GUARD_RC" "the guard failed when lsof listed no owner"
+expect_code 1 "$GUARD_RC" "the guard accepted a running server without owner proof"
 assert_contains "$GUARD_OUT" 'no herdr process could be proven to own' "the guard did not report the unprovable owner"
-assert_stop_before_start
-pass "a running session with no provable owner is taken over rather than trusted"
+assert_not_started "unproven socket ownership started a server"
+assert_not_contains "$(herdr_calls)" 'server stop' "unproven socket ownership stopped a server"
+pass "a running session with no provable owner is preserved for explicit recovery"
 
 new_case running
 printf '%s\n' "$SSH_PID" > "$CASE_OWNER"
@@ -296,10 +296,11 @@ rm -f "$FAKE/lsof"
 guard
 cp "$TMP_ROOT/lsof.fake" "$FAKE/lsof"
 chmod +x "$FAKE/lsof"
-expect_code 0 "$GUARD_RC" "the guard failed when lsof was absent"
+expect_code 1 "$GUARD_RC" "the guard accepted ownership without lsof"
 assert_contains "$GUARD_OUT" 'lsof does not resolve' "the guard did not report the missing lsof"
-assert_stop_before_start
-pass "a host without lsof cannot prove an Aqua birth, so the session is taken over"
+assert_not_started "missing lsof started a server"
+assert_not_contains "$(herdr_calls)" 'server stop' "missing lsof stopped a server"
+pass "a host without lsof preserves the unproven server"
 
 # --- a foreign owner that keeps the socket makes the guard fail for a retry --
 
@@ -341,3 +342,28 @@ set -e
 expect_code 1 "$rc" "a non-executable herdr path was not refused"
 [ ! -s "$CASE_LOG" ] || fail "a refused invocation still called herdr"
 pass "argument errors are refused before any herdr call"
+
+SESSION=fm-custom
+new_case running
+printf '%s\n' "$LAUNCHD_PID" > "$CASE_OWNER"
+load_job gui dev.firstmate.herdr.fm-remote "$LAUNCHD_PID"
+guard
+expect_code 1 "$GUARD_RC" "custom session adopted another session's launch agent"
+assert_not_contains "$(herdr_calls)" 'server stop' "custom label mismatch reached takeover"
+hold XPC_SERVICE_NAME=dev.firstmate.herdr.fm-custom
+CUSTOM_PID=$HOLDER_PID
+printf '%s\n' "$CUSTOM_PID" > "$CASE_OWNER"
+load_job gui dev.firstmate.herdr.fm-custom "$CUSTOM_PID"
+guard
+expect_code 0 "$GUARD_RC" "matching custom session ownership was refused"
+assert_not_contains "$(herdr_calls)" 'server stop' "matching custom ownership reached takeover"
+load_job gui dev.firstmate.herdr.fm-custom "$((CUSTOM_PID + 1))"
+guard
+expect_code 1 "$GUARD_RC" "contradictory launchd pid proved ownership"
+assert_not_contains "$(herdr_calls)" 'server stop' "contradictory launchd pid reached takeover"
+hold XPC_SERVICE_NAME=dev.firstmate.herdr.fm-remote SSH_CONNECTION='fixture ssh ancestry'
+printf '%s\n' "$HOLDER_PID" > "$CASE_OWNER"
+guard
+expect_code 1 "$GUARD_RC" "SSH evidence overrode a contradictory session label"
+assert_not_contains "$(herdr_calls)" 'server stop' "contradictory session plus SSH reached takeover"
+pass "custom session ownership requires its exact label and a noncontradictory launchd pid"

@@ -2,7 +2,7 @@
 # Register and provision a whole secondmate home on an SSH-reachable host.
 #
 # Usage:
-#   fm-remote-home-seed.sh <id> <ssh-alias> <remote-root> <remote-home> {<project>[=<origin-url>]...|--no-projects}
+#   fm-remote-home-seed.sh [--herdr-session NAME] <id> <ssh-alias> <remote-root> <remote-home> {<project>[=<origin-url>]...|--no-projects}
 #
 # The SSH alias must already reach a host whose non-interactive PATH exposes the
 # fixed fm-remote-entrypoint.sh from <remote-root>. The command records the
@@ -36,6 +36,16 @@ MAX_MANIFEST_BYTES=1048576
 
 # shellcheck source=bin/fm-secondmate-registry-lib.sh
 . "$SCRIPT_DIR/fm-secondmate-registry-lib.sh"
+HERDR_SESSION_NAME=$FM_REMOTE_HERDR_LEGACY_SESSION
+if [ "${1:-}" = --herdr-session ]; then
+  if [ "$#" -lt 2 ] || ! fm_remote_herdr_session_validate "$2"; then printf 'error: invalid Herdr session\n' >&2; exit 2; fi
+  HERDR_SESSION_NAME=$2
+  shift 2
+fi
+for arg in "$@"; do
+  case "$arg" in --herdr-session|--herdr-session=*) printf 'error: --herdr-session is accepted once before positional arguments\n' >&2; exit 2 ;; esac
+done
+case "${1:-}" in --*) printf 'error: unsupported option\n' >&2; exit 2 ;; esac
 # shellcheck source=bin/fm-secondmate-charter-lib.sh
 . "$SCRIPT_DIR/fm-secondmate-charter-lib.sh"
 # shellcheck source=bin/fm-wake-lib.sh
@@ -119,6 +129,7 @@ if [ -e "$REG" ] || [ -L "$REG" ]; then
       && [ "$SECONDMATE_REGISTRY_HOST" = "$HOST" ] \
       && [ "$SECONDMATE_REGISTRY_ROOT" = "$REMOTE_ROOT" ] \
       && [ "$SECONDMATE_REGISTRY_HOME" = "$REMOTE_HOME" ] \
+      && [ "$SECONDMATE_REGISTRY_SESSION" = "$HERDR_SESSION_NAME" ] \
       || die "secondmate $ID is already registered to a different local or remote home"
   fi
 fi
@@ -223,15 +234,25 @@ MANIFEST_BYTES=$(LC_ALL=C wc -c < "$TMP/manifest" | tr -d ' ')
 TODAY=$(date +%F)
 REG_TMP="$TMP/secondmates.next"
 if [ -f "$REG" ]; then grep -vE "^- $ID( |$)" "$REG" > "$REG_TMP" || true; else : > "$REG_TMP"; fi
-printf -- '- %s - %s (host: %s; root: %s; home: %s; scope: %s; projects: %s; added %s)\n' \
-  "$ID" "$SUMMARY" "$HOST" "$REMOTE_ROOT" "$REMOTE_HOME" "$SCOPE" "$PROJECTS_CSV" "$TODAY" >> "$REG_TMP"
+SESSION_FIELD=
+[ "$HERDR_SESSION_NAME" = "$FM_REMOTE_HERDR_LEGACY_SESSION" ] || SESSION_FIELD="; session: $HERDR_SESSION_NAME"
+printf -- '- %s - %s (host: %s; root: %s; home: %s%s; scope: %s; projects: %s; added %s)\n' \
+  "$ID" "$SUMMARY" "$HOST" "$REMOTE_ROOT" "$REMOTE_HOME" "$SESSION_FIELD" "$SCOPE" "$PROJECTS_CSV" "$TODAY" >> "$REG_TMP"
 mv -f -- "$REG_TMP" "$REG"
 if ! secondmate_registry_validate_bindings "$REG" secondmate_registry_path_key "$ID" "$REMOTE_HOME"; then
   if [ "$REG_EXISTED" -eq 1 ]; then cp "$TMP/registry.before" "$REG"; else rm -f -- "$REG"; fi
   die "$SECONDMATE_REGISTRY_ERROR"
 fi
 
+secondmate_registry_line_for_id "$REG" "$ID" || die "provisional remote route is unreadable"
+FM_REMOTE_EXPECTED_ROUTE_LINE=$SECONDMATE_REGISTRY_LINE
+export FM_REMOTE_EXPECTED_ROUTE_LINE
+
 restore_registry_and_brief() {
+  if ! secondmate_registry_line_for_id "$REG" "$ID" || [ "$SECONDMATE_REGISTRY_LINE" != "$FM_REMOTE_EXPECTED_ROUTE_LINE" ]; then
+    printf 'error: provisional route changed; preserving registry and instructions for reconciliation\n' >&2
+    return 1
+  fi
   if [ "$REG_EXISTED" -eq 1 ]; then cp "$TMP/registry.before" "$REG"; else rm -f -- "$REG"; fi
   [ "$BRIEF_CREATED" -eq 0 ] || rm -f -- "$BRIEF"
 }
@@ -268,5 +289,7 @@ if [ "$PROVISION_RC" -ne 0 ]; then
   fi
   die "remote provisioning failed; registry restored"
 fi
+secondmate_registry_line_for_id "$REG" "$ID" && [ "$SECONDMATE_REGISTRY_LINE" = "$FM_REMOTE_EXPECTED_ROUTE_LINE" ] \
+  || die "route changed during provisioning; preserving all records for reconciliation"
 printf '%s\n' "$PROVISION_OUT"
 printf 'home=%s:%s\n' "$HOST" "$REMOTE_HOME"

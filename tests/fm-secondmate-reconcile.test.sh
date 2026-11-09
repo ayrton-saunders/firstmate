@@ -18,6 +18,7 @@ TMP_ROOT=$(fm_test_tmproot fm-secondmate-reconcile)
 command -v jq >/dev/null 2>&1 || { echo "skip: jq not found"; exit 0; }
 
 export FM_SEND_SETTLE=0 FM_SEND_SLEEP=0 FM_SEND_RETRIES=1
+. "$ROOT/bin/fm-secondmate-registry-lib.sh"
 
 # A main home with one registered, live, local secondmate reachable through the
 # fake tmux backend, so fm-send's real inbox plane is exercised end to end.
@@ -54,11 +55,13 @@ write_snapshot() {  # <path> <mate-id> <invalidity-json> [state]
 
 # The same shape, but for a persistent REMOTE secondmate: no spawn_gen (its
 # parent metadata never carries one), host instead.
-write_remote_snapshot() {  # <path> <mate-id> <host> <invalidity-json> [state]
-  jq -n --arg id "$2" --arg host "$3" --argjson inv "$4" --arg state "${5:-captain_decision}" '{
+write_remote_snapshot() {  # <path> <mate-id> <host> <invalidity-json> <parent-home> [state]
+  jq -n --arg id "$2" --arg host "$3" --argjson inv "$4" --arg state "${6:-captain_decision}" \
+    --arg binding "$(secondmate_registry_parent_binding "$5/state/$2.meta")" \
+    --arg session "$(secondmate_registry_meta_field "$5/state/$2.meta" remote_herdr_session)" '{
     schema:"fm-fleet-snapshot.v1", generated:"2026-08-26T00:00:00Z",
     secondmate_current:{records:[{
-      id:$id, home:("/tmp/" + $id), host:$host, spawn_gen:null,
+      id:$id, home:("/tmp/" + $id), host:$host, spawn_gen:null,session:$session,remote_binding:$binding,
       current:{state:$state, reason:null},
       invalidity:$inv, reconcile_inventory:($inv // {kind:null,ids:[]}),
       provenance:{selected:"structured-home", trust:"partial-structured"}}]}}' > "$1"
@@ -105,8 +108,10 @@ make_remote_secondmate_home() {  # <name> -> echoes remote home dir
   printf '%s\n' "$1" > "$rh/.fm-secondmate-home"
   printf '# remote secondmate home fixture\n' > "$rh/AGENTS.md"
   cat > "$rh/state/parent-route/$1.meta" <<META
+kind=secondmate
+home=$rh
 window=fm-remote:p1
-worktree=-
+worktree=$rh
 project=-
 backend=herdr
 endpoint_task_id=$1
@@ -135,6 +140,8 @@ harness=claude
 kind=secondmate
 mode=secondmate
 yolo=off
+home=$rhome
+worktree=$rhome
 remote_host=$host
 remote_root=/remote/root
 remote_backend=herdr
@@ -588,7 +595,7 @@ test_a_markerless_remote_secondmate_is_nudged_once_per_window() {
   home=$(make_remote_parent_home remote-once remote-once-mate "$rhome" remote-once-host)
   snap="$home/snapshot.json"
   write_remote_snapshot "$snap" remote-once-mate remote-once-host \
-    '{"kind":"orphan_in_flight","ids":["stale-scout"]}'
+    '{"kind":"orphan_in_flight","ids":["stale-scout"]}' "$home"
 
   out=$(run_remote_notify "$home" "$fakebin" "$snap") \
     || fail "the first markerless reconcile ask failed: $out"
@@ -619,7 +626,7 @@ test_a_stale_remote_route_is_refused() {
   home=$(make_remote_parent_home remote-stale remote-stale-mate "$rhome" old-host)
   snap="$home/snapshot.json"
   write_remote_snapshot "$snap" remote-stale-mate old-host \
-    '{"kind":"orphan_in_flight","ids":["old-ghost"]}'
+    '{"kind":"orphan_in_flight","ids":["old-ghost"]}' "$home"
   # The route was re-seeded to a different host since the snapshot was taken.
   sed -i.bak 's/^remote_host=.*/remote_host=new-host/' "$home/state/remote-stale-mate.meta" \
     && rm -f "$home/state/remote-stale-mate.meta.bak"
@@ -632,7 +639,12 @@ test_a_stale_remote_route_is_refused() {
     || fail "a replacement remote route received its predecessor's reconcile ask"
   assert_absent "$home/state/remote-stale-mate.reconcile-nudged" \
     "a replacement remote route inherited cooldown from a stale snapshot"
-  pass "a stale remote-route snapshot cannot ask or silence a replacement mate"
+  sed -i.bak 's/^remote_host=.*/remote_host=old-host/; s/^remote_herdr_session=.*/remote_herdr_session=other/' "$home/state/remote-stale-mate.meta"
+  rm -f "$home/state/remote-stale-mate.meta.bak"
+  out=$(run_remote_notify "$home" "$fakebin" "$snap") || fail "session-stale snapshot failed unexpectedly"
+  assert_contains "$out" 'stale: remote-stale-mate' "session change was not detected"
+  [ -z "$(remote_inbox_records "$rhome" remote-stale-mate)" ] || fail "session-stale snapshot reached the endpoint"
+  pass "a stale remote host or session snapshot cannot ask or silence a replacement mate"
 }
 
 test_route_replacement_during_send_is_refused() {
@@ -644,7 +656,7 @@ test_route_replacement_during_send_is_refused() {
   signal="$home/fm-send-started"
   release="$home/release-fm-send"
   write_remote_snapshot "$snap" remote-send-race-mate old-host \
-    '{"kind":"orphan_in_flight","ids":["old-ghost"]}'
+    '{"kind":"orphan_in_flight","ids":["old-ghost"]}' "$home"
   cat > "$fakebin/dirname" <<'SH'
 #!/usr/bin/env bash
 set -u
@@ -707,7 +719,7 @@ test_a_row_with_no_identity_at_all_fails_loudly() {
   home=$(make_remote_parent_home remote-noid remote-noid-mate "$rhome" remote-noid-host)
   snap="$home/snapshot.json"
   write_remote_snapshot "$snap" remote-noid-mate "" \
-    '{"kind":"orphan_in_flight","ids":["ghost"]}'
+    '{"kind":"orphan_in_flight","ids":["ghost"]}' "$home"
 
   set +e
   out=$(run_remote_notify "$home" "$fakebin" "$snap"); rc=$?

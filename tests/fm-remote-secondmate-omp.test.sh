@@ -5,8 +5,8 @@
 #   A) bin/fm-remote-secondmate-control.sh launch accepts omp and drives the
 #      ordinary host-local secondmate spawn onto the Herdr fm-remote session,
 #      recording harness=omp and the pinned model in the endpoint metadata.
-#   B) The relaunch verb accepts omp and reaches the ordinary control plane's own
-#      pre-stop checkpoint, proving its harness gate passed.
+#   B) The relaunch verb rejects contradictory home ownership before mutating
+#      the endpoint, including when the recorded harness is omp.
 #   C) bin/fm-spawn.sh's parent-side remote secondmate gate accepts omp and
 #      proceeds to the remote transport hop.
 #   D) Host-local retirement succeeds even though the busy records omp arms live
@@ -87,13 +87,15 @@ pass "A host-local launch accepts omp and records the fm-remote Herdr endpoint"
 cp "$META" "$TMP_ROOT/meta-before-relaunch"
 mkdir -p "$TMP_ROOT/not-a-checkout"
 sed "s|^worktree=.*|worktree=$TMP_ROOT/not-a-checkout|" "$TMP_ROOT/meta-before-relaunch" > "$META"
+cp "$META" "$TMP_ROOT/meta-mismatched"
 if ctl relaunch "$ID" omp - - > "$TMP_ROOT/relaunch.out" 2>&1; then
-  fail "relaunch with an unaccountable checkout should refuse in the control plane"
+  fail "relaunch with a mismatched home should refuse before mutation"
 fi
-assert_grep 'refusing to relaunch without a checkout whose unlanded work can be accounted for' \
-  "$TMP_ROOT/relaunch.out" "an omp relaunch did not reach the control plane's own pre-stop checkpoint"
+assert_grep 'remote endpoint worktree does not match the selected secondmate home' \
+  "$TMP_ROOT/relaunch.out" "an omp relaunch did not enforce endpoint ownership"
+cmp -s "$META" "$TMP_ROOT/meta-mismatched" || fail "refused relaunch changed endpoint evidence"
 cp "$TMP_ROOT/meta-before-relaunch" "$META"
-pass "B host-local relaunch accepts omp and reaches the control plane"
+pass "B host-local relaunch refuses contradictory home ownership without mutation"
 
 # --- C) parent-side remote spawn ----------------------------------------------
 

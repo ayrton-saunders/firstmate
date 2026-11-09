@@ -14,6 +14,12 @@ FM_HOME=${FM_HOME:?FM_HOME is required}
 MAX_BYTES=1048576
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
+# shellcheck source=bin/fm-herdr-session-lib.sh
+. "$SCRIPT_DIR/fm-herdr-session-lib.sh"
+# shellcheck source=bin/fm-remote-endpoint-lib.sh
+. "$SCRIPT_DIR/fm-remote-endpoint-lib.sh"
+fm_remote_endpoint_guard "${FM_REMOTE_COMMAND_SESSION:-$FM_REMOTE_HERDR_LEGACY_SESSION}" provision || exit 1
+
 # shellcheck source=bin/fm-wake-lib.sh
 . "$SCRIPT_DIR/fm-wake-lib.sh"
 # shellcheck source=bin/fm-config-inherit-lib.sh

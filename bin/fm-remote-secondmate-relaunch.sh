@@ -29,6 +29,8 @@ STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 . "$SCRIPT_DIR/fm-backend.sh"
 # shellcheck source=bin/fm-wake-lib.sh
 . "$SCRIPT_DIR/fm-wake-lib.sh"
+# shellcheck source=bin/fm-secondmate-registry-lib.sh
+. "$SCRIPT_DIR/fm-secondmate-registry-lib.sh"
 
 die() { printf 'error: %s\n' "$1" >&2; exit 1; }
 usage() { sed -n '2,4p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
@@ -46,7 +48,12 @@ REMOTE_HOST=$(fm_meta_get "$META" remote_host)
 [ -n "$REMOTE_HOST" ] \
   || die "task $ID is not a remotely placed secondmate; use bin/fm-control.sh $ID relaunch instead"
 
-RELAUNCH_OUT=$("$SCRIPT_DIR/fm-on.sh" "$ID" fm-remote-secondmate-control.sh \
+REG="${FM_DATA_OVERRIDE:-$FM_HOME/data}/secondmates.md"
+secondmate_registry_line_for_id "$REG" "$ID" || die "remote route is unavailable"
+ROUTE_LINE=$SECONDMATE_REGISTRY_LINE
+SESSION=$SECONDMATE_REGISTRY_SESSION
+BINDING=$(secondmate_registry_parent_binding "$META") || die "parent binding is invalid"
+RELAUNCH_OUT=$(FM_REMOTE_EXPECTED_PARENT_BINDING="$BINDING" FM_REMOTE_EXPECTED_ROUTE_LINE="$ROUTE_LINE" "$SCRIPT_DIR/fm-on.sh" "$ID" fm-remote-secondmate-control.sh \
   relaunch "$ID" "$HARNESS" "$MODEL" "$EFFORT" </dev/null 2>&1) || {
   rc=$?
   printf '%s\n' "$RELAUNCH_OUT" >&2
@@ -59,16 +66,36 @@ printf '%s\n' "$RELAUNCH_OUT"
 # line: a relaunch onto "default" prints that literal word there, while the
 # endpoint's own record - and this parent's, to match it - store an empty
 # field for "no explicit pin".
-[ "$(printf '%s\n' "$RELAUNCH_OUT" | sed -n 's/^schema=//p' | tail -1)" \
+[ "$(secondmate_registry_output_field "$RELAUNCH_OUT" schema)" \
   = fm-remote-secondmate-control.v1 ] \
   || die "the host relaunched $ID but reported no route confirmation to record"
-NEW_HARNESS=$(printf '%s\n' "$RELAUNCH_OUT" | sed -n 's/^harness=//p' | tail -1)
-NEW_MODEL=$(printf '%s\n' "$RELAUNCH_OUT" | sed -n 's/^model=//p' | tail -1)
-NEW_EFFORT=$(printf '%s\n' "$RELAUNCH_OUT" | sed -n 's/^effort=//p' | tail -1)
+NEW_HARNESS=$(secondmate_registry_output_field "$RELAUNCH_OUT" harness)
+NEW_MODEL=$(secondmate_registry_output_field "$RELAUNCH_OUT" model)
+NEW_EFFORT=$(secondmate_registry_output_field "$RELAUNCH_OUT" effort)
 [ -n "$NEW_HARNESS" ] || die "the host's route confirmation carried no harness to record"
 
 META_LOCK=$(fm_meta_lock_path "$META") || die "metadata lock path is invalid for $ID"
 fm_lock_acquire_wait "$META_LOCK"
+if ! secondmate_registry_line_for_id "$REG" "$ID" || [ "$SECONDMATE_REGISTRY_LINE" != "$ROUTE_LINE" ] || [ "$(secondmate_registry_parent_binding "$META")" != "$BINDING" ]; then
+  fm_lock_release "$META_LOCK"
+  die "route changed during relaunch; preserving endpoint records"
+fi
+NEW_BACKEND=$(secondmate_registry_output_field "$RELAUNCH_OUT" backend)
+NEW_TARGET=$(secondmate_registry_output_field "$RELAUNCH_OUT" target)
+RECORDED_BACKEND=$(secondmate_registry_meta_field "$META" remote_backend || true)
+BACKEND_MATCH=0
+if [ -n "$NEW_BACKEND" ] && [ "$NEW_BACKEND" = "$RECORDED_BACKEND" ]; then
+  BACKEND_MATCH=1
+elif [ "$NEW_BACKEND" = herdr ] && [ -z "$RECORDED_BACKEND" ] &&
+  secondmate_registry_parent_matches "$META" "$ID" "$SECONDMATE_REGISTRY_HOST" "$SECONDMATE_REGISTRY_ROOT" "$SECONDMATE_REGISTRY_HOME" "$SESSION"; then
+  # Readability of a pre-Rex parent is established by the same exact proof;
+  # no backend field is filled or defaulted during this publication.
+  BACKEND_MATCH=1
+fi
+if [ -z "$NEW_TARGET" ] || [ "$BACKEND_MATCH" != 1 ] || { [ "$NEW_BACKEND" = herdr ] && { [ "$(secondmate_registry_output_field "$RELAUNCH_OUT" herdr_session)" != "$SESSION" ] || [ "${NEW_TARGET%%:*}" != "$SESSION" ]; }; }; then
+  fm_lock_release "$META_LOCK"
+  die "relaunch returned a contradictory endpoint identity; preserving records"
+fi
 META_TMP=$(mktemp "$STATE/.fm-remote-relaunch-meta.XXXXXX") || {
   fm_lock_release "$META_LOCK"
   die "cannot stage the updated record"
@@ -77,6 +104,7 @@ META_TMP=$(mktemp "$STATE/.fm-remote-relaunch-meta.XXXXXX") || {
   printf 'harness=%s\n' "$NEW_HARNESS"
   printf 'model=%s\n' "$NEW_MODEL"
   printf 'effort=%s\n' "$NEW_EFFORT"
+  printf 'remote_target=%s\n' "$NEW_TARGET"
 } >> "$META_TMP"
 # Every other line is preserved in its original relative order after the
 # refreshed harness/model/effort. A pr= line's own identity region (pr_head=
@@ -87,7 +115,7 @@ META_TMP=$(mktemp "$STATE/.fm-remote-relaunch-meta.XXXXXX") || {
 # that already had one armed.
 while IFS= read -r line || [ -n "$line" ]; do
   case "$line" in
-    harness=*|model=*|effort=*) ;;
+    harness=*|model=*|effort=*|remote_target=*) ;;
     *) printf '%s\n' "$line" >> "$META_TMP" ;;
   esac
 done < "$META"

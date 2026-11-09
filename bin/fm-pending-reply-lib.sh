@@ -34,6 +34,7 @@
 #   parent_home=            absolute parent FM_HOME
 #   parent_status=          absolute path of parent state/<task_id>.status
 #   parent_status_scan_signature=
+#   remote_binding=         sampled parent endpoint identity (empty for local tasks)
 #   request_summary=        short sanitized summary (no secrets by design)
 #   created_epoch=          when the expectation was created
 #   delivered_epoch=        when the marked request was confirmed delivered
@@ -88,6 +89,14 @@
 # owned below (fm_pending_reply_resolved_note), because a bare answered: note is
 # not a reserved-key transition and would leave the decision open.
 #
+# Remote binding guard: correlation reuse and recovery delivery require the
+# record's nonempty remote_binding to match the current parent endpoint binding.
+# A changed or absent binding (including pre-upgrade pending records) forbids
+# replay. The watcher reconciles available parent replies, then opens a keyed
+# pending-reply-binding-unverified escalation if the request remains unresolved;
+# it never silently abandons the request or adopts the new endpoint identity.
+# tests/fm-pending-reply.test.sh covers this refusal and escalation boundary.
+#
 # Retryable undelivered escalation: a delivery-unknown escalation reports that
 # the request may never have reached the mate, so the request stays the owner's
 # to resend under the same correlation (fm-send's FM_PENDING_REPLY_EXISTING_CORR
@@ -136,6 +145,9 @@ _FM_PENDING_REPLY_LIB_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd 2>/dev/n
 # bin/fm-wake-lib.sh's single directed expansion below; a second directive
 # here would re-expand the same transitive graph.
 . "$_FM_PENDING_REPLY_LIB_DIR/fm-classify-lib.sh"
+
+# shellcheck source=bin/fm-secondmate-registry-lib.sh
+. "$_FM_PENDING_REPLY_LIB_DIR/fm-secondmate-registry-lib.sh"
 
 FM_PENDING_REPLY_SCHEMA='fm-pending-reply.v1'
 FM_PENDING_REPLY_CORR_RE='corr=[A-Fa-f0-9]{16}'
@@ -264,11 +276,15 @@ fm_pending_reply_sighting_display() {  # <encoded-sighting>
 }
 
 fm_pending_reply_corr_reusable() {  # <state-dir> <corr_id> <task_id>
-  local state=$1 corr=$2 task_id=$3 rec phase delivered
+  local state=$1 corr=$2 task_id=$3 rec phase delivered binding
   printf '%s' "$corr" | grep -Eq '^[A-Fa-f0-9]{16}$' || return 1
   rec=$(fm_pending_reply_path "$state" "$corr")
   [ -f "$rec" ] || return 1
   [ "$(fm_pending_reply_get "$rec" task_id)" = "$task_id" ] || return 1
+  if [ -n "$(fm_meta_get "$state/$task_id.meta" remote_host)" ]; then
+    binding=$(fm_pending_reply_get "$rec" remote_binding)
+    [ -n "$binding" ] && [ "$binding" = "$(secondmate_registry_parent_binding "$state/$task_id.meta")" ] || return 1
+  fi
   phase=$(fm_pending_reply_get "$rec" phase)
   case "$phase" in
     awaiting_report|recovery_sending|recovery_sent) return 0 ;;
@@ -328,7 +344,10 @@ fm_pending_reply_embed_corr() {  # <message> <corr_id> <result-var>
 # Does not deliver anything. Fails if parent paths cannot be prepared.
 fm_pending_reply_create() {  # <parent-home> <state-dir> <task_id> <request-text>
   local parent_home=$1 state=$2 task_id=$3 request_text=$4
-  local dir rec corr now summary status_path tmp
+  local dir rec corr now summary status_path tmp remote_binding=
+  if [ -n "$(fm_meta_get "$state/$task_id.meta" remote_host)" ]; then
+    remote_binding=$(secondmate_registry_parent_binding "$state/$task_id.meta") || return 1
+  fi
   [ -n "$parent_home" ] && [ -n "$state" ] && [ -n "$task_id" ] || return 2
   dir=$(fm_pending_reply_dir "$state")
   mkdir -p "$dir" || return 1
@@ -362,6 +381,7 @@ task_id=$task_id
 parent_home=$parent_home
 parent_status=$status_path
 parent_status_scan_signature=
+remote_binding=$remote_binding
 request_summary=$summary
 created_epoch=$now
 delivered_epoch=
@@ -965,7 +985,7 @@ fm_pending_reply_recovery_message() {  # <record-path>
 fm_pending_reply_send_recovery() {  # <state-dir> <corr_id>
   local state=$1 corr=$2
   local rec phase completed delivered attempted grace now age task_id msg parent_home send_status=0
-  local sender_pid sender_identity status_file lock
+  local sender_pid sender_identity status_file lock remote_binding
   local STATE FM_WAKE_QUEUE FM_WAKE_QUEUE_LOCK
   rec=$(fm_pending_reply_path "$state" "$corr")
   [ -f "$rec" ] || return 1
@@ -989,6 +1009,13 @@ fm_pending_reply_send_recovery() {  # <state-dir> <corr_id>
   age=$((now - completed))
   [ "$age" -ge "$grace" ] || return 1
   task_id=$(fm_pending_reply_get "$rec" task_id)
+  remote_binding=$(fm_pending_reply_get "$rec" remote_binding)
+  if [ -n "$(fm_meta_get "$state/$task_id.meta" remote_host)" ]; then
+    if [ -z "$remote_binding" ] || [ "$remote_binding" != "$(secondmate_registry_parent_binding "$state/$task_id.meta")" ]; then
+      fm_pending_reply_maybe_escalate "$state" "$corr" || true
+      return 1
+    fi
+  fi
   # A remote mate's report may exist and simply not have been mirrored yet.
   fm_pending_reply_missing_report_is_evidence "$state" "$task_id" "$completed" || return 1
   # config/wait-no-turns: a mate waiting on its own open decision or blocker
@@ -1034,6 +1061,7 @@ fm_pending_reply_send_recovery() {  # <state-dir> <corr_id>
     if [ -z "$parent_home" ] || [ ! -d "$parent_home" ]; then
       send_status=1
     elif ! env FM_HOME="$parent_home" FM_PENDING_REPLY_EXISTING_CORR="$corr" \
+      FM_REMOTE_EXPECTED_PARENT_BINDING="$remote_binding" \
       "$_FM_PENDING_REPLY_LIB_DIR/fm-send.sh" "$task_id" "$msg"; then
       send_status=1
     fi
@@ -1153,6 +1181,9 @@ fm_pending_reply_escalation_payload() {  # <record-path> <kind>
     delivery-unknown)
       token='pending-reply-delivery-unknown'
       ;;
+    binding-unverified)
+      token='pending-reply-binding-unverified'
+      ;;
     recovery-delivery)
       outcome=$(fm_pending_reply_get "$rec" recovery_delivery_outcome)
       case "$outcome" in failed|unknown) ;; *) return 1 ;; esac
@@ -1175,7 +1206,7 @@ fm_pending_reply_escalation_line() {  # <status-file> <record-path> <corr_id>
   while IFS= read -r line || [ -n "$line" ]; do
     [ "$(status_line_verb "$line")" = blocked ] || continue
     _fm_status_untimed "$line" untimed
-    for kind in missed delivery-unknown recovery-delivery; do
+    for kind in missed delivery-unknown recovery-delivery binding-unverified; do
       payload=$(fm_pending_reply_escalation_payload "$rec" "$kind") || continue
       case "$untimed" in
         "blocked [key=$own_key]: $payload"|"blocked: $payload") found=$line; break ;;
@@ -1283,7 +1314,7 @@ fm_pending_reply_maybe_escalate() {  # <state-dir> <corr_id>
 _fm_pending_reply_maybe_escalate_locked() {  # <state-dir> <corr_id>
   local state=$1 corr=$2
   local rec phase completed now payload parent_status line kind first display
-  local delivered task_id meta sm_home remote_host grace age key new_episode
+  local delivered task_id meta sm_home remote_host grace age key new_episode binding
   rec=$(fm_pending_reply_path "$state" "$corr")
   [ -f "$rec" ] || return 1
   phase=$(fm_pending_reply_get "$rec" phase)
@@ -1292,8 +1323,19 @@ _fm_pending_reply_maybe_escalate_locked() {  # <state-dir> <corr_id>
     phase=$(fm_pending_reply_get "$rec" phase)
     [ "$phase" = delivery_unknown ] || return 0
   fi
-  case "$phase" in
-    recovery_sent)
+  task_id=$(fm_pending_reply_get "$rec" task_id)
+  meta="$state/${task_id}.meta"
+  kind=
+  if [ -n "$(fm_meta_get "$meta" remote_host)" ]; then
+    binding=$(fm_pending_reply_get "$rec" remote_binding)
+    if [ -z "$binding" ] || [ "$binding" != "$(secondmate_registry_parent_binding "$meta")" ]; then
+      case "$phase" in resolved|escalated) return 0 ;; esac
+      kind='binding-unverified'
+    fi
+  fi
+  case "$kind:$phase" in
+    binding-unverified:*) ;;
+    :recovery_sent)
       completed=$(fm_pending_reply_get "$rec" recovery_turn_completed_epoch)
       [ -n "$completed" ] || return 1
       # Grace runs from the recovery turn's completion, the same anchor the
@@ -1308,12 +1350,10 @@ _fm_pending_reply_maybe_escalate_locked() {  # <state-dir> <corr_id>
       fm_pending_reply_missing_report_is_evidence "$state" \
         "$(fm_pending_reply_get "$rec" task_id)" "$completed" || return 1
       ;;
-    delivery_unknown|recovery_failed|recovery_unknown) ;;
+    :delivery_unknown|:recovery_failed|:recovery_unknown) ;;
     *) return 1 ;;
   esac
   delivered=$(fm_pending_reply_get "$rec" delivered_epoch)
-  task_id=$(fm_pending_reply_get "$rec" task_id)
-  meta="$state/${task_id}.meta"
   if [ -n "$delivered" ] && [ -f "$meta" ]; then
     remote_host=$(fm_meta_get "$meta" remote_host)
     sm_home=$(fm_meta_get "$meta" home)
@@ -1330,9 +1370,10 @@ _fm_pending_reply_maybe_escalate_locked() {  # <state-dir> <corr_id>
   fi
   # A resolve that failed on a later field write has still committed resolved.
   [ "$(fm_pending_reply_get "$rec" phase)" = "$phase" ] || return 1
-  case "$phase" in
-    delivery_unknown) kind=delivery-unknown ;;
-    recovery_failed|recovery_unknown) kind='recovery-delivery' ;;
+  case "$kind:$phase" in
+    binding-unverified:*) ;;
+    :delivery_unknown) kind=delivery-unknown ;;
+    :recovery_failed|:recovery_unknown) kind='recovery-delivery' ;;
     *) kind=missed ;;
   esac
   payload=$(fm_pending_reply_escalation_payload "$rec" "$kind") || return 1
@@ -1562,7 +1603,7 @@ _fm_pending_reply_select_needing_work() {  # <record-path>...
 # settled record costs no lock and no fork, and the per-record path below runs,
 # unchanged, only for the records that selection returns.
 fm_pending_reply_tick() {  # <state-dir>
-  local state=$1 dir rec corr task_id phase delivered meta backend target label busy sm_home harness remote_host
+  local state=$1 dir rec corr task_id phase delivered meta backend target label busy sm_home harness remote_host remote_binding
   local observation observation_task found i
   local -a observation_tasks=() observation_values=() records=() selected=()
   dir=$(fm_pending_reply_dir "$state")
@@ -1647,6 +1688,13 @@ fm_pending_reply_tick() {  # <state-dir>
     harness=
     if [ -f "$meta" ]; then
       remote_host=$(fm_meta_get "$meta" remote_host)
+      remote_binding=$(fm_pending_reply_get "$rec" remote_binding)
+      if [ -n "$remote_host" ]; then
+        if [ -z "$remote_binding" ] || [ "$remote_binding" != "$(secondmate_registry_parent_binding "$meta")" ]; then
+          fm_pending_reply_maybe_escalate "$state" "$corr" || true
+          continue
+        fi
+      fi
       backend=$(fm_backend_of_meta "$meta")
       target=$(fm_backend_target_of_meta "$meta")
       sm_home=$(fm_meta_get "$meta" home)
@@ -1668,7 +1716,7 @@ fm_pending_reply_tick() {  # <state-dir>
         done
         if [ "$found" = 0 ]; then
           if [ -n "$remote_host" ]; then
-            observation=$("$_FM_PENDING_REPLY_LIB_DIR/fm-on.sh" "$task_id" \
+            observation=$(FM_REMOTE_EXPECTED_PARENT_BINDING="$remote_binding" "$_FM_PENDING_REPLY_LIB_DIR/fm-on.sh" "$task_id" \
               fm-remote-secondmate-control.sh observe "$task_id" < /dev/null 2>/dev/null || printf 'unknown')
             case "$observation" in busy|idle|fallback-idle|unknown) ;; *) observation=unknown ;; esac
           else

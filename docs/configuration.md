@@ -1211,7 +1211,8 @@ The concise single-line route contract is owned by the [`secondmate-provisioning
 
 ### Remote routes and validation
 
-A remote route adds `host:` and `root:` before the existing fields and places the whole secondmate home on that SSH host; it does not make ordinary workers remotely placeable.
+A remote route adds `host:` and `root:` and may select a Herdr session through the optional `session:` field described in the [route schema](../.agents/skills/secondmate-provisioning/SKILL.md#routing-table).
+It places the whole secondmate home on that SSH host; it does not make ordinary workers remotely placeable.
 [`remote-secondmates.md`](remote-secondmates.md) owns current remote setup, operation, and safety behavior.
 
 Use `fm-home-seed.sh validate` to check the complete operational registry contract documented by the command itself.

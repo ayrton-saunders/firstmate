@@ -964,8 +964,15 @@ cmd=${rargs[0]}
 [ "$cmd" != fm-remote-doctor.sh ] || exit 0
 # An older remote Firstmate copy rejects a command shape it does not know with
 # the usage status, which is exactly what a parent-targeted sync meets there.
+verb_index=1
+while :; do
+  case "${rargs[$verb_index]:-}" in
+    --herdr-session|--expected-backend|--expected-target|--route-id) verb_index=$((verb_index + 2)) ;;
+    *) break ;;
+  esac
+done
 if [ "${FM_TEST_REMOTE_LEG_REJECT_SYNC:-0}" = 1 ] \
-  && [ "$cmd" = fm-remote-secondmate-control.sh ] && [ "${rargs[1]:-}" = sync ]; then
+  && [ "$cmd" = fm-remote-secondmate-control.sh ] && [ "${rargs[$verb_index]:-}" = sync ]; then
   printf 'Host-local lifecycle control for the remote secondmate home selected by fm-on.\n'
   exit 2
 fi
@@ -1261,10 +1268,11 @@ test_bootstrap_syncs_remote_home_to_primary_commit() {
   printf -- '- sm - remote fixture (host: host-sm; root: %s; home: %s; scope: remote work; projects: alpha; added 2026-08-02)\n' \
     "$w/coderoot" "$w/sm" > "$home/data/secondmates.md"
   fm_write_secondmate_meta "$home/state/sm.meta" "$w/sm"
-  printf 'remote_host=host-sm\n' >> "$home/state/sm.meta"
+  printf 'remote_host=host-sm\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:p1\n' "$w/coderoot" >> "$home/state/sm.meta"
   mkdir -p "$w/sm/state/parent-route"
   fm_write_meta "$w/sm/state/parent-route/sm.meta" \
-    'window=fm-remote:p1' 'endpoint_task_id=sm' 'worktree=-' 'project=-' \
+    'window=fm-remote:p1' 'endpoint_task_id=sm' 'kind=secondmate' \
+    "home=$w/sm" "worktree=$w/sm" 'project=-' \
     'backend=herdr' 'harness=codex' 'herdr_session=fm-remote' \
     'herdr_workspace_id=w1' 'herdr_tab_id=t1' 'herdr_pane_id=p1'
 
@@ -1304,7 +1312,7 @@ test_bootstrap_reports_outdated_host_actionably() {
   printf -- '- sm - remote fixture (host: host-sm; root: %s; home: %s; scope: remote work; projects: alpha; added 2026-08-02)\n' \
     "$w/coderoot" "$w/sm" > "$home/data/secondmates.md"
   fm_write_secondmate_meta "$home/state/sm.meta" "$w/sm"
-  printf 'remote_host=host-sm\n' >> "$home/state/sm.meta"
+  printf 'remote_host=host-sm\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:p1\n' "$w/coderoot" >> "$home/state/sm.meta"
 
   fakebin=$(make_remote_leg_ssh_stub "$w")
   fm_fake_exit0 "$fakebin" gh treehouse tmux node
@@ -1342,7 +1350,7 @@ remote_nudge_world() {  # <name> -> world dir with a remote home sm on the prima
   printf -- '- sm - remote fixture (host: host-sm; root: %s; home: %s; scope: remote work; projects: alpha; added 2026-08-02)\n' \
     "$w/coderoot" "$w/sm" > "$w/home/data/secondmates.md"
   fm_write_secondmate_meta "$w/home/state/sm.meta" "$w/sm"
-  printf 'remote_host=host-sm\n' >> "$w/home/state/sm.meta"
+  printf 'remote_host=host-sm\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:p1\n' "$w/coderoot" >> "$w/home/state/sm.meta"
   printf '%s\n' "$w"
 }
 

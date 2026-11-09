@@ -65,6 +65,7 @@ argv_b64=$4
 command_fields=$(perl -MMIME::Base64=decode_base64 -e '
   my $data=decode_base64($ARGV[0]);
   my @args=split(/\0/, $data);
+  splice @args, 1, 2 while (($args[1] // "") =~ /^(--herdr-session|--expected-backend|--expected-target|--route-id)$/);
   print join("\t", map { defined $_ ? $_ : "" } @args[0..5]);
 ' "$argv_b64")
 IFS=$'\t' read -r cmd action id harness model effort <<EOF
@@ -188,5 +189,15 @@ expect_code 0 "$RC" "a confirmed remote relaunch should succeed with an armed PR
 fm_pr_poll_artifacts_valid "$HOME_DIR/state" ios "$ROOT/bin/fm-pr-poll.sh" \
   || fail "a remote relaunch broke PR poll authentication by writing harness/model/effort after pr="
 pass "a remote relaunch keeps an already-armed PR poll authenticating"
+
+reset_meta
+awk '!/^remote_backend=/' "$HOME_DIR/state/ios.meta" > "$HOME_DIR/state/ios.meta.next"
+mv "$HOME_DIR/state/ios.meta.next" "$HOME_DIR/state/ios.meta"
+OUT=$(run_relaunch ios claude claude-opus-5-5 medium); RC=$?
+expect_code 0 "$RC" "a fully proved pre-Rex parent should retain relaunch compatibility"$'\n'"$OUT"
+assert_grep 'harness=claude' "$HOME_DIR/state/ios.meta" "legacy relaunch did not publish the confirmed runtime"
+if grep -q '^remote_backend=' "$HOME_DIR/state/ios.meta"; then fail "legacy readability proof filled a missing backend field"; fi
+assert_grep 'remote_herdr_session=fm-remote' "$HOME_DIR/state/ios.meta" "legacy relaunch lost its explicit session evidence"
+pass "a pre-Rex parent relaunch uses exact existing session/target proof without filling backend metadata"
 
 echo "ALL TESTS PASSED"

@@ -3743,8 +3743,11 @@ test_secondmate_liveness_tick_preserves_unreachable_remote() {
   rm -f "$state/sm1.meta"
   cat > "$state/rsm1.meta" <<EOF
 window=remote:rsm1
+endpoint_task_id=rsm1
 kind=secondmate
 harness=claude
+worktree=/remote/rsm1-home
+remote_root=/remote/root
 remote_host=lab-host
 remote_backend=herdr
 remote_herdr_session=fm-remote

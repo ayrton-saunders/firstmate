@@ -214,6 +214,7 @@ test_transport_routes_by_placement_and_liveness() {
   } > "$primary/data/secondmates.md"
   fm_write_secondmate_meta "$primary/state/live-local.meta" "$live" 'firstmate:fm-live-local' alpha claude
   fm_write_secondmate_meta "$primary/state/remote-live.meta" "$remote" 'fm-remote:fm-remote-live' alpha claude
+  printf 'remote_host=remote-mac\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:fm-remote-live\n' "$TMP_ROOT/remote-root" >> "$primary/state/remote-live.meta"
   printf 'role=secondmate\neffective_budget_tokens=7500\ntotal_estimated_tokens=100\nbudget_status=within-budget\n' \
     > "$TMP_ROOT/remote-budget.txt"
 
@@ -300,6 +301,7 @@ test_a_slow_remote_is_bounded_and_the_rest_still_report() {
     local_record bounded-local "$home"
   } > "$primary/data/secondmates.md"
   fm_write_secondmate_meta "$primary/state/bounded-remote.meta" "$remote" 'fm-remote:fm-bounded-remote'
+  printf 'remote_host=remote-mac\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:fm-bounded-remote\n' "$TMP_ROOT/remote-root" >> "$primary/state/bounded-remote.meta"
   printf 'role=secondmate\n' > "$TMP_ROOT/remote-budget.txt"
 
   started=$(date +%s)

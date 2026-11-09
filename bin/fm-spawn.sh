@@ -1275,7 +1275,8 @@ else
 fi
 
 spawn_remote_secondmate() {
-  local id=$1 remote host root home harness positional model effort backend out rc meta tmp
+  local id=$1 remote host root home session route_line harness positional model effort backend out rc meta tmp
+  local FM_REMOTE_EXPECTED_ROUTE_LINE FM_REMOTE_EXPECTED_PARENT_BINDING parent_binding=
   local remote_backend remote_target remote_harness remote_herdr_session registry_lock remote_lock remote_generation
   local remote_rex_session_id remote_rex_server remote_rex_ok
   local remote_traceparent remote_recorded_traceparent sm_primary_head sync_out sync_rc account_config
@@ -1306,9 +1307,19 @@ spawn_remote_secondmate() {
     fm_lock_release "$SPAWN_TASK_LOCK" || true
     return 3
   fi
-  host=$(secondmate_registry_field "$DATA/secondmates.md" "$id" host)
-  root=$(secondmate_registry_field "$DATA/secondmates.md" "$id" root)
-  home=$(secondmate_registry_field "$DATA/secondmates.md" "$id" home)
+  if ! secondmate_registry_line_for_id "$DATA/secondmates.md" "$id"; then
+    fm_lock_release "$registry_lock" || true
+    fm_lock_release "$SPAWN_TASK_LOCK" || true
+    echo "error: remote route became unreadable before launch" >&2
+    return 1
+  fi
+  host=$SECONDMATE_REGISTRY_HOST
+  root=$SECONDMATE_REGISTRY_ROOT
+  home=$SECONDMATE_REGISTRY_HOME
+  session=$SECONDMATE_REGISTRY_SESSION
+  route_line=$SECONDMATE_REGISTRY_LINE
+  FM_REMOTE_EXPECTED_ROUTE_LINE=$route_line
+  export FM_REMOTE_EXPECTED_ROUTE_LINE
   positional=${POS[1]:-}
   if [ "${#POS[@]}" -gt 2 ]; then
     fm_lock_release "$registry_lock" || true
@@ -1387,19 +1398,32 @@ spawn_remote_secondmate() {
       [ "$(fm_meta_get "$meta" kind)" != secondmate ] ||
       [ "$(fm_meta_get "$meta" remote_host)" != "$host" ] ||
       [ "$(fm_meta_get "$meta" remote_root)" != "$root" ] ||
-      [ "$(fm_meta_get "$meta" home)" != "$home" ]; then
+      [ "$(fm_meta_get "$meta" home)" != "$home" ] ||
+      { [ "$(fm_meta_get "$meta" remote_backend)" = herdr ] && [ "$(fm_meta_get "$meta" remote_herdr_session)" != "$session" ]; }; then
       fm_lock_release "$registry_lock" || true
       fm_lock_release "$SPAWN_TASK_LOCK" || true
       echo "error: existing metadata for $id does not identify this remote secondmate route" >&2
       return 1
     fi
   fi
+  if [ -f "$meta" ]; then
+    if ! parent_binding=$(secondmate_registry_parent_binding "$meta"); then
+      fm_lock_release "$registry_lock" || true
+      fm_lock_release "$SPAWN_TASK_LOCK" || true
+      echo "error: parent remote binding is malformed; preserving records" >&2
+      return 1
+    fi
+  fi
+  FM_REMOTE_EXPECTED_PARENT_BINDING=$parent_binding
+  export FM_REMOTE_EXPECTED_PARENT_BINDING
   # A remote second mate runs only on a backend whose session-provider server
   # outlives every SSH connection that supervises it: herdr (its server belongs
   # to the host's GUI login session) is the default; rex runs on the host's
   # persistent personal rex server. Without an explicit selection a relaunch
-  # keeps the backend its record names, and a record written before rex
-  # existed names none, so it is herdr. bin/fm-remote-doctor.sh gates that host
+  # keeps the backend its record names; new endpoints select herdr.
+  # A pre-Rex parent without remote_backend is readable only through the
+  # registry library's exact explicit Herdr session/target binding proof.
+  # bin/fm-remote-doctor.sh gates that host
   # on the selected backend, and the remote home's config/backend never
   # overrides the selection.
   backend=${BACKEND_ARG:-}
@@ -1510,10 +1534,10 @@ spawn_remote_secondmate() {
     fi
     return "$rc"
   fi
-  remote_backend=$(printf '%s\n' "$out" | sed -n 's/^backend=//p' | tail -1)
-  remote_target=$(printf '%s\n' "$out" | sed -n 's/^target=//p' | tail -1)
-  remote_harness=$(printf '%s\n' "$out" | sed -n 's/^harness=//p' | tail -1)
-  if [ "$remote_backend" != "$backend" ]; then
+  remote_backend=$(secondmate_registry_output_field "$out" backend)
+  remote_target=$(secondmate_registry_output_field "$out" target)
+  remote_harness=$(secondmate_registry_output_field "$out" harness)
+  if [ "$remote_backend" != "$backend" ] || [ "$(secondmate_registry_output_field "$out" schema)" != fm-remote-secondmate-control.v1 ]; then
     fm_lock_release "$remote_lock" || true
     fm_lock_release "$registry_lock" || true
     fm_lock_release "$SPAWN_TASK_LOCK" || true
@@ -1532,18 +1556,18 @@ spawn_remote_secondmate() {
   remote_rex_server=
   case "$remote_backend" in
     herdr)
-      remote_herdr_session=$(printf '%s\n' "$out" | sed -n 's/^herdr_session=//p' | tail -1)
-      if [ "$remote_herdr_session" != fm-remote ] || [ "${remote_target%%:*}" != "$remote_herdr_session" ]; then
+      remote_herdr_session=$(secondmate_registry_output_field "$out" herdr_session)
+      if [ "$remote_herdr_session" != "$session" ] || [ "${remote_target%%:*}" != "$remote_herdr_session" ]; then
         fm_lock_release "$remote_lock" || true
         fm_lock_release "$registry_lock" || true
         fm_lock_release "$SPAWN_TASK_LOCK" || true
-        echo "error: remote launch returned Herdr session '${remote_herdr_session:-missing}', expected 'fm-remote'; preserving the remote route for reconciliation" >&2
+        echo "error: remote launch returned Herdr session '${remote_herdr_session:-missing}', expected '$session'; preserving the remote route for reconciliation" >&2
         return 1
       fi
       ;;
     rex)
-      remote_rex_session_id=$(printf '%s\n' "$out" | sed -n 's/^rex_session_id=//p' | tail -1)
-      remote_rex_server=$(printf '%s\n' "$out" | sed -n 's/^rex_server=//p' | tail -1)
+      remote_rex_session_id=$(secondmate_registry_output_field "$out" rex_session_id)
+      remote_rex_server=$(secondmate_registry_output_field "$out" rex_server)
       # The route must pin a host-local unix:// server and a
       # <session-uuid>:<block-uuid> target whose session half is the reported
       # session id; anything else is not an endpoint this contract launched.
@@ -1568,8 +1592,17 @@ spawn_remote_secondmate() {
   # when the remote host already had a live agent and reused its endpoint. An
   # off decision delivers no carrier, but an endpoint already holding one still
   # reports it here so the parent does not deny the agent's actual identity.
-  remote_recorded_traceparent=$(printf '%s\n' "$out" | sed -n 's/^traceparent=//p' | tail -1)
+  remote_recorded_traceparent=$(secondmate_registry_output_field "$out" traceparent)
   fm_trace_context_valid "$remote_recorded_traceparent" || remote_recorded_traceparent=
+  if ! secondmate_registry_line_for_id "$DATA/secondmates.md" "$id" || [ "$SECONDMATE_REGISTRY_LINE" != "$route_line" ] ||
+    { [ -n "$parent_binding" ] && [ "$(secondmate_registry_parent_binding "$meta")" != "$parent_binding" ]; } ||
+    { [ -z "$parent_binding" ] && { [ -e "$meta" ] || [ -L "$meta" ]; }; }; then
+    fm_lock_release "$remote_lock" || true
+    fm_lock_release "$registry_lock" || true
+    fm_lock_release "$SPAWN_TASK_LOCK" || true
+    echo "error: remote route changed during launch; preserving endpoint and parent records" >&2
+    return 1
+  fi
   tmp="$meta.tmp.$$"
   {
     echo "window=remote:$id"

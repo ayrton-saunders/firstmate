@@ -32,6 +32,12 @@ Each registry entry stays concise and single-line: the summary is one sentence n
 Natural-language summary and `scope:` text may contain parentheses and semicolons; keep the generated `(home: ...; scope: ...; projects: ...; added ...)` suffix intact so operational consumers resolve its explicit field markers.
 The `home:` path points to the seeded home containing `data/charter.md`; no extra registry pointer field is needed.
 For a remote route, `host:` is an OpenSSH config alias and `root:` is that host's separate tracked Firstmate code root.
+An optional `session: <name>;` immediately after `home:` selects that route's Herdr session; only an omitted field resolves to legacy `fm-remote`.
+An explicitly empty, repeated, invalid, or local-route session field is refused.
+Names are exact and case-sensitive; [`fm-herdr-session-lib.sh`](../../../bin/fm-herdr-session-lib.sh) owns the conservative ASCII naming grammar and label derivation.
+Route identity comes only from this record, never a global setting, a directory name, or a saved machine profile.
+Upgrade every registry reader and the remote code before adding a custom record; keep custom records out of older readers and never downgrade while any remain.
+Changing a live route's session is a migration requiring separate approval, not a supported configuration edit.
 See [remote launch and recovery](../../../docs/remote-secondmates.md#launch-or-recover) for backend selection and readiness (Herdr remains the default; Rex requires explicit selection and a ready doctor verdict).
 This release places whole secondmate homes remotely and never individual workers.
 [`docs/remote-secondmates.md`](../../../docs/remote-secondmates.md) owns current operator setup and transport behavior.
@@ -67,7 +73,7 @@ bin/fm-home-seed.sh <id> <home|-> {<project>...|--no-projects}
 Provision a whole remote home through its configured SSH host with:
 
 ```sh
-bin/fm-remote-home-seed.sh <id> <ssh-alias> <remote-root> <remote-home> {<project>[=<origin-url>]...|--no-projects}
+bin/fm-remote-home-seed.sh [--herdr-session NAME] <id> <ssh-alias> <remote-root> <remote-home> {<project>[=<origin-url>]...|--no-projects}
 ```
 
 You resolve each project's origin yourself - from the captain, the project registry, a clone that exists elsewhere, `gh-axi`, or an explicit paste - and name it as `<project>=<origin-url>`; the seed validates and transports what you supply.
@@ -94,7 +100,8 @@ A remote launch and the deferred bootstrap sweep hand the configured host the pr
 A remote home is a standalone clone on another machine, so that host imports the one commit it was given - already present, else from that host's own Firstmate copy without moving it, else from the home's origin - and skips with an actionable reason when none of them holds it, which is what an unpushed primary commit looks like from there.
 Neither path moves the host's Firstmate copy, and the host-local launch never re-targets that copy after the parent has already synced the home.
 `/updatefirstmate` is the one path that still follows that copy: it first updates the remote code root from its own origin, then syncs the home to that refreshed code-root commit.
-SSH exit 255 preserves the route and reports unknown completion; it never triggers local respawn or failover.
+SSH exit 255 preserves the complete route binding and reports unknown completion; reconcile that same binding rather than replaying in a different session or failing over locally.
+The [remote identity checks](../../../docs/remote-secondmates.md#refused-and-unsupported-launches) also govern sync, inheritance, restart, update, and retirement.
 The same placement-specific launch and deferred bootstrap sweep also propagate the primary's inherited local material declared by [`fm_config_inherit_items`](../../../bin/fm-config-inherit-lib.sh), whose owner also defines which items are session-scoped.
 Because these paths are gitignored, that propagation is a separate, primary-authoritative copy independent of the tracked-files fast-forward: it re-converges every live home whether or not its tracked files advanced, and it touches only the declared items.
 Propagation failures warn without blocking a local secondmate launch or session-start continuation; a remote prelaunch transfer failure refuses that launch.

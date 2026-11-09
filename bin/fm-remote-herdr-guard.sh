@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# launchd exec target for the Firstmate-owned dev.firstmate.herdr.fm-remote
-# launch agent: make the Aqua login session own the fm-remote Herdr server.
+# launchd exec target for the Firstmate-owned dev.firstmate.herdr.<session>
+# launch agent: make the Aqua login session own the selected Herdr server.
 #
 # Usage:
 #   fm-remote-herdr-guard.sh <herdr-path> <session>
@@ -22,14 +22,15 @@
 #                                          (foreground, launchd-supervised)
 #   the owner was born in the Aqua session (launchd or the Aqua remote-job
 #   worker)                            -> exit 0, leave it alone
-#   the owner was born anywhere else (an SSH remote attach, a shell over
-#   ssh/mosh, or a birth it cannot prove) -> `herdr server stop`, wait until the
+#   the owner was proven SSH-born, with repair authorized by the operator
+#                                        -> `herdr server stop`, wait until the
 #                                          socket is released, then exec
 #                                          `herdr server --session <s>` at once
 #                                          so the socket is rebound before a
 #                                          reconnecting SSH attach can start
 #                                          another foreign server
-#   the foreign server does not release the socket in time -> exit 1
+#   ownership is unproven or contradictory -> exit 1, preserve the server
+#   the proven foreign server does not release the socket in time -> exit 1
 # A takeover closes every pane in that session; the parent firstmate's
 # secondmate liveness sweep relaunches its mates into the Aqua-born server.
 # bin/fm-remote-herdr-owner-lib.sh owns the owner discovery and the birth
@@ -50,7 +51,7 @@ usage() { sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 HERDR_BIN=$1
 SESSION=$2
 [ -n "$HERDR_BIN" ] && [ -x "$HERDR_BIN" ] || { printf 'fm-remote-herdr-guard: herdr is not executable: %s\n' "$HERDR_BIN" >&2; exit 1; }
-[ -n "$SESSION" ] || usage
+fm_remote_herdr_session_validate "$SESSION" || usage
 command -v jq >/dev/null 2>&1 || { printf 'fm-remote-herdr-guard: jq does not resolve on the launch agent PATH\n' >&2; exit 1; }
 STOP_WAIT_TENTHS=${FM_REMOTE_HERDR_GUARD_STOP_WAIT_TENTHS:-50}
 
@@ -84,12 +85,17 @@ elif [ -z "$OWNER" ]; then
   log "session $SESSION is running but no herdr process could be proven to own ${SOCKET:-its socket}"
   BIRTH=unknown
 else
-  BIRTH=$(fm_remote_herdr_owner_birth "$OWNER")
+  BIRTH=$(fm_remote_herdr_owner_birth "$OWNER" "$SESSION")
 fi
 
 if fm_remote_herdr_birth_is_aqua "$BIRTH"; then
   log "session $SESSION is served by pid $OWNER born in the Aqua login session ($BIRTH); nothing to do"
   exit 0
+fi
+
+if [ "$BIRTH" != ssh ]; then
+  log "session $SESSION ownership is unproven or contradictory ($BIRTH); refusing takeover"
+  exit 1
 fi
 
 log "session $SESSION is served by ${OWNER:+pid }${OWNER:-an unproven process} born outside the Aqua login session ($BIRTH); its panes cannot reach the login keychain, taking the session over"

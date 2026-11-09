@@ -3470,7 +3470,8 @@ setup_remote_case() {  # <name> -> echoes case dir with remote meta + registry
   fm_write_meta "$d/state/rsm.meta" \
     "window=remote:rsm" \
     "endpoint_task_id=rsm" \
-    "worktree=/remote/home/never-locally-present" \
+    "worktree=/remote/home" \
+    "home=/remote/home" \
     "harness=claude" \
     "kind=secondmate" \
     "mode=secondmate" \

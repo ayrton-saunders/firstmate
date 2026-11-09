@@ -248,6 +248,8 @@ esac
 
 FM_SEND_ORIGINAL_ARGS=("$@")
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=bin/fm-secondmate-registry-lib.sh
+. "$SCRIPT_DIR/fm-secondmate-registry-lib.sh"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 
 # shellcheck source=bin/fm-gate-refuse-lib.sh
@@ -398,6 +400,9 @@ fm_send_resolve_target() { # <raw-target>
   TARGET_SELECTOR=""
   TARGET_REMOTE_ID=""
   TARGET_REMOTE_HOST=""
+  TARGET_REMOTE_SESSION=""
+  TARGET_REMOTE_BINDING=""
+  TARGET_REMOTE_ROUTE_LINE=""
   RESOLUTION_TRIED=""
 
   meta=$(fm_backend_meta_for_selector "$raw" "$STATE" 2>/dev/null || true)
@@ -412,6 +417,19 @@ fm_send_resolve_target() { # <raw-target>
       TARGET_SELECTOR=1
       TARGET_REMOTE_ID=$id
       TARGET_REMOTE_HOST=$(fm_meta_get "$meta" remote_host)
+      TARGET_REMOTE_SESSION=$(fm_meta_get "$meta" remote_herdr_session)
+      TARGET_REMOTE_BINDING=$(secondmate_registry_parent_binding "$meta") || return 1
+      secondmate_registry_line_for_id "${FM_DATA_OVERRIDE:-$FM_HOME/data}/secondmates.md" "$id" || {
+        printf 'error: remote route is missing or ambiguous\n' >&2; return 1;
+      }
+      secondmate_registry_parent_matches "$meta" "$id" "$SECONDMATE_REGISTRY_HOST" "$SECONDMATE_REGISTRY_ROOT" "$SECONDMATE_REGISTRY_HOME" "$SECONDMATE_REGISTRY_SESSION" || {
+        printf 'error: %s\n' "$SECONDMATE_REGISTRY_ERROR" >&2; return 1;
+      }
+      TARGET_REMOTE_ROUTE_LINE=$SECONDMATE_REGISTRY_LINE
+      [ -z "${FM_REMOTE_EXPECTED_PARENT_BINDING:-}" ] || [ "$FM_REMOTE_EXPECTED_PARENT_BINDING" = "$TARGET_REMOTE_BINDING" ] || {
+        printf 'error: sampled remote binding changed; refusing delivery\n' >&2
+        return 1
+      }
       RESOLUTION_TRIED="meta=$meta; placement=remote"
       return 0
     fi
@@ -917,7 +935,8 @@ if [ "${1:-}" = "--key" ]; then
       exit 1
       ;;
     esac
-    if ! fm_run_timed "$FM_SEND_REMOTE_BUDGET" "$SCRIPT_DIR/fm-on.sh" "$TARGET_REMOTE_ID" \
+    if ! FM_REMOTE_EXPECTED_PARENT_BINDING="$TARGET_REMOTE_BINDING" FM_SEND_EXPECTED_REMOTE_SESSION="$TARGET_REMOTE_SESSION" FM_REMOTE_EXPECTED_ROUTE_LINE="$TARGET_REMOTE_ROUTE_LINE" \
+      fm_run_timed "$FM_SEND_REMOTE_BUDGET" "$SCRIPT_DIR/fm-on.sh" "$TARGET_REMOTE_ID" \
       fm-remote-secondmate-control.sh key "$TARGET_REMOTE_ID" "$key" </dev/null; then
       echo "error: key '$key' not sent to remote secondmate $TARGET_REMOTE_ID; completion may be unknown" >&2
       exit 1
@@ -1072,7 +1091,9 @@ else
       { [ -n "${FM_SEND_EXPECTED_REMOTE_HOST:-}" ] &&
         [ "$CURRENT_REMOTE_HOST" != "$FM_SEND_EXPECTED_REMOTE_HOST" ]; } ||
       [ -z "$CURRENT_REMOTE_HOST" ] ||
-      [ "$CURRENT_REMOTE_HOST" != "$TARGET_REMOTE_HOST" ]; then
+      [ "$CURRENT_REMOTE_HOST" != "$TARGET_REMOTE_HOST" ] ||
+      [ "$(secondmate_registry_parent_binding "$TARGET_META")" != "$TARGET_REMOTE_BINDING" ] ||
+      { [ -n "${FM_SEND_EXPECTED_REMOTE_SESSION:-}" ] && [ "$TARGET_REMOTE_SESSION" != "$FM_SEND_EXPECTED_REMOTE_SESSION" ]; }; then
       fm_lock_release "$REMOTE_META_LOCK"
       if [ "$PENDING_REPLY_CREATED" = 1 ] && [ -n "$PENDING_REPLY_CORR" ]; then
         fm_pending_reply_discard_undelivered "$STATE" "$PENDING_REPLY_CORR" || true
@@ -1080,6 +1101,9 @@ else
       echo "error: steer not sent to remote secondmate $TARGET_REMOTE_ID: its parent task retired or changed route during target resolution" >&2
       exit 1
     fi
+    export FM_REMOTE_EXPECTED_PARENT_BINDING="$TARGET_REMOTE_BINDING"
+    export FM_REMOTE_EXPECTED_ROUTE_LINE="$TARGET_REMOTE_ROUTE_LINE"
+    export FM_SEND_EXPECTED_REMOTE_SESSION="$TARGET_REMOTE_SESSION"
     remote_rc=0
     remote_completion_unknown=0
     REMOTE_SEND_ARGS=("$TARGET_REMOTE_ID")
