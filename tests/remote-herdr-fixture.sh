@@ -36,6 +36,7 @@ STATE='$state'
 LOG='$log'
 SEND_FAIL='$send_fail'
 SOCKET='$socket'
+MIGRATION_TEST='$remote_root/state/.migration-test'
 SH
   cat >> "$script" <<'SH'
 printf '%s\n' "$*" >> "$LOG"
@@ -46,9 +47,29 @@ argv=("$@")
 for ((j=0; j<${#argv[@]}; j++)); do
   [ "${argv[$j]}" != --session ] || session=${argv[$((j+1))]}
 done
+BASE_STATE=$STATE
 if [ "$session" != fm-remote ] && [ "$session" != default ]; then
   STATE="$STATE.$session"
-  if [ ! -f "$STATE" ]; then printf '{"next":1,"workspaces":[],"tabs":[],"typed":{},"working":{}}\n' > "$STATE"; fi
+  if [ ! -f "$STATE" ] && [ ! -f "$MIGRATION_TEST" ]; then printf '{"next":1,"workspaces":[],"tabs":[],"typed":{},"working":{}}\n' > "$STATE"; fi
+fi
+if [ -f "$MIGRATION_TEST" ]; then
+  case "${1:-} ${2:-}" in
+    'session list')
+      names='["default","fm-remote"]'
+      for file in "$BASE_STATE".*; do
+        [ -f "$file" ] || continue
+        name=${file#"$BASE_STATE".}
+        names=$(printf '%s' "$names" | jq --arg n "$name" '. + [$n]')
+      done
+      printf '%s' "$names" | jq --arg socket "$SOCKET" '{sessions:map({name:.,running:true,socket_path:$socket})}'
+      exit 0 ;;
+    'status --json')
+      if [ ! -f "$STATE" ]; then printf '{"client":{"version":"0.7.5","protocol":16},"server":{"running":false,"protocol":16,"compatible":true}}\n'; exit 0; fi ;;
+    'server start'|'server --session')
+      [ ! -f "$MIGRATION_TEST.birth-fail" ] || exit 1
+      [ -f "$STATE" ] || printf '{"next":1,"workspaces":[],"tabs":[],"typed":{},"working":{}}\n' > "$STATE"
+      exit 0 ;;
+  esac
 fi
 jq_state() { jq "$@" "$STATE"; }
 save() { tmp="$STATE.tmp.$$"; cat > "$tmp" && mv "$tmp" "$STATE"; }
@@ -93,6 +114,8 @@ case "${1:-} ${2:-}" in
     pane=${3:-}
     if [ "$(jq_state -r --arg p "$pane" '[.tabs[]|select(.pane_id==$p)]|length')" = 0 ]; then
       printf '{"error":{"code":"pane_not_found","message":"%s"}}\n' "$pane"
+    elif [ -f "$MIGRATION_TEST" ]; then
+      jq_state --arg p "$pane" '{result:{pane:(.tabs[] | select(.pane_id==$p) | {pane_id,foreground_cwd:.cwd})}}'
     else
       printf '{"result":{"pane":{"pane_id":"%s"}}}\n' "$pane"
     fi
@@ -104,11 +127,19 @@ case "${1:-} ${2:-}" in
        | .working |= with_entries(select(.key != $p))' | save ;;
   "pane send-text")
     [ ! -f "$SEND_FAIL" ] || exit 1
-    jq_state --arg p "${3:-}" '.typed[$p] = true' | save ;;
+    if [ -f "$MIGRATION_TEST" ] && [ "${4:-}" = /exit ]; then
+      jq_state --arg p "${3:-}" '.exiting[$p] = true' | save
+    else
+      jq_state --arg p "${3:-}" '.typed[$p] = true' | save
+    fi ;;
   "pane send-keys")
     [ ! -f "$SEND_FAIL" ] || exit 1
-    jq_state --arg p "${3:-}" '.typed[$p] = true | .working[$p] = true' | save ;;
-  "pane read") printf '\n' ;;
+    if [ -f "$MIGRATION_TEST" ] && [ "$(jq_state -r --arg p "${3:-}" '.exiting[$p] // false')" = true ]; then
+      jq_state --arg p "${3:-}" '.typed[$p] = false | .working[$p] = false | del(.exiting[$p])' | save
+    else
+      jq_state --arg p "${3:-}" '.typed[$p] = true | .working[$p] = true' | save
+    fi ;;
+  "pane read") if [ -f "$MIGRATION_TEST" ]; then printf '❯ \n'; else printf '\n'; fi ;;
   "pane process-info")
     printf '{"result":{"type":"pane_process_info","process_info":{"pane_id":"%s","shell_pid":%s,"foreground_process_group_id":%s,"foreground_processes":[{"pid":%s,"name":"codex","argv0":"codex","argv":["codex"],"cmdline":"codex"}]}}}\n' \
       "$pane" "$$" "$$" "$$" ;;

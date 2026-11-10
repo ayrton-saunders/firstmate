@@ -14,6 +14,7 @@ Firstmate does not support placing an individual worker remotely or failing a re
 | Prepare the primary and the remote host | [Prerequisites](#prerequisites) and [non-interactive tool contract](#non-interactive-tool-contract) |
 | Check whether a host is ready, or repair it | [Readiness, repair, and the human steps](#readiness-repair-and-the-human-steps) |
 | Create the route and the remote home | [Provision a route](#provision-a-route) |
+| Change a live route's Herdr session | [Explicit session migration](#explicit-session-migration) |
 | Launch, recover, message, and read a remote second mate | [Normal operation](#normal-operation) |
 | Move queued work to the remote home | [Backlog handoff](#backlog-handoff) |
 | Push configuration, relaunch, update, or retire | [Sync, update, and retirement](#sync-update-and-retirement) |
@@ -351,7 +352,7 @@ bin/fm-remote-home-seed.sh [--herdr-session NAME] <id> <ssh-alias> <remote-root>
 
 The optional seed session is validated before SSH or mutation and persisted before readiness runs.
 Omission or explicit `fm-remote` writes the legacy record shape.
-The [route schema](../.agents/skills/secondmate-provisioning/SKILL.md#routing-table) owns naming, validation, and upgrade order; provision new routes rather than editing the session beneath a live endpoint.
+The [route schema](../.agents/skills/secondmate-provisioning/SKILL.md#routing-table) owns naming, validation, and upgrade order; use [explicit session migration](#explicit-session-migration) rather than editing the session beneath a live endpoint.
 The shared SSH job worker remains account-owned and session-neutral.
 
 ### Project origins
@@ -427,6 +428,46 @@ The promised-public-reply subsystem is same-filesystem by construction, so a rem
 Local secondmates keep the existing route form and need no migration.
 A fleet may contain local and remote routes together.
 Use `bin/fm-home-seed.sh validate` to validate either form.
+
+## Explicit session migration
+
+`bin/fm-remote-session-migrate.sh` is the supported explicit operation for changing an existing remote Herdr route's session.
+Obtain approval for the exact live route separately from delivering this command.
+It never runs automatically during seed, readiness repair, launch, or recovery.
+Run it from the owning primary with an explicit `FM_HOME`, route ID, and target name:
+
+```sh
+FM_HOME=/absolute/primary bin/fm-remote-session-migrate.sh fpl fm-remote-personal
+```
+
+The operation proceeds in this order:
+
+1. Resolve one registered remote route and its agreeing parent and remote endpoint records, validate the explicit target with the existing naming grammar, and refuse a registered or existing session-name collision.
+2. Require positive recorded idle evidence for the source mate, or proof that its agent has already stopped; busy, unresponsive, and unknown activity require quiescing the mate and re-running without force.
+3. Record the source session, target, and endpoint snapshots durably, then create and verify the destination through the ordinary session-birth owner.
+4. Gracefully exit only the idle source mate through the plain exit adapter and prove it absent, preserving its terminal; no relaunch journal is written and no second agent starts while absence is unproven.
+5. Prepare an agent-less destination terminal, publish the route and both endpoint records as one logical binding, then launch the mate there and verify that its normal remote route answers.
+
+The original session and server are left alone, including any sibling fleet sharing them; retiring that session is a separate decision.
+The mate home, configuration, instructions, records, projects, custody, and pins are not relocated.
+The execution code root is unchanged; this command accepts no root-move option.
+Execution-root relocation requires a follow-up: transport validates the configured root against the parent binding and executes commands from that checkout, so a safe root repoint needs coordinated root validation and binding publication beyond this session-only operation.
+Root-only and combined session/root relocation, including reversal to a previous root, are not supported here.
+
+Refusals state the reason: invalid or reserved name, duplicate route/name, disagreeing endpoint, failed session birth, unconfirmed source exit, or a destination mate that does not answer.
+A failure before publication keeps the route on its old session and reports that fact.
+Each replaced record is atomic; an interrupted cross-host publication is unavailable to ordinary route access until the same command completes its saved snapshots, rather than exposing a usable mixed binding.
+Re-run the exact original command after resolving the reported problem, without editing the registry or endpoint records.
+A completed migration retains its previous binding; explicitly repoint back with:
+
+```sh
+FM_HOME=/absolute/primary bin/fm-remote-session-migrate.sh fpl --reverse
+```
+
+Reversal requires the same idle/absence proof and reuses the preserved source terminal in the retained previous session.
+Only its endpoint identity is restored; the mate's current launch profile and trace carrier are preserved rather than rolled back to the earlier snapshot.
+It is not a fast-forward, history rewrite, forced stop, or manual record edit.
+The [command header](../bin/fm-remote-session-migrate.sh) owns invocation and intent-storage mechanics.
 
 ## Normal operation
 

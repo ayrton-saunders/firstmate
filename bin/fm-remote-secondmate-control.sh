@@ -14,6 +14,8 @@
 #   fm-remote-secondmate-control.sh sync <id> [<parent-commit>]
 #   fm-remote-secondmate-control.sh update <id>
 #   fm-remote-secondmate-control.sh retire <id> [--force]
+#   fm-remote-secondmate-control.sh migrate-session <id> <name> <phase> <source-target> <op> <reverse-of>
+# Migration phases are owned by fm-remote-session-migrate.sh, not recovery.
 #
 # Remote placement ends here, but the second-mate agent runs only on a
 # session-provider backend whose server survives every SSH disconnection that
@@ -127,12 +129,17 @@ remote_endpoint_require() {
 }
 
 case "${1:-}" in
-  launch|relaunch|state|route|send|send-stdin|key|capture|observe|sync|update|retire|file|inherit) ;;
+  launch|relaunch|state|route|send|send-stdin|key|capture|observe|sync|update|retire|file|inherit|migrate-session) ;;
   *) usage ;;
 esac
 validate_id "${2:-}"
 validate_home "$2"
-if [ -n "$FM_REMOTE_EXPECTED_TARGET" ] || [ -e "$(meta_path "$2")" ] || [ -L "$(meta_path "$2")" ]; then
+if [ "$1" != migrate-session ] && [ -f "$CONTROL_STATE/.session-migration-$2/active" ]; then
+  MIGRATION_OP=$(<"$CONTROL_STATE/.session-migration-$2/active")
+  case "$MIGRATION_OP" in ''|*[!A-Za-z0-9._-]*) die 'unsafe relocation intent' ;; esac
+  [ -f "$CONTROL_STATE/.session-migration-$2/$MIGRATION_OP/complete" ] || die "relocation is incomplete; re-run fm-remote-session-migrate.sh before ordinary operations"
+fi
+if [ "$1" != migrate-session ] && { [ -n "$FM_REMOTE_EXPECTED_TARGET" ] || [ -e "$(meta_path "$2")" ] || [ -L "$(meta_path "$2")" ]; }; then
   if ! remote_endpoint_load "$2"; then
     if [ "$1" = state ]; then
       printf 'error: %s\n' "$REMOTE_ENDPOINT_ERROR" >&2
@@ -559,7 +566,11 @@ cmd_retire() {
   fi
 }
 
+# shellcheck source=bin/fm-remote-session-migration-lib.sh
+. "$SCRIPT_DIR/fm-remote-session-migration-lib.sh"
+
 case "${1:-}" in
+  migrate-session) shift; [ "$#" -eq 6 ] || usage; cmd_migrate_session "$@" ;;
   launch) shift; [ "$#" -ge 5 ] && [ "$#" -le 6 ] || usage; cmd_launch "$@" ;;
   relaunch) shift; [ "$#" -eq 4 ] || usage; cmd_relaunch "$@" ;;
   state) shift; [ "$#" -eq 1 ] || usage; validate_id "$1"; validate_home "$1"; state_value "$1" ;;

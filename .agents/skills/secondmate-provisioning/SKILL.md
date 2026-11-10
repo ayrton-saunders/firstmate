@@ -37,7 +37,8 @@ An explicitly empty, repeated, invalid, or local-route session field is refused.
 Names are exact and case-sensitive; [`fm-herdr-session-lib.sh`](../../../bin/fm-herdr-session-lib.sh) owns the conservative ASCII naming grammar and label derivation.
 Route identity comes only from this record, never a global setting, a directory name, or a saved machine profile.
 Upgrade every registry reader and the remote code before adding a custom record; keep custom records out of older readers and never downgrade while any remain.
-Changing a live route's session is a migration requiring separate approval, not a supported configuration edit.
+For an approved live-session change or reversal, follow the ordered [explicit session migration](../../../docs/remote-secondmates.md#explicit-session-migration) operation, including its idle/absence proof, safe refusals, and same-command re-run behavior; it leaves the original session alone and retirement is separate.
+Never hand-edit a live binding or infer execution-root relocation authority from that operation.
 See [remote launch and recovery](../../../docs/remote-secondmates.md#launch-or-recover) for backend selection and readiness (Herdr remains the default; Rex requires explicit selection and a ready doctor verdict).
 This release places whole secondmate homes remotely and never individual workers.
 [`docs/remote-secondmates.md`](../../../docs/remote-secondmates.md) owns current operator setup and transport behavior.
