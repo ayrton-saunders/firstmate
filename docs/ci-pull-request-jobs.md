@@ -111,11 +111,13 @@ Byte weights are not duration weights, setup and verdict acquisition add overhea
 More runner demand can erase the benefit if shared capacity queues jobs; no paid capacity or concurrency change is authorized.
 No numeric end-to-end saving is claimed for this lint-only change.
 
-**Serial repack remains a blocked proposal:** the existing report sections 4 and 5 rank 3 put refreshed eleven-way serial packing at **24.10 minutes against the unchanged 1200-second guard**.
+**Serial repack is a recorded deferral:** the existing report sections 4 and 5 rank 3 put refreshed eleven-way serial packing at **24.10 minutes against the unchanged 1200-second guard**.
 The single remote lifecycle suite reaches **21m14.867s**, so repacking or adding runners alone cannot meet that guard.
 Neither hints, lane membership, budgets, the coverage guard nor lifecycle assertions are changed here.
-Two routes need the captain's word: a coverage-preserving split or acceleration of that suite as its own reviewed work, or an explicit modeled-target decision.
-The repack share of the originally combined optimization is **not delivered**.
+Two future routes require separate human approval: a coverage-preserving split or acceleration of that suite as independently reviewed work, or an explicit modeled-target decision.
+The repack share of the originally combined optimization is **not delivered**, and no repack saving is claimed.
+The recorded narrower delivery retains lint splitting and the caching assessment, with no caching saving delivered; deferring repacking reduces speed gains, not coverage.
+The PR awaits explicit human merge approval covering this narrower delivery; the recorded deferral is not merge approval, and audit proposals require separate approval.
 The macOS pool question remains separate: existing cancellations are runner acquisition failures, not suite slowness; its required job is untouched.
 
 ## Verification entry points
