@@ -451,6 +451,8 @@ The operation proceeds in this order:
 The original session and server are left alone, including any sibling fleet sharing them; retiring that session is a separate decision.
 The mate home, configuration, instructions, records, projects, custody, and pins are not relocated.
 The execution code root is unchanged; this command accepts no root-move option.
+Execution-root relocation requires a follow-up: transport validates the configured root against the parent binding and executes commands from that checkout, so a safe root repoint needs coordinated root validation and binding publication beyond this session-only operation.
+Root-only and combined session/root relocation, including reversal to a previous root, are not supported here.
 
 Refusals state the reason: invalid or reserved name, duplicate route/name, disagreeing endpoint, failed session birth, unconfirmed source exit, or a destination mate that does not answer.
 A failure before publication keeps the route on its old session and reports that fact.
@@ -463,6 +465,7 @@ FM_HOME=/absolute/primary bin/fm-remote-session-migrate.sh fpl --reverse
 ```
 
 Reversal requires the same idle/absence proof and reuses the preserved source terminal in the retained previous session.
+Only its endpoint identity is restored; the mate's current launch profile and trace carrier are preserved rather than rolled back to the earlier snapshot.
 It is not a fast-forward, history rewrite, forced stop, or manual record edit.
 The [command header](../bin/fm-remote-session-migrate.sh) owns invocation and intent-storage mechanics.
 
