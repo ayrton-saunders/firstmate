@@ -136,9 +136,7 @@ Portable shards, each portable serial shard, and the Herdr lane upload runner-ge
 
 ## Lint partitions and end-to-end latency
 
-`bin/fm-lint.sh` owns four canonical CI execution partitions, each attempting full source-aware ShellCheck analysis and running workflow validation and backend-purity checks.
-The existing required `Lint 1` and `Lint 2` contexts each require every execution partition to succeed; two-way local selectors remain supported.
-[Pull-request CI job audit](ci-pull-request-jobs.md) records the coverage rationale, measured projection and deferred optimizations.
+[Pull-request CI job audit](ci-pull-request-jobs.md#implemented-lint-split-and-deferred-repack) owns the lint execution/verdict layout, coverage rationale, measured projection and deferred optimizations.
 CI requires its per-root bounds, so an unenforceable deadline or address-space limit refuses lint rather than running uncapped; the script header owns the envelope, per-root execution contract, and memory fallback.
 Its `--list-files` interface exposes partition membership; `tests/fm-lint.test.sh` verifies complete/disjoint executed roots, initial analysis flags, and fallback reporting.
 The workflow uploads each partition's quiet telemetry plus its per-root lifecycle sidecar to distinguish analysis cost, memory use, and host contention.
