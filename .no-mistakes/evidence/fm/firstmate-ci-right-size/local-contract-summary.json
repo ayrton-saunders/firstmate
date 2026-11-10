@@ -1,0 +1,52 @@
+{
+  "inventory_count": 597,
+  "partition_counts": {
+    "1of2": 298,
+    "2of2": 299,
+    "1of4": 149,
+    "2of4": 149,
+    "3of4": 149,
+    "4of4": 150
+  },
+  "inventory_result": "Both unions equal the independent canonical inventory with no duplicates; repeated local and CI selections agree.",
+  "guard_result": "Malformed selectors, missing values, fast mode and explicit subsets exit 2 before analysis.",
+  "local_shell_verdicts": [
+    {
+      "dependency_result": "success",
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "dependency_result": "failure",
+      "exit": 1,
+      "stdout": "::error::Canonical lint partitions did not all pass: failure\n",
+      "stderr": ""
+    },
+    {
+      "dependency_result": "cancelled",
+      "exit": 1,
+      "stdout": "::error::Canonical lint partitions did not all pass: cancelled\n",
+      "stderr": ""
+    },
+    {
+      "dependency_result": "skipped",
+      "exit": 1,
+      "stdout": "::error::Canonical lint partitions did not all pass: skipped\n",
+      "stderr": ""
+    },
+    {
+      "dependency_result": "",
+      "exit": 1,
+      "stdout": "::error::Canonical lint partitions did not all pass: \n",
+      "stderr": ""
+    },
+    {
+      "dependency_result": "unknown",
+      "exit": 1,
+      "stdout": "::error::Canonical lint partitions did not all pass: unknown\n",
+      "stderr": ""
+    }
+  ],
+  "scope": "Actual CLI list/refusal interface and actual workflow verdict bash payload; no ShellCheck/actionlint, no hosted Actions scheduler, no timing study."
+}
