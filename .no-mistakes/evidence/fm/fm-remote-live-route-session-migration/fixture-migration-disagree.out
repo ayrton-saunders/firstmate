@@ -1,0 +1,2 @@
+error: remote secondmate moving endpoint metadata is invalid; refusing access until it is explicitly migrated
+error: migration preflight refused; route and endpoint unchanged

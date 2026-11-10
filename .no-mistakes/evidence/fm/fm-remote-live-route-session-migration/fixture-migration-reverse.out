@@ -1,0 +1,9 @@
+schema=fm-remote-secondmate-control.v1
+backend=herdr
+target=fm-remote:w1:p3
+herdr_session=fm-remote
+harness=claude
+model=default
+effort=high
+traceparent=00-75c9c9643421252a36ceff17f1d9646e-16cef8ee0a5ed201-01
+migrated: moving to session fm-remote; normal route answers; previous session left alone

@@ -1,0 +1,7 @@
+error: target session could not be created and verified; route remains on fm-remote
+mode=check
+path={run-worktree}/.test-tmp/fm-remote-secondmate-e2e.fuwh5Q/remote-root/bin:~/.local/bin:~/.nvm/versions/node/v24.22.2/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+entrypoint=yes
+platform=linux
+fix herdr-server=failed: the herdr server for session fm-migrated did not come up
+error: preparation failed; route remains on session fm-remote; re-run after resolving the reason

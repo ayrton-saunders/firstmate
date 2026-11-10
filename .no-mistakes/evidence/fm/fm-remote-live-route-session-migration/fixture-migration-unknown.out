@@ -1,0 +1,2 @@
+error: source mate is busy or its idle state cannot be confirmed; quiesce it and re-run
+error: migration preflight refused; route and endpoint unchanged

@@ -1,0 +1,303 @@
+status --json
+status --json --session fm-remote
+workspace list --session fm-remote
+workspace create --cwd {run-worktree}/.test-tmp/fm-remote-secondmate-e2e.fuwh5Q/migration-home --label 2ndmate-moving --no-focus --session fm-remote
+tab list --workspace w1 --session fm-remote
+tab create --workspace w1 --cwd {run-worktree}/.test-tmp/fm-remote-secondmate-e2e.fuwh5Q/migration-home --label fm-moving --no-focus --session fm-remote
+tab list --workspace w1 --session fm-remote
+pane list --workspace w1 --session fm-remote
+agent get w1:p2 --session fm-remote
+pane close w1:p2 --session fm-remote
+pane get w1:p3 --session fm-remote
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+status --json --session fm-remote
+pane read w1:p3 --source recent --lines 200 --session fm-remote
+status --json --session fm-remote
+pane run w1:p3 export GOTMPDIR=/tmp/fm-moving/gotmp --session fm-remote
+status --json --session fm-remote
+pane run w1:p3 export COMPACT_ADVISER_DISABLE=1 --session fm-remote
+status --json --session fm-remote
+pane run w1:p3 export TRACEPARENT=00-32850d83175baccc69134057013858c1-1d8694f993cad320-01 --session fm-remote
+status --json --session fm-remote
+pane send-text w1:p3 . '/tmp/fm-moving+44f019df85c16e5873a6fcd740f1778da7e408331b8d594f63330b38945338dd/launch.s1794326069.39763.4940.sh' --session fm-remote
+status --json --session fm-remote
+pane send-keys w1:p3 enter --session fm-remote
+session list --json --session fm-remote
+session list --json --session fm-remote
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane process-info --pane w1:p3 --session fm-remote
+session list --json --session fm-remote
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane process-info --pane w1:p3 --session fm-remote
+status --json --session fm-remote
+agent get w1:p3 --session fm-remote
+session list --json --session fm-remote
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane process-info --pane w1:p3 --session fm-remote
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane process-info --pane w1:p3 --session fm-remote
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane process-info --pane w1:p3 --session fm-remote
+session list --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+server --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane process-info --pane w1:p3 --session fm-remote
+status --json --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+server --session fm-migrated
+status --json --session fm-migrated
+status --json --session fm-migrated
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane process-info --pane w1:p3 --session fm-remote
+status --json --session fm-remote
+pane read w1:p3 --source visible --format ansi --session fm-remote
+status --json --session fm-remote
+pane read w1:p3 --source visible --format ansi --session fm-remote
+agent get w1:p3 --session fm-remote
+status --json --session fm-remote
+pane send-text w1:p3 /exit --session fm-remote
+agent get w1:p3 --session fm-remote
+status --json --session fm-remote
+pane send-keys w1:p3 enter --session fm-remote
+agent get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+status --json --session fm-migrated
+status --json --session fm-migrated
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+workspace list --session fm-migrated
+workspace create --cwd {run-worktree}/.test-tmp/fm-remote-secondmate-e2e.fuwh5Q/migration-home --label 2ndmate-moving --no-focus --session fm-migrated
+tab list --workspace w1 --session fm-migrated
+tab create --workspace w1 --cwd {run-worktree}/.test-tmp/fm-remote-secondmate-e2e.fuwh5Q/migration-home --label fm-moving --no-focus --session fm-migrated
+tab list --workspace w1 --session fm-migrated
+pane list --workspace w1 --session fm-migrated
+agent get w1:p2 --session fm-migrated
+pane close w1:p2 --session fm-migrated
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane get w1:p3 --session fm-migrated
+agent get w1:p3 --session fm-migrated
+pane get w1:p3 --session fm-migrated
+agent get w1:p3 --session fm-migrated
+status --json --session fm-migrated
+pane get w1:p3 --session fm-migrated
+pane get w1:p3 --session fm-migrated
+pane get w1:p3 --session fm-migrated
+agent get w1:p3 --session fm-migrated
+status --json --session fm-migrated
+pane read w1:p3 --source recent --lines 200 --session fm-migrated
+agent get w1:p3 --session fm-migrated
+status --json --session fm-migrated
+pane run w1:p3 export GOTMPDIR=/tmp/fm-moving/gotmp --session fm-migrated
+status --json --session fm-migrated
+pane run w1:p3 export COMPACT_ADVISER_DISABLE=1 --session fm-migrated
+status --json --session fm-migrated
+pane run w1:p3 export TRACEPARENT=00-32850d83175baccc69134057013858c1-1d8694f993cad320-01 --session fm-migrated
+status --json --session fm-migrated
+pane send-text w1:p3 . '/tmp/fm-moving+44f019df85c16e5873a6fcd740f1778da7e408331b8d594f63330b38945338dd/launch.s1794326127.47585.5857.sh' --session fm-migrated
+status --json --session fm-migrated
+pane send-keys w1:p3 enter --session fm-migrated
+pane get w1:p3 --session fm-migrated
+agent get w1:p3 --session fm-migrated
+pane process-info --pane w1:p3 --session fm-migrated
+pane get w1:p3 --session fm-migrated
+agent get w1:p3 --session fm-migrated
+pane get w1:p3 --session fm-migrated
+agent get w1:p3 --session fm-migrated
+status --json --session fm-migrated
+pane get w1:p3 --session fm-migrated
+pane get w1:p3 --session fm-migrated
+pane get w1:p3 --session fm-migrated
+agent get w1:p3 --session fm-migrated
+status --json --session fm-migrated
+pane read w1:p3 --source recent --lines 200 --session fm-migrated
+agent get w1:p3 --session fm-migrated
+status --json --session fm-migrated
+pane run w1:p3 export GOTMPDIR=/tmp/fm-moving/gotmp --session fm-migrated
+status --json --session fm-migrated
+pane run w1:p3 export COMPACT_ADVISER_DISABLE=1 --session fm-migrated
+status --json --session fm-migrated
+pane run w1:p3 export TRACEPARENT=00-32850d83175baccc69134057013858c1-1d8694f993cad320-01 --session fm-migrated
+status --json --session fm-migrated
+pane send-text w1:p3 . '/tmp/fm-moving+44f019df85c16e5873a6fcd740f1778da7e408331b8d594f63330b38945338dd/launch.s1794326137.65289.18978.sh' --session fm-migrated
+status --json --session fm-migrated
+pane send-keys w1:p3 enter --session fm-migrated
+pane get w1:p3 --session fm-migrated
+agent get w1:p3 --session fm-migrated
+pane process-info --pane w1:p3 --session fm-migrated
+pane get w1:p3 --session fm-migrated
+agent get w1:p3 --session fm-migrated
+pane process-info --pane w1:p3 --session fm-migrated
+pane get w1:p3 --session fm-migrated
+agent get w1:p3 --session fm-migrated
+pane process-info --pane w1:p3 --session fm-migrated
+pane get w1:p3 --session fm-migrated
+agent get w1:p3 --session fm-migrated
+status --json --session fm-migrated
+session list --json --session fm-migrated
+workspace list --session fm-migrated
+pane close w1:p3 --session fm-migrated
+pane get w1:p3 --session fm-migrated
+status --json
+status --json --session fm-migrated
+workspace list --session fm-migrated
+tab list --workspace w1 --session fm-migrated
+tab create --workspace w1 --cwd {run-worktree}/.test-tmp/fm-remote-secondmate-e2e.fuwh5Q/migration-home --label fm-moving --no-focus --session fm-migrated
+pane get w1:p4 --session fm-migrated
+pane get w1:p4 --session fm-migrated
+agent get w1:p4 --session fm-migrated
+status --json --session fm-migrated
+pane read w1:p4 --source recent --lines 200 --session fm-migrated
+status --json --session fm-migrated
+pane run w1:p4 export GOTMPDIR=/tmp/fm-moving/gotmp --session fm-migrated
+status --json --session fm-migrated
+pane run w1:p4 export COMPACT_ADVISER_DISABLE=1 --session fm-migrated
+status --json --session fm-migrated
+pane send-text w1:p4 . '/tmp/fm-moving+44f019df85c16e5873a6fcd740f1778da7e408331b8d594f63330b38945338dd/launch.s1794326218.37086.9240.sh' --session fm-migrated
+status --json --session fm-migrated
+pane send-keys w1:p4 enter --session fm-migrated
+pane get w1:p4 --session fm-migrated
+agent get w1:p4 --session fm-migrated
+status --json --session fm-migrated
+session list --json --session fm-migrated
+workspace list --session fm-migrated
+pane close w1:p4 --session fm-migrated
+pane get w1:p4 --session fm-migrated
+status --json
+status --json --session fm-migrated
+workspace list --session fm-migrated
+tab list --workspace w1 --session fm-migrated
+tab create --workspace w1 --cwd {run-worktree}/.test-tmp/fm-remote-secondmate-e2e.fuwh5Q/migration-home --label fm-moving --no-focus --session fm-migrated
+pane get w1:p5 --session fm-migrated
+pane get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+status --json --session fm-migrated
+pane read w1:p5 --source recent --lines 200 --session fm-migrated
+status --json --session fm-migrated
+pane run w1:p5 export GOTMPDIR=/tmp/fm-moving/gotmp --session fm-migrated
+status --json --session fm-migrated
+pane run w1:p5 export COMPACT_ADVISER_DISABLE=1 --session fm-migrated
+status --json --session fm-migrated
+pane run w1:p5 export TRACEPARENT=00-75c9c9643421252a36ceff17f1d9646e-16cef8ee0a5ed201-01 --session fm-migrated
+status --json --session fm-migrated
+pane send-text w1:p5 . '/tmp/fm-moving+44f019df85c16e5873a6fcd740f1778da7e408331b8d594f63330b38945338dd/launch.s1794326289.70371.1084.sh' --session fm-migrated
+status --json --session fm-migrated
+pane send-keys w1:p5 enter --session fm-migrated
+pane get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+pane process-info --pane w1:p5 --session fm-migrated
+pane get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+pane process-info --pane w1:p5 --session fm-migrated
+pane get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+pane process-info --pane w1:p5 --session fm-migrated
+status --json --session fm-remote
+pane get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+pane process-info --pane w1:p5 --session fm-migrated
+status --json --session fm-migrated
+pane read w1:p5 --source visible --format ansi --session fm-migrated
+status --json --session fm-migrated
+pane read w1:p5 --source visible --format ansi --session fm-migrated
+agent get w1:p5 --session fm-migrated
+status --json --session fm-migrated
+pane send-text w1:p5 /exit --session fm-migrated
+agent get w1:p5 --session fm-migrated
+status --json --session fm-migrated
+pane send-keys w1:p5 enter --session fm-migrated
+agent get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+pane get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+pane get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+status --json --session fm-remote
+pane get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+status --json --session fm-remote
+pane get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane get w1:p5 --session fm-migrated
+agent get w1:p5 --session fm-migrated
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+status --json --session fm-remote
+pane get w1:p3 --session fm-remote
+pane get w1:p3 --session fm-remote
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+status --json --session fm-remote
+pane read w1:p3 --source recent --lines 200 --session fm-remote
+agent get w1:p3 --session fm-remote
+status --json --session fm-remote
+pane run w1:p3 export GOTMPDIR=/tmp/fm-moving/gotmp --session fm-remote
+status --json --session fm-remote
+pane run w1:p3 export COMPACT_ADVISER_DISABLE=1 --session fm-remote
+status --json --session fm-remote
+pane run w1:p3 export TRACEPARENT=00-75c9c9643421252a36ceff17f1d9646e-16cef8ee0a5ed201-01 --session fm-remote
+status --json --session fm-remote
+pane send-text w1:p3 . '/tmp/fm-moving+44f019df85c16e5873a6fcd740f1778da7e408331b8d594f63330b38945338dd/launch.s1794326313.7204.2122.sh' --session fm-remote
+status --json --session fm-remote
+pane send-keys w1:p3 enter --session fm-remote
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane process-info --pane w1:p3 --session fm-remote
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane process-info --pane w1:p3 --session fm-remote
+pane get w1:p3 --session fm-remote
+agent get w1:p3 --session fm-remote
+pane process-info --pane w1:p3 --session fm-remote

@@ -1,0 +1,3 @@
+error: cannot copy source endpoint; re-run relocation
+stopped moving harness=claude backend=herdr endpoint=fm-migrated:w1:p5 worktree={run-worktree}/.test-tmp/fm-remote-secondmate-e2e.fuwh5Q/migration-home
+error: preparation failed; route remains on session fm-migrated; re-run after resolving the reason

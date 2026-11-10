@@ -1,0 +1,3 @@
+- moving - Own the moving fixture route. (host: remote-mac; root: {run-worktree}/.test-tmp/fm-remote-secondmate-e2e.fuwh5Q/remote-root; home: {run-worktree}/.test-tmp/fm-remote-secondmate-e2e.fuwh5Q/migration-home; session: fm-remote; scope: Own the moving fixture route.; projects: ; added 2026-11-10)
+- staying - Sibling (host: remote-mac; root: {run-worktree}/.test-tmp/fm-remote-secondmate-e2e.fuwh5Q/remote-root; home: {run-worktree}/.test-tmp/fm-remote-secondmate-e2e.fuwh5Q/sibling-home; session: fm-remote; scope: sibling; projects: ; added 2026-10-31)
+# unrelated registry note preserved across retry

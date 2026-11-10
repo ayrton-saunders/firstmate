@@ -1,0 +1,52 @@
+[
+  {
+    "name": "invalid/reserved target ''",
+    "pass_": true,
+    "exit": 1
+  },
+  {
+    "name": "invalid/reserved target 'default'",
+    "pass_": true,
+    "exit": 1
+  },
+  {
+    "name": "invalid/reserved target 'bad/name'",
+    "pass_": true,
+    "exit": 1
+  },
+  {
+    "name": "invalid/reserved target '-bad'",
+    "pass_": true,
+    "exit": 1
+  },
+  {
+    "name": "invalid/reserved target 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'",
+    "pass_": true,
+    "exit": 1
+  },
+  {
+    "name": "missing route",
+    "pass_": true,
+    "exit": 1
+  },
+  {
+    "name": "duplicate route ID",
+    "pass_": true,
+    "exit": 1
+  },
+  {
+    "name": "disagreeing parent endpoint",
+    "pass_": true,
+    "exit": 1
+  },
+  {
+    "name": "registered target collision",
+    "pass_": true,
+    "exit": 1
+  },
+  {
+    "name": "target equals current session",
+    "pass_": true,
+    "exit": 1
+  }
+]

@@ -1,0 +1,2 @@
+error: cannot publish destination preparation; re-run relocation
+error: preparation failed; route remains on session fm-migrated; re-run after resolving the reason

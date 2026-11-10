@@ -1,0 +1,9 @@
+error: cannot copy source endpoint; re-run relocation
+mode=check
+path={run-worktree}/.test-tmp/fm-remote-secondmate-e2e.fuwh5Q/remote-root/bin:~/.local/bin:~/.nvm/versions/node/v24.22.2/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+entrypoint=yes
+platform=linux
+fix herdr-server=applied: started the herdr server for session fm-migrated
+ok: migration session fm-migrated verified
+stopped moving harness=claude backend=herdr endpoint=fm-remote:w1:p3 worktree={run-worktree}/.test-tmp/fm-remote-secondmate-e2e.fuwh5Q/migration-home
+error: preparation failed; route remains on session fm-remote; re-run after resolving the reason

@@ -1,0 +1,59 @@
+CASE: invalid/reserved target ''
+$ FM_HOME=<disposable synthetic home> bin/fm-remote-session-migrate.sh moving ''
+error: invalid Herdr session: 1-64 ASCII bytes, alphanumeric first, then letters/digits/./_/-; not default
+
+exit=1; registry and endpoint bytes unchanged=True; no migration intent=True
+
+CASE: invalid/reserved target 'default'
+$ FM_HOME=<disposable synthetic home> bin/fm-remote-session-migrate.sh moving 'default'
+error: invalid Herdr session: 1-64 ASCII bytes, alphanumeric first, then letters/digits/./_/-; not default
+
+exit=1; registry and endpoint bytes unchanged=True; no migration intent=True
+
+CASE: invalid/reserved target 'bad/name'
+$ FM_HOME=<disposable synthetic home> bin/fm-remote-session-migrate.sh moving 'bad/name'
+error: invalid Herdr session: 1-64 ASCII bytes, alphanumeric first, then letters/digits/./_/-; not default
+
+exit=1; registry and endpoint bytes unchanged=True; no migration intent=True
+
+CASE: invalid/reserved target '-bad'
+$ FM_HOME=<disposable synthetic home> bin/fm-remote-session-migrate.sh moving '-bad'
+error: invalid Herdr session: 1-64 ASCII bytes, alphanumeric first, then letters/digits/./_/-; not default
+
+exit=1; registry and endpoint bytes unchanged=True; no migration intent=True
+
+CASE: invalid/reserved target 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+$ FM_HOME=<disposable synthetic home> bin/fm-remote-session-migrate.sh moving 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+error: invalid Herdr session: 1-64 ASCII bytes, alphanumeric first, then letters/digits/./_/-; not default
+
+exit=1; registry and endpoint bytes unchanged=True; no migration intent=True
+
+CASE: missing route
+$ FM_HOME=<disposable synthetic home> bin/fm-remote-session-migrate.sh absent 'fm-lab-new'
+error: unregistered or duplicated route, or malformed registry entry
+
+exit=1; registry and endpoint bytes unchanged=True; no migration intent=True
+
+CASE: duplicate route ID
+$ FM_HOME=<disposable synthetic home> bin/fm-remote-session-migrate.sh moving 'fm-lab-new'
+error: unregistered or duplicated route, or malformed registry entry
+
+exit=1; registry and endpoint bytes unchanged=True; no migration intent=True
+
+CASE: disagreeing parent endpoint
+$ FM_HOME=<disposable synthetic home> bin/fm-remote-session-migrate.sh moving 'fm-lab-new'
+error: remote route disagrees with its parent endpoint record; preserving both
+
+exit=1; registry and endpoint bytes unchanged=True; no migration intent=True
+
+CASE: registered target collision
+$ FM_HOME=<disposable synthetic home> bin/fm-remote-session-migrate.sh moving 'fm-lab-taken'
+error: registered-route collision: staying already uses fm-lab-taken
+
+exit=1; registry and endpoint bytes unchanged=True; no migration intent=True
+
+CASE: target equals current session
+$ FM_HOME=<disposable synthetic home> bin/fm-remote-session-migrate.sh moving 'fm-lab-old'
+error: duplicate target: route already uses this session
+
+exit=1; registry and endpoint bytes unchanged=True; no migration intent=True

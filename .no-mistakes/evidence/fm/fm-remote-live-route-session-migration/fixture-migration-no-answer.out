@@ -1,0 +1,9 @@
+schema=fm-remote-secondmate-control.v1
+backend=herdr
+target=fm-migrated:w1:p3
+herdr_session=fm-migrated
+harness=claude
+model=default
+effort=default
+traceparent=00-32850d83175baccc69134057013858c1-1d8694f993cad320-01
+error: normal remote route did not answer; re-run the same relocation
