@@ -21,6 +21,8 @@ They are marked **yes** in the table below.
 The actual rule differs from the recommended list in CONTRIBUTING: it does not directly require `Full suite`, serial 2/10/11, herdr-core, or the timing aggregate.
 That gap matters: individual jobs can skip before an outside PR receives `full-ci`, and the required individual names alone do not enforce the go-ahead.
 Recommend separately approving alignment with the documented required-check policy, especially `Full suite`; this PR changes no rules or existing context names.
+The job set includes `Behavior portable serial 11`, while CONTRIBUTING's required-list recommendation stops at serial 10 and the inspected personal-fork rule does not directly require serial 11.
+Deciding whether to require that shard and then update the documented policy needs the captain's separate approval; this performance change leaves that list untouched.
 
 Normal CI names below acquire the existing `Not run for label - ` prefix on an unrelated label event, so that event cannot replace a real failure under the required name.
 The `full-ci` trust/label policy and fork skip variables are unchanged.

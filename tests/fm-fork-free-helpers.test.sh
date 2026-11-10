@@ -80,16 +80,22 @@ printf 'date\n' >> "$log"
 exec $(command -v date) "\$@"
 SH
   chmod +x "$shim/date"
-  # Linux time(), used by Bash printf, can lag date's higher-resolution clock
-  # across a second boundary. Allow that one-second quantization difference,
-  # but still reject stale/future timestamps and keep the fork checks exact.
+  # Bracket each helper call with its clock source at the same precision:
+  # Bash printf uses coarse time() on Linux, which can lag date at a boundary.
+  # No padding is needed; stale/future values and exact fork counts still fail.
   # shellcheck disable=SC2016 # Expanded by the child shell.
   printf '%s\n' '. "$1/bin/fm-wake-lib.sh"' \
     'PATH="$2:$PATH"' \
     ': > "$3"' \
-    'before=$(( $(/bin/date +%s) - 1 ))' \
-    'fm_epoch_seconds_to now' \
-    'after=$(/bin/date +%s)' \
+    'if [ "${BASH_VERSINFO[0]}" -gt 4 ] || { [ "${BASH_VERSINFO[0]}" -eq 4 ] && [ "${BASH_VERSINFO[1]}" -ge 2 ]; }; then' \
+    '  printf -v before "%(%s)T" -1' \
+    '  fm_epoch_seconds_to now' \
+    '  printf -v after "%(%s)T" -1' \
+    'else' \
+    '  before=$(/bin/date +%s)' \
+    '  fm_epoch_seconds_to now' \
+    '  after=$(/bin/date +%s)' \
+    'fi' \
     'case "$now" in ""|*[!0-9]*) printf "not epoch seconds: %q\n" "$now" ;; esac' \
     '[ "$now" -ge "$before" ] && [ "$now" -le "$after" ] || printf "%s outside [%s, %s]\n" "$now" "$before" "$after"' \
     'forks=$(grep -c . "$3" || true)' \
@@ -99,7 +105,7 @@ SH
     '  [ "$forks" -eq 1 ] || printf "bash %s ran date %s times, not exactly once\n" "$BASH_VERSION" "$forks"' \
     'fi' > "$script"
   run_everywhere "epoch helper" "$script" "$shim" "$log"
-  pass "fm_epoch_seconds_to reads the clock like date +%s and forks date at most as often"
+  pass "fm_epoch_seconds_to stays within exact same-source clock bounds and preserves date fork counts"
 }
 
 test_signal_seen_path_and_lock_abs_path_are_unchanged() {
