@@ -136,7 +136,9 @@ Portable shards, each portable serial shard, and the Herdr lane upload runner-ge
 
 ## Lint partitions and end-to-end latency
 
-`bin/fm-lint.sh` owns two canonical CI partitions, each attempting full source-aware ShellCheck analysis and running workflow validation and backend-purity checks.
+`bin/fm-lint.sh` owns four canonical CI execution partitions, each attempting full source-aware ShellCheck analysis and running workflow validation and backend-purity checks.
+The existing required `Lint 1` and `Lint 2` contexts each require every execution partition to succeed; two-way local selectors remain supported.
+[Pull-request CI job audit](ci-pull-request-jobs.md) records the coverage rationale, measured projection and deferred optimizations.
 CI requires its per-root bounds, so an unenforceable deadline or address-space limit refuses lint rather than running uncapped; the script header owns the envelope, per-root execution contract, and memory fallback.
 Its `--list-files` interface exposes partition membership; `tests/fm-lint.test.sh` verifies complete/disjoint executed roots, initial analysis flags, and fallback reporting.
 The workflow uploads each partition's quiet telemetry plus its per-root lifecycle sidecar to distinguish analysis cost, memory use, and host contention.
@@ -144,7 +146,7 @@ No fast mode, path skips, or paid runner provisioning is part of this layout.
 
 The longer-term performance objective remains a complete green run under fifteen minutes including start delay, but the three watch-triage members still sum to about 26 minutes of CI test time.
 The immediate packing target is the runner's modeled script budget, not a claim that more shards alone can make an indivisible script faster.
-The layout uses sixteen long-lived Linux jobs (eleven serial, two parallel, Herdr, two lint), plus short checks and macOS; insufficient shared account capacity can erase the packing gain.
+The layout uses eighteen long-lived Linux jobs (eleven serial, two parallel, Herdr, four lint), plus herdr-core, short checks, two required lint verdicts and macOS; insufficient shared account capacity can erase the packing gain.
 Compare complete before/after runs, preserve cancelled and partial-run evidence, and measure a representative normal-run sample before claiming a P95 improvement.
 The workflow retains per-PR supersession and keeps only the newest of close main pushes' runs, without changing the compliance workflow's event semantics.
 
@@ -163,7 +165,7 @@ Measured healthy durations and runner variance can justify re-deriving a shared 
 | Tier | Jobs | Bound | Rationale |
 |---|---|---|---|
 | Fast | coverage guard, repo invariants, timing aggregate, Full suite verdict | 5 minutes | Seconds-long local work, so the tripwire only catches a hung runner. |
-| Normal | lint partitions, portable parallel shards, portable serial shards, macOS stock Bash | 45 minutes, one value shared by every job in the tier | Shared hang tripwire with headroom above measured healthy serial-test durations near 30 minutes and runner variance, so the whole shard can reach a verdict. |
+| Normal | lint partitions and required lint verdicts, portable parallel shards, portable serial shards, macOS stock Bash | 45 minutes, one value shared by every job in the tier | Shared hang tripwire with headroom above measured healthy serial-test durations near 30 minutes and runner variance, so the whole shard can reach a verdict. |
 | Heavy | Herdr | family-run step 20 minutes under a 75-minute job-level last-resort backstop | Healthy runs finish in about 7-10 minutes, so the step tripwire fails a wedged suite while the `always()` cleanup and timing upload still run, and the job cap only catches a hang outside that step. |
 
 The shared normal-tier budget changes neither shard membership nor assertions and does not establish successful duration: genuine final-head completion on the original hosted CI workflow remains required.

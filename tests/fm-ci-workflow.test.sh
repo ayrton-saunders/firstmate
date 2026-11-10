@@ -334,7 +334,7 @@ puts(value ? Expression.evaluate(value[1], {"matrix.shard" => Integer(ARGV[2])})
 # must join a tier, and a job-level value outside these tiers is exactly the
 # one-off number the policy removed.
 FAST_TIER_JOBS='test-coverage invariants tests-timing-aggregate full-suite'
-NORMAL_TIER_JOBS='lint tests-portable-parallel-1 tests-portable-parallel-2 tests-portable-serial macos-stock-bash'
+NORMAL_TIER_JOBS='lint lint-partitions tests-portable-parallel-1 tests-portable-parallel-2 tests-portable-serial macos-stock-bash'
 HEAVY_TIER_JOBS='tests-herdr tests-hc'
 
 # Print the one timeout every listed job shares; fail on any disagreement.
@@ -730,7 +730,7 @@ raise "cannot list runner lanes" unless status.success?
 actual = lanes.lines.map(&:strip).select { |l| l.match?(/\Aportable-serial-\d+of\d+\z/) }
 expected = shards.map { |s| "portable-serial-#{s}of#{shards.length}" }
 raise "CI matrix and runner disagree" unless actual.sort == expected.sort
-lint = jobs.fetch("lint").fetch("strategy")
+lint = jobs.fetch("lint-partitions").fetch("strategy")
 raise "lint failures must not cancel another partition" unless lint.fetch("fail-fast") == false
 matrix = lint.fetch("matrix")
 raise "unexpected lint dimensions" unless matrix.keys == ["partition"]
@@ -746,6 +746,33 @@ RUBY
   pass "CI matrices cover every executable serial lane and canonical lint root exactly once"
 }
 
+test_required_lint_verdicts_preserve_coverage() {
+  ruby -ryaml -ropen3 -e "$EXPRESSION_RUBY" -e "$CONTEXT_RUBY" -e '
+doc = YAML.load_file(ARGV[0])
+job = doc.fetch("jobs").fetch("lint")
+raise "required lint matrix changed" unless job.dig("strategy", "matrix", "partition") == [1, 2]
+[1, 2].each do |part|
+  context = simulated_context(doc.fetch("name"), ["association=OWNER"])
+  context["matrix.partition"] = part.to_s
+  raise "required lint name changed" unless interpolate(job.fetch("name"), context) == "Lint #{part}"
+end
+raise "required lint must depend on all execution partitions" unless job.fetch("needs") == ["lint-partitions"]
+%w[success failure cancelled skipped].each do |result|
+  context = simulated_context(doc.fetch("name"), ["association=OWNER", "needs=#{result}"])
+  context["needs.lint-partitions.result"] = result
+  raise "required lint verdict skipped after #{result}" unless Expression.condition(job["if"], context)
+  passed = job.fetch("steps").all? do |step|
+    env = step.fetch("env", {}).transform_values { |value| interpolate(value, context) }
+    _, status = Open3.capture2e(env, "bash", "-c", step.fetch("run"))
+    status.success?
+  end
+  raise "required lint accepted #{result}" unless passed == (result == "success")
+end
+' "$CI_WORKFLOW" || fail "required lint verdict did not enforce every execution partition"
+  pass "existing required lint contexts reject any unsuccessful execution partition"
+}
+
+test_required_lint_verdicts_preserve_coverage
 test_ci_matrices_match_executable_partitions
 test_pr_pushes_supersede_within_one_pr
 test_separate_prs_do_not_cancel_each_other
