@@ -86,7 +86,9 @@ cmd_migrate_session() (
         fi
         remote_endpoint_require "$id"
         [ "$REMOTE_ENDPOINT_TARGET" = "$old_target" ] || die "source endpoint changed during exit"
-        cp -p "$meta" "$dir/before"
+        tmp=$(mktemp "$dir/.before.XXXXXX") || die "cannot stage source endpoint"
+        cp -p "$meta" "$tmp" || die "cannot copy source endpoint; re-run relocation"
+        mv "$tmp" "$dir/before" || die "cannot publish source endpoint snapshot; re-run relocation"
         [ "$(remote_agent_state herdr "$old_target" "$meta")" = dead ] || die "source mate absence cannot be verified; route remains on $source_session"
         if [ -f "$dir/reuse-session" ]; then
           # Reversal reuses the retained original terminal, never closes a

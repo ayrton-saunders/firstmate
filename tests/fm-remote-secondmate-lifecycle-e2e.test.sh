@@ -2140,6 +2140,33 @@ for activity in busy unknown; do
   assert_grep 'quiesce it and re-run' "$TMP_ROOT/migration-$activity.out" 'source refusal omitted recovery'
   cmp -s "$PARENT/data/secondmates.md" "$TMP_ROOT/migration-registry.before" || fail "$activity source changed route"
 done
+migration_fail_before_refresh() {
+  local destination=$1 label=$2 real_cp intent
+  real_cp=$(command -v cp)
+  cp "$PARENT/data/secondmates.md" "$TMP_ROOT/$label-registry.before"
+  cp "$PARENT/state/moving.meta" "$TMP_ROOT/$label-parent.before"
+  cat > "$REMOTE_ROOT/bin/cp" <<SH
+#!/usr/bin/env bash
+destination=\${!#}
+case "\$destination" in
+  '$moving_home/state/parent-route/.session-migration-moving/'op.*/before|'$moving_home/state/parent-route/.session-migration-moving/'op.*/.before.*)
+    '$real_cp' "\${destination%/*}/before" '$TMP_ROOT/$label-snapshot.before' || exit 1
+    printf 'partial copy\n' > "\$destination"
+    touch '$TMP_ROOT/$label-copy-failed'
+    exit 1 ;;
+esac
+exec '$real_cp' "\$@"
+SH
+  chmod +x "$REMOTE_ROOT/bin/cp"
+  if remote_env "$ROOT/bin/fm-remote-session-migrate.sh" moving "$destination" > "$TMP_ROOT/$label-copy.out" 2>&1; then fail 'partial source snapshot copy reported success'; fi
+  rm "$REMOTE_ROOT/bin/cp"
+  assert_present "$TMP_ROOT/$label-copy-failed" 'source snapshot refresh was not reached'
+  intent=$(cat "$moving_home/state/parent-route/.session-migration-moving/active")
+  cmp -s "$TMP_ROOT/$label-snapshot.before" "$moving_home/state/parent-route/.session-migration-moving/$intent/before" || fail 'failed refresh corrupted published source snapshot'
+  assert_absent "$moving_home/state/parent-route/.session-migration-moving/$intent/after" 'failed refresh published destination preparation'
+  cmp -s "$PARENT/data/secondmates.md" "$TMP_ROOT/$label-registry.before" || fail 'failed refresh changed route'
+  cmp -s "$PARENT/state/moving.meta" "$TMP_ROOT/$label-parent.before" || fail 'failed refresh changed parent endpoint'
+}
 migration_idle() {
   local gen
   gen=$("$ROOT/bin/fm-busy-event.sh" arm "$moving_home/state/parent-route" moving --state idle --source fm-spawn --event seed)
@@ -2151,6 +2178,7 @@ touch "$REMOTE_ROOT/state/.migration-test.birth-fail"
 if remote_env "$ROOT/bin/fm-remote-session-migrate.sh" moving fm-migrated > "$TMP_ROOT/migration-birth.out" 2>&1; then fail 'failed birth accepted'; fi
 assert_grep 'target session could not be created' "$TMP_ROOT/migration-birth.out" 'birth failure omitted reason'
 rm "$REMOTE_ROOT/state/.migration-test.birth-fail"
+migration_fail_before_refresh fm-migrated forward
 if FM_FAKE_SSH_MODE=migration-lost-prepare remote_env "$ROOT/bin/fm-remote-session-migrate.sh" moving fm-migrated > "$TMP_ROOT/migration-lost.out" 2>&1; then fail 'lost preparation reported success'; fi
 assert_grep 'route remains on session fm-remote' "$TMP_ROOT/migration-lost.out" 'pre-publication failure omitted old binding'
 if [ ! -f "$HERDR_STATE.fm-migrated" ] && [ -n "${FM_TEST_RELOCATION_EVIDENCE_DIR:-}" ]; then
@@ -2231,6 +2259,7 @@ esac
 exec '$real_mv' "\$@"
 SH
 chmod +x "$REMOTE_ROOT/bin/mv"
+migration_fail_before_refresh --reverse reversal
 if remote_env "$ROOT/bin/fm-remote-session-migrate.sh" moving --reverse > "$TMP_ROOT/migration-reverse-interrupted.out" 2>&1; then fail 'interrupted reversal preparation reported success'; fi
 assert_present "$TMP_ROOT/reversal-interrupted" 'reversal did not reach preparation publication'
 remote_intent=$(cat "$moving_home/state/parent-route/.session-migration-moving/active")
