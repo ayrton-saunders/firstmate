@@ -39,7 +39,6 @@ Route identity comes only from this record, never a global setting, a directory 
 Upgrade every registry reader and the remote code before adding a custom record; keep custom records out of older readers and never downgrade while any remain.
 For an approved live-session change or reversal, follow the ordered [explicit session migration](../../../docs/remote-secondmates.md#explicit-session-migration) operation, including its idle/absence proof, safe refusals, and same-command re-run behavior; it leaves the original session alone and retirement is separate.
 Never hand-edit a live binding or infer execution-root relocation authority from that operation.
-A separately reviewed [same-path contents replacement](../../../docs/remote-secondmates.md#reviewed-same-path-contents-replacement) has its own byte-identity, preservation, and no-owner prerequisites and is not automated by migration.
 See [remote launch and recovery](../../../docs/remote-secondmates.md#launch-or-recover) for backend selection and readiness (Herdr remains the default; Rex requires explicit selection and a ready doctor verdict).
 This release places whole secondmate homes remotely and never individual workers.
 [`docs/remote-secondmates.md`](../../../docs/remote-secondmates.md) owns current operator setup and transport behavior.
