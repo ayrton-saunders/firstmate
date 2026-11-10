@@ -80,11 +80,14 @@ printf 'date\n' >> "$log"
 exec $(command -v date) "\$@"
 SH
   chmod +x "$shim/date"
+  # Linux time(), used by Bash printf, can lag date's higher-resolution clock
+  # across a second boundary. Allow that one-second quantization difference,
+  # but still reject stale/future timestamps and keep the fork checks exact.
   # shellcheck disable=SC2016 # Expanded by the child shell.
   printf '%s\n' '. "$1/bin/fm-wake-lib.sh"' \
     'PATH="$2:$PATH"' \
     ': > "$3"' \
-    'before=$(/bin/date +%s)' \
+    'before=$(( $(/bin/date +%s) - 1 ))' \
     'fm_epoch_seconds_to now' \
     'after=$(/bin/date +%s)' \
     'case "$now" in ""|*[!0-9]*) printf "not epoch seconds: %q\n" "$now" ;; esac' \
