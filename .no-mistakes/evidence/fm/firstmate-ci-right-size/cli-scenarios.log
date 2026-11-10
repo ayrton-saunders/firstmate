@@ -1,0 +1,32 @@
+Canonical CLI inventory matches independent filesystem inventory: 599 roots
+CLI --partition 1of2 --list-files: 300 roots, repeatable
+CLI --partition 2of2 --list-files: 299 roots, repeatable
+2-way CLI partition union: every canonical root exactly once
+CLI --partition 1of4 --list-files: 150 roots, repeatable
+CLI --partition 2of4 --list-files: 150 roots, repeatable
+CLI --partition 3of4 --list-files: 150 roots, repeatable
+CLI --partition 4of4 --list-files: 149 roots, repeatable
+4-way CLI partition union: every canonical root exactly once
+Refused ['--partition', '0of2']: exit=2; fm-lint.sh: --partition must be Nof2 or Nof4 with 1 <= N <= total, got 0of2.
+Refused ['--partition', '3of2']: exit=2; fm-lint.sh: --partition must be Nof2 or Nof4 with 1 <= N <= total, got 3of2.
+Refused ['--partition', '1of3']: exit=2; fm-lint.sh: --partition must be Nof2 or Nof4 with 1 <= N <= total, got 1of3.
+Refused ['--partition', '0of4']: exit=2; fm-lint.sh: --partition must be Nof2 or Nof4 with 1 <= N <= total, got 0of4.
+Refused ['--partition', '5of4']: exit=2; fm-lint.sh: --partition must be Nof2 or Nof4 with 1 <= N <= total, got 5of4.
+Refused ['--partition', '1of0']: exit=2; fm-lint.sh: --partition must be Nof2 or Nof4 with 1 <= N <= total, got 1of0.
+Refused ['--partition', '01of4']: exit=2; fm-lint.sh: --partition must be Nof2 or Nof4 with 1 <= N <= total, got 01of4.
+Refused ['--partition', '1of04']: exit=2; fm-lint.sh: --partition must be Nof2 or Nof4 with 1 <= N <= total, got 1of04.
+Refused ['--partition', '']: exit=2; fm-lint.sh: --partition requires Nof2 or Nof4.
+Refused ['--partition']: exit=2; fm-lint.sh: --partition must be Nof2 or Nof4 with 1 <= N <= total, got --list-files.
+Refused ['--partition', '1of4', '--fast']: exit=2; fm-lint.sh: --partition requires full canonical lint; omit --fast and explicit paths.
+Refused ['--partition', '1of4', 'bin/fm-lint.sh']: exit=2; fm-lint.sh: --partition requires full canonical lint; omit --fast and explicit paths.
+Local execution of shipped Lint 1 verdict with synthetic matrix result 'success': exit=0; 
+Local execution of shipped Lint 1 verdict with synthetic matrix result 'failure': exit=1; ::error::Canonical lint partitions did not all pass: failure
+Local execution of shipped Lint 1 verdict with synthetic matrix result 'cancelled': exit=1; ::error::Canonical lint partitions did not all pass: cancelled
+Local execution of shipped Lint 1 verdict with synthetic matrix result 'skipped': exit=1; ::error::Canonical lint partitions did not all pass: skipped
+Local execution of shipped Lint 1 verdict with synthetic matrix result '': exit=1; ::error::Canonical lint partitions did not all pass:
+Local execution of shipped Lint 2 verdict with synthetic matrix result 'success': exit=0; 
+Local execution of shipped Lint 2 verdict with synthetic matrix result 'failure': exit=1; ::error::Canonical lint partitions did not all pass: failure
+Local execution of shipped Lint 2 verdict with synthetic matrix result 'cancelled': exit=1; ::error::Canonical lint partitions did not all pass: cancelled
+Local execution of shipped Lint 2 verdict with synthetic matrix result 'skipped': exit=1; ::error::Canonical lint partitions did not all pass: skipped
+Local execution of shipped Lint 2 verdict with synthetic matrix result '': exit=1; ::error::Canonical lint partitions did not all pass:
+Local CI executable surfaces validated. No GitHub runner acquisition or remote scheduling exercised.
