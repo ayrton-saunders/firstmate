@@ -2203,8 +2203,45 @@ assert_absent "$moving_home/state/parent-route/moving.control-relaunch" 'relocat
 [ "$(cat "$moving_home/data/migration-history")" = 'preserved history' ] || fail 'migration changed mate history'
 [ "$(cat "$moving_home/config/migration-preserve")" = 'preserved config' ] || fail 'migration changed mate config'
 cmp -s "$moving_home/data/charter.md" "$TMP_ROOT/migration-charter.before" || fail 'migration changed mate instructions'
+migration_original_traceparent=$migration_traceparent
+for tracing in off on; do
+  migration_pane=$(awk -F= '$1=="herdr_pane_id" {print $2}' "$endpoint")
+  jq --arg p "$migration_pane" '.typed[$p] = false | .working[$p] = false' "$HERDR_STATE.fm-migrated" > "$TMP_ROOT/migration-stopped"
+  mv "$TMP_ROOT/migration-stopped" "$HERDR_STATE.fm-migrated"
+  FM_TRACE_CONTEXT=$tracing bash -c '. "$1/bin/fm-trace-context-lib.sh"; fm_trace_context_session_start "$2/config" "$2/state/.trace-context-effective"' _ "$ROOT" "$PARENT"
+  remote_env "$ROOT/bin/fm-spawn.sh" moving --secondmate --effort high >/dev/null || fail 'migration trace reconfiguration launch failed'
+done
+migration_traceparent=$(awk -F= '$1=="traceparent" {print $2}' "$PARENT/state/moving.meta")
+[ -n "$migration_traceparent" ] && [ "$migration_traceparent" != "$migration_original_traceparent" ] || fail 'reconfiguration did not create a new trace identity'
+migration_trace_preserved
 migration_idle
+cp "$PARENT/data/secondmates.md" "$TMP_ROOT/reversal-registry.before"
+cp "$PARENT/state/moving.meta" "$TMP_ROOT/reversal-parent.before"
+real_mv=$(command -v mv)
+cat > "$REMOTE_ROOT/bin/mv" <<SH
+#!/usr/bin/env bash
+destination=\${!#}
+case "\$destination" in
+  '$moving_home/state/parent-route/.session-migration-moving/'op.*/after)
+    if [ ! -f '$TMP_ROOT/reversal-interrupted' ]; then
+      touch '$TMP_ROOT/reversal-interrupted'
+      exit 1
+    fi ;;
+esac
+exec '$real_mv' "\$@"
+SH
+chmod +x "$REMOTE_ROOT/bin/mv"
+if remote_env "$ROOT/bin/fm-remote-session-migrate.sh" moving --reverse > "$TMP_ROOT/migration-reverse-interrupted.out" 2>&1; then fail 'interrupted reversal preparation reported success'; fi
+assert_present "$TMP_ROOT/reversal-interrupted" 'reversal did not reach preparation publication'
+remote_intent=$(cat "$moving_home/state/parent-route/.session-migration-moving/active")
+assert_absent "$moving_home/state/parent-route/.session-migration-moving/$remote_intent/after" 'interrupted preparation published a destination snapshot'
+cmp -s "$PARENT/data/secondmates.md" "$TMP_ROOT/reversal-registry.before" || fail 'interrupted reversal changed route'
+cmp -s "$PARENT/state/moving.meta" "$TMP_ROOT/reversal-parent.before" || fail 'interrupted reversal changed parent endpoint'
+grep -Fx 'herdr_session=fm-migrated' "$endpoint" >/dev/null || fail 'interrupted reversal changed remote endpoint'
 remote_env "$ROOT/bin/fm-remote-session-migrate.sh" moving --reverse > "$TMP_ROOT/migration-reverse.out" 2>&1 || fail "session reversal failed: $(cat "$TMP_ROOT/migration-reverse.out")"
+rm "$REMOTE_ROOT/bin/mv"
+grep -Fx 'effort=high' "$endpoint" >/dev/null || fail 'reversal restored stale launch profile'
+grep -Fx 'effort=high' "$PARENT/state/moving.meta" >/dev/null || fail 'reversal changed parent launch profile'
 [ "$(remote_env "$ROOT/bin/fm-on.sh" moving fm-remote-secondmate-control.sh state moving)" = alive ] || fail 'reversed route did not answer'
 migration_trace_preserved
 assert_grep "root: $REMOTE_ROOT; home: $moving_home; session: fm-remote;" "$PARENT/data/secondmates.md" 'reversal did not restore original session and preserve root'

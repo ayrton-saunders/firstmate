@@ -93,7 +93,9 @@ cmd_migrate_session() (
           # husk tab or adopts an unrelated endpoint in the previous session.
           tmp="$base/$reverse_of/before"
           [ "$(remote_agent_state herdr "$(fm_meta_get "$tmp" window)" "$tmp")" = dead ] || die "retained reversal endpoint is not proven agent-free"
-          grep -v '^busy_gen=' "$tmp" > "$dir/after"
+          ws=$(fm_meta_get "$tmp" herdr_workspace_id)
+          tab=$(fm_meta_get "$tmp" herdr_tab_id)
+          pane=$(fm_meta_get "$tmp" herdr_pane_id)
         else
           fm_backend_source herdr || die "Herdr adapter unavailable"
           FM_HOME="$TARGET_HOME" fm_backend_herdr_workspace_ensure "$target" "$TARGET_HOME" other-home > "$dir/workspace" || die "cannot prepare destination workspace"
@@ -101,17 +103,17 @@ cmd_migrate_session() (
           task_ids=$(fm_backend_herdr_create_task "$target:$ws" "fm-$id" "$TARGET_HOME" "$FM_BACKEND_HERDR_WS_SEEDED_TAB_ID") || die "cannot prepare destination terminal"
           read -r tab pane <<< "$task_ids"
           [ -n "$tab" ] && [ -n "$pane" ] || die "destination identity unavailable"
-          tmp=$(mktemp "$dir/.after.XXXXXX") || die "cannot stage endpoint"
-          awk -F= -v s="$target" -v w="$ws" -v t="$tab" -v p="$pane" '
-            $1=="window" {print "window=" s ":" p; next}
-            $1=="herdr_session" {print "herdr_session=" s; next}
-            $1=="herdr_workspace_id" {print "herdr_workspace_id=" w; next}
-            $1=="herdr_tab_id" {print "herdr_tab_id=" t; next}
-            $1=="herdr_pane_id" {print "herdr_pane_id=" p; next}
-            {print}
-          ' "$meta" > "$tmp"
-          mv "$tmp" "$dir/after"
         fi
+        tmp=$(mktemp "$dir/.after.XXXXXX") || die "cannot stage endpoint"
+        awk -F= -v s="$target" -v w="$ws" -v t="$tab" -v p="$pane" '
+          $1=="window" {print "window=" s ":" p; next}
+          $1=="herdr_session" {print "herdr_session=" s; next}
+          $1=="herdr_workspace_id" {print "herdr_workspace_id=" w; next}
+          $1=="herdr_tab_id" {print "herdr_tab_id=" t; next}
+          $1=="herdr_pane_id" {print "herdr_pane_id=" p; next}
+          {print}
+        ' "$meta" > "$tmp" || die "cannot write destination endpoint; re-run relocation"
+        mv "$tmp" "$dir/after" || die "cannot publish destination preparation; re-run relocation"
       fi
       printf 'herdr_session=%s\ntarget=%s\n' "$target" "$(fm_meta_get "$dir/after" window)" ;;
     commit)
