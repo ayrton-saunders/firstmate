@@ -14,6 +14,8 @@ Firstmate does not support placing an individual worker remotely or failing a re
 | Prepare the primary and the remote host | [Prerequisites](#prerequisites) and [non-interactive tool contract](#non-interactive-tool-contract) |
 | Check whether a host is ready, or repair it | [Readiness, repair, and the human steps](#readiness-repair-and-the-human-steps) |
 | Create the route and the remote home | [Provision a route](#provision-a-route) |
+| Change a live route's Herdr session | [Explicit session migration](#explicit-session-migration) |
+| Replace code at the same canonical root, under separate review | [Reviewed same-path contents replacement](#reviewed-same-path-contents-replacement) |
 | Launch, recover, message, and read a remote second mate | [Normal operation](#normal-operation) |
 | Move queued work to the remote home | [Backlog handoff](#backlog-handoff) |
 | Push configuration, relaunch, update, or retire | [Sync, update, and retirement](#sync-update-and-retirement) |
@@ -351,7 +353,7 @@ bin/fm-remote-home-seed.sh [--herdr-session NAME] <id> <ssh-alias> <remote-root>
 
 The optional seed session is validated before SSH or mutation and persisted before readiness runs.
 Omission or explicit `fm-remote` writes the legacy record shape.
-The [route schema](../.agents/skills/secondmate-provisioning/SKILL.md#routing-table) owns naming, validation, and upgrade order; provision new routes rather than editing the session beneath a live endpoint.
+The [route schema](../.agents/skills/secondmate-provisioning/SKILL.md#routing-table) owns naming, validation, and upgrade order; use [explicit session migration](#explicit-session-migration) rather than editing the session beneath a live endpoint.
 The shared SSH job worker remains account-owned and session-neutral.
 
 ### Project origins
@@ -427,6 +429,148 @@ The promised-public-reply subsystem is same-filesystem by construction, so a rem
 Local secondmates keep the existing route form and need no migration.
 A fleet may contain local and remote routes together.
 Use `bin/fm-home-seed.sh validate` to validate either form.
+
+## Explicit session migration
+
+`bin/fm-remote-session-migrate.sh` is the supported explicit operation for changing an existing remote Herdr route's session.
+Obtain approval for the exact live route separately from delivering this command.
+It never runs automatically during seed, readiness repair, launch, or recovery.
+Run it from the owning primary with an explicit `FM_HOME`, route ID, and target name:
+
+```sh
+FM_HOME=/absolute/primary bin/fm-remote-session-migrate.sh fpl fm-remote-personal
+```
+
+The operation proceeds in this order:
+
+1. Resolve one registered remote route and its agreeing parent and remote endpoint records, validate the explicit target with the existing naming grammar, and refuse a registered or existing session-name collision.
+2. Require positive recorded idle evidence for the source mate, or proof that its agent has already stopped; busy, unresponsive, and unknown activity require quiescing the mate and re-running without force.
+3. Record the source session, target, and endpoint snapshots durably, then create and verify the destination through the ordinary session-birth owner.
+4. Gracefully exit only the idle source mate through the plain exit adapter and prove it absent, preserving its terminal; no relaunch journal is written and no second agent starts while absence is unproven.
+5. Prepare an agent-less destination terminal, publish the route and both endpoint records as one logical binding, then launch the mate there and verify that its normal remote route answers.
+
+The original session and server are left alone, including any sibling fleet sharing them; retiring that session is a separate decision.
+The mate home, configuration, instructions, records, projects, custody, and pins are not relocated.
+The execution code root is unchanged; this command accepts no root-move option.
+
+Refusals state the reason: invalid or reserved name, duplicate route/name, disagreeing endpoint, failed session birth, unconfirmed source exit, or a destination mate that does not answer.
+A failure before publication keeps the route on its old session and reports that fact.
+Each replaced record is atomic; an interrupted cross-host publication is unavailable to ordinary route access until the same command completes its saved snapshots, rather than exposing a usable mixed binding.
+Re-run the exact original command after resolving the reported problem, without editing the registry or endpoint records.
+A completed migration retains its previous binding; explicitly repoint back with:
+
+```sh
+FM_HOME=/absolute/primary bin/fm-remote-session-migrate.sh fpl --reverse
+```
+
+Reversal requires the same idle/absence proof and reuses the preserved source terminal in the retained previous session.
+It is not a fast-forward, history rewrite, forced stop, or manual record edit.
+The [command header](../bin/fm-remote-session-migrate.sh) owns invocation and intent-storage mechanics.
+
+## Reviewed same-path contents replacement
+
+This is a separate operator-reviewed maintenance procedure, not a route change and not performed or automated by session migration.
+It grants no multi-root or transport-admission authority.
+The account-wide remote job worker still binds one canonical code root.
+Its identity also hashes `bin/fm-remote-job-lib.sh` and `bin/fm-remote-job-worker.sh`: both files must remain byte-identical, or stop and request a separate transport review.
+The commands below are an operator recipe, not a live-host result or a capability tested by this change.
+
+Arrange a maintenance window with every owner using this root and obtain separate approval for replacing its contents and for any required graceful stops.
+Nothing may be running that owns the root during replacement or reversal; this procedure does not stop workers, agents, servers, or sessions itself.
+If quiescence or any check cannot be proved, stop and report instead of forcing it.
+
+1. On the primary, record its exact desired revision with `git -C /absolute/primary rev-parse HEAD`.
+   In a remote operator shell, set the existing canonical root, that revision, and reviewed credential-free repository URLs, then capture a restorable copy before any root mutation:
+
+```sh
+set -eu
+ROOT=/absolute/existing/code-root
+PRIMARY_SHA=REPLACE_WITH_PRIMARY_COMMIT
+PERSONAL_URL=https://github.com/OWNER/personal-fork.git
+STOCK_URL=https://github.com/UPSTREAM/firstmate.git
+CANONICAL=$(CDPATH='' cd -- "$ROOT" && pwd -P)
+[ "$CANONICAL" = "$ROOT" ]
+[ -d "$ROOT/.git" ] && [ ! -L "$ROOT/.git" ]
+[ "$(git -C "$ROOT" rev-parse --show-toplevel)" = "$ROOT" ]
+[ "$(git -C "$ROOT" worktree list --porcelain | grep -c '^worktree ')" = 1 ]
+[ "$(git -C "$ROOT" rev-parse --is-shallow-repository)" = false ]
+[ -z "$(git -C "$ROOT" status --porcelain --untracked-files=all)" ]
+[ -z "$(git -C "$ROOT" ls-files --others --ignored --exclude-standard)" ]
+for name in .env .fm-secondmate-home .fm-secondmate-parent data state config projects .no-mistakes; do
+  [ ! -e "$ROOT/$name" ] && [ ! -L "$ROOT/$name" ]
+done
+AUDIT=$(mktemp -d "${TMPDIR:-/tmp}/fm-root-contents.XXXXXX")
+BACKUP="$AUDIT/before"
+mkdir "$BACKUP"
+cp -a "$ROOT/." "$BACKUP/"
+printf '%s\n' "$ROOT" > "$AUDIT/canonical-root"
+```
+
+These checks exclude home records and ignored private material, including custody; retain the backup privately, outside the root, until acceptance.
+Use durable operator storage instead of temporary storage if the maintenance spans a reboot.
+
+2. Prove that every commit reachable from the old root is already published in the reviewed stock upstream, and stage the personal fork at the exact primary revision:
+
+```sh
+git clone --mirror "$STOCK_URL" "$AUDIT/published.git"
+git -C "$ROOT" rev-list --all HEAD | LC_ALL=C sort -u > "$AUDIT/old-commits"
+git --git-dir="$AUDIT/published.git" rev-list --all | LC_ALL=C sort -u > "$AUDIT/published-commits"
+comm -23 "$AUDIT/old-commits" "$AUDIT/published-commits" > "$AUDIT/unpublished"
+[ ! -s "$AUDIT/unpublished" ]
+git clone "$PERSONAL_URL" "$AUDIT/replacement"
+git -C "$AUDIT/replacement" checkout --detach "$PRIMARY_SHA"
+[ "$(git -C "$AUDIT/replacement" rev-parse HEAD)" = "$PRIMARY_SHA" ]
+[ -z "$(git -C "$AUDIT/replacement" status --porcelain --untracked-files=all)" ]
+cmp "$ROOT/bin/fm-remote-job-lib.sh" "$AUDIT/replacement/bin/fm-remote-job-lib.sh"
+cmp "$ROOT/bin/fm-remote-job-worker.sh" "$AUDIT/replacement/bin/fm-remote-job-worker.sh"
+```
+
+Any unpublished history or byte mismatch is a refusal, not permission to discard commits or rebind the shared worker.
+
+3. Immediately before replacement, prove that no process owns the root through an open file, working directory, or command path:
+
+```sh
+command -v lsof >/dev/null
+rc=0
+lsof -nP +D "$ROOT" > "$AUDIT/open-files" 2> "$AUDIT/lsof-errors" || rc=$?
+[ "$rc" = 1 ] && [ ! -s "$AUDIT/open-files" ] && [ ! -s "$AUDIT/lsof-errors" ]
+ps -axo pid=,command= > "$AUDIT/processes"
+awk -v root="$ROOT" 'index($0,root) { print; found=1 } END { exit found ? 1 : 0 }' "$AUDIT/processes"
+[ "$(CDPATH='' cd -- "$ROOT" && pwd -P)" = "$(cat "$AUDIT/canonical-root")" ]
+```
+
+Keep every owner quiescent through the next step; these observations are not a substitute for the maintenance agreement.
+
+4. Replace only contents at that same path, then verify the exact revision and the session-naming code without starting a session:
+
+```sh
+rsync -a --delete "$AUDIT/replacement/" "$ROOT/"
+[ "$(CDPATH='' cd -- "$ROOT" && pwd -P)" = "$(cat "$AUDIT/canonical-root")" ]
+[ "$(git -C "$ROOT" rev-parse HEAD)" = "$PRIMARY_SHA" ]
+git -C "$ROOT" ls-files --error-unmatch bin/fm-herdr-session-lib.sh bin/fm-on.sh bin/fm-remote-secondmate-control.sh
+bash -c '. "$1"; fm_remote_herdr_session_validate "$2"' _ "$ROOT/bin/fm-herdr-session-lib.sh" fm-remote-personal
+cmp "$BACKUP/bin/fm-remote-job-lib.sh" "$ROOT/bin/fm-remote-job-lib.sh"
+cmp "$BACKUP/bin/fm-remote-job-worker.sh" "$ROOT/bin/fm-remote-job-worker.sh"
+```
+
+5. From the owning primary, verify the FPL mate through its unchanged normal route:
+
+```sh
+FM_HOME=/absolute/primary bin/fm-on.sh fpl fm-remote-secondmate-control.sh route fpl
+[ "$(FM_HOME=/absolute/primary bin/fm-on.sh fpl fm-remote-secondmate-control.sh state fpl)" = alive ]
+```
+
+If naming verification or normal-route verification fails, report the failure, quiesce owners again, repeat step 3, and restore the copied contents at the same canonical path:
+
+```sh
+[ "$(CDPATH='' cd -- "$ROOT" && pwd -P)" = "$(cat "$AUDIT/canonical-root")" ]
+rsync -a --delete "$BACKUP/" "$ROOT/"
+[ "$(CDPATH='' cd -- "$ROOT" && pwd -P)" = "$(cat "$AUDIT/canonical-root")" ]
+[ "$(git -C "$ROOT" rev-parse HEAD)" = "$(git -C "$BACKUP" rev-parse HEAD)" ]
+```
+
+Repeat normal-route verification from the primary after restoration and report its result.
+No route edit, force, fast-forward, rebase, or history rewrite is part of replacement or reversal.
 
 ## Normal operation
 

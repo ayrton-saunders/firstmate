@@ -3,6 +3,9 @@
 #
 # Usage:
 #   fm-remote-doctor.sh [--herdr-session NAME] [--fix] [--backend herdr|rex|any]
+#   fm-remote-doctor.sh [route options] --birth-for-migration NAME OP
+# The latter validates the source endpoint, then creates/verifies only NAME;
+# it requires a route-owned migration intent and never repairs shared tooling.
 # Normally invoked through fm-on.sh; that transport alone supplies the route's
 # optional session flag, so callers must not override it.
 #
@@ -97,6 +100,19 @@ elif [ -n "${FM_HOME:-}" ] && [ -f "$FM_HOME/.fm-secondmate-home" ]; then
   if [ -e "$FM_HOME/state/parent-route/$DOCTOR_ROUTE_ID.meta" ] || [ -L "$FM_HOME/state/parent-route/$DOCTOR_ROUTE_ID.meta" ]; then
     fm_remote_endpoint_guard "$HERDR_SESSION_NAME" || exit 1
   fi
+fi
+MIGRATION_BIRTH=
+if [ "${1:-}" = --birth-for-migration ]; then
+  if [ "$#" -ne 3 ] || ! fm_remote_herdr_session_validate "$2"; then printf 'error: invalid migration session (1-64 ASCII bytes, alphanumeric first, then letters/digits/./_/-; not default)\n' >&2; exit 2; fi
+  MIGRATION_BIRTH=$2
+  [ -n "${DOCTOR_ROUTE_ID:-${FM_REMOTE_ROUTE_ID:-}}" ] || { printf 'error: migration requires an existing route\n' >&2; exit 1; }
+  BIRTH_ID=${DOCTOR_ROUTE_ID:-$FM_REMOTE_ROUTE_ID}
+  case "$3" in op.?*) ;; *) printf 'error: invalid relocation operation id\n' >&2; exit 1 ;; esac
+  case "$3" in *[!A-Za-z0-9._-]*) printf 'error: unsafe relocation operation id\n' >&2; exit 1 ;; esac
+  BIRTH_INTENT="$FM_HOME/state/parent-route/.session-migration-$BIRTH_ID/$3"
+  [ -f "$BIRTH_INTENT/target" ] && [ ! -L "$BIRTH_INTENT" ] && [ "$(<"$BIRTH_INTENT/target")" = "$MIGRATION_BIRTH" ] || { printf 'error: migration intent is missing or disagrees\n' >&2; exit 1; }
+  HERDR_SESSION_NAME=$MIGRATION_BIRTH
+  shift 3
 fi
 # shellcheck source=bin/fm-remote-job-lib.sh
 . "$SCRIPT_DIR/fm-remote-job-lib.sh"
@@ -1168,6 +1184,33 @@ printf 'platform=%s\n' "$PLATFORM"
 LAUNCH_AGENT_SHELL=
 if [ "$PLATFORM" = darwin ]; then
   LAUNCH_AGENT_SHELL=$(resolve_launch_agent_shell)
+fi
+if [ -n "$MIGRATION_BIRTH" ]; then
+  herdr_adapter_load || { printf 'error: Herdr session cannot be created: tools unavailable\n' >&2; exit 1; }
+  # First admission must prove the target unused; only this durable intent
+  # permits reconciliation of a session born during an interrupted attempt.
+  if [ ! -f "$BIRTH_INTENT/birth-admitted" ]; then
+    BIRTH_SESSIONS=$(fm_backend_herdr_cli "$HERDR_SESSION_NAME" session list --json) || exit 1
+    printf '%s' "$BIRTH_SESSIONS" | jq -e --arg name "$HERDR_SESSION_NAME" '.sessions | type == "array" and all(.[]; .name != $name)' >/dev/null \
+      || { printf 'error: duplicate target session: %s\n' "$HERDR_SESSION_NAME" >&2; exit 1; }
+    [ ! -e "$LAUNCH_AGENT_PLIST" ] && [ ! -L "$LAUNCH_AGENT_PLIST" ] || { printf 'error: duplicate target launch agent\n' >&2; exit 1; }
+    printf '%s\n' "$HERDR_SESSION_NAME" > "$BIRTH_INTENT/birth-admitted"
+  fi
+  if ! herdr_server_aqua_owned; then
+    if herdr_server_running; then
+      printf 'error: migration target ownership is unproven; refusing repair\n' >&2; exit 1
+    fi
+    if [ "$PLATFORM" = darwin ]; then
+      check_gui_session
+      check_is_ok gui-session || { printf 'error: target session cannot be created without an Aqua login\n' >&2; exit 1; }
+      write_launch_agent "$LAUNCH_AGENT_SHELL" && reload_launch_agent herdr-server || exit 1
+    else
+      start_herdr_server || exit 1
+    fi
+  fi
+  herdr_server_aqua_owned || { printf 'error: new session could not be verified\n' >&2; exit 1; }
+  printf 'ok: migration session %s verified\n' "$HERDR_SESSION_NAME"
+  exit 0
 fi
 run_checks "$LAUNCH_AGENT_SHELL"
 if [ "$MODE" = fix ]; then

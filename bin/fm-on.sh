@@ -111,6 +111,16 @@ done
 
 # Route identity is checked here for every caller, including file-only update
 # and recovery paths. Never let a changed registry redirect a recorded endpoint.
+MIGRATION_BASE="${FM_STATE_OVERRIDE:-$FM_HOME/state}/.remote-session-migration-$ROUTE_ID"
+if [ -f "$MIGRATION_BASE/active" ]; then
+  MIGRATION_OP=$(<"$MIGRATION_BASE/active")
+  case "$MIGRATION_OP" in ''|*[!A-Za-z0-9._-]*) die 'unsafe relocation intent' ;; esac
+  MIGRATION_INTENT="$MIGRATION_BASE/$MIGRATION_OP"
+  if [ ! -f "$MIGRATION_INTENT/complete" ]; then
+    [ -d "$MIGRATION_INTENT" ] && [ ! -L "$MIGRATION_INTENT" ] && [ "${FM_REMOTE_MIGRATION_INTENT:-}" = "$MIGRATION_INTENT" ] \
+      || die "route has an incomplete relocation; re-run fm-remote-session-migrate.sh with the original target"
+  fi
+fi
 PARENT_META="${FM_STATE_OVERRIDE:-$FM_HOME/state}/$ROUTE_ID.meta"
 [ -z "${FM_REMOTE_EXPECTED_PARENT_BINDING:-}" ] || [ "$(secondmate_registry_parent_binding "$PARENT_META")" = "$FM_REMOTE_EXPECTED_PARENT_BINDING" ] \
   || die "parent remote binding changed before transport; preserving records"

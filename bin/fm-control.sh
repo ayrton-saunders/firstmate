@@ -3,7 +3,8 @@
 # lifecycle verbs addressed to an exact task id.
 #
 # Usage: fm-control.sh <task-id> interrupt
-#        fm-control.sh <task-id> exit
+#        fm-control.sh <task-id> exit [--idle-only]
+# --idle-only refuses busy or unknown activity without sending an interrupt.
 #        fm-control.sh <task-id> relaunch [--harness <name>] [--model <name>]
 #                                         [--effort <level>] [--account <entry>]
 #                                         (--note <text> | --note-file <path>)
@@ -277,6 +278,7 @@ EFFORT_SET=0
 ACCOUNT_SET=0
 NOTE=
 NOTE_SET=0
+IDLE_ONLY=0
 control_want_value=
 for control_arg in "$@"; do
   if [ -n "$control_want_value" ]; then
@@ -299,6 +301,7 @@ for control_arg in "$@"; do
     continue
   fi
   case "$control_arg" in
+    --idle-only) IDLE_ONLY=1 ;;
     --harness) control_want_value=harness ;;
     --harness=*) NEW_HARNESS=${control_arg#--harness=}; HARNESS_SET=1 ;;
     --model) control_want_value=model ;;
@@ -327,6 +330,7 @@ if [ "$VERB" != relaunch ]; then
   [ "$HARNESS_SET" = 0 ] && [ "$MODEL_SET" = 0 ] && [ "$EFFORT_SET" = 0 ] && [ "$ACCOUNT_SET" = 0 ] && [ "$NOTE_SET" = 0 ] \
     || die "--harness, --model, --effort, --account, and --note apply to 'relaunch' only"
 fi
+[ "$IDLE_ONLY" = 0 ] || [ "$VERB" = exit ] || die "--idle-only applies to 'exit' only"
 [ "$ACCOUNT_SET" = 0 ] || [ -n "$NEW_ACCOUNT" ] || die "--account requires a non-empty value"
 [ "$HARNESS_SET" = 0 ] || [ -n "$NEW_HARNESS" ] || die "--harness requires a non-empty value"
 [ "$MODEL_SET" = 0 ] || [ -n "$NEW_MODEL" ] || die "--model requires a non-empty value"
@@ -762,8 +766,13 @@ do_exit() {
       esac
       ;;
   esac
+  # Migration must never turn a newly busy or unknown source into an interrupt.
+  verdict=$(busy_verdict)
+  if [ "$IDLE_ONLY" = 1 ]; then
+    case "$verdict" in idle\ *) ;; *) die "source mate activity is $verdict; quiesce it and re-run; no exit or interrupt sent" ;; esac
+  fi
   # A busy agent is interrupted first before the exit command is submitted.
-  case "$(busy_verdict)" in
+  case "$verdict" in
     busy*)
       cancel=$(deliver_interrupt) || return $?
       state=$(agent_state)
@@ -814,6 +823,12 @@ do_exit() {
   # interacting with the typed submit verification. A Ctrl-C over leftover
   # composer text only clears it, so Ctrl-U clears the composer first and one
   # more Ctrl-C follows if the agent is still alive.
+  if [ "$IDLE_ONLY" = 1 ]; then
+    case "$(busy_verdict)" in
+      idle\ *) ;;
+      *) die "source mate is no longer confirmed idle; quiesce it and re-run; no exit or interrupt sent" ;;
+    esac
+  fi
   case "$cmd" in
     C-c)
       fm_backend_send_key "$BACKEND" "$T" C-u "$LABEL" \
@@ -821,6 +836,7 @@ do_exit() {
       fm_backend_send_key "$BACKEND" "$T" C-c "$LABEL" \
         || die "the exit key could not be sent to task $ID on $BACKEND"
       if ! wait_agent_state "$SETTLE_WAIT" dead >/dev/null; then
+        [ "$IDLE_ONLY" = 0 ] || die "source exit is unconfirmed; no additional exit key sent; quiesce it and re-run"
         fm_backend_send_key "$BACKEND" "$T" C-c "$LABEL" \
           || die "the exit key could not be sent to task $ID on $BACKEND"
       fi
