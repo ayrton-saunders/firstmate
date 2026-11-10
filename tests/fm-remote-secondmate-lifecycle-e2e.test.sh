@@ -2075,8 +2075,23 @@ mkdir -p "$PARENT/data" "$PARENT/state" "$PARENT/config" "$REMOTE_ROOT/state"
 printf 'claude\n' > "$PARENT/config/secondmate-harness"
 moving_home="$TMP_ROOT/migration-home"
 FM_SECONDMATE_CHARTER='Own the moving fixture route.' remote_env "$ROOT/bin/fm-remote-home-seed.sh" moving remote-mac "$REMOTE_ROOT" "$moving_home" --no-projects >/dev/null || fail 'migration seed failed'
+printf '%s\n' "$$" > "$PARENT/state/.lock"
+: > "$PARENT/config/trace-context"
+FM_TRACE_CONTEXT=on bash -c '. "$1/bin/fm-trace-context-lib.sh"; fm_trace_context_session_start "$2/config" "$2/state/.trace-context-effective"' _ "$ROOT" "$PARENT"
 remote_env "$ROOT/bin/fm-spawn.sh" moving --secondmate >/dev/null || fail 'migration source launch failed'
 endpoint="$moving_home/state/parent-route/moving.meta"
+migration_traceparent=$(awk -F= '$1=="traceparent" {print $2}' "$PARENT/state/moving.meta")
+[ -n "$migration_traceparent" ] || fail 'trace-enabled source has no carrier'
+migration_trace_preserved() {
+  local staged
+  grep -Fx "traceparent=$migration_traceparent" "$PARENT/state/moving.meta" >/dev/null || fail 'migration changed parent trace identity'
+  grep -Fx "traceparent=$migration_traceparent" "$endpoint" >/dev/null || fail 'migration changed remote trace identity'
+  [ "$(sed -n 's/.*export TRACEPARENT=\([0-9a-f-]*\).*/\1/p' "$HERDR_LOG" | tail -1)" = "$migration_traceparent" ] || fail 'migration did not inject saved trace identity'
+  staged=$(sed -n "s/^pane send-text [^ ]* \\. '\([^']*\)' --session [^ ]*\$/\1/p" "$HERDR_LOG" | tail -1)
+  [ -f "$staged" ] || fail 'migration launch payload unavailable'
+  assert_grep 'FM_TRACE_CONTEXT=on' "$staged" 'migration disabled launched tracing'
+}
+migration_trace_preserved
 printf 'preserved history\n' > "$moving_home/data/migration-history"
 printf 'preserved config\n' > "$moving_home/config/migration-preserve"
 cp "$moving_home/data/charter.md" "$TMP_ROOT/migration-charter.before"
@@ -2169,8 +2184,13 @@ assert_present "$TMP_ROOT/migration-interrupted" 'interruption did not reach bin
 if remote_env "$ROOT/bin/fm-on.sh" moving fm-remote-secondmate-control.sh state moving >/dev/null 2>&1; then fail 'interrupted publication exposed an ordinary route'; fi
 if FM_FAKE_SSH_MODE=migration-no-answer remote_env "$ROOT/bin/fm-remote-session-migrate.sh" moving fm-migrated > "$TMP_ROOT/migration-no-answer.out" 2>&1; then fail 'unanswering normal route reported success'; fi
 assert_grep 'normal remote route did not answer' "$TMP_ROOT/migration-no-answer.out" 'unanswering mate omitted the reason'
+migration_trace_preserved
+migration_pane=$(awk -F= '$1=="herdr_pane_id" {print $2}' "$endpoint")
+jq --arg p "$migration_pane" '.typed[$p] = false | .working[$p] = false' "$HERDR_STATE.fm-migrated" > "$TMP_ROOT/migration-stopped"
+mv "$TMP_ROOT/migration-stopped" "$HERDR_STATE.fm-migrated"
 remote_env "$ROOT/bin/fm-remote-session-migrate.sh" moving fm-migrated > "$TMP_ROOT/migration-complete.out" 2>&1 || fail "relocation re-run failed: $(cat "$TMP_ROOT/migration-complete.out")"
 assert_grep 'normal route answers' "$TMP_ROOT/migration-complete.out" 'normal route was not verified'
+migration_trace_preserved
 assert_grep '# unrelated registry note preserved across retry' "$PARENT/data/secondmates.md" 'migration replay overwrote unrelated registry changes'
 grep -Fx 'remote_herdr_session=fm-migrated' "$PARENT/state/moving.meta" >/dev/null || fail 'parent session did not move'
 grep -Fx 'herdr_session=fm-migrated' "$endpoint" >/dev/null || fail 'remote session did not move'
@@ -2186,6 +2206,7 @@ cmp -s "$moving_home/data/charter.md" "$TMP_ROOT/migration-charter.before" || fa
 migration_idle
 remote_env "$ROOT/bin/fm-remote-session-migrate.sh" moving --reverse > "$TMP_ROOT/migration-reverse.out" 2>&1 || fail "session reversal failed: $(cat "$TMP_ROOT/migration-reverse.out")"
 [ "$(remote_env "$ROOT/bin/fm-on.sh" moving fm-remote-secondmate-control.sh state moving)" = alive ] || fail 'reversed route did not answer'
+migration_trace_preserved
 assert_grep "root: $REMOTE_ROOT; home: $moving_home; session: fm-remote;" "$PARENT/data/secondmates.md" 'reversal did not restore original session and preserve root'
 grep -Fx "remote_root=$REMOTE_ROOT" "$PARENT/state/moving.meta" >/dev/null || fail 'session migration changed execution root'
 assert_no_regex '(session (stop|delete|rename)|server stop).*--session fm-remote( |$)' "$HERDR_LOG" 'relocation touched legacy session lifecycle'

@@ -7,7 +7,7 @@
 cmd_migrate_session() (
   local id=$1 target=$2 phase=$3 source_target=$4 op=$5 reverse_of=$6
   local base="$CONTROL_STATE/.session-migration-$1" dir meta lock source_session current old_target meta_lock=
-  local ws task_ids tab pane tmp harness model effort out endpoint_lock
+  local ws task_ids tab pane tmp harness model effort traceparent out endpoint_lock
   local -a launch_env args
   fm_remote_herdr_session_validate "$target" || die "invalid Herdr session: 1-64 ASCII bytes, alphanumeric first, then letters/digits/./_/-; not default"
   case "$op:$reverse_of" in *[!A-Za-z0-9._:-]*) die "unsafe relocation operation id" ;; esac
@@ -141,6 +141,8 @@ cmd_migrate_session() (
       args=("$id" --relaunch --harness "$harness")
       case "$model" in ''|-|default) ;; *) args+=(--model "$model") ;; esac
       case "$effort" in ''|-|default) ;; *) args+=(--effort "$effort") ;; esac
+      traceparent=$(fm_meta_get "$dir/after" traceparent)
+      [ -z "$traceparent" ] || args+=(--traceparent "$traceparent")
       launch_env=(HERDR_SESSION="$target" FM_HOME="$FM_ROOT" FM_ROOT_OVERRIDE="$FM_ROOT" FM_STATE_OVERRIDE="$CONTROL_STATE"
         FM_DATA_OVERRIDE="$CONTROL_DATA" FM_CONFIG_OVERRIDE="$TARGET_HOME/config" FM_SKIP_SECONDMATE_INHERIT=1 FM_SKIP_SECONDMATE_SYNC=1)
       if ! out=$(env "${launch_env[@]}" "$SCRIPT_DIR/fm-spawn.sh" "${args[@]}" 2>&1); then printf '%s\n' "$out" >&2; die "destination mate did not start; re-run relocation"; fi
