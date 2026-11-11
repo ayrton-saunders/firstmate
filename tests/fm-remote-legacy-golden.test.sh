@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
-# Frozen no-enrollment route/readiness/sync observations through public libraries.
+# No-enrollment route/readiness/sync observations through public libraries.
+# Canonical 315c82ae makes unattended repair explicitly --automatic; session
+# argv and all other frozen single-root observations retain their contract.
 # FM_CHARACTERIZATION_ROOT is a test-only baseline selection; no remote tools run.
 set -eu
 # shellcheck source=tests/lib.sh
@@ -51,7 +53,7 @@ export READINESS_CALLS="$TMP_ROOT/calls" READINESS_EFFECT="$HOME/ready" READINES
 if fm_remote_readiness_ensure "$TMP_ROOT/fakebin" ios herdr; then rc=0; else rc=$?; fi
 [ "$rc" = 0 ] || fail "readiness repair failed"
 printf '%s\n' 'ios fm-remote-doctor.sh --backend herdr' \
-  'ios fm-remote-doctor.sh --fix --backend herdr' \
+  'ios fm-remote-doctor.sh --fix --automatic --backend herdr' \
   'ios fm-remote-doctor.sh --backend herdr' > "$TMP_ROOT/calls.expected"
 diff -u "$TMP_ROOT/calls.expected" "$READINESS_CALLS" || fail "check/fix/check argv or order changed"
 [ "$FM_REMOTE_READINESS_OUT" = 'checked ready' ] || fail "readiness returned a repair assertion instead of read-back"
@@ -65,7 +67,7 @@ if fm_remote_readiness_ensure "$TMP_ROOT/fakebin" ios herdr; then rc=0; else rc=
 printf '%s\n' 'ios fm-remote-doctor.sh --backend herdr' > "$TMP_ROOT/calls.expected"
 diff -u "$TMP_ROOT/calls.expected" "$READINESS_CALLS" || fail "exit 255 was retried or repaired"
 [ -z "$(find "$HOME" -mindepth 1 -print)" ] || fail "unreachable readiness wrote state"
-pass "no-enrollment readiness preserves check/fix/check effects and never retries exit 255"
+pass "no-enrollment readiness preserves check/automatic-fix/check effects and never retries exit 255"
 
 # Real standalone fixture repositories, exact-current and clean fast-forward.
 fm_git_init_commit "$TMP_ROOT/source"
