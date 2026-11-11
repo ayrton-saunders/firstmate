@@ -8,7 +8,7 @@ The primary still owns routing and supervision, while the remote home owns its o
 Firstmate does not support placing an individual worker remotely or failing a remote route over to a local replacement.
 
 Per-lane named execution-root isolation is not supported: distinct homes and Herdr sessions do not pin independent Firstmate versions against account-wide transport repair, cleanup, or updates.
-Characterization, the inactive closure audit, and a fixture-only installed-bootstrap enrollment kernel are present; named enrollment and dispatch remain unavailable.
+Characterization, the inactive closure audit, and a fixture-only installed-bootstrap kernel with typed admission and an outer-reader owner are present; named enrollment and dispatch remain unavailable.
 The [`stage_map` in the audit policy](../tests/fixtures/remote-root-boundaries.json) owns the remaining stages, their planned test targets, and failure oracles.
 
 ## Find a topic
@@ -812,6 +812,7 @@ Its header owns invocation and evidence limits.
 The no-enrollment fixtures are [`fm-remote-legacy-golden.test.sh`](../tests/fm-remote-legacy-golden.test.sh), [`fm-remote-legacy-cleanup.test.sh`](../tests/fm-remote-legacy-cleanup.test.sh), and [`fm-remote-root-characterization.test.sh`](../tests/fm-remote-root-characterization.test.sh); their headers own baseline selection and sandboxing.
 [`fm-remote-legacy-mutation.test.sh`](../tests/fm-remote-legacy-mutation.test.sh) verifies that deliberately broken implementations fail those frozen observations.
 The candidate runner and descendant processes constrain a future command shape; they do not qualify an installed launcher, a real adapter, or mixed-account cleanup.
+[`fm-remote-root-capability.test.sh`](../tests/fm-remote-root-capability.test.sh) exercises the inactive typed admission and entry-before-read owner; [its fixtures](../tests/remote-capability.py) own the proof limits and old-interpreter negative control.
 
 ### What the portable tests cannot prove
 
