@@ -67,7 +67,11 @@ case "$1 ${2:-}" in
       printf '%s\n' "$FM_FAKE_HERDR_SERVER_FAIL" >&2
       exit 1
     fi
-    if [ "${FM_FAKE_HERDR_SERVER_DELAY:-0}" != 0 ]; then
+    if [ -n "${FM_FAKE_HERDR_SERVER_RELEASE:-}" ]; then
+      while [ ! -f "$FM_FAKE_HERDR_SERVER_RELEASE" ]; do
+        "$FM_FAKE_HERDR_REAL_SLEEP" 0.1
+      done
+    elif [ "${FM_FAKE_HERDR_SERVER_DELAY:-0}" != 0 ]; then
       "$FM_FAKE_HERDR_REAL_SLEEP" "$FM_FAKE_HERDR_SERVER_DELAY"
     fi
     printf '%s\n' running > "$state/$session"
@@ -115,6 +119,7 @@ run_with_fake() {
     FM_FAKE_HERDR_LOG="$FAKE_LOG" \
     FM_FAKE_HERDR_REAL_SLEEP="$REAL_SLEEP" \
     FM_FAKE_HERDR_SERVER_DELAY="${FM_FAKE_HERDR_SERVER_DELAY:-0}" \
+    FM_FAKE_HERDR_SERVER_RELEASE="${FM_FAKE_HERDR_SERVER_RELEASE:-}" \
     FM_FAKE_HERDR_FAST_POLL="${FM_FAKE_HERDR_FAST_POLL:-}" \
     FM_FAKE_HERDR_DELETE_FAIL="${FM_FAKE_HERDR_DELETE_FAIL:-}" \
     FM_FAKE_HERDR_TITLE_FAIL="${FM_FAKE_HERDR_TITLE_FAIL:-}" \
@@ -453,7 +458,9 @@ exec "$FM_FAKE_HERDR_REAL_SLEEP" "$@"
 SH
   chmod +x "$FAKEBIN/sleep"
   : > "$FAKE_LOG"
-  FM_FAKE_HERDR_FAST_POLL=1 FM_FAKE_HERDR_SERVER_DELAY=30 \
+  # Hold launch until after cancellation, independently of how long 300 real
+  # status probes take on a loaded host. A wall-clock delay could finish first.
+  FM_FAKE_HERDR_FAST_POLL=1 FM_FAKE_HERDR_SERVER_RELEASE="$FAKE_STATE/late-launch-release" \
     run_with_fake fm_herdr_lab_provision "$name" >/dev/null 2>&1 || status=$?
   expect_code 1 "$status" "timed-out provision must fail"
   assert_present "$TRIPWIRES/$name.fleet-state.json" \
@@ -461,6 +468,7 @@ SH
   run_with_fake fm_herdr_lab_teardown "$name" || fail "teardown after timed-out provision failed"
   assert_absent "$TRIPWIRES/$name.fleet-state.json" \
     "teardown after timed-out provision did not remove its tripwire"
+  touch "$FAKE_STATE/late-launch-release"
   "$REAL_SLEEP" 1.1
   if [ -f "$FAKE_STATE/$name" ] && [ "$(cat "$FAKE_STATE/$name")" = running ]; then
     fail "timed-out provision left a late-starting lab session after teardown"
