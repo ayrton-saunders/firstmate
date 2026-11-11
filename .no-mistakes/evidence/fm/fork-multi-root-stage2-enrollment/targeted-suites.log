@@ -1,0 +1,47 @@
+FM_TEST_BEGIN 2026-11-11T12:28:33Z tests/fm-remote-enrollment.test.sh family=unclassified expected_gate_skip=none
+test_atomic_replace_cutpoints (__main__.Enrollment.test_atomic_replace_cutpoints) ... ok
+test_authority_base_and_parent_require_private_mode (__main__.Enrollment.test_authority_base_and_parent_require_private_mode) ... ok
+test_bootstrap_completeness_is_not_lane_acceptance (__main__.Enrollment.test_bootstrap_completeness_is_not_lane_acceptance) ... ok
+test_bounded_records_and_unknown_operation_refusal (__main__.Enrollment.test_bounded_records_and_unknown_operation_refusal) ... ok
+test_exact_reinstall_repairs_bytes_and_modes_only (__main__.Enrollment.test_exact_reinstall_repairs_bytes_and_modes_only) ... ok
+test_existing_lane_ownership_is_never_adopted (__main__.Enrollment.test_existing_lane_ownership_is_never_adopted) ... ok
+test_explicit_abort_requires_absence_and_never_reuses_identity (__main__.Enrollment.test_explicit_abort_requires_absence_and_never_reuses_identity) ... ok
+test_foreign_pointer_replaced_inode_incomplete_records (__main__.Enrollment.test_foreign_pointer_replaced_inode_incomplete_records) ... ok
+test_install_crash_cutpoints_remain_pending (__main__.Enrollment.test_install_crash_cutpoints_remain_pending) ... ok
+test_kernel_lock_inode_and_crash_release (__main__.Enrollment.test_kernel_lock_inode_and_crash_release) ... ok
+test_missing_application_and_broken_entry_library_resume (__main__.Enrollment.test_missing_application_and_broken_entry_library_resume) ... ok
+test_negative_controls_bite (__main__.Enrollment.test_negative_controls_bite) ... ok
+test_partial_bundle_missing_loader_selection_refuse (__main__.Enrollment.test_partial_bundle_missing_loader_selection_refuse) ... ok
+test_pending_missing_root_cannot_be_certified_complete (__main__.Enrollment.test_pending_missing_root_cannot_be_certified_complete) ... ok
+test_races_all_valid_resource_names (__main__.Enrollment.test_races_all_valid_resource_names) ... negative-control: removing kernel transaction exclusion admits two winners (oracle failed)
+negative-control: omitting resource validation misses foreign pointer (oracle failed)
+negative-control: bootstrap-only enrolled transition fails the stage-boundary oracle
+ok
+test_readonly_no_state_even_absent_authority (__main__.Enrollment.test_readonly_no_state_even_absent_authority) ... ok
+test_records_are_one_open_snapshot_and_selected_entry_is_coherent (__main__.Enrollment.test_records_are_one_open_snapshot_and_selected_entry_is_coherent) ... ok
+test_recovery_paths_outside_all_claimed_storage (__main__.Enrollment.test_recovery_paths_outside_all_claimed_storage) ... ok
+test_reservation_and_each_projection_crash_blocks_rival (__main__.Enrollment.test_reservation_and_each_projection_crash_blocks_rival) ... ok
+test_retired_and_name_binding_reuse_still_reserved (__main__.Enrollment.test_retired_and_name_binding_reuse_still_reserved) ... ok
+test_semantically_incomplete_claims_are_not_valid_snapshots (__main__.Enrollment.test_semantically_incomplete_claims_are_not_valid_snapshots) ... ok
+test_shared_git_and_alias_contenders_cannot_win (__main__.Enrollment.test_shared_git_and_alias_contenders_cannot_win) ... ok
+test_shared_object_hardlinks_refuse_both_not_normalize (__main__.Enrollment.test_shared_object_hardlinks_refuse_both_not_normalize) ... ok
+test_unsafe_paths_modes_and_layouts (__main__.Enrollment.test_unsafe_paths_modes_and_layouts) ... ok
+
+----------------------------------------------------------------------
+Ran 24 tests in 10.459s
+
+OK
+ok - installed enrollment and independent recovery
+FM_TEST_END 2026-11-11T12:28:43Z tests/fm-remote-enrollment.test.sh exit=0 duration_ms=10775 gate_skip=false
+FM_TEST_BEGIN 2026-11-11T12:28:43Z tests/fm-remote-root-inventory.test.sh family=unclassified expected_gate_skip=none
+ok - every indexed entry has an explicit exclusion, boundary and evidence level
+ok - real interpreted entries retain all five caller sites and invocation forms
+ok - tracked non-executable interpreted modules retain exclusion mappings
+ok - missing real-data invocation mapping is rejected
+ok - real legacy ingress excludes known and unclassified command payloads from protocol 2 before state creation
+ok - deliberately enabled policy fails the Stage-1 exclusion audit
+FM_TEST_END 2026-11-11T12:28:44Z tests/fm-remote-root-inventory.test.sh exit=0 duration_ms=801 gate_skip=false
+FM_TEST_SUMMARY total=2 failed=0 skipped_gate=0 duration_ms=11719
+FM_TEST_SUMMARY_FAMILY family=unclassified count=2 duration_ms=11576 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-remote-enrollment.test.sh duration_ms=10775
+FM_TEST_SLOWEST rank=2 script=tests/fm-remote-root-inventory.test.sh duration_ms=801
