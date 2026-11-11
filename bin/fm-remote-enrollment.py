@@ -679,6 +679,352 @@ def abort(base, name, external_absence):
         publish(base / "claims.json", "claims", record["revision"] + 1, record["payload"])
 
 
+# Protocol 2 is data, never a shell/argv dispatcher. These schemas are also the
+# capability table: an operation class is derived here, not supplied by callers.
+# No production producer, activation, or application executor is provided yet.
+TOKEN = re.compile(r"[a-zA-Z0-9][a-zA-Z0-9_.-]{0,95}\Z")
+COMMIT = re.compile(r"[0-9a-f]{40}\Z")
+REQUEST_LIMIT = 65536
+TEXT_LIMIT = 16384
+VERBS = {
+    # verb: (capability, required typed body fields). No arbitrary file/argv.
+    "observe": ("observe", ""),
+    "probe": ("observe", "challenge"),
+    "reply-read": ("reply-read", "task correlation"),
+    "reply-ack": ("reply-ack", "task correlation result_digest"),
+    "task-answer": ("task-answer", "task correlation text"),
+    "task-steer": ("task-steer", "task correlation text"),
+    "inherit-apply": ("inherit", "material content content_digest"),
+    "sync-verify": ("verify", "parent_commit"),
+    "dispatch": ("dispatch", "task instructions_digest"),
+    "launch": ("launch", "task launch_digest"),
+    "relaunch": ("relaunch", "task incarnation launch_digest"),
+    "stop": ("stop", "task incarnation"),
+    "cleanup": ("cleanup", "task incarnation"),
+    "repair-accepted": ("repair", "resource accepted_commit"),
+    "update-prepare": ("prepare", "operation target_commit source_digest resources_digest"),
+    "operation-step": ("transition", "operation transition expected_revision"),
+    "operation-status": ("operation-status", "operation"),
+    "abort-before-stop": ("abort", "operation expected_revision"),
+}
+# Only these finite private data artifacts can ever be inherited. Configuration,
+# code, launch files, source selection and ownership are deliberately absent.
+MATERIALS = {"captain-shared", "learnings-shared"}
+REPAIR_RESOURCES = {"worker-projection", "service-projection", "ingress-projection"}
+# This stage has no update state machine. A transition cannot smuggle in its own
+# payload or executable; later stages must implement each legal state edge.
+TRANSITIONS = {"fence", "drain", "status"}
+DRAIN_VERBS = {"reply-read", "reply-ack", "task-answer", "task-steer"}
+
+
+def token(value, label):
+    require(isinstance(value, str) and TOKEN.fullmatch(value), "invalid " + label)
+
+
+def sha(value, label):
+    require(isinstance(value, str) and HEX.fullmatch(value), "invalid " + label)
+
+
+def commit(value, label):
+    require(isinstance(value, str) and COMMIT.fullmatch(value), "invalid " + label)
+
+
+def positive(value, label, zero=False):
+    require(type(value) is int and (0 if zero else 1) <= value <= 2**53 - 1, "invalid " + label)
+
+
+def uuid_text(value, label):
+    require(isinstance(value, str), "invalid " + label)
+    try:
+        require(str(uuid.UUID(value)) == value, "noncanonical " + label)
+    except (ValueError, AttributeError) as exc:
+        raise Refusal("invalid " + label) from exc
+
+
+def typed_request(data):
+    """Capture/validate bounded untrusted bytes outside admission.
+
+    Root/home are optional expectations in typed_body, never selectors. The
+    digest covers every validated field except request_digest itself, including
+    expectations. Re-run this parser at staging, claim and result verification.
+    """
+    require(isinstance(data, bytes) and len(data) <= REQUEST_LIMIT, "oversized/nonbyte request")
+    try:
+        request = json.loads(data, object_pairs_hook=unique)
+    except (ValueError, UnicodeDecodeError, RecursionError) as exc:
+        raise Refusal("invalid protocol-2 JSON") from exc
+    fields(request, "version instance binding fleet route generation expected_commit request_id request_digest verb typed_body", "typed request")
+    require(type(request["version"]) is int and request["version"] == 2, "unsupported protocol")
+    require(isinstance(request["instance"], str) and NAME.fullmatch(request["instance"]) and request["instance"] != "legacy", "invalid instance")
+    for key in ("binding", "fleet"):
+        uuid_text(request[key], key)
+    for key in ("route", "request_id"):
+        token(request[key], key)
+    positive(request["generation"], "generation", zero=True)
+    commit(request["expected_commit"], "expected_commit")
+    verb = request["verb"]
+    require(isinstance(verb, str) and verb in VERBS, "unknown named verb")
+    body = request["typed_body"]
+    require(isinstance(body, dict), "invalid typed body")
+    required = set(VERBS[verb][1].split())
+    require(required <= set(body) <= required | {"expectations"}, "incomplete/unexpected typed body")
+    expectations = body.get("expectations", {})
+    require(isinstance(expectations, dict) and set(expectations) <= {"root", "home"}, "unexpected authority expectation")
+    for path in expectations.values():
+        require(isinstance(path, str) and path.startswith("/") and path == os.path.normpath(path) and len(path) <= 4096, "invalid path expectation")
+    for key, value in body.items():
+        if key == "expectations":
+            continue
+        if key.endswith("_digest"):
+            sha(value, key)
+        elif key.endswith("_commit"):
+            commit(value, key)
+        elif key == "expected_revision":
+            positive(value, key)
+        elif key in {"text", "content"}:
+            require(isinstance(value, str) and len(value.encode("utf-8")) <= TEXT_LIMIT and "\x00" not in value, "invalid/oversized " + key)
+        else:
+            token(value, key)
+    if verb == "inherit-apply":
+        require(body["material"] in MATERIALS, "unapproved private material")
+        require(hashlib.sha256(body["content"].encode()).hexdigest() == body["content_digest"], "content digest mismatch")
+    if verb == "repair-accepted":
+        require(body["resource"] in REPAIR_RESOURCES, "unowned repair resource")
+    if verb == "operation-step":
+        require(body["transition"] in TRANSITIONS, "unimplemented transition")
+    computed = digest({key: value for key, value in request.items() if key != "request_digest"})
+    sha(request["request_digest"], "request_digest")
+    require(request["request_digest"] == computed, "request digest mismatch")
+    return request
+
+
+def request_class(request):
+    # Even trusted internal callers must not turn a mutable dict into authority.
+    checked = typed_request(canonical(request))
+    return VERBS[checked["verb"]][0]
+
+
+def adapter_expectations(request, route, home):
+    """Legacy-shaped wrapper argv is an expectation, never a second selector."""
+    checked = typed_request(canonical(request))
+    require(route == checked["route"], "positional route mismatch")
+    require(home == checked["typed_body"].get("expectations", {}).get("home"), "positional home mismatch")
+    return checked
+
+
+def verify_result(request_bytes, result):
+    request = typed_request(request_bytes)
+    fields(result, "binding generation request_id request_digest outcome", "typed result")
+    for key in ("binding", "generation", "request_id", "request_digest"):
+        require(type(result[key]) is type(request[key]) and result[key] == request[key], "result " + key + " mismatch")
+    require(result["outcome"] in {"complete", "refused", "not-executed", "partial", "unknown", "update-required"}, "invalid result outcome")
+    return result
+
+
+def admission_snapshot(base, name):
+    """Caller holds inventory then admission; all records are opened once.
+
+    No context environment variable chooses the installation, gate or physical
+    resources. The installed loader supplies literal base/name values.
+    """
+    entry = claim(base, name)
+    frozen = entry["manifest"]
+    location = instance(base, name)
+    descriptor = snapshot(location / "descriptor.json", "descriptor")
+    require(descriptor["payload"] == {"claim": entry["digest"], "manifest": frozen}, "descriptor/claim mismatch")
+    verify_resources(entry)
+    gate = snapshot(location / "gate.json", "gate")
+    payload = gate["payload"]
+    require(payload.get("binding") == frozen["binding"] and payload.get("claim") == entry["digest"], "gate/claim mismatch")
+    positive(payload.get("generation"), "gate generation", zero=True)
+    require(payload.get("state") in {"released", "fenced"}, "unknown gate state")
+    require(entry["state"] == "active", "inactive enrollment")
+    return entry, gate
+
+
+@contextlib.contextmanager
+def admission(base, name):
+    base = Path(base)
+    with lock(base / "inventory.lock"), lock(instance(base, name) / "admission.lock"):
+        yield admission_snapshot(base, name)
+
+
+def request_authority(entry, gate, request, operands):
+    """Re-derived at each boundary against actual, not environment, operands.
+
+    The outer reader protects loaded code, not another lane or arbitrary Git
+    movement. Code/provision/ref operations are never ordinary capabilities.
+    """
+    checked = typed_request(canonical(request))
+    frozen, current = entry["manifest"], gate["payload"]
+    for key, expected in (("instance", frozen["name"]), ("binding", frozen["binding"]),
+                          ("fleet", frozen["fleet"]), ("route", frozen["route"]),
+                          ("generation", current["generation"]), ("expected_commit", frozen["commit"])):
+        require(checked[key] == expected, "request " + key + " mismatch")
+    require(isinstance(operands, dict) and set(operands) == {"root", "home"}, "missing actual resource operands")
+    for role in ("root", "home"):
+        path = str(safe_path(operands[role]))
+        require(path == frozen[role] and identity(path) == frozen["resources"][role], "foreign physical " + role)
+    for role, path in checked["typed_body"].get("expectations", {}).items():
+        require(path == frozen[role], "resource expectation mismatch")
+    if checked["verb"] == "repair-accepted":
+        require(checked["typed_body"]["accepted_commit"] == frozen["commit"], "repair version mismatch")
+    if checked["verb"] == "sync-verify":
+        require(checked["typed_body"]["parent_commit"] == frozen["commit"], "update-required")
+    require(current["state"] == "released", "registration closed by fence")
+    return request_class(checked)
+
+
+def population(location):
+    """One durable ledger; pending starts remain consumers after owner death.
+
+    Terminal records remain in this stage. No timer, PID probe, heartbeat,
+    garbage collector, or controller lifetime can remove a registration.
+    """
+    path = location / "population.json"
+    if not os.path.lexists(path):
+        return envelope("population", 1, {"leases": {}, "requests": {}})
+    record = snapshot(path, "population")
+    fields(record["payload"], "leases requests", "population")
+    require(isinstance(record["payload"]["leases"], dict) and isinstance(record["payload"]["requests"], dict), "invalid population")
+    return record
+
+
+def save_population(location, record):
+    publish(location / "population.json", "population", record["revision"] + 1, record["payload"])
+
+
+def stage_request(base, name, data, operands):
+    request = typed_request(data)  # bounded capture is outside all locks
+    with admission(base, name) as (entry, gate):
+        capability = request_authority(entry, gate, request, operands)
+        location = instance(base, name)
+        record = population(location)
+        requests = record["payload"]["requests"]
+        key = request["request_id"]
+        if key in requests:
+            require(requests[key]["request"] == request, "request id reused with different intent")
+            return requests[key]
+        queued = {"request": request, "capability": capability, "state": "queued"}
+        requests[key] = queued
+        save_population(location, record)
+        return queued
+
+
+def reserve_execution(base, name, data, operands, executable_digest, parent=None):
+    """Before opening ANY application bytes, publish a pending launch nonce."""
+    request = typed_request(data)
+    sha(executable_digest, "executable digest")
+    with admission(base, name) as (entry, gate):
+        capability = request_authority(entry, gate, request, operands)
+        location = instance(base, name)
+        record = population(location)
+        queued = record["payload"]["requests"].get(request["request_id"])
+        require(queued is not None and queued["request"] == request and queued["state"] == "queued", "unstaged/already claimed request")
+        leases = record["payload"]["leases"]
+        if parent is not None:
+            require(parent in leases and leases[parent]["state"] == "running" and leases[parent]["generation"] == request["generation"], "invalid parent lease")
+        nonce = uuid.uuid4().hex
+        leases[nonce] = {"nonce": nonce, "binding": request["binding"], "generation": request["generation"],
+                         "request_id": request["request_id"], "request_digest": request["request_digest"],
+                         "task": request["typed_body"].get("task"), "correlation": request["typed_body"].get("correlation"),
+                         "resources": entry["manifest"]["resources"], "executable_digest": executable_digest,
+                         "parent": parent, "capability": capability, "state": "pending", "process": None}
+        queued["state"] = "claimed"
+        queued["lease"] = nonce
+        save_population(location, record)
+        return nonce
+
+
+def consume_reservation(base, name, nonce, process, executable_digest):
+    """Receiving checkpoint before import/exec; recheck delayed input/reuse.
+
+    Process identity must come from the installed launch adapter, never request
+    data or environment. Concrete OS adapter qualification is a later stage.
+    This low-level owner does not manufacture that evidence from PID alone.
+    """
+    fields(process, "boot_id pid start_token incarnation", "process incarnation")
+    for key in ("boot_id", "start_token", "incarnation"):
+        token(process[key], key)
+    positive(process["pid"], "pid")
+    sha(executable_digest, "executable digest")
+    with admission(base, name) as (_entry, gate):
+        require(gate["payload"]["state"] == "released", "launch fenced")
+        location = instance(base, name)
+        record = population(location)
+        lease = record["payload"]["leases"].get(nonce)
+        require(lease is not None and lease["state"] == "pending" and lease["generation"] == gate["payload"]["generation"], "missing/stale launch reservation")
+        require(lease["executable_digest"] == executable_digest, "launch manifest changed")
+        require(not any(other["process"] == process for other in record["payload"]["leases"].values()), "incarnation already registered")
+        lease["state"], lease["process"] = "running", dict(process)
+        save_population(location, record)
+        return lease
+
+
+def fence_population(base, name, operation):
+    """Close first, snapshot second; a crash never reopens registration.
+
+    Frozen target/source intent belongs to the later operation executor. This
+    observed population has its own revision/digest and is reconstructed from
+    the retained durable ledger if publication was interrupted after closing.
+    The ledger cannot acquire new ordinary entries after this gate write.
+    """
+    token(operation, "operation")
+    with admission(base, name) as (_entry, gate):
+        location = instance(base, name)
+        current = gate["payload"]
+        if current["state"] == "released":
+            current.update(state="fenced", owner=operation, fence_snapshot=None)
+            publish(location / "gate.json", "gate", gate["revision"] + 1, current)
+            gate = snapshot(location / "gate.json", "gate")
+        else:
+            require(current["owner"] == operation, "another operation owns fence")
+        record = population(location)
+        observed = {"binding": current["binding"], "generation": current["generation"], "operation": operation,
+                    "population_revision": record["revision"],
+                    "leases": record["payload"]["leases"], "requests": record["payload"]["requests"]}
+        path = location / "fence-snapshot.json"
+        if current.get("fence_snapshot") is not None:
+            receipt = snapshot(path, "fence-snapshot")
+            require(receipt["digest"] == current["fence_snapshot"], "fence snapshot mismatch")
+            return receipt
+        # No terminal bookkeeping may erase ledger records before this snapshot.
+        revision = snapshot(path, "fence-snapshot")["revision"] + 1 if os.path.lexists(path) else 1
+        publish(path, "fence-snapshot", revision, observed)
+        receipt = snapshot(path, "fence-snapshot")
+        current["fence_snapshot"] = receipt["digest"]
+        publish(location / "gate.json", "gate", gate["revision"] + 1, current)
+        return receipt
+
+
+def drain_authority(base, name, data, operation):
+    """Finite installed reply control, not permission to load application code.
+
+    Normal dispatch/launch/repair remains closed. Only tasks AND correlations
+    captured by the fence may receive bounded answers. No caller can declare
+    a new task existing, and a prepare-time population is never consulted.
+    """
+    request = typed_request(data)
+    require(request["verb"] in DRAIN_VERBS, "not a bounded drain operation")
+    with admission(base, name) as (entry, gate):
+        location = instance(base, name)
+        current = gate["payload"]
+        require(current["state"] == "fenced" and current["owner"] == operation, "not this operation's fence")
+        receipt = snapshot(location / "fence-snapshot.json", "fence-snapshot")
+        require(receipt["digest"] == current.get("fence_snapshot"), "fence population incomplete")
+        # Use the ordinary tuple/operand validator without granting its released
+        # registration capability. This local copy is never published as a gate.
+        released = dict(gate, payload=dict(current, state="released"))
+        request_authority(entry, released, request, {role: entry["manifest"][role] for role in ("root", "home")})
+        body = request["typed_body"]
+        require(any(lease["task"] == body["task"] and lease["correlation"] == body["correlation"]
+                    and lease["state"] in {"pending", "running"}
+                    for lease in receipt["payload"]["leases"].values()), "task/correlation absent from fence population")
+        return {"capability": "drain-control", "binding": request["binding"], "generation": request["generation"],
+                "request_digest": request["request_digest"], "fence_digest": receipt["digest"],
+                "task": body["task"], "correlation": body["correlation"]}
+
+
 # The loader is duplicated only as a deliberately tiny independent trust root.
 # Its parser verifies the same canonical envelope before loading any bundle code.
 LOADER = r'''
