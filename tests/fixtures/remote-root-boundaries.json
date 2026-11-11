@@ -19,6 +19,46 @@
     "evidence": "inventory exclusion only, not behavioral qualification",
     "closure_stage": 3
   },
+  "interpreted_runtime": [
+    {
+      "file": "bin/fm-procevent-extension-capture.pl",
+      "language": "Perl",
+      "boundary": "5.2 detached capture readers, callback/action launchers and descendant handoff",
+      "effects": "Source-backed footprint: forks the capture adapter, writes bounded capture/result and reservation/capability records, and execs the extension host during handoff. Transitive extension effects are unclassified; no installed named reader/action admission is established.",
+      "evidence": "source-backed invocation mapping only; not runtime or named qualification",
+      "test": "tests/fm-remote-root-inventory.test.sh",
+      "closure_stage": 3,
+      "invocations": [
+        {"file":"bin/fm-procevent.sh","symbol":"extension_result_command","line":355,"kind":"interpreter-child","form":"perl \"$SCRIPT_DIR/fm-procevent-extension-capture.pl\" handoff ...","when":"extension result has a capture reservation; foreground handoff retaining lifecycle descriptors"},
+        {"file":"bin/fm-procevent.sh","symbol":"cmd_start","line":1239,"kind":"interpreter-child","form":"perl \"$SCRIPT_DIR/fm-procevent-extension-capture.pl\" ... -- \"${ARGV[@]}\" > \"$launch_reply\" &","when":"extension-owned source; background capture child, with launch acknowledgement awaited by the caller"}
+      ]
+    },
+    {
+      "file": "bin/backends/rex-eventwait.lua",
+      "language": "Lua",
+      "boundary": "5.2 backend event-reader code consumption and detached callbacks",
+      "effects": "Source-backed footprint: installs bounded watched-block event callbacks inside the existing Rex session and streams filtered events to stdout. It does not start or administer the shared Rex server. Named code-consumer registration and the profile footprint remain unqualified.",
+      "evidence": "source-backed invocation mapping only; not runtime or named qualification",
+      "test": "tests/fm-remote-root-inventory.test.sh",
+      "closure_stage": 3,
+      "invocations": [
+        {"file":"bin/backends/rex.sh","symbol":"fm_backend_rex_event_reader","line":1201,"kind":"embedded-interpreter-load","form":"fm_backend_rex_read 'do' -s \"$sid\" --for \"${timeout}s\" \"$FM_BACKEND_REX_ROOT/bin/backends/rex-eventwait.lua\" --args \"$blocks\"","when":"default reader, without the test reader override; Rex loads Lua for the bounded do request, not a standalone lua process"}
+      ]
+    },
+    {
+      "file": "bin/fm-contributions.jq",
+      "language": "jq",
+      "boundary": "5.2 contribution reader/import closure and its caller-owned record publication",
+      "effects": "Source-backed footprint: jq module definitions validate and project contribution JSON. The module itself writes no repository or service state; shell callers own record/output publication. Its mutable module load still needs the later installed reader boundary.",
+      "evidence": "source-backed invocation mapping only; not runtime or named qualification",
+      "test": "tests/fm-remote-root-inventory.test.sh",
+      "closure_stage": 3,
+      "invocations": [
+        {"file":"bin/fm-contributions.sh","symbol":"jq_lib","line":222,"kind":"module-include","form":"jq -L \"$SCRIPT_DIR\" \"$@\" \"include \\\"fm-contributions\\\"; $program\"","when":"shared jq_lib helper; the jq child resolves the module through the script directory"},
+        {"file":"bin/fm-contributions.sh","symbol":"read_saved","line":252,"kind":"module-include","form":"jq -L \"$SCRIPT_DIR\" -n --slurpfile tasks \"$TMP/tasks.json\" \"${args[@]}\" 'include \"fm-contributions\"; ...'","when":"bounded batch validation of existing saved contribution records"}
+      ]
+    }
+  ],
   "containers": [
     {"files":["bin/backends/cmux.sh","bin/backends/hc.sh","bin/backends/herdr.sh","bin/backends/orca.sh","bin/backends/paseo.sh","bin/backends/rex.sh","bin/backends/t3code.sh","bin/backends/tern.sh","bin/backends/tmux.sh","bin/backends/zellij.sh","bin/fm-backend.sh"],"boundary":"5.2 backend create/start/send-launch/cleanup owners","effects":"Container footprint: backend endpoint creation, terminal command delivery, lifecycle signals and metadata. Individual unreviewed function effects remain unclassified; no backend is qualified for named launch.","closure_stage":3},
     {"files":["bin/fm-home-seed.sh","bin/fm-remote-home-seed.sh","bin/fm-remote-home-provision.sh","bin/fm-ensure-agents-md.sh","bin/fm-update.sh","bin/fm-fleet-sync.sh","bin/fm-ff-lib.sh"],"boundary":"5.2 Git code/source/ref/config writers and provisioning","effects":"Container footprint: clone/fetch/merge/reset, repository files, source selection and home seed identity/config. Individual unreviewed functions and their actual operands remain unclassified.","closure_stage":3},
@@ -90,6 +130,9 @@
     }
   ],
   "findings": [
+    {"file":"bin/fm-procevent-extension-capture.pl","symbol":"@entry","line":1,"boundary":"5.2 interpreted capture/action reader before first code read","effects":"The two recorded Perl callers open mutable application code through the interpreter before an installed named reader/action registration exists. Existing capture and handoff checks are retained; Stage 3 must supply outer admission and descendant lease transfer, not an in-script retrofit.","closure_stage":3},
+    {"file":"bin/backends/rex-eventwait.lua","symbol":"@entry","line":1,"boundary":"5.2 embedded backend reader before module load","effects":"The recorded Rex do request loads mutable Lua into an existing shared-server invocation. The bounded reader is not a named binding/consumer lease. Stage 3 must cover this load and callback lifetime; Stage 4 must qualify the actual profile without shared-server administration.","closure_stage":3},
+    {"file":"bin/fm-contributions.jq","symbol":"@entry","line":1,"boundary":"5.2 interpreted module reader before include","effects":"Both recorded jq include sites load mutable root code. Their record/data checks are not installed invocation admission. Stage 3 owns the reader boundary and separate actual-operand action checks at the publishing callers.","closure_stage":3},
     {"file":"bin/fm-fleet-sync.sh","symbol":"sync_project","line":430,"boundary":"5.2 local code/source/ref writers","effects":"Direct git merge --ff-only bypasses ff_target. The mutable script is opened before its library sources; an internal guard cannot close R1.","closure_stage":3},
     {"file":"bin/fm-update.sh","symbol":"@entry","line":544,"boundary":"5.2 local updater and remote propagation","effects":"General updater walks remote routes; must not be an ordinary named verb.","closure_stage":3},
     {"file":"bin/fm-ff-lib.sh","symbol":"ff_target","line":513,"boundary":"5.2 code/source/ref mutating primitive","effects":"Legacy redundant-divergence reset remains unchanged; named first build must reject it.","closure_stage":5},

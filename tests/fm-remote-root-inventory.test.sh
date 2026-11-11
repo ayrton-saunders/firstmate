@@ -38,7 +38,34 @@ for target in stages['1']['targets']:
     assert (root / target).is_file()
 assert {r for stage in stages.values() for r in stage['corrections']} == {
     'R1', 'R2', 'R3', 'R4', 'R5', 'R6'}
+# This checks the real policy through its real consumer, independently of the
+# synthetic language-selection fixture below. These are invocation records,
+# not evidence that the Perl/Lua/jq runtime has acquired named admission.
+expected_invocations = {
+    'bin/fm-procevent-extension-capture.pl': ('Perl', {
+        ('bin/fm-procevent.sh', 'extension_result_command', 355, 'interpreter-child'),
+        ('bin/fm-procevent.sh', 'cmd_start', 1239, 'interpreter-child'),
+    }),
+    'bin/backends/rex-eventwait.lua': ('Lua', {
+        ('bin/backends/rex.sh', 'fm_backend_rex_event_reader', 1201, 'embedded-interpreter-load'),
+    }),
+    'bin/fm-contributions.jq': ('jq', {
+        ('bin/fm-contributions.sh', 'jq_lib', 222, 'module-include'),
+        ('bin/fm-contributions.sh', 'read_saved', 252, 'module-include'),
+    }),
+}
+entries = {entry['file']: entry for entry in report['entries'] if entry['symbol'] == '@entry'}
+for name, (language, expected) in expected_invocations.items():
+    entry = entries[name]
+    assert entry['mode'] == '100644' and entry['language'] == language
+    assert entry['classification'] == 'unclassified' and entry['named_dispatch'] is False
+    actual = {(site['file'], site['symbol'], site['line'], site['kind'])
+              for site in entry['invocations']}
+    assert actual == expected, (name, actual, expected)
+    assert all(site['form'] and site['when'] for site in entry['invocations'])
+    assert entry['closure_stage'] == 3
 print('ok - every indexed entry has an explicit exclusion, boundary and evidence level')
+print('ok - real interpreted entries retain all five caller sites and invocation forms')
 PY
 python3 - "$ROOT" "$TMP_ROOT" <<'PY'
 import json
@@ -61,7 +88,7 @@ for name in expected:
     path.chmod(0o644)
 subprocess.run(['git', '-C', str(fixture), 'add', 'bin'], check=True)
 policy = json.loads((root / 'tests/fixtures/remote-root-boundaries.json').read_text())
-policy.update(owners=[], containers=[], findings=[])
+policy.update(owners=[], containers=[], findings=[], interpreted_runtime=[])
 test = fixture / policy['default']['test']
 test.parent.mkdir(parents=True, exist_ok=True)
 test.write_text('')
@@ -83,6 +110,23 @@ for entry in report['entries']:
         assert entry[field] == policy['default'][field]
 print('ok - tracked non-executable interpreted modules retain exclusion mappings')
 PY
+# Losing a real module's invocation mapping must fail instead of silently
+# falling back to the generic exclusion row. Only declarative test data changes.
+python3 - "$ROOT/tests/fixtures/remote-root-boundaries.json" "$TMP_ROOT/missing-sites.json" <<'PY'
+import json
+import pathlib
+import sys
+policy = json.loads(pathlib.Path(sys.argv[1]).read_text())
+policy['interpreted_runtime'][0]['invocations'] = []
+pathlib.Path(sys.argv[2]).write_text(json.dumps(policy))
+PY
+if python3 "$ROOT/tests/remote-root-inventory.py" --policy "$TMP_ROOT/missing-sites.json" \
+  --output "$TMP_ROOT/missing-sites-output" > "$TMP_ROOT/missing-sites-error" 2>&1; then
+  fail "interpreted entry silently lost its invocation mapping"
+fi
+assert_grep 'interpreted runtime entry requires invocation sites' "$TMP_ROOT/missing-sites-error" "missing invocation mapping failed for an unrelated reason"
+assert_absent "$TMP_ROOT/missing-sites-output" "invalid invocation mapping published an audit"
+pass "missing real-data invocation mapping is rejected"
 # Exercise the real ingress, not just the audit policy: protocol 2 is not a
 # production dispatch surface in Stage 1. Both a known and an unclassified
 # command-shaped payload must be rejected before decoding or queue creation.

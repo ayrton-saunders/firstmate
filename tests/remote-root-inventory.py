@@ -10,6 +10,8 @@ included: this is a conservative syntactic index, not a shell call-graph proof.
 Every unreviewed site remains explicitly unclassified and excluded. The policy
 names behavioral evidence only for reviewed owners; the inventory test proves
 index/exclusion mechanics, NOT those owners' effects or future safety.
+Curated interpreted-module rows also retain their source-backed caller, line,
+invocation kind and form; these records are not a runtime qualification.
 
 No production code imports this test-side audit or its policy. It cannot
 confer runtime authority. The executable regression separately verifies the
@@ -78,6 +80,21 @@ def inventory(root, policy):
             if name in containers:
                 raise ValueError('duplicate container: ' + name)
             containers[name] = {**policy['default'], **container}
+    interpreted = {}
+    for module in policy.get('interpreted_runtime', []):
+        name = module['file']
+        if name in interpreted:
+            raise ValueError('duplicate interpreted runtime entry: ' + name)
+        if not module['invocations']:
+            raise ValueError('interpreted runtime entry requires invocation sites: ' + name)
+        if not (root / module['test']).is_file():
+            raise ValueError('missing interpreted entry test: ' + module['test'])
+        for invocation in module['invocations']:
+            if type(invocation['line']) is not int or invocation['line'] <= 0:
+                raise ValueError('invocation line must be a positive integer: ' + name)
+            if not all(invocation[key] for key in ('file', 'symbol', 'kind', 'form', 'when')):
+                raise ValueError('incomplete invocation mapping: ' + name)
+        interpreted[name] = {**policy['default'], **module}
     found = set()
     rows = []
     for name, mode in sorted(tracked_entries(root)):
@@ -92,7 +109,7 @@ def inventory(root, policy):
             key = (name, symbol)
             owner = owners.get(key)
             found.add(key)
-            disposition = owner or containers.get(name, policy['default'])
+            disposition = owner or interpreted.get(name, containers.get(name, policy['default']))
             rows.append({
                 'file': name, 'symbol': symbol, 'line': line, 'mode': mode,
                 'classification': 'characterized-legacy' if owner else 'unclassified',
@@ -103,6 +120,9 @@ def inventory(root, policy):
                 'closure_stage': disposition['closure_stage'],
                 'named_dispatch': False,
             })
+            if name in interpreted:
+                rows[-1].update(language=interpreted[name]['language'],
+                                invocations=interpreted[name]['invocations'])
     missing = expected - found
     if missing:
         raise ValueError('reviewed owner not in declaration index: ' + repr(sorted(missing)))
@@ -113,6 +133,13 @@ def inventory(root, policy):
     for finding in policy['findings']:
         if finding['file'] not in indexed_files:
             raise ValueError('finding not in entry index: ' + finding['file'])
+    for name, module in interpreted.items():
+        if name not in indexed_files:
+            raise ValueError('interpreted runtime entry not in index: ' + name)
+        for invocation in module['invocations']:
+            caller = (invocation['file'], invocation['symbol'])
+            if caller not in found:
+                raise ValueError('invocation caller not in entry index: ' + repr(caller))
     return rows
 
 
