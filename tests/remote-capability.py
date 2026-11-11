@@ -171,11 +171,32 @@ except (ValueError, OSError) as exc:
             "operation-status": {"operation": "op-1"},
             "abort-before-stop": {"operation": "op-1", "expected_revision": 1},
         }
-        self.assertEqual(set(samples), set(e.VERBS))
+        expected_classes = {
+            "observe": "observe",
+            "probe": "observe",
+            "reply-read": "reply-read",
+            "reply-ack": "reply-ack",
+            "task-answer": "task-answer",
+            "task-steer": "task-steer",
+            "inherit-apply": "inherit",
+            "sync-verify": "verify",
+            "dispatch": "dispatch",
+            "launch": "launch",
+            "relaunch": "relaunch",
+            "stop": "stop",
+            "cleanup": "cleanup",
+            "repair-accepted": "repair",
+            "update-prepare": "prepare",
+            "operation-step": "transition",
+            "operation-status": "operation-status",
+            "abort-before-stop": "abort",
+        }
+        self.assertEqual(set(samples), set(expected_classes))
+        self.assertEqual(set(expected_classes), set(e.VERBS))
         for verb, body in samples.items():
             with self.subTest(verb=verb):
                 data = self.request(verb, body)
-                self.assertEqual(e.request_class(e.typed_request(data)), e.VERBS[verb][0])
+                self.assertEqual(e.request_class(e.typed_request(data)), expected_classes[verb])
                 # Parsing/derivation alone never executes this capability.
                 if verb not in {"observe", "probe", "sync-verify"}:
                     with self.assertRaisesRegex(e.Refusal, "owner not enabled"):
