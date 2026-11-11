@@ -1,0 +1,30 @@
+FM_TEST_BEGIN 2026-11-11T03:05:38Z tests/fm-on.test.sh family=secondmate expected_gate_skip=none
+ok - fm-on --stdin preserves argv, stdin, stdout, stderr, and exit status without shell interpretation
+ok - fm-on defaults the remote command's stdin to /dev/null
+ok - fm-on arms a bounded SSH dead-peer detection window by default (15s x 3 = 45s)
+ok - fm-on's dead-peer detection window is env-overridable
+ok - fm-on rejects invalid dead-peer settings before launching ssh
+ok - the fixed entrypoint runs every command in the worker's explicit environment
+ok - the entrypoint composes a deduplicated discovered child PATH (kept 2 existing, omitted 9 absent)
+ok - read-only doctor inspects worker gaps over plain SSH without repair
+ok - the remote doctor reports the same PATH the entrypoint hands its children
+ok - the remote doctor derives tool readiness from the installed worker
+ok - the remote doctor reports its required runtime tool set and optional tools
+ok - multiple fm-*.sh executables work without a command table
+ok - tracked-command authorization excludes checkout-local git
+ok - doctor bootstrap remains authenticated when git is unavailable
+ok - transport rejects shell escape, traversal, symlink, and option-injection surfaces
+ok - the fixed entrypoint refuses incompatible protocols and unsafe roots
+ok - ambiguous aliases refuse while exact secondmate ids remain routable
+ok - unreachable and ambiguous transport failures are surfaced without retry
+ok - registry resolves legacy, local and custom sessions and rejects invalid or duplicate fields
+ok - custom argv is route-owned, override refusal precedes SSH, and old remotes never fall back
+ok - execution checks protect inheritance and files even before parent publication
+ok - parentless custom requests refuse another route's home in both directions
+ok - a send queued behind relaunch refuses its stale target at execution
+ok - same-route retirement reconciles a lost response without endpoint evidence
+ALL TESTS PASSED
+FM_TEST_END 2026-11-11T03:09:56Z tests/fm-on.test.sh exit=0 duration_ms=257763 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=257818
+FM_TEST_SUMMARY_FAMILY family=secondmate count=1 duration_ms=257763 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-on.test.sh duration_ms=257763
