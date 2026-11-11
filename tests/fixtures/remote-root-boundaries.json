@@ -1,0 +1,165 @@
+{
+  "schema": 1,
+  "baseline": "13fa726dfcbb722e9fa7fdf2e455f5f6609a5f1d",
+  "named_dispatch": [],
+  "stage_map": [
+    {"stage":"1","status":"characterization only","corrections":["R5","R6"],"targets":["tests/fm-remote-legacy-cleanup.test.sh","tests/fm-remote-root-characterization.test.sh","tests/fm-remote-legacy-golden.test.sh","tests/fm-remote-legacy-mutation.test.sh","tests/fm-remote-root-inventory.test.sh","tests/fm-on.test.sh","tests/fm-remote-entrypoint.test.sh","tests/fm-remote-transport-lanes.test.sh","tests/fm-remote-doctor.test.sh"],"oracle":"Unchanged no-enrollment legacy effects, known broken variants fail, every indexed entry is excluded; not named runtime qualification."},
+    {"stage":"2","status":"not implemented","corrections":["R1","R4"],"planned_target":"tests/fm-remote-root-installed-admission.test.sh","cases":["entry-before-read","concurrent-resource-reservation","pending-claim-recovery","missing-root-diagnosis","unsafe-storage-rejection"],"oracle":"Installed reservation precedes the first application script/import/extension/callback read, including local CLI entry. An unregistered old interpreter must reject or discard itself through the installed launcher, never retroactively acquire current authority for buffered old code. Application primitives independently validate actual target operands. Disjoint claims and a fixed verified bundle survive a missing root; bounded installed diagnosis writes no application, authority or service state."},
+    {"stage":"2-adapter-slice","status":"required before broad stage 3; not implemented or qualified","corrections":["R1","R6"],"planned_target":"tests/fm-remote-root-parked-adapter.test.sh","cases":["real-fresh-activation","park-before-ordinary-effects","disabled-bridge-unknown","actual-manifest-consumption","endpoint-reuse"],"oracle":"One real runtime/backend combination acknowledges in-process before any ordinary startup/import/action; disabled callback never falls back to metadata. No runtime/backend is selected as supported by Stage 1."},
+    {"stage":"3","status":"not implemented","corrections":["R1","R2","R6"],"planned_target":"tests/fm-remote-root-capability.test.sh","cases":["prepare-fence-late-child","entry-before-read","stage-claim-exec-repair-fence-races","bounded-drain-answer","pre-stop-abort","delayed-launch-rejection","legacy-direct-bypass"],"oracle":"Immutable target/source/resource intent is separate from the fence-time observed consumer/task/correlation population. Fence publication and population snapshot share admission; durable pre-fence registrations survive death during snapshot; specifically derived finite drain-control helpers can answer only captured existing tasks and record terminal outcomes, not start new work. Every admitted owner needs its own actual-operand behavior test, plus unchanged legacy tests on each batch."},
+    {"stage":"4","status":"not implemented","corrections":["R5","R6"],"planned_target":"tests/fm-remote-root-two-worker.test.sh","cases":["two-version-private-queues","cancel-repair-cleanup-A-B-continues","old-reaper-descendant-shapes","global-hook-refusal","trust-wrapper-footprint","source-claim-contention","mixed-account-legacy-exclusion"],"oracle":"Two genuine versioned workers retain separate queues and incarnations. No-enrollment cleanup remains unchanged; mixed-account unknown/foreign ownership is not swept. Future real named runner must requalify its entire descendant tree against the old parser; the Stage-1 candidate is not that proof."},
+    {"stage":"5","status":"not implemented; bootstrap bundle switching explicitly deferred","corrections":["R3","R4","R6"],"planned_target":"tests/fm-remote-root-operation.test.sh","cases":["activation-death-reconcile","release-record-cutpoints","publication-unrelated-row","every-intent-effect-result-cutpoint","partial-root-home-move","same-SHA-fresh-versus-replay","source-policy","bundle-selection-immutable"],"oracle":"An operation-owned reactivation substate retires positively dead incarnations, preserves released effects, proves replacements and obtains fresh publication/release authority; unknown liveness never relaunches. One atomic authoritative gate snapshot contains the receipt or a preinstalled verified immutable receipt digest and exact released incarnations; abort reopening uses the same representation. Registry CAS compares only the selected row under the existing whole-file lock. Application operations cannot replace loader/bundle; incompatible targets refuse before mutation. Process-crash recovery only, not transactional power-loss Git/service durability."},
+    {"stage":"6","status":"not authorized here; no producer or enrollment interface exists","corrections":["R1","R2","R3","R4","R5","R6"],"planned_target":"tests/fm-remote-root-two-lane-qualification.test.sh","cases":["two-versions-two-forks","independent-update-crash-resume","missing-root","unaffected-live-work-hook-config-services","legacy-no-enrollment-differential"],"oracle":"Only complete owner coverage, stages 2-5 and a positively qualified adapter permit producer enablement. Real macOS isolated service/backend qualification needs separate authorization. Relocation, conversion, rollback/reset and retirement remain out of scope."}
+  ],
+  "default": {
+    "classification": "unclassified",
+    "boundary": "5.1 installed outer-reader admission; 5.2 mutation closure",
+    "effects": "Not individually established. May read or execute mutable Firstmate code or perform transitive writes. No named admission is justified.",
+    "test": "tests/fm-remote-root-inventory.test.sh",
+    "evidence": "inventory exclusion only, not behavioral qualification",
+    "closure_stage": 3
+  },
+  "interpreted_runtime": [
+    {
+      "file": "bin/fm-procevent-extension-capture.pl",
+      "language": "Perl",
+      "boundary": "5.2 detached capture readers, callback/action launchers and descendant handoff",
+      "effects": "Source-backed footprint: forks the capture adapter, writes bounded capture/result and reservation/capability records, and execs the extension host during handoff. Transitive extension effects are unclassified; no installed named reader/action admission is established.",
+      "evidence": "source-backed invocation mapping only; not runtime or named qualification",
+      "test": "tests/fm-remote-root-inventory.test.sh",
+      "closure_stage": 3,
+      "invocations": [
+        {"file":"bin/fm-procevent.sh","symbol":"extension_result_command","line":355,"kind":"interpreter-child","form":"perl \"$SCRIPT_DIR/fm-procevent-extension-capture.pl\" handoff ...","when":"extension result has a capture reservation; foreground handoff retaining lifecycle descriptors"},
+        {"file":"bin/fm-procevent.sh","symbol":"cmd_start","line":1239,"kind":"interpreter-child","form":"perl \"$SCRIPT_DIR/fm-procevent-extension-capture.pl\" ... -- \"${ARGV[@]}\" > \"$launch_reply\" &","when":"extension-owned source; background capture child, with launch acknowledgement awaited by the caller"}
+      ]
+    },
+    {
+      "file": "bin/backends/rex-eventwait.lua",
+      "language": "Lua",
+      "boundary": "5.2 backend event-reader code consumption and detached callbacks",
+      "effects": "Source-backed footprint: installs bounded watched-block event callbacks inside the existing Rex session and streams filtered events to stdout. It does not start or administer the shared Rex server. Named code-consumer registration and the profile footprint remain unqualified.",
+      "evidence": "source-backed invocation mapping only; not runtime or named qualification",
+      "test": "tests/fm-remote-root-inventory.test.sh",
+      "closure_stage": 3,
+      "invocations": [
+        {"file":"bin/backends/rex.sh","symbol":"fm_backend_rex_event_reader","line":1201,"kind":"embedded-interpreter-load","form":"fm_backend_rex_read 'do' -s \"$sid\" --for \"${timeout}s\" \"$FM_BACKEND_REX_ROOT/bin/backends/rex-eventwait.lua\" --args \"$blocks\"","when":"default reader, without the test reader override; Rex loads Lua for the bounded do request, not a standalone lua process"}
+      ]
+    },
+    {
+      "file": "bin/fm-contributions.jq",
+      "language": "jq",
+      "boundary": "5.2 contribution reader/import closure and its caller-owned record publication",
+      "effects": "Source-backed footprint: jq module definitions validate and project contribution JSON. The module itself writes no repository or service state; shell callers own record/output publication. Its mutable module load still needs the later installed reader boundary.",
+      "evidence": "source-backed invocation mapping only; not runtime or named qualification",
+      "test": "tests/fm-remote-root-inventory.test.sh",
+      "closure_stage": 3,
+      "invocations": [
+        {"file":"bin/fm-contributions.sh","symbol":"jq_lib","line":222,"kind":"module-include","form":"jq -L \"$SCRIPT_DIR\" \"$@\" \"include \\\"fm-contributions\\\"; $program\"","when":"shared jq_lib helper; the jq child resolves the module through the script directory"},
+        {"file":"bin/fm-contributions.sh","symbol":"read_saved","line":252,"kind":"module-include","form":"jq -L \"$SCRIPT_DIR\" -n --slurpfile tasks \"$TMP/tasks.json\" \"${args[@]}\" 'include \"fm-contributions\"; ...'","when":"bounded batch validation of existing saved contribution records"}
+      ]
+    }
+  ],
+  "containers": [
+    {"files":["bin/backends/cmux.sh","bin/backends/hc.sh","bin/backends/herdr.sh","bin/backends/orca.sh","bin/backends/paseo.sh","bin/backends/rex.sh","bin/backends/t3code.sh","bin/backends/tern.sh","bin/backends/tmux.sh","bin/backends/zellij.sh","bin/fm-backend.sh"],"boundary":"5.2 backend create/start/send-launch/cleanup owners","effects":"Container footprint: backend endpoint creation, terminal command delivery, lifecycle signals and metadata. Individual unreviewed function effects remain unclassified; no backend is qualified for named launch.","closure_stage":3},
+    {"files":["bin/fm-home-seed.sh","bin/fm-remote-home-seed.sh","bin/fm-remote-home-provision.sh","bin/fm-ensure-agents-md.sh","bin/fm-update.sh","bin/fm-fleet-sync.sh","bin/fm-ff-lib.sh"],"boundary":"5.2 Git code/source/ref/config writers and provisioning","effects":"Container footprint: clone/fetch/merge/reset, repository files, source selection and home seed identity/config. Individual unreviewed functions and their actual operands remain unclassified.","closure_stage":3},
+    {"files":["bin/fm-secondmate-registry-lib.sh","bin/fm-remote-endpoint-lib.sh","bin/fm-secondmate-parent-lib.sh","bin/fm-secondmate-charter-lib.sh","bin/fm-secondmate-restart.sh","bin/fm-secondmate-restart-lib.sh","bin/fm-remote-secondmate-relaunch.sh","bin/fm-remote-session-migrate.sh","bin/fm-remote-session-migration-lib.sh","bin/fm-record-export.sh","bin/fm-record-export.py","bin/fm-backlog-handoff.sh","bin/fm-backlog-receive.sh"],"boundary":"5.2 binding registry/endpoint/home markers and serializers","effects":"Container footprint: route, parent and endpoint projections, session migration, restart instructions, exports and handoff records. Full named tuple preservation and route-scoped CAS are not established.","closure_stage":3},
+    {"files":["bin/fm-config-inherit-lib.sh","bin/fm-config-push.sh","bin/fm-remote-inherit-push.sh","bin/fm-remote-inherit.sh"],"boundary":"5.2 inheritance destination and source identity writers","effects":"Container footprint: inherited private configuration/material publication. Individual writes and destination capability require later classification; no code/source/launch inheritance permission is implied.","closure_stage":3},
+    {"files":["bin/fm-remote-job-lib.sh","bin/fm-remote-job-worker.sh","bin/fm-remote-entrypoint.sh","bin/fm-on.sh","bin/fm-remote-file.sh","bin/fm-remote-delta-read.sh"],"boundary":"5.1 typed ingress; 5.2 queue stage/claim/execute/cancel/result/retention","effects":"Container footprint: SSH job transport, account queue and FIFO claims, logs/results, cancellation, process start/stop and worker services. Every registration point needs outer pre-open admission and actual-operand validation.","closure_stage":3},
+    {"files":["bin/fm-remote-doctor.sh","bin/fm-remote-readiness-lib.sh","bin/fm-remote-herdr-guard.sh","bin/fm-remote-herdr-owner-lib.sh","bin/fm-herdr-session-lib.sh","bin/fm-herdr-session-cleanup.sh"],"boundary":"5.2 readiness/ensure/repair/worker reload and owned service claims","effects":"Container footprint: account wrappers, legacy ingress link, LaunchAgent plists and service/session lifecycle. Existing check/fix/check effects are not named repair authority.","closure_stage":4},
+    {"files":["bin/fm-spawn.sh","bin/fm-control.sh","bin/fm-control-lib.sh","bin/fm-promote.sh","bin/fm-send.sh","bin/fm-extension.sh","bin/fm-extension.mjs","bin/fm-extension-launch-barrier.mjs"],"boundary":"5.2 home command launches and actual launch consumption","effects":"Container footprint: launch files, generated extensions/hooks, runtime wiring, task endpoints and command delivery. Delayed input, detached descendants and bridge startup remain unqualified.","closure_stage":3},
+    {"files":["bin/fm-session-start.sh","bin/fm-sessionstart-run.sh","bin/fm-sessionstart-nudge.sh","bin/fm-sessionstart-cursor.sh","bin/fm-sessionstart-agy.sh","bin/fm-bootstrap.sh","bin/fm-startup-network.sh","bin/fm-supervision-host.sh","bin/fm-supervision-handoff.sh","bin/fm-supervision-engine-lib.sh","bin/fm-supervision-lib.sh","bin/fm-supervise-daemon.sh","bin/fm-watch.sh","bin/fm-watch-arm.sh","bin/fm-watch-checkpoint.sh","bin/fm-afk-launch.sh","bin/fm-afk-start.sh","bin/fm-afk-return.sh","bin/fm-afk-contract.sh","bin/fm-secondmate-liveness-lib.sh","bin/fm-secondmate-reconcile.sh","bin/fm-inactive-reconcile.sh"],"boundary":"5.2 running startup/supervision/away readers and mutating action owners","effects":"Container footprint: detached code readers, startup synchronization, liveness recovery, task dispatch, notifications and publication retries. Waiting/idle helpers still consume code; an in-script guard is not pre-open admission.","closure_stage":3},
+    {"files":["bin/fm-procevent.sh","bin/fm-procevent-lib.sh","bin/fm-procevent-when.sh","bin/fm-procevent-lavish.sh","bin/fm-procevent-quota.sh","bin/fm-procevent-remote-reply.sh","bin/fm-check-lib.sh","bin/fm-check-register.sh","bin/fm-check-unregister.sh","bin/fm-pending-reply-lib.sh","bin/fm-task-inbox-lib.sh"],"boundary":"5.2 detached source/action/reply/custom-check and callback owners","effects":"Container footprint: source cursors/captured output, machine-global source claims, action commands, reply acknowledgements, task-answer/steering inboxes and callbacks. Fence snapshot and bounded drain-control capability do not exist.","closure_stage":3},
+    {"files":["bin/fm-kimi-turnend-hook.sh","bin/fm-kimi-trust-lib.sh","bin/fm-agy-trust.sh","bin/fm-claude-trust.sh","bin/fm-codex-config-lib.sh","bin/fm-cortex-plugin.sh","bin/fm-devin-config.sh","bin/fm-hermes-hook.sh","bin/fm-hermes-lib.sh"],"boundary":"5.2 generated hook/trust/config and account-global writes; section 8 policy","effects":"Container footprint: account runtime trust/config/plugin/hook stores and callback token registries. Per-profile footprints require measurement; no ordinary named account-store write is allowed.","closure_stage":4},
+    {"files":["bin/fm-teardown.sh","bin/fm-remote-job-reap-orphans.sh","bin/fm-hc-ci-cleanup.sh","bin/fm-herdr-ci-cleanup.sh","bin/fm-herdr-lab.sh","bin/fm-hc-lab.sh","bin/fm-live-lab.sh","bin/fm-lab-home.sh"],"boundary":"5.2 cleanup/orphan reap/retire/cancel and service/session control","effects":"Container footprint: process signalling, backend endpoint cleanup, source-claim release, pool/local material cleanup and lab service/session administration. No named ownership or authority is inferred from missing roots or idle endpoints.","closure_stage":4},
+    {"files":["bin/fm-install-actionlint.sh","bin/fm-install-shellcheck.sh","bin/fm-install-herdr.sh","bin/fm-install-hc.sh","bin/fm-install-treehouse.sh","bin/fm-host-mirror.sh","bin/fm-worker-account-lib.sh","bin/fm-credential-source-lib.sh"],"boundary":"5.2 account-global tooling/configuration; explicit setup only","effects":"Container footprint: account tool binaries, shell/PATH configuration, host mirrors and account selection. Not ordinary named launch, update, diagnosis or repair authority.","closure_stage":4}
+  ],
+  "owners": [
+    {
+      "file": "bin/fm-teardown.sh", "symbols": ["@entry"],
+      "boundary": "5.2 cleanup and account-global reaper; R5 no-enrollment compatibility",
+      "effects": "Ordinary task cleanup invokes the account orphan reaper. The fixture freezes this integration and the fake endpoint close call without touching a real backend or process sweep. Mixed-account ownership protection is not implemented.",
+      "test": "tests/fm-remote-legacy-cleanup.test.sh", "closure_stage": 4
+    },
+    {
+      "file": "bin/fm-on.sh", "symbols": ["@entry"],
+      "boundary": "5.1 typed ingress; 5.2 ordinary and legacy transport",
+      "effects": "Selects a caller-requested tracked executable over the legacy SSH basename; stages stdin and transport cancellation.",
+      "test": "tests/fm-on.test.sh", "closure_stage": 3
+    },
+    {
+      "file": "bin/fm-remote-entrypoint.sh", "symbols": ["@entry"],
+      "boundary": "5.1 installed ingress before application open; 5.2 legacy transport",
+      "effects": "Sources the mutable job library, accepts tracked fm-*.sh and dispatches disk jobs; legacy argv is not a closed named vocabulary.",
+      "test": "tests/fm-remote-entrypoint.test.sh", "closure_stage": 2
+    },
+    {
+      "file": "bin/fm-secondmate-registry-lib.sh", "symbols": ["secondmate_registry_parse_line"],
+      "boundary": "5.2 binding registry and all serializers",
+      "effects": "Parses legacy home/host/root/session fields into caller globals. Missing remote session defaults to fm-remote; parser itself performs no writes.",
+      "test": "tests/fm-remote-legacy-golden.test.sh", "closure_stage": 3
+    },
+    {
+      "file": "bin/fm-remote-readiness-lib.sh", "symbols": ["fm_remote_readiness_ensure", "fm_remote_readiness_probe"],
+      "boundary": "5.2 readiness and accepted-version repair",
+      "effects": "Calls remote doctor check/fix/check, including repair side effects; exit 255 returns unknown without retry.",
+      "test": "tests/fm-remote-legacy-golden.test.sh", "closure_stage": 3
+    },
+    {
+      "file": "bin/fm-ff-lib.sh", "symbols": ["ff_target"],
+      "boundary": "5.2 local code/source/ref mutating primitive",
+      "effects": "Fetches objects/refs, merges --ff-only and can reset --keep redundant home divergence; writes reconciliation records. Golden test covers clean FF/current only, not named authorization.",
+      "test": "tests/fm-remote-legacy-golden.test.sh", "closure_stage": 3
+    },
+    {
+      "file": "bin/fm-remote-job-reap-orphans.sh", "symbols": ["@entry", "reap_worker_root", "reap_orphans"],
+      "boundary": "5.2 cleanup and account-global process ownership; section 8 reaper",
+      "effects": "Scans the uid process namespace and signals missing-root legacy worker processes/groups, without binding ownership. Fixture scan and signal builtin are sandboxed.",
+      "test": "tests/fm-remote-root-characterization.test.sh", "closure_stage": 4
+    },
+    {
+      "file": "bin/fm-remote-job-lib.sh", "symbols": ["fm_remote_job_prepare_state", "fm_remote_job_launchagent_paths"],
+      "boundary": "5.2 legacy queue creation and service path projection",
+      "effects": "Creates the account .firstmate/remote-job, jobs, logs and .seq-claims directories at mode 0700; projects the singleton label/plist/log paths without installing a service. No named private descriptor selection exists.",
+      "test": "tests/fm-remote-legacy-golden.test.sh", "closure_stage": 3
+    },
+    {
+      "file": "bin/fm-remote-job-lib.sh", "symbols": ["fm_remote_job_stop_worker_tree", "fm_remote_job_worker_process_group", "fm_remote_job_root_is_live"],
+      "boundary": "5.2 cleanup and process lineage",
+      "effects": "Recognizes root liveness and signals a process or isolated worker group, TERM then KILL. Golden test freezes a legacy group TERM with a sandboxed signal builtin.",
+      "test": "tests/fm-remote-root-characterization.test.sh", "closure_stage": 4
+    }
+  ],
+  "findings": [
+    {"file":"bin/fm-procevent-extension-capture.pl","symbol":"@entry","line":1,"boundary":"5.2 interpreted capture/action reader before first code read","effects":"The two recorded Perl callers open mutable application code through the interpreter before an installed named reader/action registration exists. Existing capture and handoff checks are retained; Stage 3 must supply outer admission and descendant lease transfer, not an in-script retrofit.","closure_stage":3},
+    {"file":"bin/backends/rex-eventwait.lua","symbol":"@entry","line":1,"boundary":"5.2 embedded backend reader before module load","effects":"The recorded Rex do request loads mutable Lua into an existing shared-server invocation. The bounded reader is not a named binding/consumer lease. Stage 3 must cover this load and callback lifetime; Stage 4 must qualify the actual profile without shared-server administration.","closure_stage":3},
+    {"file":"bin/fm-contributions.jq","symbol":"@entry","line":1,"boundary":"5.2 interpreted module reader before include","effects":"Both recorded jq include sites load mutable root code. Their record/data checks are not installed invocation admission. Stage 3 owns the reader boundary and separate actual-operand action checks at the publishing callers.","closure_stage":3},
+    {"file":"bin/fm-fleet-sync.sh","symbol":"sync_project","line":430,"boundary":"5.2 local code/source/ref writers","effects":"Direct git merge --ff-only bypasses ff_target. The mutable script is opened before its library sources; an internal guard cannot close R1.","closure_stage":3},
+    {"file":"bin/fm-update.sh","symbol":"@entry","line":544,"boundary":"5.2 local updater and remote propagation","effects":"General updater walks remote routes; must not be an ordinary named verb.","closure_stage":3},
+    {"file":"bin/fm-ff-lib.sh","symbol":"ff_target","line":513,"boundary":"5.2 code/source/ref mutating primitive","effects":"Legacy redundant-divergence reset remains unchanged; named first build must reject it.","closure_stage":5},
+    {"file":"bin/fm-remote-secondmate-control.sh","symbol":"cmd_sync","line":479,"boundary":"5.2 parent startup and prelaunch convergence","effects":"Home-only fast-forward can diverge home from accepted execution root. Named sync must verify only.","closure_stage":3},
+    {"file":"bin/fm-remote-secondmate-control.sh","symbol":"cmd_update","line":510,"boundary":"5.1 closed typed dispatch","effects":"Recursively invokes the general updater; not an admitted named operation.","closure_stage":3},
+    {"file":"bin/fm-bootstrap.sh","symbol":"@entry","line":630,"boundary":"5.2 parent startup convergence","effects":"Automatically requests remote home sync; no named version fence exists.","closure_stage":3},
+    {"file":"bin/fm-spawn.sh","symbol":"@entry","line":1464,"boundary":"5.2 prelaunch convergence","effects":"Automatically requests remote sync before launch.","closure_stage":3},
+    {"file":"bin/fm-spawn.sh","symbol":"launch_template","line":2835,"boundary":"5.2 backend launch delivery and generated hooks","effects":"Launch generation and concrete backend delivery need pre-open reservation and receiving-process consumption, not metadata-only acknowledgement.","closure_stage":3},
+    {"file":"bin/fm-spawn.sh","symbol":"@entry","line":7432,"boundary":"5.2 runtime startup reader; section 8 generated files","effects":"Loads home-side Pi extensions as well as root-side scripts; a root SHA alone cannot qualify launch. Early real adapter slice is still required.","closure_stage":2},
+    {"file":"bin/fm-spawn.sh","symbol":"@entry","line":6993,"boundary":"5.2 account-global generated hooks","effects":"Grok hook/config publication is account-wide; named child launches must refuse before the first write.","closure_stage":4},
+    {"file":"bin/fm-spawn.sh","symbol":"@entry","line":3875,"boundary":"5.2 account-global generated hooks","effects":"Kimi child launch invokes account-global installer.","closure_stage":4},
+    {"file":"bin/fm-kimi-turnend-hook.sh","symbol":"@entry","line":65,"boundary":"5.2 account-global hook/config/token registry","effects":"Writes ~/.kimi-code hook, config region and token records. Not named ordinary repair or dispatch.","closure_stage":4},
+    {"file":"bin/fm-remote-doctor.sh","symbol":"repair_tool_wrapper","line":630,"boundary":"5.2 account-global tool wrappers","effects":"Readiness repair publishes account wrappers; named accepted repair must not administer them.","closure_stage":4},
+    {"file":"bin/fm-remote-doctor.sh","symbol":"render_launch_agent","line":388,"boundary":"5.2 backend service ownership","effects":"Service embeds mutable root dependencies; session service claims and consumer leases are not yet present.","closure_stage":4},
+    {"file":"bin/fm-remote-job-lib.sh","symbol":"fm_remote_job_prepare_state","line":410,"boundary":"5.2 queue mutators","effects":"Creates legacy account queue paths. Private staging, claims, cancellation, retention and result owners all need installed descriptor selection.","closure_stage":3},
+    {"file":"bin/fm-remote-job-lib.sh","symbol":"fm_remote_job_repair_launchagent","line":1389,"boundary":"5.2 worker service repair","effects":"Can rewrite/reload singleton worker; repair must not reverse an operation-owned stop.","closure_stage":4},
+    {"file":"bin/fm-remote-job-worker.sh","symbol":"worker_claim","line":597,"boundary":"5.2 queue claim and inherited registration","effects":"Queue claim does not yet register an installed invocation lease before mutable code opens. Worker claim/start/lane/job are separate checkpoints.","closure_stage":3},
+    {"file":"bin/fm-remote-job-worker.sh","symbol":"worker_start_lane","line":1102,"boundary":"5.2 detached worker lane reader","effects":"Starts another top-level script invocation. Candidate command-shape fixture is not proof of a future named implementation.","closure_stage":4},
+    {"file":"bin/fm-session-start.sh","symbol":"@entry","line":215,"boundary":"5.2 running startup and action owners","effects":"Startup performs mutating sweeps, convergence and liveness handling. Mechanical parking before those effects does not exist.","closure_stage":3},
+    {"file":"bin/fm-procevent-lib.sh","symbol":"@entry","line":32,"boundary":"5.2 process-event source claims and detached readers","effects":"Canonical-source ownership claims are account-wide; namespace splitting would allow duplicate consumers. Exact owner/CAS and action admission remain required.","closure_stage":3},
+    {"file":"bin/fm-procevent-when.sh","symbol":"cmd_run","line":464,"boundary":"5.2 detached action launcher","effects":"Deterministic condition actions require a new execution lease immediately before callback, not ambient startup authority.","closure_stage":3},
+    {"file":"bin/fm-teardown.sh","symbol":"@entry","line":3987,"boundary":"5.2 cleanup and account-global reaper","effects":"Automatic account reaper call must stay unchanged with no enrollment. Mixed-account cleanup must protect named and unknown ownership separately (R5).","closure_stage":4},
+    {"file":"bin/fm-remote-session-migrate.sh","symbol":"@entry","line":151,"boundary":"5.2 binding publication serializers","effects":"Registry replacement preserves unrelated rows under a whole-file lock. Future publication replay needs row-scoped before/after CAS, not enduring whole-file digest CAS.","closure_stage":5},
+    {"file":"bin/fm-home-seed.sh","symbol":"seed_home","line":985,"boundary":"5.2 code provisioning and binding/config writers","effects":"Seeds code/config/identity at destination without installed named operation authority.","closure_stage":3},
+    {"file":"bin/fm-remote-home-provision.sh","symbol":"@entry","line":187,"boundary":"5.2 code provisioning","effects":"Creates standalone clone; cloning alone does not reserve whole-resource enrollment or validate Git storage ownership.","closure_stage":2},
+    {"file":"bin/fm-config-inherit-lib.sh","symbol":"copy_inheritable_file","line":194,"boundary":"5.2 inherited config destination writes","effects":"Inheritance destination and source identity require allowlisted private-material capability; code/source/launch wiring cannot be ordinary inheritance.","closure_stage":3},
+    {"file":"bin/fm-claude-trust.sh","symbol":"@entry","line":554,"boundary":"5.2 account-global trust/config writers","effects":"Trust publication is account setup, not ordinary named launch repair. Named adapter must measure this footprint.","closure_stage":4},
+    {"file":"bin/fm-agy-trust.sh","symbol":"@entry","line":206,"boundary":"5.2 account-global trust/config writers","effects":"Account trust writer remains outside ordinary named capability.","closure_stage":4}
+  ]
+}
