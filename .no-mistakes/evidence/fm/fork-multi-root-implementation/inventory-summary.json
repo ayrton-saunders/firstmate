@@ -1,0 +1,245 @@
+{
+  "source_head": "bb4969dba2356ed83cbc6fdbb97b7ec0a757a423",
+  "modules": 308,
+  "sites": 4530,
+  "classifications": {
+    "unclassified": 4515,
+    "characterized-legacy": 15
+  },
+  "named_dispatch": [],
+  "gap_findings": 31,
+  "interpreted_entries": [
+    {
+      "file": "bin/backends/rex-eventwait.lua",
+      "symbol": "@entry",
+      "line": 1,
+      "mode": "100644",
+      "classification": "unclassified",
+      "boundary": "5.2 backend event-reader code consumption and detached callbacks",
+      "effects": "Source-backed footprint: installs bounded watched-block event callbacks inside the existing Rex session and streams filtered events to stdout. It does not start or administer the shared Rex server. Named code-consumer registration and the profile footprint remain unqualified.",
+      "test": "tests/fm-remote-root-inventory.test.sh",
+      "evidence": "source-backed invocation mapping only; not runtime or named qualification",
+      "closure_stage": 3,
+      "named_dispatch": false,
+      "language": "Lua",
+      "invocations": [
+        {
+          "file": "bin/backends/rex.sh",
+          "symbol": "fm_backend_rex_event_reader",
+          "line": 1201,
+          "kind": "embedded-interpreter-load",
+          "form": "fm_backend_rex_read 'do' -s \"$sid\" --for \"${timeout}s\" \"$FM_BACKEND_REX_ROOT/bin/backends/rex-eventwait.lua\" --args \"$blocks\"",
+          "when": "default reader, without the test reader override; Rex loads Lua for the bounded do request, not a standalone lua process"
+        }
+      ]
+    },
+    {
+      "file": "bin/fm-contributions.jq",
+      "symbol": "@entry",
+      "line": 1,
+      "mode": "100644",
+      "classification": "unclassified",
+      "boundary": "5.2 contribution reader/import closure and its caller-owned record publication",
+      "effects": "Source-backed footprint: jq module definitions validate and project contribution JSON. The module itself writes no repository or service state; shell callers own record/output publication. Its mutable module load still needs the later installed reader boundary.",
+      "test": "tests/fm-remote-root-inventory.test.sh",
+      "evidence": "source-backed invocation mapping only; not runtime or named qualification",
+      "closure_stage": 3,
+      "named_dispatch": false,
+      "language": "jq",
+      "invocations": [
+        {
+          "file": "bin/fm-contributions.sh",
+          "symbol": "jq_lib",
+          "line": 222,
+          "kind": "module-include",
+          "form": "jq -L \"$SCRIPT_DIR\" \"$@\" \"include \\\"fm-contributions\\\"; $program\"",
+          "when": "shared jq_lib helper; the jq child resolves the module through the script directory"
+        },
+        {
+          "file": "bin/fm-contributions.sh",
+          "symbol": "read_saved",
+          "line": 252,
+          "kind": "module-include",
+          "form": "jq -L \"$SCRIPT_DIR\" -n --slurpfile tasks \"$TMP/tasks.json\" \"${args[@]}\" 'include \"fm-contributions\"; ...'",
+          "when": "bounded batch validation of existing saved contribution records"
+        }
+      ]
+    },
+    {
+      "file": "bin/fm-procevent-extension-capture.pl",
+      "symbol": "@entry",
+      "line": 1,
+      "mode": "100644",
+      "classification": "unclassified",
+      "boundary": "5.2 detached capture readers, callback/action launchers and descendant handoff",
+      "effects": "Source-backed footprint: forks the capture adapter, writes bounded capture/result and reservation/capability records, and execs the extension host during handoff. Transitive extension effects are unclassified; no installed named reader/action admission is established.",
+      "test": "tests/fm-remote-root-inventory.test.sh",
+      "evidence": "source-backed invocation mapping only; not runtime or named qualification",
+      "closure_stage": 3,
+      "named_dispatch": false,
+      "language": "Perl",
+      "invocations": [
+        {
+          "file": "bin/fm-procevent.sh",
+          "symbol": "extension_result_command",
+          "line": 355,
+          "kind": "interpreter-child",
+          "form": "perl \"$SCRIPT_DIR/fm-procevent-extension-capture.pl\" handoff ...",
+          "when": "extension result has a capture reservation; foreground handoff retaining lifecycle descriptors"
+        },
+        {
+          "file": "bin/fm-procevent.sh",
+          "symbol": "cmd_start",
+          "line": 1239,
+          "kind": "interpreter-child",
+          "form": "perl \"$SCRIPT_DIR/fm-procevent-extension-capture.pl\" ... -- \"${ARGV[@]}\" > \"$launch_reply\" &",
+          "when": "extension-owned source; background capture child, with launch acknowledgement awaited by the caller"
+        }
+      ]
+    }
+  ],
+  "stage_map": [
+    {
+      "stage": "1",
+      "status": "characterization only",
+      "corrections": [
+        "R5",
+        "R6"
+      ],
+      "targets": [
+        "tests/fm-remote-legacy-cleanup.test.sh",
+        "tests/fm-remote-root-characterization.test.sh",
+        "tests/fm-remote-legacy-golden.test.sh",
+        "tests/fm-remote-legacy-mutation.test.sh",
+        "tests/fm-remote-root-inventory.test.sh",
+        "tests/fm-on.test.sh",
+        "tests/fm-remote-entrypoint.test.sh",
+        "tests/fm-remote-transport-lanes.test.sh",
+        "tests/fm-remote-doctor.test.sh"
+      ],
+      "oracle": "Unchanged no-enrollment legacy effects, known broken variants fail, every indexed entry is excluded; not named runtime qualification."
+    },
+    {
+      "stage": "2",
+      "status": "not implemented",
+      "corrections": [
+        "R1",
+        "R4"
+      ],
+      "planned_target": "tests/fm-remote-root-installed-admission.test.sh",
+      "cases": [
+        "entry-before-read",
+        "concurrent-resource-reservation",
+        "pending-claim-recovery",
+        "missing-root-diagnosis",
+        "unsafe-storage-rejection"
+      ],
+      "oracle": "Installed reservation precedes the first application script/import/extension/callback read, including local CLI entry. An unregistered old interpreter must reject or discard itself through the installed launcher, never retroactively acquire current authority for buffered old code. Application primitives independently validate actual target operands. Disjoint claims and a fixed verified bundle survive a missing root; bounded installed diagnosis writes no application, authority or service state."
+    },
+    {
+      "stage": "2-adapter-slice",
+      "status": "required before broad stage 3; not implemented or qualified",
+      "corrections": [
+        "R1",
+        "R6"
+      ],
+      "planned_target": "tests/fm-remote-root-parked-adapter.test.sh",
+      "cases": [
+        "real-fresh-activation",
+        "park-before-ordinary-effects",
+        "disabled-bridge-unknown",
+        "actual-manifest-consumption",
+        "endpoint-reuse"
+      ],
+      "oracle": "One real runtime/backend combination acknowledges in-process before any ordinary startup/import/action; disabled callback never falls back to metadata. No runtime/backend is selected as supported by Stage 1."
+    },
+    {
+      "stage": "3",
+      "status": "not implemented",
+      "corrections": [
+        "R1",
+        "R2",
+        "R6"
+      ],
+      "planned_target": "tests/fm-remote-root-capability.test.sh",
+      "cases": [
+        "prepare-fence-late-child",
+        "entry-before-read",
+        "stage-claim-exec-repair-fence-races",
+        "bounded-drain-answer",
+        "pre-stop-abort",
+        "delayed-launch-rejection",
+        "legacy-direct-bypass"
+      ],
+      "oracle": "Immutable target/source/resource intent is separate from the fence-time observed consumer/task/correlation population. Fence publication and population snapshot share admission; durable pre-fence registrations survive death during snapshot; specifically derived finite drain-control helpers can answer only captured existing tasks and record terminal outcomes, not start new work. Every admitted owner needs its own actual-operand behavior test, plus unchanged legacy tests on each batch."
+    },
+    {
+      "stage": "4",
+      "status": "not implemented",
+      "corrections": [
+        "R5",
+        "R6"
+      ],
+      "planned_target": "tests/fm-remote-root-two-worker.test.sh",
+      "cases": [
+        "two-version-private-queues",
+        "cancel-repair-cleanup-A-B-continues",
+        "old-reaper-descendant-shapes",
+        "global-hook-refusal",
+        "trust-wrapper-footprint",
+        "source-claim-contention",
+        "mixed-account-legacy-exclusion"
+      ],
+      "oracle": "Two genuine versioned workers retain separate queues and incarnations. No-enrollment cleanup remains unchanged; mixed-account unknown/foreign ownership is not swept. Future real named runner must requalify its entire descendant tree against the old parser; the Stage-1 candidate is not that proof."
+    },
+    {
+      "stage": "5",
+      "status": "not implemented; bootstrap bundle switching explicitly deferred",
+      "corrections": [
+        "R3",
+        "R4",
+        "R6"
+      ],
+      "planned_target": "tests/fm-remote-root-operation.test.sh",
+      "cases": [
+        "activation-death-reconcile",
+        "release-record-cutpoints",
+        "publication-unrelated-row",
+        "every-intent-effect-result-cutpoint",
+        "partial-root-home-move",
+        "same-SHA-fresh-versus-replay",
+        "source-policy",
+        "bundle-selection-immutable"
+      ],
+      "oracle": "An operation-owned reactivation substate retires positively dead incarnations, preserves released effects, proves replacements and obtains fresh publication/release authority; unknown liveness never relaunches. One atomic authoritative gate snapshot contains the receipt or a preinstalled verified immutable receipt digest and exact released incarnations; abort reopening uses the same representation. Registry CAS compares only the selected row under the existing whole-file lock. Application operations cannot replace loader/bundle; incompatible targets refuse before mutation. Process-crash recovery only, not transactional power-loss Git/service durability."
+    },
+    {
+      "stage": "6",
+      "status": "not authorized here; no producer or enrollment interface exists",
+      "corrections": [
+        "R1",
+        "R2",
+        "R3",
+        "R4",
+        "R5",
+        "R6"
+      ],
+      "planned_target": "tests/fm-remote-root-two-lane-qualification.test.sh",
+      "cases": [
+        "two-versions-two-forks",
+        "independent-update-crash-resume",
+        "missing-root",
+        "unaffected-live-work-hook-config-services",
+        "legacy-no-enrollment-differential"
+      ],
+      "oracle": "Only complete owner coverage, stages 2-5 and a positively qualified adapter permit producer enablement. Real macOS isolated service/backend qualification needs separate authorization. Relocation, conversion, rollback/reset and retirement remain out of scope."
+    }
+  ],
+  "limitations": [
+    "Syntactic declaration sites are not a complete dynamic call graph.",
+    "Unclassified includes imported code, generated bodies and transitive effects.",
+    "File entry covers top-level effects and non-shell callback/module loading.",
+    "Characterized legacy owners are not qualified named owners.",
+    "No installed launcher, enrollment, gate, lease or named runtime exists here."
+  ]
+}

@@ -1,0 +1,37 @@
+FM_TEST_BEGIN 2026-11-11T04:36:26Z tests/fm-remote-root-characterization.test.sh family=unclassified expected_gate_skip=none
+ok - no-enrollment reaper output and TERM footprint remain unchanged
+ok - baseline reaper excludes the live candidate runner, serving child and lane command shapes
+FM_TEST_END 2026-11-11T04:36:27Z tests/fm-remote-root-characterization.test.sh exit=0 duration_ms=996 gate_skip=false
+FM_TEST_BEGIN 2026-11-11T04:36:27Z tests/fm-remote-legacy-golden.test.sh family=unclassified expected_gate_skip=none
+ok - no-enrollment route parsing retains its default session and writes no state
+ok - no-enrollment readiness preserves check/fix/check effects and never retries exit 255
+ok - no-enrollment sync preserves fast-forward/current output, selected bytes and clean home
+ok - no-enrollment queue paths, label, private modes and idempotent write footprint remain unchanged
+FM_TEST_END 2026-11-11T04:36:28Z tests/fm-remote-legacy-golden.test.sh exit=0 duration_ms=875 gate_skip=false
+FM_TEST_BEGIN 2026-11-11T04:36:28Z tests/fm-remote-legacy-cleanup.test.sh family=unclassified expected_gate_skip=none
+ok - no-enrollment teardown still invokes orphan cleanup exactly once without a new installation
+FM_TEST_END 2026-11-11T04:36:31Z tests/fm-remote-legacy-cleanup.test.sh exit=0 duration_ms=2743 gate_skip=false
+FM_TEST_BEGIN 2026-11-11T04:36:31Z tests/fm-remote-legacy-mutation.test.sh family=unclassified expected_gate_skip=none
+ok - deliberately broken fm-herdr-session-lib.sh fails: legacy route defaults changed
+ok - deliberately broken fm-remote-readiness-lib.sh fails: ambiguous transport failure lost exit 255
+ok - deliberately broken fm-ff-lib.sh fails: exact-current output changed
+ok - deliberately broken fm-remote-job-reap-orphans.sh fails: legacy dry-run golden changed
+ok - deliberately broken fm-remote-job-lib.sh fails: legacy queue default projection changed
+ok - deliberately broken fm-teardown.sh fails: no-enrollment cleanup stopped invoking the orphan reaper
+FM_TEST_END 2026-11-11T04:36:38Z tests/fm-remote-legacy-mutation.test.sh exit=0 duration_ms=7576 gate_skip=false
+FM_TEST_BEGIN 2026-11-11T04:36:38Z tests/fm-remote-root-inventory.test.sh family=unclassified expected_gate_skip=none
+ok - every indexed entry has an explicit exclusion, boundary and evidence level
+ok - real interpreted entries retain all five caller sites and invocation forms
+ok - tracked non-executable interpreted modules retain exclusion mappings
+ok - missing real-data invocation mapping is rejected
+ok - real legacy ingress excludes known and unclassified command payloads from protocol 2 before state creation
+ok - deliberately enabled policy fails the Stage-1 exclusion audit
+FM_TEST_END 2026-11-11T04:36:39Z tests/fm-remote-root-inventory.test.sh exit=0 duration_ms=630 gate_skip=false
+FM_TEST_SUMMARY total=5 failed=0 skipped_gate=0 duration_ms=13050
+FM_TEST_SUMMARY_FAMILY family=unclassified count=5 duration_ms=12820 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-remote-legacy-mutation.test.sh duration_ms=7576
+FM_TEST_SLOWEST rank=2 script=tests/fm-remote-legacy-cleanup.test.sh duration_ms=2743
+FM_TEST_SLOWEST rank=3 script=tests/fm-remote-root-characterization.test.sh duration_ms=996
+FM_TEST_SLOWEST rank=4 script=tests/fm-remote-legacy-golden.test.sh duration_ms=875
+FM_TEST_SLOWEST rank=5 script=tests/fm-remote-root-inventory.test.sh duration_ms=630
+fm-test-run: wrote timing artifact: ~/.no-mistakes/evidence/01M74E56DMB59AYVYXBRQBNN7Y/focused-timing.json
