@@ -41,7 +41,7 @@
 # agent's endpoint record; the home's own
 # state/*.meta remains reserved for workers the secondmate supervises.
 # Retirement closes only this secondmate's panes or workspace and never
-# stops the selected session or removes a sibling secondmate's workspace or panes.
+# stops the remote Herdr service or removes a sibling secondmate's workspace or panes.
 #
 # Relaunch is not a second lifecycle implementation: it runs the ORDINARY local
 # control plane here, because from this host the mate is a plain local
@@ -60,7 +60,7 @@
 set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd -P)}"
 TARGET_HOME=${FM_HOME:?FM_HOME is required}
 CONTROL_STATE="$TARGET_HOME/state/parent-route"
 CONTROL_DATA="$TARGET_HOME/data/.parent-route"
@@ -108,6 +108,15 @@ fi
 
 # shellcheck source=bin/fm-backend.sh
 . "$SCRIPT_DIR/fm-backend.sh"
+# shellcheck source=bin/fm-remote-herdr-identity-lib.sh
+. "$SCRIPT_DIR/fm-remote-herdr-identity-lib.sh"
+
+# The Herdr session this code root's remote mates live in, resolved by the same
+# owner the readiness doctor prepares the service under.
+remote_herdr_session_resolve() {
+  fm_remote_herdr_identity "$FM_ROOT" "$REMOTE_HERDR_SESSION" || return 1
+  REMOTE_HERDR_SESSION=$FM_REMOTE_HERDR_SESSION
+}
 validate_home() { # <id>
   local id=$1 marker
   [ -d "$TARGET_HOME" ] && [ ! -L "$TARGET_HOME" ] || die "remote secondmate home is unavailable or unsafe"
@@ -121,7 +130,12 @@ validate_home() { # <id>
 meta_path() { printf '%s/%s.meta\n' "$CONTROL_STATE" "$1"; }
 
 remote_endpoint_load() {
-  fm_remote_endpoint_validate "$TARGET_HOME" "$1" "$REMOTE_HERDR_SESSION"
+  fm_remote_endpoint_validate "$TARGET_HOME" "$1" "$REMOTE_HERDR_SESSION" || return 1
+  if [ "$REMOTE_ENDPOINT_BACKEND" = herdr ]; then
+    if ! REMOTE_ENDPOINT_ERROR=$(remote_herdr_session_resolve 2>&1); then
+      return 1
+    fi
+  fi
 }
 
 remote_endpoint_require() {
@@ -303,7 +317,10 @@ cmd_launch() {
     FM_STATE_OVERRIDE="$CONTROL_STATE" FM_DATA_OVERRIDE="$CONTROL_DATA"
     FM_CONFIG_OVERRIDE="$TARGET_HOME/config" FM_SKIP_SECONDMATE_INHERIT=1
     FM_SKIP_SECONDMATE_SYNC=1)
-  [ "$selected_backend" != herdr ] || launch_env=("HERDR_SESSION=$REMOTE_HERDR_SESSION" "${launch_env[@]}")
+  if [ "$selected_backend" = herdr ]; then
+    remote_herdr_session_resolve || die "remote Herdr session ownership was refused; preserving the route"
+    launch_env=("HERDR_SESSION=$REMOTE_HERDR_SESSION" "${launch_env[@]}")
+  fi
   if ! out=$(env "${launch_env[@]}" "$SCRIPT_DIR/fm-spawn.sh" "${ARGS[@]}" 2>&1); then
     [ -z "$out" ] || printf '%s\n' "$out" >&2
     die "remote host-local secondmate launch failed"
