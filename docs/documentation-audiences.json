@@ -422,6 +422,10 @@
       "audience": "maintainer-verification"
     },
     {
+      "path": "docs/ci-pull-request-jobs.md",
+      "audience": "maintainer-verification"
+    },
+    {
       "path": "docs/forgejo-tea-integration.md",
       "audience": "maintainer-verification"
     },
