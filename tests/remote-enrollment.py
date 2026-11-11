@@ -265,8 +265,8 @@ class Enrollment(unittest.TestCase):
             def child():
                 original = e.atomic
 
-                def interrupted(path, data, mode=0o600):
-                    original(path, data, mode)
+                def interrupted(path, data, mode=0o600, **kwargs):
+                    original(path, data, mode, **kwargs)
                     if Path(path).name == filename:
                         os._exit(73)
                 e.atomic = interrupted
@@ -384,13 +384,12 @@ class Enrollment(unittest.TestCase):
         install(self.base, a["name"])
         location = e.instance(self.base, a["name"])
         code = location / "bundles" / BUNDLE / "enrollment.py"
-        accepted = code.read_bytes()
         code.write_bytes(b"raise RuntimeError('must not execute')")
         self.assertIn("bundle file mismatch", self.run_loader(a, "resume", False))
-        code.write_bytes(accepted)
-        code.rename(code.with_suffix(".missing"))
+        install(self.base, a["name"])
+        code.unlink()
         self.assertIn("partial/unverified", self.run_loader(a, "diagnose", False))
-        code.with_suffix(".missing").rename(code)
+        install(self.base, a["name"])
         loader = location / "ingress"
         loader.unlink()
         with self.assertRaises((e.Refusal, OSError)):
@@ -404,6 +403,104 @@ class Enrollment(unittest.TestCase):
         selection.write_bytes(original)
         selection.unlink()
         self.assertIn("incomplete bootstrap projections", self.run_loader(a, "diagnose", False))
+
+    def test_recovery_paths_outside_all_claimed_storage(self):
+        for role in ("root", "home"):
+            for storage in ("private", ".git/private"):
+                with self.subTest(role=role, storage=storage):
+                    a = self.request(role + storage.replace("/", "-").replace(".", ""))
+                    self.repo(a[role])
+                    base = Path(a[role]) / storage
+                    base.parent.chmod(0o700)
+                    e.initialize(base)
+                    before = (base / "claims.json").read_bytes()
+                    with self.assertRaisesRegex(e.Refusal, "recovery path .*protected .*" + role):
+                        e.reserve(base, a, BUNDLE, INTERPRETER)
+                    self.assertEqual((base / "claims.json").read_bytes(), before)
+        a = self.request("tool-root")
+        self.repo(a["root"])
+        tools = Path(a["root"]) / "bin"
+        tools.mkdir(mode=0o700)
+        tool = tools / "python"
+        shutil.copyfile(INTERPRETER, tool)
+        tool.chmod(0o700)
+        with self.assertRaisesRegex(e.Refusal, "recovery path .*python.*protected .*root"):
+            e.reserve(self.base, a, BUNDLE, str(tool))
+        b = self.request("tool-owner")
+        e.reserve(self.base, b, BUNDLE, str(tool))
+        with self.assertRaisesRegex(e.Refusal, "recovery path .*python.*protected .*root"):
+            self.reserve(a)
+        c = self.request("old-claim")
+        self.repo(c["root"])
+        old = self.folder / "old-authority"
+        e.initialize(old)
+        e.reserve(old, c, BUNDLE, INTERPRETER)
+        moved = Path(c["root"]) / "private"
+        shutil.move(old, moved)
+        with self.assertRaisesRegex(e.Refusal, "recovery path .*protected .*root"):
+            e.claim(moved, c["name"])
+        with self.assertRaisesRegex(e.Refusal, "recovery path .*protected .*root"):
+            install(moved, c["name"])
+        rival = self.request("old-rival")
+        with self.assertRaisesRegex(e.Refusal, "recovery path .*protected .*root"):
+            e.reserve(moved, rival, BUNDLE, INTERPRETER)
+
+    def test_exact_reinstall_repairs_bytes_and_modes_only(self):
+        a = self.request("repair")
+        entry, location = self.ready(a)
+        self.run_loader(a, "resume")
+        claims = (self.base / "claims.json").read_bytes()
+        selection = (location / "bootstrap-selection.json").read_bytes()
+        paths = [location / "bundles" / BUNDLE / name for name in ("enrollment.py", "manifest.json")]
+        paths += [location / "loader.py", location / "ingress"]
+        for path in paths:
+            expected, mode = path.read_bytes(), path.stat().st_mode & 0o777
+            for damage in ("missing", "corrupt", "mode"):
+                with self.subTest(path=path.name, damage=damage):
+                    if damage == "missing":
+                        path.unlink()
+                    elif damage == "corrupt":
+                        path.write_bytes(b"damaged installed bytes")
+                    else:
+                        path.chmod(0o666)
+                    with self.assertRaises((e.Refusal, OSError)):
+                        e.resume(self.base, a["name"])
+                    with self.assertRaisesRegex(e.Refusal, "unaccepted bundle"):
+                        e.install(self.base, a["name"], b"unaccepted", ORIGIN)
+                    install(self.base, a["name"])
+                    self.assertEqual(path.read_bytes(), expected)
+                    self.assertEqual(path.stat().st_mode & 0o777, mode)
+                    self.assertEqual(self.run_loader(a, "resume")["bootstrap"], "complete")
+                    self.assertEqual((self.base / "claims.json").read_bytes(), claims)
+                    self.assertEqual((location / "bootstrap-selection.json").read_bytes(), selection)
+                    self.assertEqual(e.claim(self.base, a["name"])["digest"], entry["digest"])
+
+    def test_authority_base_and_parent_require_private_mode(self):
+        public = self.folder / "public"
+        public.mkdir(mode=0o755)
+        public.chmod(0o755)
+        with self.assertRaisesRegex(e.Refusal, "parent.*0755.*0700 required"):
+            e.initialize(public / "authority")
+        self.assertFalse((public / "authority").exists())
+        a = self.request("private-contract")
+        self.ready(a)
+        for role, directory in (("parent", self.folder), ("base", self.base)):
+            with self.subTest(role=role):
+                directory.chmod(0o755)
+                before = tree(self.base)
+                reason = role + ".*0755.*0700 required"
+                with self.assertRaisesRegex(e.Refusal, reason):
+                    e.initialize(self.base)
+                with self.assertRaisesRegex(e.Refusal, reason):
+                    self.reserve(a)
+                with self.assertRaisesRegex(e.Refusal, reason):
+                    install(self.base, a["name"])
+                self.assertRegex(self.run_loader(a, "diagnose", False), reason)
+                self.assertRegex(self.run_loader(a, "resume", False), reason)
+                self.assertEqual(tree(self.base), before)
+                self.assertEqual(directory.stat().st_mode & 0o777, 0o755)
+                directory.chmod(0o700)
+        self.assertEqual(self.run_loader(a, "resume")["bootstrap"], "complete")
 
     def test_unsafe_paths_modes_and_layouts(self):
         for layout in ("symlink", "unsafe-root", "unsafe-home", "submodule", "filter", "sparse", "common", "linked", "hardlink"):

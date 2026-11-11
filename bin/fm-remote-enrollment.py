@@ -126,11 +126,16 @@ def fsync_dir(path):
         os.close(fd)
 
 
-def atomic(path, data, mode=0o600):
+def atomic(path, data, mode=0o600, *, repair=False):
     path = Path(path)
     owned(path.parent, True)
     if path.exists() or path.is_symlink():
-        owned(path)
+        if repair:
+            info = safe_path(path).lstat()
+            require(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid() and info.st_nlink == 1,
+                    "unsafe repair target: " + str(path))
+        else:
+            owned(path)
     fd, temporary = tempfile.mkstemp(prefix=".publish-", dir=path.parent)
     try:
         os.fchmod(fd, mode)
@@ -188,9 +193,21 @@ def lock(path, shared=False):
         os.close(fd)
 
 
+def authority_dirs(base, *, creating=False):
+    base = safe_path(base, missing=creating)
+    for role, path in (("parent", base.parent), ("base", base)):
+        if creating and role == "base" and not path.exists():
+            continue
+        info = path.lstat()
+        mode = stat.S_IMODE(info.st_mode)
+        require(stat.S_ISDIR(info.st_mode) and info.st_uid == os.getuid() and mode == 0o700,
+                f"authority {role} directory {path}: actual mode {mode:04o}; owned mode 0700 required")
+
+
 def initialize(base):
     """Explicit setup only; readers never call this. Parent must already exist."""
     base = Path(base)
+    authority_dirs(base, creating=True)
     mkdir(base)
     create_lock(base / "inventory.lock")
     mkdir(base / "instances")
@@ -360,8 +377,23 @@ def validate_frozen(frozen):
         seen.add(key)
 
 
+def recovery_placement(base, manifests):
+    paths = [str(base)]
+    for frozen in manifests:
+        paths.extend((frozen["interpreter"]["path"],
+                      str(instance(base, frozen["name"]) / "bundles" / frozen["bundle"])))
+    paths = [(path, os.path.realpath(path).casefold()) for path in paths]
+    for frozen in manifests:
+        for role, group in frozen["resources"].items():
+            for resource in group if isinstance(group, list) else [group]:
+                protected = resource["path"]
+                for path, physical in paths:
+                    require(os.path.commonpath([physical, protected.casefold()]) != protected.casefold(),
+                            f"recovery path {path} is inside protected {frozen['name']} {role}: {protected}")
+
+
 def inventory(base):
-    private_dir(base)
+    authority_dirs(base)
     private_dir(Path(base) / "instances")
     record = snapshot(Path(base) / "claims.json", "claims")
     fields(record["payload"], "entries", "claims payload")
@@ -375,6 +407,7 @@ def inventory(base):
         frozen = entry["manifest"]
         validate_frozen(frozen)
         require(frozen["name"] == name, "claim name mismatch")
+    recovery_placement(base, [entry["manifest"] for entry in entries.values()])
     return record
 
 
@@ -396,6 +429,7 @@ def reserve(base, request, bundle, interpreter):
         frozen = manifest(request, bundle, interpreter)
         validate_frozen(frozen)
         entries = record["payload"]["entries"]
+        recovery_placement(base, [frozen, *(entry["manifest"] for entry in entries.values())])
         for existing in entries.values():
             # Aborted names/bindings are tombstones, never reused.
             if existing["state"] == "aborted":
@@ -464,8 +498,7 @@ def install(base, name, source, origin):
     """Private exact-byte install. No selection or authority granted here.
 
     Deliberately no source URL, executable helper or application fallback.
-    A partial bundle is not repaired implicitly; exact attended reinstall can
-    supply these same accepted bytes after diagnosis.
+    This explicit owner repairs only the frozen bundle from accepted bytes.
     """
     base = Path(base)
     entry = claim(base, name)
@@ -483,7 +516,11 @@ def install(base, name, source, origin):
     with lock(location / "operation.lock"):
         mkdir(location / "bundles")
         destination = location / "bundles" / key
-        if destination.exists():
+        if os.path.lexists(destination):
+            private_dir(destination)
+            require(set(p.name for p in destination.iterdir()) <= {"enrollment.py", "manifest.json"}, "extra bundle files")
+            atomic(destination / "enrollment.py", data, repair=True)
+            atomic(destination / "manifest.json", canonical(envelope("bundle", 1, description)), repair=True)
             verify_bundle(location, key)
         else:
             temporary = Path(tempfile.mkdtemp(prefix=".bundle-", dir=location / "bundles"))
@@ -495,10 +532,7 @@ def install(base, name, source, origin):
         ingress, body = loader_bytes(base, frozen)
         for filename, content, mode in (("loader.py", body, 0o600), ("ingress", ingress, 0o700)):
             path = location / filename
-            if os.path.lexists(path):
-                require(read_bytes(path) == content, "unexpected installed loader")
-            else:
-                atomic(path, content, mode)
+            atomic(path, content, mode, repair=True)
 
 
 def verify_bundle_dir(location, key):
@@ -702,6 +736,11 @@ def record(path, kind):
 try:
     if len(sys.argv) != 2 or sys.argv[1] not in ("diagnose", "resume"):
         fail("only installed diagnosis/enrollment resume supported")
+    for role, directory in (("parent", Path(BASE).parent), ("base", Path(BASE))):
+        info = directory.lstat()
+        mode = stat.S_IMODE(info.st_mode)
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or mode != 0o700:
+            fail(f"authority {role} directory {directory}: actual mode {mode:04o}; owned mode 0700 required")
     location = Path(BASE) / "instances" / NAME
     claims = record(Path(BASE) / "claims.json", "claims")["payload"]
     entry = claims["entries"][NAME]
