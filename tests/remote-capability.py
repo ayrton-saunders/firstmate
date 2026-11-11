@@ -92,7 +92,10 @@ class Capability(unittest.TestCase):
             gate["payload"]["owner"] = "fixture-update" if state == "fenced" else None
             e.publish(self.location / "gate.json", "gate", gate["revision"] + 1, gate["payload"])
 
-    def reserve(self, data, code):
+    def reserve(self, data, code, kind="shell-entry"):
+        request = json.loads(data)
+        request.update(verb="launch", typed_body={"task": "task-1", "reader": kind, "launch_digest": hashlib.sha256(code).hexdigest()})
+        data = encode(request)
         e.stage_request(self.base, "lane-a", data, self.operands)
         return e.reserve_execution(self.base, "lane-a", data, self.operands, hashlib.sha256(code).hexdigest())
 
@@ -122,7 +125,7 @@ class Capability(unittest.TestCase):
         path = self.folder / "installed-fixture-launcher.py"
         path.write_text("""import hashlib, json, os, sys
 from pathlib import Path
-base, name, kind, envelope, manifest = sys.argv[1:]
+base, name, kind, envelope, manifest = sys.argv[1:6]
 location = Path(base) / 'instances' / name
 bundle = location / 'bundles' / %r / 'enrollment.py'
 code = bundle.read_bytes()
@@ -135,6 +138,9 @@ try:
     operands = {key: str(Path(base).parent / key) for key in ('root', 'home')}
     ns['stage_request'](Path(base), name, data, operands)
     nonce = ns['reserve_execution'](Path(base), name, data, operands, manifest)
+    if sys.argv[6:] == ['pause-before-read']:
+        print('reserved-before-read', flush=True)
+        sys.stdin.readline()
     loaded = ns['read_registered_application'](Path(base), name, nonce, kind, operands)
     # Execute ONLY the freshly selected bytes. This is a bounded fixture body,
     # not a real backend/agent or an inherited consumer qualification.
@@ -155,7 +161,7 @@ except (ValueError, OSError) as exc:
             "inherit-apply": {"material": "captain-shared", "content": "private", "content_digest": hashlib.sha256(b"private").hexdigest()},
             "sync-verify": {"parent_commit": "a" * 40},
             "dispatch": {"task": "task-1", "instructions_digest": "0" * 64},
-            "launch": {"task": "task-1", "launch_digest": "0" * 64},
+            "launch": {"task": "task-1", "reader": "shell-entry", "launch_digest": "0" * 64},
             "relaunch": {"task": "task-1", "incarnation": "inc-1", "launch_digest": "0" * 64},
             "stop": {"task": "task-1", "incarnation": "inc-1"},
             "cleanup": {"task": "task-1", "incarnation": "inc-1"},
@@ -253,7 +259,7 @@ except (ValueError, OSError) as exc:
                 content = b"print('A')\n"
                 path = self.write_entry(kind, content)
                 data = self.request()
-                nonce = self.reserve(data, content)
+                nonce = self.reserve(data, content, kind)
                 with self.assertRaisesRegex(e.Refusal, "prevents movement"):
                     self.fixture_move(path, b"print('M')\n")
                 self.assertEqual(e.read_registered_application(self.base, "lane-a", nonce, kind, self.operands), content)
@@ -269,6 +275,44 @@ except (ValueError, OSError) as exc:
                        lambda: e.reserve_execution(self.base, "lane-a", queued, self.operands, "0" * 64)):
             with self.assertRaisesRegex(e.Refusal, "closed by fence"):
                 action()
+
+    def test_entry_before_read_installed_invocation_blocks_movement(self):
+        content = b"print('A')\n"
+        path = self.write_entry("shell-entry", content)
+        request_path = self.folder / "request.json"
+        request_path.write_bytes(self.request("launch", {"task": "task-1", "reader": "shell-entry", "launch_digest": hashlib.sha256(content).hexdigest()}))
+        command = [PYTHON, "-I", "-S", str(self.driver()), str(self.base), "lane-a", "shell-entry",
+                   str(request_path), hashlib.sha256(content).hexdigest(), "pause-before-read"]
+        process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        try:
+            self.assertEqual(process.stdout.readline(), "reserved-before-read\n")
+            with self.assertRaisesRegex(e.Refusal, "prevents movement"):
+                self.fixture_move(path, b"print('M')\n")
+            output, error = process.communicate("resume\n", timeout=30)
+            self.assertEqual(process.returncode, 0, error)
+            self.assertEqual(output, "A\n")
+            # Process exit (or a controller crash) does not release the lease.
+            with self.assertRaisesRegex(e.Refusal, "prevents movement"):
+                self.fixture_move(path, b"print('M')\n")
+        finally:
+            if process.poll() is None:
+                process.kill()
+                process.communicate()
+
+    def test_stale_or_fenced_reservation_never_opens_application(self):
+        code = b"print('A')\n"
+        nonce = self.reserve(self.request(), code)
+        # The path does not exist. A gated/stale reader must still fail on its
+        # registration rather than attempting the application open.
+        self.gate("fenced")
+        with self.assertRaisesRegex(e.Refusal, "closed by fence"):
+            e.read_registered_application(self.base, "lane-a", nonce, "shell-entry", self.operands)
+        self.gate("released")
+        with e.admission(self.base, "lane-a") as (_entry, gate):
+            gate["payload"]["generation"] += 1
+            e.publish(self.location / "gate.json", "gate", gate["revision"] + 1, gate["payload"])
+        with self.assertRaisesRegex(e.Refusal, "generation mismatch"):
+            e.read_registered_application(self.base, "lane-a", nonce, "shell-entry", self.operands)
 
     def test_entry_before_read_old_interpreter_trampoline_and_negative_control(self):
         # Bash has opened A and may have buffered its tail. Pause before its
@@ -297,7 +341,7 @@ except (ValueError, OSError) as exc:
                         try:
                             self.assertEqual(process.stdout.readline(), "opened\n")
                             nested.fixture_move(path, fresh)
-                            request_path.write_bytes(nested.request())
+                            request_path.write_bytes(nested.request("launch", {"task": "task-1", "reader": kind, "launch_digest": hashlib.sha256(fresh).hexdigest()}))
                             output, error = process.communicate("resume\n", timeout=30)
                             self.assertEqual(process.returncode, 0, error)
                             if broken:
@@ -313,6 +357,64 @@ except (ValueError, OSError) as exc:
                     finally:
                         nested.tearDown()
         print("entry-before-read: installed exec discards A; returning in-script guard fails the same oracle")
+
+    def test_removed_registration_and_post_fence_controls_fail_oracles(self):
+        content = b"print('A')\n"
+        path = self.write_entry("shell-entry", content)
+
+        def unregistered_oracle(reader):
+            with self.assertRaises(e.Refusal):
+                reader(self.base, "lane-a", None, "shell-entry", self.operands)
+        unregistered_oracle(e.read_registered_application)
+        # Remove the admission boundary, not the oracle. A direct read now
+        # succeeds, so the identical unregistered-caller oracle must fail.
+        with self.assertRaises(AssertionError):
+            unregistered_oracle(lambda *_args: e.read_bytes(path))
+        data = self.request("launch", {"task": "task-1", "reader": "shell-entry", "launch_digest": hashlib.sha256(content).hexdigest()})
+        e.stage_request(self.base, "lane-a", data, self.operands)
+        self.gate("fenced")
+
+        def fenced_oracle():
+            with self.assertRaises(e.Refusal):
+                e.reserve_execution(self.base, "lane-a", data, self.operands, hashlib.sha256(content).hexdigest())
+        fenced_oracle()
+        actual = e.request_authority
+
+        def no_fence(entry, gate, request, operands):
+            return actual(entry, dict(gate, payload=dict(gate["payload"], state="released")), request, operands)
+        e.request_authority = no_fence
+        try:
+            with self.assertRaises(AssertionError):
+                fenced_oracle()
+        finally:
+            e.request_authority = actual
+        print("negative-controls: removed reader admission and post-fence registration fail acceptance oracles")
+
+    def test_reader_kind_and_stored_request_digest_are_revalidated(self):
+        content = b"print('A')\n"
+        self.write_entry("shell-entry", content)
+        self.write_entry("source-module", content)
+        nonce = self.reserve(self.request(), content)
+        with self.assertRaisesRegex(e.Refusal, "contradictory reader registration"):
+            e.read_registered_application(self.base, "lane-a", nonce, "source-module", self.operands)
+        with e.admission(self.base, "lane-a"):
+            record = e.population(self.location)
+            lease = record["payload"]["leases"][nonce]
+            queued = record["payload"]["requests"][lease["request_id"]]
+            queued["request"]["request_digest"] = "0" * 64
+            e.save_population(self.location, record)
+        with self.assertRaisesRegex(e.Refusal, "request digest mismatch"):
+            e.read_registered_application(self.base, "lane-a", nonce, "shell-entry", self.operands)
+
+    def test_observation_never_grants_application_read_and_manifest_is_bound(self):
+        data = self.request()
+        e.stage_request(self.base, "lane-a", data, self.operands)
+        with self.assertRaisesRegex(e.Refusal, "no application reader"):
+            e.reserve_execution(self.base, "lane-a", data, self.operands, "0" * 64)
+        data = self.request("launch", {"task": "task-1", "reader": "shell-entry", "launch_digest": "1" * 64})
+        e.stage_request(self.base, "lane-a", data, self.operands)
+        with self.assertRaisesRegex(e.Refusal, "unbound application manifest"):
+            e.reserve_execution(self.base, "lane-a", data, self.operands, "0" * 64)
 
     def test_installed_inspection_has_no_producer_or_fixture_override(self):
         ingress = str(self.location / "ingress")

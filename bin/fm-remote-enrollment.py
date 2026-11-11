@@ -698,7 +698,7 @@ VERBS = {
     "inherit-apply": ("inherit", "material content content_digest"),
     "sync-verify": ("verify", "parent_commit"),
     "dispatch": ("dispatch", "task instructions_digest"),
-    "launch": ("launch", "task launch_digest"),
+    "launch": ("launch", "task reader launch_digest"),
     "relaunch": ("relaunch", "task incarnation launch_digest"),
     "stop": ("stop", "task incarnation"),
     "cleanup": ("cleanup", "task incarnation"),
@@ -789,6 +789,8 @@ def typed_request(data):
                 raise Refusal("invalid UTF-8 " + key) from exc
         else:
             token(value, key)
+    if verb == "launch":
+        require(body["reader"] in READER_ENTRIES, "unclassified application reader")
     if verb == "inherit-apply":
         require(body["material"] in MATERIALS, "unapproved private material")
         require(hashlib.sha256(body["content"].encode()).hexdigest() == body["content_digest"], "content digest mismatch")
@@ -837,6 +839,8 @@ def admission_snapshot(base, name):
     descriptor = snapshot(location / "descriptor.json", "descriptor")
     require(descriptor["payload"] == {"claim": entry["digest"], "manifest": frozen}, "descriptor/claim mismatch")
     verify_loader(base, frozen)
+    selected = snapshot(location / "bootstrap-selection.json", "selection")
+    require(selected["revision"] == 1 and selected["payload"] == {"bundle": frozen["bundle"], "abi": 1, "claim": entry["digest"]}, "contradictory selection")
     verify_resources(entry)
     gate = snapshot(location / "gate.json", "gate")
     payload = gate["payload"]
@@ -921,11 +925,18 @@ def stage_request(base, name, data, operands):
 
 
 def reserve_execution(base, name, data, operands, executable_digest):
-    """Before opening ANY application bytes, publish a pending launch nonce."""
+    """Before any application read, publish a pending single-reader nonce.
+
+    Only typed launch intent binds an application-byte manifest in this slice.
+    No task/service is launched here, and observation never permits app reads.
+    Inherited/detached consumer handoffs are deliberately not implemented.
+    """
     request = typed_request(data)
     sha(executable_digest, "executable digest")
     with admission(base, name) as (entry, gate):
         capability = request_authority(entry, gate, request, operands)
+        require(capability == "launch", "no application reader capability for this verb")
+        require(request["typed_body"]["launch_digest"] == executable_digest, "unbound application manifest")
         location = instance(base, name)
         record = population(location)
         queued = record["payload"]["requests"].get(request["request_id"])
@@ -936,7 +947,7 @@ def reserve_execution(base, name, data, operands, executable_digest):
                          "request_id": request["request_id"], "request_digest": request["request_digest"],
                          "task": request["typed_body"].get("task"), "correlation": request["typed_body"].get("correlation"),
                          "resources": entry["manifest"]["resources"], "executable_digest": executable_digest,
-                         "capability": capability, "state": "pending", "process": None}
+                         "capability": capability, "state": "pending"}
         queued["state"] = "claimed"
         queued["lease"] = nonce
         save_population(location, record)
@@ -957,7 +968,7 @@ READER_ENTRIES = {
 def read_registered_application(base, name, nonce, reader_kind, operands):
     """Installed outer reader, never a retroactive in-script guard.
 
-    A caller gets fresh accepted bytes, NOT permission to execute bytes it read
+    A caller gets fresh manifest-bound bytes, NOT permission to execute bytes it read
     before registration. No API validates buffered interpreter bytes against a
     current file hash. A local trampoline must exec the installed launcher and
     discard its interpreter; source/import/callback owners must enter here
@@ -976,7 +987,9 @@ def read_registered_application(base, name, nonce, reader_kind, operands):
         capability = request_authority(entry, gate, request, operands)
         require(lease["binding"] == request["binding"] and lease["generation"] == request["generation"]
                 and lease["request_digest"] == request["request_digest"] and lease["capability"] == capability
-                and lease["resources"] == entry["manifest"]["resources"], "contradictory reader registration")
+                and lease["resources"] == entry["manifest"]["resources"] and capability == "launch"
+                and lease["executable_digest"] == request["typed_body"]["launch_digest"]
+                and reader_kind == request["typed_body"]["reader"], "contradictory reader registration")
         # Only NOW may even stat/open the application path. The retained lease
         # prevents a cooperating mutation owner moving the code after this read.
         path = Path(entry["manifest"]["root"]) / READER_ENTRIES[reader_kind]
@@ -1011,7 +1024,7 @@ def inspect_request(base, name, data):
         capability = request_authority(entry, gate, request, {role: entry["manifest"][role] for role in ("root", "home")})
         require(capability in {"observe", "verify"}, "application/action owner not enabled")
         return {"binding": request["binding"], "generation": request["generation"], "request_id": request["request_id"],
-                "request_digest": request["request_digest"], "outcome": "complete"}
+                "request_digest": request["request_digest"], "outcome": "not-executed"}
 
 
 # The loader is duplicated only as a deliberately tiny independent trust root.
