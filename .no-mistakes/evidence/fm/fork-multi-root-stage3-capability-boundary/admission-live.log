@@ -1,0 +1,65 @@
+SCENARIO 1: typed SDK vocabulary and installed ingress (private synthetic lane)
+observe: class=observe; installed exit=0; {"binding": "627abbe5-5b0c-4daf-957f-27c95b5dc911", "generation": 1, "outcome": "not-executed", "request_digest": "a3bd91f87d3eabd4ddcc08d5542d8b87cae9f90f4417b4cf3d6a2e07f42a78f0", "request_id": "1fcfc7b955a74a89ac063c4cfc9285f9"}
+probe: class=observe; installed exit=0; {"binding": "627abbe5-5b0c-4daf-957f-27c95b5dc911", "generation": 1, "outcome": "not-executed", "request_digest": "7dae0f387bd878dbe224f42010cc773f3973cea5913f96d015a65794cbff758f", "request_id": "2d5aa3b4adf342eea4823dd3980f7e1d"}
+reply-read: class=reply-read; installed exit=126; enrollment unknown/refused: application/action owner not enabled
+reply-ack: class=reply-ack; installed exit=126; enrollment unknown/refused: application/action owner not enabled
+task-answer: class=task-answer; installed exit=126; enrollment unknown/refused: application/action owner not enabled
+task-steer: class=task-steer; installed exit=126; enrollment unknown/refused: application/action owner not enabled
+inherit-apply: class=inherit; installed exit=126; enrollment unknown/refused: application/action owner not enabled
+sync-verify: class=verify; installed exit=0; {"binding": "627abbe5-5b0c-4daf-957f-27c95b5dc911", "generation": 1, "outcome": "not-executed", "request_digest": "f7109f1c97e2a343007aeb252f26198242652fc0976bb6aa9974f8dd55938f49", "request_id": "a73cf35d21d8461f92af5c9791c4f596"}
+dispatch: class=dispatch; installed exit=126; enrollment unknown/refused: application/action owner not enabled
+launch: class=launch; installed exit=126; enrollment unknown/refused: application/action owner not enabled
+relaunch: class=relaunch; installed exit=126; enrollment unknown/refused: application/action owner not enabled
+stop: class=stop; installed exit=126; enrollment unknown/refused: application/action owner not enabled
+cleanup: class=cleanup; installed exit=126; enrollment unknown/refused: application/action owner not enabled
+repair-accepted: class=repair; installed exit=126; enrollment unknown/refused: application/action owner not enabled
+update-prepare: class=prepare; installed exit=126; enrollment unknown/refused: application/action owner not enabled
+operation-step: class=transition; installed exit=126; enrollment unknown/refused: application/action owner not enabled
+operation-status: class=operation-status; installed exit=126; enrollment unknown/refused: application/action owner not enabled
+abort-before-stop: class=abort; installed exit=126; enrollment unknown/refused: application/action owner not enabled
+caller-supplied script: REFUSED incomplete/unexpected typed body
+unknown provision verb: REFUSED unknown named verb
+changed request digest: REFUSED request digest mismatch
+SCENARIO 2: owner rejects reads before registration and retains pending/read leases
+shell-entry missing file, no nonce: REFUSED missing installed registration
+shell-entry: durable reservation BEFORE read = pending
+shell-entry cooperating mutation before read: REFUSED application registration prevents movement
+shell-entry: returned application bytes = b"print('fresh-shell-entry')\n"
+shell-entry reused nonce: REFUSED missing/unusable installed registration
+shell-entry cooperating mutation after read: REFUSED application registration prevents movement
+source-module missing file, no nonce: REFUSED missing installed registration
+source-module: durable reservation BEFORE read = pending
+source-module cooperating mutation before read: REFUSED application registration prevents movement
+source-module: returned application bytes = b"print('fresh-source-module')\n"
+source-module reused nonce: REFUSED missing/unusable installed registration
+source-module cooperating mutation after read: REFUSED application registration prevents movement
+python-import missing file, no nonce: REFUSED missing installed registration
+python-import: durable reservation BEFORE read = pending
+python-import cooperating mutation before read: REFUSED application registration prevents movement
+python-import: returned application bytes = b"print('fresh-python-import')\n"
+python-import reused nonce: REFUSED missing/unusable installed registration
+python-import cooperating mutation after read: REFUSED application registration prevents movement
+callback missing file, no nonce: REFUSED missing installed registration
+callback: durable reservation BEFORE read = pending
+callback cooperating mutation before read: REFUSED application registration prevents movement
+callback: returned application bytes = b"print('fresh-callback')\n"
+callback reused nonce: REFUSED missing/unusable installed registration
+callback cooperating mutation after read: REFUSED application registration prevents movement
+foreign physical root: REFUSED foreign physical root
+fenced reservation read: REFUSED registration closed by fence
+stale generation read: REFUSED request generation mismatch
+SCENARIO 4a: installed enrollment cannot activate a reserved lane
+reserved lane inspection: exit=126 enrollment unknown/refused: inactive enrollment
+activate: exit=126 enrollment unknown/refused: only installed diagnosis/enrollment resume/request inspection supported
+enroll: exit=126 enrollment unknown/refused: only installed diagnosis/enrollment resume/request inspection supported
+fixture-activate: exit=126 enrollment unknown/refused: only installed diagnosis/enrollment resume/request inspection supported
+SCENARIO 3: real Bash A->M replacement, synthetic outside-owner trampoline (not adapter qualification)
+shell-entry, returning-guard=False: exit=0, stdout='M\n', stderr=''
+shell-entry, returning-guard=True: exit=0, stdout='M\nA-buffered\n', stderr=''
+source-module, returning-guard=False: exit=0, stdout='M\n', stderr=''
+source-module, returning-guard=True: exit=0, stdout='M\nA-buffered\n', stderr=''
+python-import, returning-guard=False: exit=0, stdout='M\n', stderr=''
+python-import, returning-guard=True: exit=0, stdout='M\nA-buffered\n', stderr=''
+callback, returning-guard=False: exit=0, stdout='M\n', stderr=''
+callback, returning-guard=True: exit=0, stdout='M\nA-buffered\n', stderr=''
+Local owner and installed ingress scenarios completed. No fleet/backend/agent launched.

@@ -1,0 +1,19 @@
+test_entry_before_read_installed_invocation_blocks_movement (__main__.Capability.test_entry_before_read_installed_invocation_blocks_movement) ... ok
+test_entry_before_read_old_interpreter_trampoline_and_negative_control (__main__.Capability.test_entry_before_read_old_interpreter_trampoline_and_negative_control) ... ok
+test_installed_inspection_has_no_producer_or_fixture_override (__main__.Capability.test_installed_inspection_has_no_producer_or_fixture_override) ... ok
+test_observation_never_grants_application_read_and_manifest_is_bound (__main__.Capability.test_observation_never_grants_application_read_and_manifest_is_bound) ... ok
+test_reader_kind_and_stored_request_digest_are_revalidated (__main__.Capability.test_reader_kind_and_stored_request_digest_are_revalidated) ... ok
+test_registration_before_application_read_and_claim_race (__main__.Capability.test_registration_before_application_read_and_claim_race) ... ok
+test_removed_registration_and_post_fence_controls_fail_oracles (__main__.Capability.test_removed_registration_and_post_fence_controls_fail_oracles) ... ok
+test_resources_lineage_and_positional_arguments (__main__.Capability.test_resources_lineage_and_positional_arguments) ... ok
+test_stale_or_fenced_reservation_never_opens_application (__main__.Capability.test_stale_or_fenced_reservation_never_opens_application) ... ok
+test_strict_envelope_and_digest_at_each_boundary (__main__.Capability.test_strict_envelope_and_digest_at_each_boundary) ... ok
+test_typed_vocabulary_and_refused_neighbours (__main__.Capability.test_typed_vocabulary_and_refused_neighbours) ... ok
+
+----------------------------------------------------------------------
+Ran 11 tests in 3.037s
+
+OK
+entry-before-read: installed exec discards A; returning in-script guard fails the same oracle
+negative-controls: removed reader admission and post-fence registration fail acceptance oracles
+ok - typed installed admission and entry-before-read owner slice

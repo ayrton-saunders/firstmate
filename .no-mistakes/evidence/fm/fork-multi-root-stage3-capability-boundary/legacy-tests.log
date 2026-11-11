@@ -1,0 +1,4 @@
+ok - no-enrollment route parsing retains its default session and writes no state
+ok - no-enrollment readiness preserves check/fix/check effects and never retries exit 255
+ok - no-enrollment sync preserves fast-forward/current output, selected bytes and clean home
+ok - no-enrollment queue paths, label, private modes and idempotent write footprint remain unchanged

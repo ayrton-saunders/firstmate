@@ -1,0 +1,9 @@
+SCENARIO 4b: ordinary single-root fast-forward and queue with no enrollment
+home: updated 7494b1a..aab2060
+selected HEAD=aab2060273971f82145fdd875f371cdaf5b0c36d; working file=B
+home: already current
+state=/.firstmate/remote-job
+jobs=/.firstmate/remote-job/jobs
+label=dev.firstmate.remote-job
+plist=/Library/LaunchAgents/dev.firstmate.remote-job.plist
+No enrollment created; no service rendered or installed. Disposable repositories cleaned on exit.
