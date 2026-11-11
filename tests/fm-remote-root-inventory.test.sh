@@ -3,6 +3,7 @@
 # This is NOT a source-string behavioral test of a production implementation.
 # Owner behavior is exercised by each separately named executable suite.
 set -eu
+# shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 TMP_ROOT=$(fm_test_tmproot fm-remote-root-inventory)

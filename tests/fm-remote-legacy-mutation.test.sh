@@ -2,6 +2,7 @@
 # Negative controls: deliberately broken fixture code must fail the frozen
 # legacy observations. Mutants live only under the test temporary directory.
 set -eu
+# shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 TMP_ROOT=$(fm_test_tmproot fm-remote-legacy-mutation)

@@ -2,6 +2,7 @@
 # Frozen no-enrollment route/readiness/sync observations through public libraries.
 # FM_CHARACTERIZATION_ROOT is a test-only baseline selection; no remote tools run.
 set -eu
+# shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 SUBJECT=${FM_CHARACTERIZATION_ROOT:-$ROOT}

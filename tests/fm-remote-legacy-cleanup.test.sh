@@ -2,6 +2,7 @@
 # Freeze the no-enrollment teardown -> orphan-cleanup integration using only
 # a recorded reaper stub and fake backend, never a real sweep/backend/pool call.
 set -eu
+# shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 unset FM_PUBLIC_FOLLOWUP_PRIMARY_HOME
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)

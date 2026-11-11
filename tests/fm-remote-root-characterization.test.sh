@@ -5,6 +5,7 @@
 # FM_CHARACTERIZATION_ROOT selects an extracted baseline bin/ for differential
 # runs. It is not a production override or an enrollment interface.
 set -eu
+# shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 SUBJECT=${FM_CHARACTERIZATION_ROOT:-$ROOT}
