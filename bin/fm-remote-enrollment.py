@@ -1,6 +1,7 @@
-"""Inactive stage-2 enrollment kernel. No CLI or production callers.
+"""Inactive enrollment kernel and stage-3a typed admission/outer-reader owner.
 
-Only explicit fixture/setup authority may call this module. No function activates a
+No application dispatcher or named producer is enabled. Only explicit fixture/
+setup authority calls the reader primitives. No function activates a
 lane, starts a service, clones a repository, or changes legacy routing. Resource
 claims are one atomic inventory document; descriptors/pointers are projections.
 Records use canonical JSON SHA-256 envelopes, bounded single-open reads, and
@@ -714,7 +715,6 @@ REPAIR_RESOURCES = {"worker-projection", "service-projection", "ingress-projecti
 # This stage has no update state machine. A transition cannot smuggle in its own
 # payload or executable; later stages must implement each legal state edge.
 TRANSITIONS = {"fence", "drain", "status"}
-DRAIN_VERBS = {"reply-read", "reply-ack", "task-answer", "task-steer"}
 
 
 def token(value, label):
@@ -750,7 +750,7 @@ def typed_request(data):
     """
     require(isinstance(data, bytes) and len(data) <= REQUEST_LIMIT, "oversized/nonbyte request")
     try:
-        request = json.loads(data, object_pairs_hook=unique)
+        request = json.loads(data.decode("utf-8"), object_pairs_hook=unique)
     except (ValueError, UnicodeDecodeError, RecursionError) as exc:
         raise Refusal("invalid protocol-2 JSON") from exc
     fields(request, "version instance binding fleet route generation expected_commit request_id request_digest verb typed_body", "typed request")
@@ -758,8 +758,8 @@ def typed_request(data):
     require(isinstance(request["instance"], str) and NAME.fullmatch(request["instance"]) and request["instance"] != "legacy", "invalid instance")
     for key in ("binding", "fleet"):
         uuid_text(request[key], key)
-    for key in ("route", "request_id"):
-        token(request[key], key)
+    require(isinstance(request["route"], str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,128}", request["route"]), "invalid route")
+    token(request["request_id"], "request_id")
     positive(request["generation"], "generation", zero=True)
     commit(request["expected_commit"], "expected_commit")
     verb = request["verb"]
@@ -771,7 +771,7 @@ def typed_request(data):
     expectations = body.get("expectations", {})
     require(isinstance(expectations, dict) and set(expectations) <= {"root", "home"}, "unexpected authority expectation")
     for path in expectations.values():
-        require(isinstance(path, str) and path.startswith("/") and path == os.path.normpath(path) and len(path) <= 4096, "invalid path expectation")
+        require(isinstance(path, str) and path.startswith("/") and path == os.path.normpath(path) and len(path) <= 4096 and "\x00" not in path, "invalid path expectation")
     for key, value in body.items():
         if key == "expectations":
             continue
@@ -782,7 +782,11 @@ def typed_request(data):
         elif key == "expected_revision":
             positive(value, key)
         elif key in {"text", "content"}:
-            require(isinstance(value, str) and len(value.encode("utf-8")) <= TEXT_LIMIT and "\x00" not in value, "invalid/oversized " + key)
+            require(isinstance(value, str) and "\x00" not in value, "invalid " + key)
+            try:
+                require(len(value.encode("utf-8")) <= TEXT_LIMIT, "oversized " + key)
+            except UnicodeEncodeError as exc:
+                raise Refusal("invalid UTF-8 " + key) from exc
         else:
             token(value, key)
     if verb == "inherit-apply":
@@ -832,13 +836,18 @@ def admission_snapshot(base, name):
     location = instance(base, name)
     descriptor = snapshot(location / "descriptor.json", "descriptor")
     require(descriptor["payload"] == {"claim": entry["digest"], "manifest": frozen}, "descriptor/claim mismatch")
+    verify_loader(base, frozen)
     verify_resources(entry)
     gate = snapshot(location / "gate.json", "gate")
     payload = gate["payload"]
+    fields(payload, "binding generation state owner claim", "admission gate")
     require(payload.get("binding") == frozen["binding"] and payload.get("claim") == entry["digest"], "gate/claim mismatch")
     positive(payload.get("generation"), "gate generation", zero=True)
     require(payload.get("state") in {"released", "fenced"}, "unknown gate state")
     require(entry["state"] == "active", "inactive enrollment")
+    for key in ("FM_ROOT_OVERRIDE", "FM_STATE_OVERRIDE", "FM_REMOTE_JOB_STATE_OVERRIDE"):
+        require(key not in os.environ, "production override refused: " + key)
+    require("FM_HOME" not in os.environ or os.environ["FM_HOME"] == frozen["home"], "contradictory home lineage")
     return entry, gate
 
 
@@ -911,7 +920,7 @@ def stage_request(base, name, data, operands):
         return queued
 
 
-def reserve_execution(base, name, data, operands, executable_digest, parent=None):
+def reserve_execution(base, name, data, operands, executable_digest):
     """Before opening ANY application bytes, publish a pending launch nonce."""
     request = typed_request(data)
     sha(executable_digest, "executable digest")
@@ -922,107 +931,87 @@ def reserve_execution(base, name, data, operands, executable_digest, parent=None
         queued = record["payload"]["requests"].get(request["request_id"])
         require(queued is not None and queued["request"] == request and queued["state"] == "queued", "unstaged/already claimed request")
         leases = record["payload"]["leases"]
-        if parent is not None:
-            require(parent in leases and leases[parent]["state"] == "running" and leases[parent]["generation"] == request["generation"], "invalid parent lease")
         nonce = uuid.uuid4().hex
         leases[nonce] = {"nonce": nonce, "binding": request["binding"], "generation": request["generation"],
                          "request_id": request["request_id"], "request_digest": request["request_digest"],
                          "task": request["typed_body"].get("task"), "correlation": request["typed_body"].get("correlation"),
                          "resources": entry["manifest"]["resources"], "executable_digest": executable_digest,
-                         "parent": parent, "capability": capability, "state": "pending", "process": None}
+                         "capability": capability, "state": "pending", "process": None}
         queued["state"] = "claimed"
         queued["lease"] = nonce
         save_population(location, record)
         return nonce
 
 
-def consume_reservation(base, name, nonce, process, executable_digest):
-    """Receiving checkpoint before import/exec; recheck delayed input/reuse.
+# This slice has no named application dispatcher. Paths here are the CLOSED
+# reader kinds for the installed owner, not caller-supplied executable paths.
+# Stage 3b must wire their launch/source/callback consumers and actual effects.
+READER_ENTRIES = {
+    "shell-entry": "bin/fm-remote-entrypoint.sh",
+    "source-module": "bin/fm-remote-job-lib.sh",
+    "python-import": "bin/fm-record-export.py",
+    "callback": "bin/fm-procevent-when.sh",
+}
 
-    Process identity must come from the installed launch adapter, never request
-    data or environment. Concrete OS adapter qualification is a later stage.
-    This low-level owner does not manufacture that evidence from PID alone.
+
+def read_registered_application(base, name, nonce, reader_kind, operands):
+    """Installed outer reader, never a retroactive in-script guard.
+
+    A caller gets fresh accepted bytes, NOT permission to execute bytes it read
+    before registration. No API validates buffered interpreter bytes against a
+    current file hash. A local trampoline must exec the installed launcher and
+    discard its interpreter; source/import/callback owners must enter here
+    before their first read. Wiring those consumers is not claimed in 3a.
     """
-    fields(process, "boot_id pid start_token incarnation", "process incarnation")
-    for key in ("boot_id", "start_token", "incarnation"):
-        token(process[key], key)
-    positive(process["pid"], "pid")
-    sha(executable_digest, "executable digest")
-    with admission(base, name) as (_entry, gate):
-        require(gate["payload"]["state"] == "released", "launch fenced")
+    require(isinstance(reader_kind, str) and reader_kind in READER_ENTRIES, "unclassified application reader")
+    require(isinstance(nonce, str) and re.fullmatch(r"[0-9a-f]{32}", nonce), "missing installed registration")
+    with admission(base, name) as (entry, gate):
         location = instance(base, name)
         record = population(location)
         lease = record["payload"]["leases"].get(nonce)
-        require(lease is not None and lease["state"] == "pending" and lease["generation"] == gate["payload"]["generation"], "missing/stale launch reservation")
-        require(lease["executable_digest"] == executable_digest, "launch manifest changed")
-        require(not any(other["process"] == process for other in record["payload"]["leases"].values()), "incarnation already registered")
-        lease["state"], lease["process"] = "running", dict(process)
+        require(lease is not None and lease["state"] == "pending", "missing/unusable installed registration")
+        queued = record["payload"]["requests"].get(lease["request_id"])
+        require(queued is not None and queued["state"] == "claimed" and queued.get("lease") == nonce, "unbound reader registration")
+        request = typed_request(canonical(queued["request"]))
+        capability = request_authority(entry, gate, request, operands)
+        require(lease["binding"] == request["binding"] and lease["generation"] == request["generation"]
+                and lease["request_digest"] == request["request_digest"] and lease["capability"] == capability
+                and lease["resources"] == entry["manifest"]["resources"], "contradictory reader registration")
+        # Only NOW may even stat/open the application path. The retained lease
+        # prevents a cooperating mutation owner moving the code after this read.
+        path = Path(entry["manifest"]["root"]) / READER_ENTRIES[reader_kind]
+        data = read_bytes(path)
+        require(hashlib.sha256(data).hexdigest() == lease["executable_digest"], "application manifest digest mismatch")
+        lease["state"] = "reading"
+        lease["reader_kind"] = reader_kind
         save_population(location, record)
-        return lease
+        return data
 
 
-def fence_population(base, name, operation):
-    """Close first, snapshot second; a crash never reopens registration.
+def require_no_application_readers(base, name):
+    """Mutation-owner predicate; caller MUST hold admission through its effect.
 
-    Frozen target/source intent belongs to the later operation executor. This
-    observed population has its own revision/digest and is reconstructed from
-    the retained durable ledger if publication was interrupted after closing.
-    The ledger cannot acquire new ordinary entries after this gate write.
+    Not a maintained fence, drain algorithm, or standalone check-then-mutate
+    API. Stage 3b supplies those owners. Pending/crashed reservations also block.
+    There is deliberately no automatic release or timeout in this slice.
     """
-    token(operation, "operation")
-    with admission(base, name) as (_entry, gate):
-        location = instance(base, name)
-        current = gate["payload"]
-        if current["state"] == "released":
-            current.update(state="fenced", owner=operation, fence_snapshot=None)
-            publish(location / "gate.json", "gate", gate["revision"] + 1, current)
-            gate = snapshot(location / "gate.json", "gate")
-        else:
-            require(current["owner"] == operation, "another operation owns fence")
-        record = population(location)
-        observed = {"binding": current["binding"], "generation": current["generation"], "operation": operation,
-                    "population_revision": record["revision"],
-                    "leases": record["payload"]["leases"], "requests": record["payload"]["requests"]}
-        path = location / "fence-snapshot.json"
-        if current.get("fence_snapshot") is not None:
-            receipt = snapshot(path, "fence-snapshot")
-            require(receipt["digest"] == current["fence_snapshot"], "fence snapshot mismatch")
-            return receipt
-        # No terminal bookkeeping may erase ledger records before this snapshot.
-        revision = snapshot(path, "fence-snapshot")["revision"] + 1 if os.path.lexists(path) else 1
-        publish(path, "fence-snapshot", revision, observed)
-        receipt = snapshot(path, "fence-snapshot")
-        current["fence_snapshot"] = receipt["digest"]
-        publish(location / "gate.json", "gate", gate["revision"] + 1, current)
-        return receipt
+    record = population(instance(base, name))
+    require(not record["payload"]["leases"], "application registration prevents movement")
 
 
-def drain_authority(base, name, data, operation):
-    """Finite installed reply control, not permission to load application code.
+def inspect_request(base, name, data):
+    """Installed parser/admission diagnostic; no ordinary application dispatch.
 
-    Normal dispatch/launch/repair remains closed. Only tasks AND correlations
-    captured by the fence may receive bounded answers. No caller can declare
-    a new task existing, and a prepare-time population is never consulted.
+    A parsed capability is NOT an execution permit. All application/action
+    verbs stay unreachable until their concrete guarded owner is implemented.
+    The installed ingress never executes application code in this slice.
     """
     request = typed_request(data)
-    require(request["verb"] in DRAIN_VERBS, "not a bounded drain operation")
     with admission(base, name) as (entry, gate):
-        location = instance(base, name)
-        current = gate["payload"]
-        require(current["state"] == "fenced" and current["owner"] == operation, "not this operation's fence")
-        receipt = snapshot(location / "fence-snapshot.json", "fence-snapshot")
-        require(receipt["digest"] == current.get("fence_snapshot"), "fence population incomplete")
-        # Use the ordinary tuple/operand validator without granting its released
-        # registration capability. This local copy is never published as a gate.
-        released = dict(gate, payload=dict(current, state="released"))
-        request_authority(entry, released, request, {role: entry["manifest"][role] for role in ("root", "home")})
-        body = request["typed_body"]
-        require(any(lease["task"] == body["task"] and lease["correlation"] == body["correlation"]
-                    and lease["state"] in {"pending", "running"}
-                    for lease in receipt["payload"]["leases"].values()), "task/correlation absent from fence population")
-        return {"capability": "drain-control", "binding": request["binding"], "generation": request["generation"],
-                "request_digest": request["request_digest"], "fence_digest": receipt["digest"],
-                "task": body["task"], "correlation": body["correlation"]}
+        capability = request_authority(entry, gate, request, {role: entry["manifest"][role] for role in ("root", "home")})
+        require(capability in {"observe", "verify"}, "application/action owner not enabled")
+        return {"binding": request["binding"], "generation": request["generation"], "request_id": request["request_id"],
+                "request_digest": request["request_digest"], "outcome": "complete"}
 
 
 # The loader is duplicated only as a deliberately tiny independent trust root.
@@ -1080,8 +1069,8 @@ def record(path, kind):
     return value
 
 try:
-    if len(sys.argv) != 2 or sys.argv[1] not in ("diagnose", "resume"):
-        fail("only installed diagnosis/enrollment resume supported")
+    if len(sys.argv) != 2 or sys.argv[1] not in ("diagnose", "resume", "inspect-request"):
+        fail("only installed diagnosis/enrollment resume/request inspection supported")
     for role, directory in (("parent", Path(BASE).parent), ("base", Path(BASE))):
         info = directory.lstat()
         mode = stat.S_IMODE(info.st_mode)
@@ -1091,7 +1080,7 @@ try:
     claims = record(Path(BASE) / "claims.json", "claims")["payload"]
     entry = claims["entries"][NAME]
     frozen = entry["manifest"]
-    if entry["digest"] != hashed(frozen) or frozen["name"] != NAME or entry["state"] not in ("reserved", "enrolled"):
+    if entry["digest"] != hashed(frozen) or frozen["name"] != NAME or entry["state"] not in ("reserved", "enrolled", "active"):
         fail("invalid claim")
     key = frozen["bundle"]
     if len(key) != 64 or any(c not in "0123456789abcdef" for c in key):
@@ -1113,7 +1102,10 @@ try:
         fail("bundle file mismatch")
     namespace = {"__name__": "installed_enrollment"}
     exec(compile(code, str(bundle / "enrollment.py"), "exec"), namespace)
-    result = namespace[sys.argv[1]](Path(BASE), NAME)
+    if sys.argv[1] == "inspect-request":
+        result = namespace["inspect_request"](Path(BASE), NAME, sys.stdin.buffer.read(65537))
+    else:
+        result = namespace[sys.argv[1]](Path(BASE), NAME)
     print(json.dumps(result, sort_keys=True))
 except (ValueError, OSError, KeyError, TypeError) as exc:
     print("enrollment unknown/refused: " + str(exc), file=sys.stderr)
