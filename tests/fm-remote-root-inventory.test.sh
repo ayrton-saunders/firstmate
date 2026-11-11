@@ -39,6 +39,49 @@ assert {r for stage in stages.values() for r in stage['corrections']} == {
     'R1', 'R2', 'R3', 'R4', 'R5', 'R6'}
 print('ok - every indexed entry has an explicit exclusion, boundary and evidence level')
 PY
+python3 - "$ROOT" "$TMP_ROOT" <<'PY'
+import json
+import pathlib
+import subprocess
+import sys
+
+root = pathlib.Path(sys.argv[1])
+fixture = pathlib.Path(sys.argv[2]) / 'runtime-fixture'
+fixture.mkdir()
+subprocess.run(['git', 'init', '-q', str(fixture)], check=True)
+expected = {
+    'bin/entry.sh', 'bin/module.py', 'bin/module.js', 'bin/module.mjs',
+    'bin/module.ts', 'bin/capture.pl', 'bin/reader.lua', 'bin/filter.jq',
+}
+for name in expected:
+    path = fixture / name
+    path.parent.mkdir(exist_ok=True)
+    path.write_text('')
+    path.chmod(0o644)
+subprocess.run(['git', '-C', str(fixture), 'add', 'bin'], check=True)
+policy = json.loads((root / 'tests/fixtures/remote-root-boundaries.json').read_text())
+policy.update(owners=[], containers=[], findings=[])
+test = fixture / policy['default']['test']
+test.parent.mkdir(parents=True, exist_ok=True)
+test.write_text('')
+policy_path = fixture / 'policy.json'
+policy_path.write_text(json.dumps(policy))
+subprocess.run(['git', '-C', str(fixture), '-c', 'user.name=Fixture',
+                '-c', 'user.email=fixture@example.invalid',
+                '-c', 'commit.gpgsign=false', 'commit', '-qm', 'Runtime fixture'],
+               check=True)
+report = json.loads(subprocess.check_output([
+    'python3', str(root / 'tests/remote-root-inventory.py'),
+    '--root', str(fixture), '--policy', str(policy_path)], text=True))
+assert {entry['file'] for entry in report['entries']} == expected
+for entry in report['entries']:
+    assert entry['symbol'] == '@entry' and entry['mode'] == '100644'
+    assert entry['classification'] == 'unclassified'
+    assert entry['named_dispatch'] is False
+    for field in ('boundary', 'effects', 'test', 'closure_stage'):
+        assert entry[field] == policy['default'][field]
+print('ok - tracked non-executable interpreted modules retain exclusion mappings')
+PY
 # Exercise the real ingress, not just the audit policy: protocol 2 is not a
 # production dispatch surface in Stage 1. Both a known and an unclassified
 # command-shaped payload must be rejected before decoding or queue creation.

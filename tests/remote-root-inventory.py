@@ -26,7 +26,7 @@ import sys
 DECLARATION = re.compile(
     r"^\s*(?:function\s+)?([A-Za-z_][A-Za-z_0-9]*)\s*\(\s*\)\s*\{"
 )
-RUNTIME_SUFFIXES = {'.sh', '.py', '.js', '.mjs', '.ts'}
+RUNTIME_SUFFIXES = {'.sh', '.py', '.js', '.mjs', '.ts', '.pl', '.lua', '.jq'}
 
 
 def tracked_entries(root):
