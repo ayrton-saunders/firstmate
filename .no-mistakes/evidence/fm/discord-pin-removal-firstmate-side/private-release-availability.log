@@ -1,0 +1,2 @@
+CPython private release availability: None
+No private release source or disposable-domain provisioning interface is provided by this repository. Existing suites substitute journal/routing modules; those results are not live private-domain validation.

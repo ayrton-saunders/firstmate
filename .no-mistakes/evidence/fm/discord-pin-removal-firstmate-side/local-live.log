@@ -1,0 +1,142 @@
+$ bash bin/fm-lab-home.sh create {run-worktree}/.l
+exit=0
+{run-worktree}/.l
+
+$ tmux -L fm-lab new-session -d -s fm-lab-discord -n fm-mapped -x 120 -y 30 -c {run-worktree} cat
+exit=0
+
+$ bash bin/fm-send.sh mapped Local live steering: source status present
+exit=0
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the requested message WILL still be sent.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e {run-worktree}/.pi/extensions/fm-primary-turnend-guard.ts -e {run-worktree}/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+fm-send: doorbell not typed because the agent in fm-lab-discord:fm-mapped has exited; the steer is durably recorded at {run-worktree}/.l/state/mapped.inbox/001.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+
+Durable inbox receipt 001.msg:
+schema=fm-task-inbox.v1
+at=2026-11-12T13:22:58Z
+body-terminator=1
+--
+Local live steering: source status present
+
+$ bash bin/fm-send.sh mapped Local live steering: source status stale
+exit=0
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+fm-send: doorbell not typed because the agent in fm-lab-discord:fm-mapped has exited; the steer is durably recorded at {run-worktree}/.l/state/mapped.inbox/002.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+
+Durable inbox receipt 002.msg:
+schema=fm-task-inbox.v1
+at=2026-11-12T13:23:01Z
+body-terminator=1
+--
+Local live steering: source status stale
+
+$ bash bin/fm-send.sh mapped Local live steering: source status absent
+exit=0
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+fm-send: doorbell not typed because the agent in fm-lab-discord:fm-mapped has exited; the steer is durably recorded at {run-worktree}/.l/state/mapped.inbox/003.msg for recovery (stuck-crewmate-recovery), and the watcher will not re-ring a dead pane
+
+Durable inbox receipt 003.msg:
+schema=fm-task-inbox.v1
+at=2026-11-12T13:23:03Z
+body-terminator=1
+--
+Local live steering: source status absent
+
+Real private tmux endpoint readback:
+$ tmux -L fm-lab capture-pane -p -t fm-lab-discord:fm-mapped
+exit=0
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+LOCAL SOURCE STATUS SCENARIO: durably queued all three steers without invoking private interpreter, package or journal. The cat endpoint is not an agent: fm-send explicitly retained the records for recovery and did not type a doorbell. This proves durable local admission only, not agent execution.
+$ bash bin/fm-send.sh mapped DO-NOT-ECHO-SYNTHETIC-SECRET
+exit=1
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: Integration schema/home mismatch
+
+$ bash bin/fm-send.sh mapped DO-NOT-ECHO-SYNTHETIC-SECRET
+exit=1
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: Integration schema/home mismatch
+
+$ bash bin/fm-send.sh mapped /parser-command
+exit=1
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: Mapped work must use ordinary inbox text, not a parser-native invocation
+
+$ bash bin/fm-send.sh mapped DO-NOT-ECHO-SYNTHETIC-SECRET
+exit=1
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.l
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+error: Existing caller generation fence conflicts with the typed permit
+
+$ python3.14 -I bin/fm-discord-hook.py send mapped fm-lab-discord:fm-mapped {run-worktree}/.l/state/mapped.meta tmux
+exit=1
+error: Mapped routing requires a typed parent-issued lane permit
+
+$ python3.14 -I bin/fm-discord-hook.py send mapped fm-lab-discord:fm-mapped {run-worktree}/.l/state/mapped.meta tmux
+exit=1
+error: Mapped routing requires a typed parent-issued lane permit
+
+$ python3.14 -I bin/fm-discord-dispatch.py aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa mapped Harmless local question
+exit=1
+error: Discord dispatch refused: Integration schema/home mismatch
+
+$ python3.14 -I bin/fm-discord-dispatch.py aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa mapped Harmless local question
+exit=1
+error: Discord dispatch refused: Integration release hash mismatch
+
+$ python3.14 -I bin/fm-discord-reply.py aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa mapped Harmless local question
+exit=1
+error: Discord reply refused: Integration schema/home mismatch
+
+$ python3.14 -I bin/fm-discord-reply.py aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa mapped Harmless local question
+exit=1
+error: Discord reply refused: Integration release hash mismatch
+
+$ python3.14 -I bin/fm-discord-hook.py send
+exit=1
+error: Duplicate configuration field
+
+LOCAL REFUSAL SCENARIO: home/schema, parser, generation, typed permit, duplicate configuration and imported release checks refused with named diagnostics; no rejected steer enqueued or journal opened.
+private tmux cleanup exit=0: 
+Disposable home removed; private server stopped.
