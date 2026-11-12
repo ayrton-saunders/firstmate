@@ -508,7 +508,11 @@ fm_herdr_lab_provision() { # <session>
   server_log=$(fm_herdr_lab_server_log_path "$name")
   mkdir -p "$(dirname "$server_log")"
   : > "$server_log"
-  fm_herdr_lab_raw "$name" server > >(exec >/dev/null 2>&1; head -c "$fm_herdr_lab_server_log_cap" > "$server_log"; cat) 2>&1 &
+  # Track the server itself, not a function's waiting shell: killing that shell
+  # can leave its child alive on Linux, able to start after teardown completed.
+  ( exec env -u HERDR_SOCKET_PATH -u HERDR_PANE_ID -u HERDR_TAB_ID -u HERDR_WORKSPACE_ID \
+      HERDR_SESSION="$name" herdr server --session "$name" ) \
+    > >(exec >/dev/null 2>&1; head -c "$fm_herdr_lab_server_log_cap" > "$server_log"; cat) 2>&1 &
   server_pid=$!
   attempt=0
   max_attempts=300

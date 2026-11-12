@@ -469,7 +469,7 @@ test_claude_stop_hook_runs_the_host_without_the_file_and_off_opts_out() {
 
 
 test_claude_stop_hook_delivers_a_close_that_turns_main_only_at_its_turn() {
-  local home
+  local home successor
   home=$(make_primary_home hook-turns-main-only)
   turn_main_only_at_second_offer "$home"
   start_hook_session "$home"
@@ -480,8 +480,21 @@ test_claude_stop_hook_delivers_a_close_that_turns_main_only_at_its_turn() {
   [ "$(cat "$home/offer-count" 2>/dev/null)" -ge 2 ] || fail "fixture: the close was not accepted before it turned main-only"
   [ "$(engine_calls "$home")" -eq 0 ] || fail "hook turns-main-only: the engine ran on a stale offer"
   assert_rewoke_main "$home" "hook turns-main-only"
-  watcher_live "$home" || fail "hook turns-main-only: the pass-through left no successor watcher"
-  pass "host+hook: a close that turns main-only at its turn rewakes main and keeps its successor watcher"
+  # The second offer appends a real decision. The detached successor is allowed
+  # to close on that new event before this assertion runs; require its exact
+  # actionable close and retained decision, not a scheduler-dependent live PID.
+  successor=$(cut -f1 "$home/state/.supervision-host-left")
+  case "$successor" in ''|*[!0-9]*) fail "hook turns-main-only: no recorded successor arm" ;; esac
+  wait_until 150 grep -Eq "^arm_pid=${successor}[[:space:]].*reason=actionable-signal" "$home/state/.watch-cycle-exits.log" \
+    || fail "hook turns-main-only: the successor did not close on the later decision"
+  main_drain "$home" > "$home/main-drain"
+  assert_grep 'which export format?' "$home/main-drain" "hook turns-main-only: the later decision was lost"
+  # shellcheck disable=SC2086 # the drain's generation-bound acknowledgement argv
+  [ -z "$MAIN_ACK" ] || FM_HOME="$home" "$FAKE_CLAUDE" -c '"$0" "$@" >/dev/null 2>&1' "$ROOT/bin/fm-wake-drain.sh" $MAIN_ACK \
+    || fail "hook turns-main-only: main's acknowledgement failed: $MAIN_ACK"
+  turn_end "$home"
+  wait_until 150 watcher_live "$home" || fail "hook turns-main-only: the next turn left no successor watcher"
+  pass "host+hook: a close that turns main-only retains the later decision and the next turn restores its watcher"
 }
 
 
