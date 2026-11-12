@@ -32,6 +32,9 @@ import subprocess
 import sys
 
 
+HOOK = runpy.run_path(str(Path(__file__).resolve().with_name('fm-discord-hook.py')))
+
+
 class Refusal(ValueError):
     """Public-safe local diagnostic, never private exception text."""
 
@@ -42,20 +45,19 @@ def require(condition, message):
 
 
 def configuration(home):
-    hook = runpy.run_path(str(Path(__file__).resolve().with_name('fm-discord-hook.py')))
     path = home / 'config/discord-integration.json'
     require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 65536,
             'enabled regular parent configuration required')
-    config = json.loads(path.read_text(), object_pairs_hook=hook['unique'])
+    config = json.loads(path.read_text(), object_pairs_hook=HOOK['unique'])
     require(isinstance(config, dict) and config.get('enabled') is True,
             'enabled parent configuration required')
     interpreter = Path(config['python_executable'])
     require(interpreter.is_absolute() and interpreter.is_file(), 'pinned parent interpreter required')
     if Path(sys.executable).resolve() != interpreter.resolve():
         os.execv(str(interpreter), [str(interpreter), '-I', str(Path(__file__).resolve()), *sys.argv[1:]])
-    config = hook['load'](home)
+    config = HOOK['load'](home)
     require(config is not None and 'mapping' in config, 'pinned parent mapping required')
-    return config, hook['meta_value']
+    return config, HOOK['meta_value']
 
 
 def dispatch(args):
@@ -107,7 +109,7 @@ def dispatch(args):
     try:
         require(not journal.fenced and not journal.delivery_fenced, 'parent intake or delivery remains fenced')
         parent = parent_type(journal, config['mapping'])
-        request = journal.record('request', ident)
+        request = HOOK['checked_record'](journal, 'request', ident)
         _, state = journal.state('request', ident)
         require(request['origin']['project_key'] == project, 'request belongs to another mapped project')
         require(not journal.db.execute('SELECT 1 FROM intents WHERE request=?', (ident,)).fetchone(),
@@ -152,11 +154,12 @@ if __name__ == '__main__':
         sys.exit(0)
     try:
         dispatch(sys.argv[1:])
-    except Refusal as error:
+    except (Refusal, HOOK['HookCheck']) as error:
         print('error: Discord dispatch refused: ' + str(error), file=sys.stderr)
         sys.exit(1)
     except (ValueError, KeyError, TypeError, ImportError, OSError, RuntimeError, sqlite3.Error,
-            subprocess.SubprocessError):
-        print('error: Discord dispatch refused: verify pinned configuration, readiness and exact scope; '
+            subprocess.SubprocessError) as error:
+        print('error: Discord dispatch refused: ' + HOOK['failure_check'](error) + ' check failed; '
+              'verify pinned configuration, readiness and exact scope; '
               'reconcile existing intent and correlation before retry', file=sys.stderr)
         sys.exit(1)

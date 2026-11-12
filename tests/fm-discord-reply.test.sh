@@ -296,7 +296,7 @@ class Reply(unittest.TestCase):
         self.refuse('ambiguous correlated return')
 
     def test_unknown_request_or_route_refuses(self):
-        self.refuse('reconcile before retry',ident='missing-request')
+        self.refuse('Captured request lookup failed',ident='missing-request')
         self.refuse('exact mapped route required',route='missing-route')
 
     def test_wrong_project_or_task_binding_refuses(self):
@@ -341,7 +341,18 @@ class Reply(unittest.TestCase):
 
     def test_changed_package_refuses_before_journal_open(self):
         (self.package/'personal_discord/journal.py').write_text('raise AssertionError("must not import")')
-        self.refuse('reconcile before retry')
+        self.refuse('Integration release hash mismatch')
+        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
+
+    def test_home_binding_refuses_by_check_name_before_journal(self):
+        self.config['home']='/private/wrong-home'
+        self.config_path.write_text(json.dumps(self.config))
+        self.refuse('Integration schema/home mismatch')
+        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
+
+    def test_duplicate_configuration_refuses_by_check_name(self):
+        self.config_path.write_text('{"enabled":true,"enabled":false}')
+        self.refuse('Duplicate configuration field')
         self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
 
     def test_unsafe_or_oversized_words_refuse_before_journal_open(self):

@@ -31,6 +31,9 @@ import subprocess
 import sys
 
 
+HOOK = runpy.run_path(str(Path(__file__).resolve().with_name('fm-discord-hook.py')))
+
+
 class Refusal(ValueError):
     """Public-safe diagnostic selected locally, never private exception text."""
 
@@ -44,18 +47,17 @@ def configuration(home):
     # Reuse the owning guard, without changing its lifecycle hash or executing
     # its main. Select the pinned interpreter here so its re-exec cannot switch
     # this command into the hook's CLI with unrelated arguments.
-    hook = runpy.run_path(str(Path(__file__).resolve().with_name('fm-discord-hook.py')))
     path = home / 'config/discord-integration.json'
     require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 65536,
             'enabled regular parent configuration required')
-    config = json.loads(path.read_text(), object_pairs_hook=hook['unique'])
+    config = json.loads(path.read_text(), object_pairs_hook=HOOK['unique'])
     require(isinstance(config, dict) and config.get('enabled') is True,
             'enabled parent configuration required')
     interpreter = Path(config['python_executable'])
     require(interpreter.is_absolute() and interpreter.is_file(), 'pinned parent interpreter required')
     if Path(sys.executable).resolve() != interpreter.resolve():
         os.execv(str(interpreter), [str(interpreter), '-I', str(Path(__file__).resolve()), *sys.argv[1:]])
-    config = hook['load'](home)
+    config = HOOK['load'](home)
     require(config is not None and {'mapping', 'ingress', 'egress'} <= set(config),
             'pinned parent publication mapping required')
     return config
@@ -105,7 +107,7 @@ def reply(args):
     journal = journal_type(config['journal'])
     try:
         require(not journal.fenced and not journal.delivery_fenced, 'parent intake or delivery remains fenced')
-        request = journal.record('request', ident)
+        request = HOOK['checked_record'](journal, 'request', ident)
         revision, state = journal.state('request', ident)
         binding = journal.work_binding(ident)
         require(request['origin']['project_key'] == routes[0]['project'] and binding['work_id'] == target,
@@ -149,11 +151,12 @@ if __name__ == '__main__':
         sys.exit(0)
     try:
         reply(sys.argv[1:])
-    except Refusal as error:
+    except (Refusal, HOOK['HookCheck']) as error:
         print('error: Discord reply refused: ' + str(error), file=sys.stderr)
         sys.exit(1)
     except (ValueError, KeyError, TypeError, ImportError, OSError, RuntimeError, sqlite3.Error,
-            subprocess.SubprocessError):
-        print('error: Discord reply refused: verify pinned configuration and existing approval; '
+            subprocess.SubprocessError) as error:
+        print('error: Discord reply refused: ' + HOOK['failure_check'](error) + ' check failed; '
+              'verify pinned configuration and existing approval; '
               'reconcile before retry', file=sys.stderr)
         sys.exit(1)

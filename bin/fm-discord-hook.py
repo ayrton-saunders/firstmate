@@ -54,6 +54,22 @@ class HookCheck(ValueError):
     """A concrete local check failure containing no payload, paths or tokens."""
 
 
+def failure_check(error):
+    checks = {ValueError: 'configuration or authority validation', KeyError: 'required field',
+              TypeError: 'field type', ImportError: 'integration module availability',
+              OSError: 'local resource access', RuntimeError: 'parent authority state',
+              sqlite3.Error: 'journal integrity', subprocess.SubprocessError: 'lifecycle subprocess'}
+    return next(label for kind, label in checks.items() if isinstance(error, kind))
+
+
+def checked_record(journal, family, ident):
+    try:
+        return journal.record(family, ident)
+    except (ValueError, KeyError, TypeError, RuntimeError, sqlite3.Error) as error:
+        check = 'Route permit lookup failed' if family == 'route-permit' else 'Captured request lookup failed'
+        raise HookCheck(check) from error
+
+
 def load(home, *, routing_only=False):
     path = home / 'config/discord-integration.json'
     if not path.exists():
@@ -135,7 +151,7 @@ def guard(args):
         journal = journal_type(config['journal'])
         try:
             permit = os.environ.get('FM_DISCORD_AUTH', '')
-            body = journal.record('route-permit', permit)
+            body = checked_record(journal, 'route-permit', permit)
             if args[1] == 'local':
                 receipt = Path(args[2])
                 expected = home / 'state' / (body['target'] + '.inbox')
@@ -249,7 +265,7 @@ def guard(args):
     routing_type = importlib.import_module('personal_discord.routing').Routing
     journal = journal_type(config['journal'])
     try:
-        body = journal.record('route-permit', permit)
+        body = checked_record(journal, 'route-permit', permit)
         if args[0] == 'capacity-deferred':
             if body['project'] != project:
                 raise HookCheck('Deferred permit belongs to another mapped project')
@@ -298,6 +314,8 @@ if __name__ == '__main__':
         sys.exit(1)
     except (ValueError, KeyError, TypeError, ImportError, OSError, RuntimeError, sqlite3.Error, subprocess.SubprocessError) as error:
         # Fixed categories only: never echo message, private paths or tokens.
-        print('error: Discord parent routing guard refused: ' + type(error).__name__ +
-              '; verify the configured mapping and current typed lane permit', file=sys.stderr)
+        operation = sys.argv[1] if len(sys.argv) > 1 and sys.argv[1] in (
+            'send', 'spawn', 'capacity-deferred', 'outcome', 'ready', 'confirm-send') else 'operation'
+        check = failure_check(error)
+        print('error: Discord ' + operation + ' ' + check + ' check failed', file=sys.stderr)
         sys.exit(1)

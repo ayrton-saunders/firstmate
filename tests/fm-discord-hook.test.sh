@@ -26,6 +26,16 @@ if printf 'private text' | FM_HOME="$HOME_FIXTURE" python3 "$HOOK" send mapped f
   fail 'incomplete enabled configuration must refuse rather than bypass routing'
 fi
 pass 'Discord hook: incomplete enabled configuration refuses'
+printf '%s\n' '{private-malformed-config' > "$HOME_FIXTURE/config/discord-integration.json"
+for operation in send spawn capacity-deferred outcome ready confirm-send; do
+  if FM_HOME="$HOME_FIXTURE" python3 -I "$HOOK" "$operation" >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail 'malformed JSON must refuse'
+  fi
+  assert_contains "$(<"$TMP_ROOT/err")" "Discord $operation configuration or authority validation check failed" \
+    'fallback must name the operation and failed validation'
+  assert_not_contains "$(<"$TMP_ROOT/err")" 'private-malformed-config' 'fallback must not expose exception text'
+  assert_not_contains "$(<"$TMP_ROOT/err")" "$HOME_FIXTURE" 'fallback must not expose paths'
+done
 
 # These negative cases require no private package, credentials or runtime setup.
 for invalid in '[]' '{"enabled":"false"}' '{"enabled":null}'; do
@@ -329,10 +339,19 @@ done
 if printf 'private lane text' | FM_DISCORD_AUTH=00000000000000000000000000000000 mapped_hook send mapped sess:fm-mapped "$MAPPED_HOME/state/mapped.meta" tmux >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
   fail 'unknown well-formed permit must refuse'
 fi
+assert_contains "$(<"$TMP_ROOT/err")" 'Route permit lookup failed' 'unknown permit must name its failed check'
 [ -f "$MAPPED_HOME/journal" ] || fail 'well-formed permit must undergo journal lookup'
 [ ! -e "$MAPPED_HOME/journal.consumed" ] || fail 'unknown permit must not be consumed'
 rm "$MAPPED_HOME/journal"
 pass 'Discord hook: Discord lane missing, malformed and unknown permits refuse before consume'
+for delivery in local remote; do
+  if FM_DISCORD_AUTH=00000000000000000000000000000000 mapped_hook confirm-send "$delivery" "$receipt" >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail 'confirmation with unknown permit must refuse'
+  fi
+  [ "$(<"$TMP_ROOT/err")" = 'error: Route permit lookup failed' ] || fail 'confirmation must name lookup without private exception text'
+  [ ! -e "$MAPPED_HOME/journal.confirmed" ] || fail 'unknown permit must not confirm delivery'
+  rm "$MAPPED_HOME/journal"
+done
 
 for payload in '/native' 'ordinary'; do
   metadata="$MAPPED_HOME/state/mapped.meta"
