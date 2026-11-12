@@ -2514,9 +2514,8 @@ The [owner install-and-test sheet](discord-owner-reply-install.md) coordinates b
 When enabled, ordinary local supervisory text can still reach explicitly mapped workers without consuming Discord permits; per-domain bot scoping does not restrict the primary's own coordination.
 Discord-lane sends, remote mapped sends, and mapped project spawns still require parent-issued permits rather than treating transport input as authorization.
 Mapped endpoint aliases cannot bypass the guard through direct terminal text, and mapped work cannot use parser-native invocations.
-Unmapped sends and ordinary local supervisory sends (including to mapped workers) retain their ordinary routing behavior after configuration validation and endpoint identity checks, without loading the pinned Discord interpreter, package or parent source identity.
-Parent `source`, `source_commit` and `source_digest` describe the installation only; commit and digest fields are optional status information and never fence delivery.
-The home binding, mapping revision and digest, restore epoch and mention-only admission remain protections; the private release owns the latter three checks.
+Unmapped sends and ordinary local supervisory sends (including to mapped workers) retain their ordinary routing behavior after configuration validation and endpoint identity checks, without loading the pinned Discord interpreter or package.
+See the [hook's configuration contract](../bin/fm-discord-hook.py) for source status fields and the [owner cutover protections](discord-owner-reply-install.md#3-owner-action-preserve-the-domain-protections) for retained domain checks.
 A proven absent unrelated mapped endpoint does not block routing; an indeterminate identity lookup refuses delivery rather than risking a mapped terminal bypass.
 Capacity deferral remains a no-launch outcome and does not consume dispatch authority.
 Once a permit is consumed, reconcile lifecycle state before retrying; a failed command is not authority to reuse it.

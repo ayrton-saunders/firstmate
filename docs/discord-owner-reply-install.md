@@ -10,7 +10,7 @@ Never substitute an old frozen helper with hardcoded historical pins or epochs.
 
 Confirm the exact bot, controlling owner, channel, mapped project, existing second mate and canonical parent home.
 Do not infer another domain's authority from matching source revisions.
-Firstmate's commit and script digest are optional status information, not identity claims.
+The [hook's configuration contract](../bin/fm-discord-hook.py) owns the source status fields.
 Install the complete approved source, including both commands and the lifecycle hook and owners.
 Keep the already approved private package and architecture-matching CPython 3.14 runtime unless a separate immutable-release upgrade is explicitly approved.
 No new token, key, user, mapping, ACL, project charter or launchd job is needed for these parent commands.

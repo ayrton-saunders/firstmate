@@ -13,7 +13,7 @@ Exact pre-marker message (send) or brief SHA256 (spawn) arrives on stdin.
 FM_HOME selects the invoking parent home, as in the owning lifecycle script.
 Absent config/discord-integration.json preserves legacy behavior.
 Unmapped sends and ordinary local supervisory sends resolve routing configuration
-only, never the pinned parent interpreter, package or source identity.
+only, never the pinned parent interpreter or package.
 An enabled config binds schema=2, canonical home, private package root and hashes,
 parent journal, routes [{target,project}], projects {canonical key:absolute root}.
 Optional source_commit and source_digest are status information only, never
