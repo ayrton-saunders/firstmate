@@ -26,6 +26,16 @@ if printf 'private text' | FM_HOME="$HOME_FIXTURE" python3 "$HOOK" send mapped f
   fail 'incomplete enabled configuration must refuse rather than bypass routing'
 fi
 pass 'Discord hook: incomplete enabled configuration refuses'
+printf '%s\n' '{private-malformed-config' > "$HOME_FIXTURE/config/discord-integration.json"
+for operation in send spawn capacity-deferred outcome ready confirm-send; do
+  if FM_HOME="$HOME_FIXTURE" python3 -I "$HOOK" "$operation" >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail 'malformed JSON must refuse'
+  fi
+  assert_contains "$(<"$TMP_ROOT/err")" "Discord $operation configuration or authority validation check failed" \
+    'fallback must name the operation and failed validation'
+  assert_not_contains "$(<"$TMP_ROOT/err")" 'private-malformed-config' 'fallback must not expose exception text'
+  assert_not_contains "$(<"$TMP_ROOT/err")" "$HOME_FIXTURE" 'fallback must not expose paths'
+done
 
 # These negative cases require no private package, credentials or runtime setup.
 for invalid in '[]' '{"enabled":"false"}' '{"enabled":null}'; do
@@ -159,6 +169,8 @@ class Journal:
         self.path = Path(path)
         self.path.write_text('opened')
     def record(self, family, permit):
+        if permit == '1' * 32:
+            return dict(operation='instruction', project='fixture', target='mapped')
         raise ValueError('Unknown fixture permit')
     def close(self):
         pass
@@ -169,9 +181,8 @@ class Routing:
         self.journal = journal
     def consume(self, *args, **kwargs):
         self.journal.path.with_suffix('.consumed').write_text('consumed')
-        raise ValueError('Fixture must never consume')
     def confirm(self, *args, **kwargs):
-        raise ValueError('Fixture must never confirm')
+        self.journal.path.with_suffix('.confirmed').write_text('confirmed')
 PY
 "$PY314" - "$MAPPED_HOME" "$PACKAGE" "$ROOT" "$PY314" <<'PY'
 import hashlib, json, sys
@@ -236,24 +247,70 @@ for lane in ordinary typed; do
       assert_not_contains "$(<"$TMP_ROOT/stale.err")" 'Discord lane fenced' 'ordinary steer must not report a Discord fence'
       assert_not_contains "$(<"$TMP_ROOT/stale.err")" 'Discord parent routing guard refused' 'ordinary steer must not report a Discord guard refusal'
     else
-      [ "$rc" -ne 0 ] || fail 'stale parent pin must fence mapped Discord steer'
-      [ -f "$TMP_ROOT/identity-marker" ] || fail 'Discord steer must identify the parent source'
-      assert_contains "$(<"$TMP_ROOT/stale.err")" 'Discord lane fenced' 'fence must name the lane'
-      assert_contains "$(<"$TMP_ROOT/stale.err")" 'source_commit' 'fence must identify stale commit pin'
-      assert_contains "$(<"$TMP_ROOT/stale.err")" 'source_digest' 'fence must identify stale digest pin'
-      assert_contains "$(<"$TMP_ROOT/stale.err")" 'current parent identity' 'fence must name the comparison identity'
-      assert_contains "$(<"$TMP_ROOT/stale.err")" 'source_commit=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' 'fence must give current parent commit'
-      assert_contains "$(<"$TMP_ROOT/stale.err")" 'source_digest=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' 'fence must give current parent digest'
-      assert_not_contains "$(<"$TMP_ROOT/stale.err")" 'stale pin steer' 'fence must not echo payload'
+      [ "$rc" -ne 0 ] || fail 'unknown permit must still refuse mapped Discord steer'
+      [ ! -e "$TMP_ROOT/identity-marker" ] || fail 'Discord steer must not identify parent source'
+      [ -f "$MAPPED_HOME/journal" ] || fail 'stale source information must allow permit lookup'
+      assert_not_contains "$(<"$TMP_ROOT/stale.err")" 'stale pin steer' 'refusal must not echo payload'
+      rm "$MAPPED_HOME/journal"
     fi
   done
 done
 [ "$(find "$MAPPED_HOME/state/unmapped.inbox" -maxdepth 1 -name '*.msg' | wc -l | tr -d ' ')" -eq 2 ] || fail 'all unmapped steers must be durable'
 assert_contains "$(<"$MAPPED_HOME/state/mapped.inbox/002.msg")" 'stale pin steer' 'mapped ordinary steer must be durable despite stale pins'
-[ ! -e "$MAPPED_HOME/state/mapped.inbox/003.msg" ] || fail 'fenced Discord sends must not deliver'
-[ ! -e "$MAPPED_HOME/journal" ] || fail 'stale source must not open journal'
+[ ! -e "$MAPPED_HOME/state/mapped.inbox/003.msg" ] || fail 'unknown permit sends must not deliver'
+[ ! -e "$MAPPED_HOME/journal" ] || fail 'fixture journal must be closed and removed'
 cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
-pass 'Discord hook: stale parent identity fences Discord sends but not local supervision'
+pass 'Discord hook: stale source information does not fence permit lookup or local supervision'
+
+for form in present stale absent; do
+  cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
+  "$PY314" - "$MAPPED_HOME/config/discord-integration.json" "$form" <<'PY'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+config = json.loads(path.read_text())
+if sys.argv[2] == 'stale':
+    config.update(source='/not/the/invoked/source', source_commit='old', source_digest='old')
+elif sys.argv[2] == 'absent':
+    config.pop('source_commit')
+    config.pop('source_digest')
+path.write_text(json.dumps(config))
+PY
+  env FM_DISCORD_AUTH=11111111111111111111111111111111 PATH="$TMP_ROOT/send-tools:$PATH" \
+    FM_HOME="$MAPPED_HOME" FM_ROOT_OVERRIDE="$MAPPED_HOME" FM_SEND_SETTLE=0 \
+    FM_TEST_DISCORD_IDENTITY_MARKER="$TMP_ROOT/identity-marker" \
+    bash "$ROOT/bin/fm-send.sh" mapped "source information $form" >"$TMP_ROOT/out" 2>"$TMP_ROOT/err" \
+    || fail "typed send with $form source information must deliver: $(<"$TMP_ROOT/err")"
+  [ -f "$MAPPED_HOME/journal.consumed" ] || fail 'typed send must consume its permit'
+  [ -f "$MAPPED_HOME/journal.confirmed" ] || fail 'typed send must confirm its durable delivery'
+  [ ! -e "$TMP_ROOT/identity-marker" ] || fail 'source information must never be compared'
+  grep -q "source information $form" "$MAPPED_HOME/state/mapped.inbox/"*.msg || fail 'typed steer must reach inbox'
+  rm "$MAPPED_HOME/journal" "$MAPPED_HOME/journal.consumed" "$MAPPED_HOME/journal.confirmed"
+done
+cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
+pass 'Discord hook: actual typed delivery accepts present, stale and absent source status fields'
+
+for check in home schema hashes; do
+  "$PY314" - "$MAPPED_HOME/config/discord-integration.json" "$check" <<'PY'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+config = json.loads(path.read_text())
+config[sys.argv[2]] = {'home': '/another/home', 'schema': 1, 'hashes': {}}[sys.argv[2]]
+path.write_text(json.dumps(config))
+PY
+  if FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" ready >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail "$check protection must refuse"
+  fi
+  case "$check" in
+    home|schema) reason='Integration schema/home mismatch' ;;
+    hashes) reason='Integration release hash mismatch' ;;
+  esac
+  assert_contains "$(<"$TMP_ROOT/err")" "$reason" 'refusal must name the concrete failed check'
+  [ ! -e "$MAPPED_HOME/journal" ] || fail 'invalid home/schema/release must not open journal'
+  cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
+done
+pass 'Discord hook: home/schema binding and private release hashes still refuse by check name'
 
 mapped_hook() {
   FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" "$@"
@@ -264,7 +321,7 @@ for delivery in local remote; do
     fail 'permit-free confirmation must refuse'
   fi
   [ ! -s "$TMP_ROOT/out" ] || fail 'refused confirmation must not emit output'
-  [ "$(<"$TMP_ROOT/err")" = 'error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit' ] \
+  [ "$(<"$TMP_ROOT/err")" = 'error: Mapped routing requires a typed parent-issued lane permit' ] \
     || fail 'confirmation refusal must use a fixed category without payload or path'
   [ ! -e "$MAPPED_HOME/journal" ] || fail 'permit-free confirmation must not open journal'
 done
@@ -282,10 +339,19 @@ done
 if printf 'private lane text' | FM_DISCORD_AUTH=00000000000000000000000000000000 mapped_hook send mapped sess:fm-mapped "$MAPPED_HOME/state/mapped.meta" tmux >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
   fail 'unknown well-formed permit must refuse'
 fi
+assert_contains "$(<"$TMP_ROOT/err")" 'Route permit lookup failed' 'unknown permit must name its failed check'
 [ -f "$MAPPED_HOME/journal" ] || fail 'well-formed permit must undergo journal lookup'
 [ ! -e "$MAPPED_HOME/journal.consumed" ] || fail 'unknown permit must not be consumed'
 rm "$MAPPED_HOME/journal"
 pass 'Discord hook: Discord lane missing, malformed and unknown permits refuse before consume'
+for delivery in local remote; do
+  if FM_DISCORD_AUTH=00000000000000000000000000000000 mapped_hook confirm-send "$delivery" "$receipt" >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail 'confirmation with unknown permit must refuse'
+  fi
+  [ "$(<"$TMP_ROOT/err")" = 'error: Route permit lookup failed' ] || fail 'confirmation must name lookup without private exception text'
+  [ ! -e "$MAPPED_HOME/journal.confirmed" ] || fail 'unknown permit must not confirm delivery'
+  rm "$MAPPED_HOME/journal"
+done
 
 for payload in '/native' 'ordinary'; do
   metadata="$MAPPED_HOME/state/mapped.meta"

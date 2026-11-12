@@ -955,7 +955,8 @@ else
   fi
   # Resolve optional Discord membership before markers/correlation or delivery.
   # Never preflight the parent release here.
-  # Leave the hook's lane-specific fence diagnostic intact on stderr.
+  # Source commit/digest are status only; the hook retains route/permit checks.
+  # Leave its concrete check-failure diagnostic intact on stderr.
   if [ -e "$FM_HOME/config/discord-integration.json" ]; then
     DISCORD_ROUTE_INFO=$(printf '%s' "$MESSAGE" | FM_HOME="$FM_HOME" python3 -I "$SCRIPT_DIR/fm-discord-hook.py" send \
       "$RAW_TARGET" "$T" "$TARGET_META" "$TARGET_BACKEND") || exit 1

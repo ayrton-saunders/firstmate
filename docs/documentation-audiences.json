@@ -382,10 +382,6 @@
       "audience": "operator-current"
     },
     {
-      "path": "docs/discord-owner-reply-pins.md",
-      "audience": "operator-current"
-    },
-    {
       "path": "docs/extension-bindings.md",
       "audience": "maintainer-architecture"
     },

@@ -309,15 +309,26 @@ class Dispatch(unittest.TestCase):
                 self.refuse('existing dispatch intent')
         self.assertFalse((self.home/'state/pending-replies').exists())
 
-    def test_source_and_package_pins_refuse_before_journal(self):
-        original=self.config['source_commit']
-        self.config['source_commit']='0'*40
+    def test_source_status_fields_are_optional_and_do_not_fence(self):
+        self.config['source_commit']='old'
+        self.config.pop('source_digest')
         self.save_config()
-        self.refuse('verify pinned configuration')
-        self.config['source_commit']=original
-        self.save_config()
+        self.invoke()
+
+    def test_package_pins_refuse_before_journal(self):
         (self.package/'personal_discord/routing.py').write_text('raise AssertionError("must not import")')
-        self.refuse('verify pinned configuration')
+        self.refuse('Integration release hash mismatch')
+        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
+
+    def test_home_binding_refuses_by_check_name_before_journal(self):
+        self.config['home']='/private/wrong-home'
+        self.save_config()
+        self.refuse('Integration schema/home mismatch')
+        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
+
+    def test_duplicate_configuration_refuses_by_check_name(self):
+        self.config_path.write_text('{"enabled":true,"enabled":false}')
+        self.refuse('Duplicate configuration field')
         self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
 
     def test_fences_refuse(self):
@@ -335,7 +346,7 @@ class Dispatch(unittest.TestCase):
         self.refuse('another mapped project')
 
     def test_unknown_request_refuses(self):
-        self.refuse('verify pinned configuration',ident='absent')
+        self.refuse('Captured request lookup failed',ident='absent')
 
     def test_route_requires_real_secondmate_generation(self):
         meta=self.home/'state/domain.meta'

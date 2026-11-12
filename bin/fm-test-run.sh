@@ -797,7 +797,6 @@ tests/fm-devin-signals-live-e2e.test.sh 49
 tests/fm-discord-dispatch.test.sh 3524
 tests/fm-discord-hook.test.sh 8860
 tests/fm-discord-reply.test.sh 2632
-tests/fm-discord-verify-pins.test.sh 5988
 tests/fm-dispatch-resolve.test.sh 10051
 tests/fm-documentation-audiences.test.sh 1301
 tests/fm-dod-lib.test.sh 2035
