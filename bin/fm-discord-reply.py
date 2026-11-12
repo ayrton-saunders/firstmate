@@ -18,8 +18,7 @@ The shared gate-agent guard runs before configuration or journal access; its
 existing disposable-lab exception remains owned by fm-gate-refuse-lib.sh.
 The enabled home configuration, source pins, package hashes and CPython 3.14
 runtime must then pass the existing parent guard before any journal is opened.
-Pre-flight: bin/fm-discord-verify-pins.py --help
-Pin transition and snapshot limits: docs/discord-owner-reply-pins.md
+Installation and retained domain protections: docs/discord-owner-reply-install.md
 """
 import importlib
 import json

@@ -16,6 +16,8 @@ Unmapped sends and ordinary local supervisory sends resolve routing configuratio
 only, never the pinned parent interpreter, package or source identity.
 An enabled config binds schema=2, canonical home, private package root and hashes,
 parent journal, routes [{target,project}], projects {canonical key:absolute root}.
+Optional source_commit and source_digest are status information only, never
+identity claims; source is descriptive and is not compared with this installation.
 FM_DISCORD_AUTH names a parent-issued one-use permit, never a transport claim.
 Its presence selects Discord-lane authority even when empty or malformed.
 Only send to a local mapped task with FM_DISCORD_AUTH absent may use ordinary
@@ -43,13 +45,13 @@ def unique(pairs):
     result = {}
     for key, value in pairs:
         if key in result:
-            raise ValueError('Duplicate configuration field')
+            raise HookCheck('Duplicate configuration field')
         result[key] = value
     return result
 
 
-class ParentIdentityFence(ValueError):
-    """Safe diagnostic containing only pin names and public source hashes."""
+class HookCheck(ValueError):
+    """A concrete local check failure containing no payload, paths or tokens."""
 
 
 def load(home, *, routing_only=False):
@@ -57,28 +59,28 @@ def load(home, *, routing_only=False):
     if not path.exists():
         return None
     if path.is_symlink() or path.stat().st_size > 65536:
-        raise ValueError('Invalid integration configuration file')
+        raise HookCheck('Invalid integration configuration file')
     config = json.loads(path.read_text(), object_pairs_hook=unique)
     if not isinstance(config, dict) or type(config.get('enabled')) is not bool:
-        raise ValueError('Malformed integration enablement')
+        raise HookCheck('Malformed integration enablement')
     if not config['enabled']:
         return None
     fields = {'schema', 'enabled', 'home', 'package_root', 'hashes', 'journal', 'routes', 'projects',
-              'python_executable', 'source', 'source_commit', 'source_digest'}
-    optional = {'mapping', 'ingress', 'egress', 'assets'}
+              'python_executable', 'source'}
+    optional = {'mapping', 'ingress', 'egress', 'assets', 'source_commit', 'source_digest'}
     if not fields <= set(config) or set(config) - fields - optional or config['schema'] != 2 or config['home'] != str(home):
-        raise ValueError('Integration schema/home mismatch')
+        raise HookCheck('Integration schema/home mismatch')
     if (not Path(config['journal']).is_absolute() or not config['routes'] or not config['projects']
             or any(not isinstance(root, str) or not Path(root).is_absolute() for root in config['projects'].values())):
-        raise ValueError('Integration journal/routes/projects missing')
+        raise HookCheck('Integration journal/routes/projects missing')
     if (any(not isinstance(route, dict) for route in config['routes'])
             or len({route.get('target') for route in config['routes']}) != len(config['routes'])):
-        raise ValueError('Ambiguous mapped route identity')
+        raise HookCheck('Ambiguous mapped route identity')
     for route in config['routes']:
         if set(route) != {'target', 'project'} or route['project'] not in config['projects']:
-            raise ValueError('Invalid explicit integration mapping')
+            raise HookCheck('Invalid explicit integration mapping')
         if not route['target'] or any(c not in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789._-' for c in route['target']):
-            raise ValueError('Invalid mapped route identity')
+            raise HookCheck('Invalid mapped route identity')
     # Imported callers (dispatch/reply) retain full verification by default.
     if not routing_only:
         verify_parent(config)
@@ -88,42 +90,27 @@ def load(home, *, routing_only=False):
 def verify_parent(config):
     interpreter = Path(config['python_executable'])
     if not interpreter.is_absolute() or not interpreter.is_file():
-        raise ValueError('Pinned existing parent interpreter required')
+        raise HookCheck('Pinned existing parent interpreter required')
     if Path(sys.executable).resolve() != interpreter.resolve():
         os.execv(str(interpreter), [str(interpreter), '-I', str(Path(__file__).resolve()), *sys.argv[1:]])
     if sys.version_info[:2] != (3, 14):
-        raise ValueError('Reviewed parent CPython 3.14 runtime required')
+        raise HookCheck('Reviewed parent CPython 3.14 runtime required')
     sys.dont_write_bytecode = True
     package = Path(config['package_root'])
     if not package.is_absolute() or package.resolve() != package:
-        raise ValueError('Integration package root must be pinned canonical absolute path')
+        raise HookCheck('Integration package root must be pinned canonical absolute path')
     files = {str(item.relative_to(package)): hashlib.sha256(item.read_bytes()).hexdigest()
              for item in (package / 'personal_discord').glob('*.py') if not item.is_symlink()}
     if not files or files != config['hashes']:
-        raise ValueError('Integration release hash mismatch')
-    source = Path(__file__).resolve().parent.parent
-    if str(source) != config['source']:
-        raise ParentIdentityFence('Discord lane fenced: stale source pin differs from the invoked parent source; reconcile the approved parent identity')
+        raise HookCheck('Integration release hash mismatch')
     sys.path.insert(0, str(package))
-    identity = importlib.import_module('personal_discord.integration').Integration.identify_source(source)
-    if not isinstance(identity, dict) or set(identity) != {'source_commit', 'source_digest'}:
-        raise ValueError('Invalid parent source identity')
-    stale = [key for key in ('source_commit', 'source_digest') if identity.get(key) != config[key]]
-    if stale:
-        def public_hash(value):
-            return value if isinstance(value, str) and len(value) in (40, 64) and all(c in '0123456789abcdef' for c in value) else '<non-hash>'
-        current = ', '.join(key + '=' + public_hash(identity.get(key))
-                            for key in ('source_commit', 'source_digest'))
-        raise ParentIdentityFence('Discord lane fenced: stale ' + ', '.join(stale) +
-                                  ' pin(s) against current parent identity (' + current +
-                                  '); reconcile the approved parent identity')
 
 
 def meta_value(path, key):
     values = [line.split('=', 1)[1] for line in path.read_text().splitlines()
               if line.startswith(key + '=')]
     if len(values) > 1:
-        raise ValueError('Conflicting runtime identity')
+        raise HookCheck('Conflicting runtime identity')
     return values[0] if values else ''
 
 
@@ -133,16 +120,16 @@ def guard(args):
     if config is None:
         return
     if not args or args[0] not in ('send', 'spawn', 'capacity-deferred', 'outcome', 'ready', 'confirm-send'):
-        raise ValueError('Unknown hook operation')
+        raise HookCheck('Unknown hook operation')
     # Lane origin is explicit: a present FM_DISCORD_AUTH selects Discord permit
     # authority (even if empty/invalid); absence selects local supervisory text.
     # Never infer origin from a mapped target, route, or caller identity.
     discord_lane = 'FM_DISCORD_AUTH' in os.environ
     if args[0] == 'confirm-send':
         if len(args) != 3 or args[1] not in ('local', 'remote'):
-            raise ValueError('Exact owning delivery receipt required')
+            raise HookCheck('Exact owning delivery receipt required')
         if not discord_lane:
-            raise ValueError('Mapped routing requires a typed parent-issued lane permit')
+            raise HookCheck('Mapped routing requires a typed parent-issued lane permit')
         journal_type = importlib.import_module('personal_discord.journal').Journal
         routing_type = importlib.import_module('personal_discord.routing').Routing
         journal = journal_type(config['journal'])
@@ -153,14 +140,14 @@ def guard(args):
                 receipt = Path(args[2])
                 expected = home / 'state' / (body['target'] + '.inbox')
                 if receipt.parent.resolve() != expected.resolve() or not receipt.name.endswith('.msg') or not receipt.stem.isdigit():
-                    raise ValueError('Receipt is not in the exact mapped task inbox')
+                    raise HookCheck('Receipt is not in the exact mapped task inbox')
                 actual = receipt if receipt.is_file() else expected / 'handled' / receipt.name
                 if not actual.is_file() or actual.is_symlink():
-                    raise ValueError('Durable owning inbox receipt absent')
+                    raise HookCheck('Durable owning inbox receipt absent')
                 evidence = {'local_inbox_record': receipt.name}
             else:
                 if not args[2] or len(args[2]) > 96:
-                    raise ValueError('Exact remote correlation/delivery identity required')
+                    raise HookCheck('Exact remote correlation/delivery identity required')
                 evidence = {'remote_enqueue_confirmed': True, 'delivery_identity': args[2]}
             routing_type(journal).confirm(permit, evidence=evidence)
         finally:
@@ -168,7 +155,7 @@ def guard(args):
         return
     if args[0] == 'ready':
         if len(args) != 1 or 'mapping' not in config:
-            raise ValueError('Pinned parent mapping required to renew readiness')
+            raise HookCheck('Pinned parent mapping required to renew readiness')
         journal_type = importlib.import_module('personal_discord.journal').Journal
         parent_type = importlib.import_module('personal_discord.parent').Parent
         journal = journal_type(config['journal'])
@@ -179,13 +166,13 @@ def guard(args):
         return
     if args[0] == 'outcome':
         if len(args) != 2:
-            raise ValueError('Exact inbox note identity required')
+            raise HookCheck('Exact inbox note identity required')
         journal_type = importlib.import_module('personal_discord.journal').Journal
         journal = journal_type(config['journal'])
         try:
             reply_digest = sys.stdin.read(65)
             if len(reply_digest) != 64 or any(c not in '0123456789abcdef' for c in reply_digest):
-                raise ValueError('Exact terminal reply digest required')
+                raise HookCheck('Exact terminal reply digest required')
             for row in journal.db.execute("SELECT id FROM records WHERE family='request'"):
                 _, state = journal.state('request', row['id'])
                 if state.get('note_id') == args[1]:
@@ -212,11 +199,11 @@ def guard(args):
                                          '_', str(backend), candidate_backend, resolved, str(path)],
                                         text=True, capture_output=True, timeout=5)
                 if result.returncode not in (0, 1):
-                    raise ValueError('Mapped backend target could not be resolved')
+                    raise HookCheck('Mapped backend target could not be resolved')
                 matches = result.returncode == 0
             if direct or matches:
                 if not direct or not metadata or Path(metadata).resolve() != path.resolve():
-                    raise ValueError('Explicit-terminal text cannot bypass the mapped parent route')
+                    raise HookCheck('Explicit-terminal text cannot bypass the mapped parent route')
                 project, target = route['project'], route_id
                 generation = meta_value(path, 'spawn_gen')
                 break
@@ -235,28 +222,28 @@ def guard(args):
                 project = key
                 break
     else:
-        raise ValueError('Invalid hook arguments')
+        raise HookCheck('Invalid hook arguments')
     if project is None:
         return
     local_send = args[0] == 'send' and candidate_backend != 'remote' and not discord_lane
     if args[0] == 'send' and not local_send:
         verify_parent(config)
     if args[0] == 'send' and not generation:
-        raise ValueError('Enabled mapped endpoint requires a recorded lifecycle generation')
+        raise HookCheck('Enabled mapped endpoint requires a recorded lifecycle generation')
     permit = os.environ.get('FM_DISCORD_AUTH', '')
     if not local_send and (len(permit) != 32 or any(c not in '0123456789abcdef' for c in permit)):
-        raise ValueError('Mapped routing requires a typed parent-issued lane permit')
+        raise HookCheck('Mapped routing requires a typed parent-issued lane permit')
     text = sys.stdin.buffer.read(24577)
     if len(text) > 24576:
-        raise ValueError('Mapped route payload exceeds bounded authority envelope')
+        raise HookCheck('Mapped route payload exceeds bounded authority envelope')
     if local_send:
         if text.startswith(b'/') or text.startswith(b'$') and meta_value(Path(args[3]), 'harness') == 'codex':
-            raise ValueError('Mapped work must use ordinary inbox text, not a parser-native invocation')
+            raise HookCheck('Mapped work must use ordinary inbox text, not a parser-native invocation')
         expected_generation = os.environ.get('FM_SEND_EXPECTED_SPAWN_GEN', '')
         if expected_generation and expected_generation != generation:
-            raise ValueError('Existing caller generation fence conflicts with the typed permit')
+            raise HookCheck('Existing caller generation fence conflicts with the typed permit')
         if '|' in generation or len(generation) > 96:
-            raise ValueError('Malformed endpoint generation')
+            raise HookCheck('Malformed endpoint generation')
         return
     journal_type = importlib.import_module('personal_discord.journal').Journal
     routing_type = importlib.import_module('personal_discord.routing').Routing
@@ -265,32 +252,32 @@ def guard(args):
         body = journal.record('route-permit', permit)
         if args[0] == 'capacity-deferred':
             if body['project'] != project:
-                raise ValueError('Deferred permit belongs to another mapped project')
+                raise HookCheck('Deferred permit belongs to another mapped project')
             routing_type(journal).defer_capacity(permit, target=target, project_path=args[2])
             return
         # A parent can explicitly identify unrelated work on a shared route;
         # the non-exclusive runtime projects list is never consulted.
         declared = body['project']
         if args[0] == 'spawn' and (declared != project or body['operation'] not in ('new', 'instruction')):
-            raise ValueError('Non-work/unmapped classification cannot spawn mapped work')
+            raise HookCheck('Non-work/unmapped classification cannot spawn mapped work')
         correlation = ''
         if args[0] == 'send' and body['operation'] == 'new':
             binding = journal.work_binding(body['request'])
             correlation = binding['correlation']
             if len(correlation) != 16 or any(c not in '0123456789abcdef' for c in correlation):
-                raise ValueError('Existing parent correlation required before new-work route')
+                raise HookCheck('Existing parent correlation required before new-work route')
             record = home / 'state/pending-replies' / correlation
             if (not record.is_file() or meta_value(record, 'task_id') != target
                     or meta_value(record, 'parent_home') != str(home)):
-                raise ValueError('Correlation is not owned by this exact parent route')
+                raise HookCheck('Correlation is not owned by this exact parent route')
         if args[0] == 'send' and (text.startswith(b'/') or
                                   text.startswith(b'$') and meta_value(Path(args[3]), 'harness') == 'codex'):
-            raise ValueError('Mapped work must use ordinary inbox text, not a parser-native invocation')
+            raise HookCheck('Mapped work must use ordinary inbox text, not a parser-native invocation')
         expected_generation = os.environ.get('FM_SEND_EXPECTED_SPAWN_GEN', '')
         if args[0] == 'send' and expected_generation and expected_generation != generation:
-            raise ValueError('Existing caller generation fence conflicts with the typed permit')
+            raise HookCheck('Existing caller generation fence conflicts with the typed permit')
         if '|' in generation or len(generation) > 96:
-            raise ValueError('Malformed endpoint generation')
+            raise HookCheck('Malformed endpoint generation')
         routing_type(journal).consume(permit, project=declared, target=target,
                                      text=text.decode('utf-8'), endpoint_generation=generation,
                                      mapped=declared == project)
@@ -306,7 +293,7 @@ if __name__ == '__main__':
         sys.exit(0)
     try:
         guard(sys.argv[1:])
-    except ParentIdentityFence as error:
+    except HookCheck as error:
         print('error: ' + str(error), file=sys.stderr)
         sys.exit(1)
     except (ValueError, KeyError, TypeError, ImportError, OSError, RuntimeError, sqlite3.Error, subprocess.SubprocessError) as error:

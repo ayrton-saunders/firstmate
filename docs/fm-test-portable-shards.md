@@ -51,7 +51,7 @@ The T3 Code backend suites carry the slowest successful Ubuntu samples from CI r
 
 The four Discord command, hook and verifier suites carry provisional macOS arm64 measurements from three complete serial scoped runs on 2026-10-31 with Bash 5.3.20 and CPython 3.14.10, until the next Ubuntu CI refresh.
 The slowest successful per-script samples are 3524 ms for dispatch, 8860 ms for the hook, 2632 ms for reply and 5988 ms for the verifier.
-Refresh those samples with `FM_LIVE=0 bash bin/fm-test-run.sh --jobs 1 --json /tmp/discord-timing.json tests/fm-discord-dispatch.test.sh tests/fm-discord-reply.test.sh tests/fm-discord-verify-pins.test.sh tests/fm-discord-hook.test.sh`, with `python3.14` available on `PATH`, and require the enabled fixtures to execute rather than skip.
+Refresh those samples with `FM_LIVE=0 bash bin/fm-test-run.sh --jobs 1 --json /tmp/discord-timing.json tests/fm-discord-dispatch.test.sh tests/fm-discord-reply.test.sh tests/fm-discord-hook.test.sh`, with `python3.14` available on `PATH`, and require the enabled fixtures to execute rather than skip.
 These hints replace the default weight without changing lane membership, timeout bounds, coverage assertions or the excluded local supervision test's CI coverage.
 
 ## Parallel lanes

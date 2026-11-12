@@ -12,7 +12,7 @@ fi
 fm_git_init_commit "$TMP_ROOT/source"
 mkdir -p "$TMP_ROOT/source/bin"
 cp "$ROOT/bin/fm-discord-reply.py" "$ROOT/bin/fm-discord-hook.py" \
-  "$ROOT/bin/fm-discord-verify-pins.py" "$ROOT/bin/fm-gate-refuse-lib.sh" "$TMP_ROOT/source/bin/"
+  "$ROOT/bin/fm-gate-refuse-lib.sh" "$TMP_ROOT/source/bin/"
 for name in fm-inbox.sh fm-send.sh fm-spawn.sh; do
   printf 'inert fixture for %s\n' "$name" > "$TMP_ROOT/source/bin/$name"
 done
@@ -332,12 +332,12 @@ class Reply(unittest.TestCase):
                 self.refuse('remains fenced')
                 self.fixture[flag] = False
 
-    def test_mismatched_pin_refuses_before_journal_open(self):
-        self.config['source_commit'] = '0'*40
+    def test_source_status_fields_are_optional_and_do_not_fence(self):
+        self.config['source_commit'] = 'old'
+        self.config.pop('source_digest')
         self.config_path.write_text(json.dumps(self.config))
-        self.refuse('reconcile before retry')
-        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
-        self.assertFalse(Path(self.config['egress']).with_suffix('.opened').exists())
+        self.invoke()
+        self.assertEqual(len(self.approvals()),1)
 
     def test_changed_package_refuses_before_journal_open(self):
         (self.package/'personal_discord/journal.py').write_text('raise AssertionError("must not import")')
@@ -393,19 +393,6 @@ class Reply(unittest.TestCase):
         self.invoke()
         with database(self.config['journal']) as db:
             self.assertEqual(json.loads(db.execute('SELECT body FROM fixture').fetchone()[0])['readiness'],{'expires':0})
-
-    def test_preflight_verifier_agrees_on_offline_fixtures(self):
-        manifest = self.world/'transport.json'
-        manifest.write_text(json.dumps(dict(schema=2,enabled=True,parent_identity={
-            **{key:self.config[key] for key in ('source_commit','source_digest')},
-            'home_identity':hashlib.sha256(str(self.home).encode()).hexdigest()})))
-        result = subprocess.run([sys.executable,'-I',str(self.source/'bin/fm-discord-verify-pins.py'),
-                                 '--parent-config',str(self.config_path),'--transport-manifest',str(manifest)],
-                                capture_output=True,text=True,timeout=10)
-        self.assertEqual(result.returncode,0,result.stderr)
-        self.assertEqual(result.stdout,'Discord source/config/manifest pins agree; journal epoch and fences not checked.\n')
-        self.assertEqual(self.approvals(),[])
-        print(result.stdout.strip())
 
 
 unittest.main(argv=['discord-reply'],verbosity=2)

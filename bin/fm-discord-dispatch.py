@@ -18,8 +18,7 @@ Leading parser/option prefixes, control markers and oversized words are refused
 rather than reinterpreted. Payload bytes, including trailing newlines, are kept.
 The configured private release and CPython 3.14 runtime must pass the existing
 parent guard before journal access. No new source pin scheme is introduced.
-Pre-flight: bin/fm-discord-verify-pins.py --help
-Pin transition and snapshot limits: docs/discord-owner-reply-pins.md
+Installation and retained domain protections: docs/discord-owner-reply-install.md
 """
 import importlib
 import json

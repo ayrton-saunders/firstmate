@@ -309,13 +309,13 @@ class Dispatch(unittest.TestCase):
                 self.refuse('existing dispatch intent')
         self.assertFalse((self.home/'state/pending-replies').exists())
 
-    def test_source_and_package_pins_refuse_before_journal(self):
-        original=self.config['source_commit']
-        self.config['source_commit']='0'*40
+    def test_source_status_fields_are_optional_and_do_not_fence(self):
+        self.config['source_commit']='old'
+        self.config.pop('source_digest')
         self.save_config()
-        self.refuse('verify pinned configuration')
-        self.config['source_commit']=original
-        self.save_config()
+        self.invoke()
+
+    def test_package_pins_refuse_before_journal(self):
         (self.package/'personal_discord/routing.py').write_text('raise AssertionError("must not import")')
         self.refuse('verify pinned configuration')
         self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
