@@ -16,7 +16,7 @@ changed words cannot replace an already approved final. After any error, inspect
 the existing approval before retrying; never invent another event identifier.
 The shared gate-agent guard runs before configuration or journal access; its
 existing disposable-lab exception remains owned by fm-gate-refuse-lib.sh.
-The enabled home configuration, package hashes and CPython 3.14 runtime must
+The enabled home configuration, enrolled release and CPython 3.14 runtime must
 then pass the existing parent guard before any journal is opened.
 Installation and retained domain protections: docs/discord-owner-reply-install.md
 """

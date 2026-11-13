@@ -14,8 +14,12 @@ FM_HOME selects the invoking parent home, as in the owning lifecycle script.
 Absent config/discord-integration.json preserves legacy behavior.
 Unmapped sends and ordinary local supervisory sends resolve routing configuration
 only, never the pinned parent interpreter or package.
-An enabled config binds schema=2, canonical home, private package root and hashes,
+An enabled config binds schema=2, canonical home, private package root,
 parent journal, routes [{target,project}], projects {canonical key:absolute root}.
+package_root is absolute and may be a symlink such as <code>/current, which the
+private self-updater switches between releases; every hop must stay inside the
+enrolled code tree (its parent, resolved) and end at a canonical release
+directory, which alone is imported. A legacy per-module hashes map is ignored.
 Optional source_commit and source_digest are status information only, never
 identity claims; source is descriptive and is not compared with this installation.
 FM_DISCORD_AUTH names a parent-issued one-use permit, never a transport claim.
@@ -31,7 +35,6 @@ No success is returned after consuming a permit until its transaction commits.
 Consumed permits are deliberately not retryable without lifecycle reconciliation.
 The local parent issues permits through the pinned integration release's admin API.
 """
-import hashlib
 import importlib
 import json
 import os
@@ -81,9 +84,10 @@ def load(home, *, routing_only=False):
         raise HookCheck('Malformed integration enablement')
     if not config['enabled']:
         return None
-    fields = {'schema', 'enabled', 'home', 'package_root', 'hashes', 'journal', 'routes', 'projects',
+    fields = {'schema', 'enabled', 'home', 'package_root', 'journal', 'routes', 'projects',
               'python_executable', 'source'}
-    optional = {'mapping', 'ingress', 'egress', 'assets', 'source_commit', 'source_digest'}
+    # hashes is a retired per-module pin that enrolled configs may still carry; it is ignored.
+    optional = {'mapping', 'ingress', 'egress', 'assets', 'source_commit', 'source_digest', 'hashes'}
     if not fields <= set(config) or set(config) - fields - optional or config['schema'] != 2 or config['home'] != str(home):
         raise HookCheck('Integration schema/home mismatch')
     if (not Path(config['journal']).is_absolute() or not config['routes'] or not config['projects']
@@ -112,14 +116,36 @@ def verify_parent(config):
     if sys.version_info[:2] != (3, 14):
         raise HookCheck('Reviewed parent CPython 3.14 runtime required')
     sys.dont_write_bytecode = True
-    package = Path(config['package_root'])
-    if not package.is_absolute() or package.resolve() != package:
-        raise HookCheck('Integration package root must be pinned canonical absolute path')
-    files = {str(item.relative_to(package)): hashlib.sha256(item.read_bytes()).hexdigest()
-             for item in (package / 'personal_discord').glob('*.py') if not item.is_symlink()}
-    if not files or files != config['hashes']:
-        raise HookCheck('Integration release hash mismatch')
-    sys.path.insert(0, str(package))
+    sys.path.insert(0, str(enrolled_release(config['package_root'])))
+
+
+def enrolled_release(package_root):
+    """Resolve package_root to one canonical release directory inside its code tree.
+
+    The enrolled code tree is package_root's parent, resolved. package_root may be a
+    symlink (the self-updater switches <code>/current between releases); every hop of
+    its chain must stay inside that tree and end at an existing directory. Callers
+    import from the returned directory, so a later switch cannot mix releases.
+    """
+    refusal = 'Integration package root must resolve to a canonical release inside the enrolled code tree'
+    if not isinstance(package_root, str) or not Path(package_root).is_absolute():
+        raise HookCheck(refusal)
+    node = Path(package_root)
+    tree = node.parent.resolve()
+    for _ in range(40):
+        if node.name in ('', '..'):
+            raise HookCheck(refusal)
+        node = node.parent.resolve() / node.name
+        if node == tree or not node.is_relative_to(tree):
+            raise HookCheck(refusal)
+        if not node.is_symlink():
+            break
+        node = node.parent / os.readlink(node)
+    else:
+        raise HookCheck(refusal)
+    if not node.is_dir() or node.resolve() != node:
+        raise HookCheck(refusal)
+    return node
 
 
 def meta_value(path, key):

@@ -57,7 +57,8 @@ The endpoint remains governed by its separately reviewed pause and resume proced
 Keep the domain's canonical home binding, mapping revision and its digest, restore epoch and mention-only admission unchanged.
 The hook enforces the configuration schema and home match; the private release owns mapping revision/digest, epoch and mention admission enforcement.
 Do not change that release, its transport manifest or its journals through this repository's development work.
-Keep the journal paths, private module hashes and interpreter requirements unchanged unless separately approved.
+Keep the journal paths and interpreter requirements unchanged unless separately approved.
+The [hook's configuration contract](../bin/fm-discord-hook.py) owns the enrolled package root rule; release module hashes are no longer compared.
 No paired Firstmate commit/digest replacement or source-pin verifier is required.
 If installation fails, leave the domain paused with backups intact and follow the private owner handoff.
 

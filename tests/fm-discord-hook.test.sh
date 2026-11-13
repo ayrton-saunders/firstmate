@@ -148,7 +148,10 @@ if [ -z "$PY314" ]; then
   exit 0
 fi
 MAPPED_HOME="$TMP_ROOT/mapped-home"
-PACKAGE="$TMP_ROOT/package"
+# Enrolled layout: <code>/current is a relative symlink the private self-updater
+# switches between releases under <code>/releases.
+CODE="$TMP_ROOT/code"
+PACKAGE="$CODE/releases/r1"
 mkdir -p "$MAPPED_HOME/config" "$MAPPED_HOME/state" "$PACKAGE/personal_discord" "$TMP_ROOT/send-tools"
 printf '' > "$PACKAGE/personal_discord/__init__.py"
 cat > "$PACKAGE/personal_discord/integration.py" <<'PY'
@@ -184,13 +187,14 @@ class Routing:
     def confirm(self, *args, **kwargs):
         self.journal.path.with_suffix('.confirmed').write_text('confirmed')
 PY
-"$PY314" - "$MAPPED_HOME" "$PACKAGE" "$ROOT" "$PY314" <<'PY'
-import hashlib, json, sys
+ln -s releases/r1 "$CODE/current"
+"$PY314" - "$MAPPED_HOME" "$CODE" "$ROOT" "$PY314" <<'PY'
+import json, sys
 from pathlib import Path
-home, package, source, interpreter = map(lambda p: Path(p).resolve(), sys.argv[1:])
-config = dict(schema=2, enabled=True, home=str(home), package_root=str(package),
-              hashes={str(p.relative_to(package)): hashlib.sha256(p.read_bytes()).hexdigest()
-                      for p in (package / 'personal_discord').glob('*.py')},
+home, code, source, interpreter = map(lambda p: Path(p).resolve(), sys.argv[1:])
+# The cutover keeps the retired per-module hashes map; it must be ignored, even stale.
+config = dict(schema=2, enabled=True, home=str(home), package_root=str(code / 'current'),
+              hashes={'personal_discord/retired.py': '0' * 64},
               journal=str(home / 'journal'), routes=[dict(target='mapped', project='fixture')],
               projects={'fixture': str(source)}, python_executable=str(interpreter),
               source=str(source), source_commit='a' * 40, source_digest='b' * 64)
@@ -290,27 +294,68 @@ done
 cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
 pass 'Discord hook: actual typed delivery accepts present, stale and absent source status fields'
 
-for check in home schema hashes; do
+for check in home schema; do
   "$PY314" - "$MAPPED_HOME/config/discord-integration.json" "$check" <<'PY'
 import json, sys
 from pathlib import Path
 path = Path(sys.argv[1])
 config = json.loads(path.read_text())
-config[sys.argv[2]] = {'home': '/another/home', 'schema': 1, 'hashes': {}}[sys.argv[2]]
+config[sys.argv[2]] = {'home': '/another/home', 'schema': 1}[sys.argv[2]]
 path.write_text(json.dumps(config))
 PY
   if FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" ready >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
     fail "$check protection must refuse"
   fi
-  case "$check" in
-    home|schema) reason='Integration schema/home mismatch' ;;
-    hashes) reason='Integration release hash mismatch' ;;
-  esac
-  assert_contains "$(<"$TMP_ROOT/err")" "$reason" 'refusal must name the concrete failed check'
-  [ ! -e "$MAPPED_HOME/journal" ] || fail 'invalid home/schema/release must not open journal'
+  assert_contains "$(<"$TMP_ROOT/err")" 'Integration schema/home mismatch' 'refusal must name the concrete failed check'
+  [ ! -e "$MAPPED_HOME/journal" ] || fail 'invalid home/schema must not open journal'
   cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
 done
-pass 'Discord hook: home/schema binding and private release hashes still refuse by check name'
+pass 'Discord hook: home/schema binding still refuses by check name'
+
+# package_root forms. Accepted forms must import the resolved release and deliver
+# a typed send; refused forms must name the check and never open the journal.
+mkdir -p "$CODE/releases/r2" "$TMP_ROOT/outside"
+cp -R "$PACKAGE/personal_discord" "$CODE/releases/r2/"
+cp -R "$PACKAGE" "$TMP_ROOT/outside/release"
+ln -s ../outside/release "$CODE/escape"
+ln -s releases/missing "$CODE/dangling"
+ln -s "$CODE/releases/r1" "$TMP_ROOT/outside/hop"
+ln -s ../outside/hop "$CODE/chain"
+ln -s .. "$CODE/releases/up"
+ln -s releases/up "$CODE/tree"
+for form in plain switched escape dangling chain tree; do
+  cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
+  [ "$form" != switched ] || ln -sfn releases/r2 "$CODE/current"
+  "$PY314" - "$MAPPED_HOME/config/discord-integration.json" "$CODE" "$form" <<'PY'
+import json, sys
+from pathlib import Path
+path, code, form = Path(sys.argv[1]), Path(sys.argv[2]).resolve(), sys.argv[3]
+config = json.loads(path.read_text())
+config['package_root'] = str({'plain': code / 'releases/r1', 'switched': code / 'current'}.get(form, code / form))
+path.write_text(json.dumps(config))
+PY
+  case "$form" in
+    plain|switched)
+      env FM_DISCORD_AUTH=11111111111111111111111111111111 PATH="$TMP_ROOT/send-tools:$PATH" \
+        FM_HOME="$MAPPED_HOME" FM_ROOT_OVERRIDE="$MAPPED_HOME" FM_SEND_SETTLE=0 \
+        bash "$ROOT/bin/fm-send.sh" mapped "package root $form" >"$TMP_ROOT/out" 2>"$TMP_ROOT/err" \
+        || fail "typed send with $form package root must deliver: $(<"$TMP_ROOT/err")"
+      [ -f "$MAPPED_HOME/journal.confirmed" ] || fail "$form package root must confirm delivery"
+      grep -q "package root $form" "$MAPPED_HOME/state/mapped.inbox/"*.msg || fail "$form steer must reach inbox"
+      rm "$MAPPED_HOME/journal" "$MAPPED_HOME/journal.consumed" "$MAPPED_HOME/journal.confirmed"
+      ;;
+    *)
+      if FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" ready >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+        fail "$form package root must refuse"
+      fi
+      assert_contains "$(<"$TMP_ROOT/err")" 'canonical release inside the enrolled code tree' "$form refusal must name the check"
+      [ ! -e "$MAPPED_HOME/journal" ] || fail "$form package root must not open journal"
+      ;;
+  esac
+done
+ln -sfn releases/r1 "$CODE/current"
+cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
+pass 'Discord hook: package root accepts plain and switched enrolled releases, refuses escaping, dangling and tree-leaving chains'
 
 mapped_hook() {
   FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" "$@"
