@@ -13,13 +13,13 @@ Exact pre-marker message (send) or brief SHA256 (spawn) arrives on stdin.
 FM_HOME selects the invoking parent home, as in the owning lifecycle script.
 Absent config/discord-integration.json preserves legacy behavior.
 Unmapped sends and ordinary local supervisory sends resolve routing configuration
-only, never the pinned parent interpreter or package.
+only, never the configured parent interpreter or package.
 An enabled config binds schema=2, canonical home, private package root,
 parent journal, routes [{target,project}], projects {canonical key:absolute root}.
 package_root is absolute and may be a symlink such as <code>/current, which the
 private self-updater switches between releases; every hop must stay inside the
-enrolled code tree (its parent, resolved) and end at a canonical release
-directory, which alone is imported. A legacy per-module hashes map is ignored.
+enrolled code tree (its canonical parent) and end at a canonical release
+directory, which alone is imported. The hashes field is optional and ignored.
 Optional source_commit and source_digest are status information only, never
 identity claims; source is descriptive and is not compared with this installation.
 FM_DISCORD_AUTH names a parent-issued one-use permit, never a transport claim.
@@ -33,7 +33,7 @@ Permit-free sends emit no route information and need no confirm-send call;
 confirm-send without FM_DISCORD_AUTH is refused before journal access.
 No success is returned after consuming a permit until its transaction commits.
 Consumed permits are deliberately not retryable without lifecycle reconciliation.
-The local parent issues permits through the pinned integration release's admin API.
+The local parent issues permits through the enrolled integration release's admin API.
 """
 import importlib
 import json
@@ -139,6 +139,10 @@ def enrolled_release(package_root):
         raise HookCheck(refusal)
     node, pending, hops = tree, [root.name], 0
     while pending:
+        # Even '..' requires an existing directory before it: do not turn a
+        # dangling target or file/../release into a different valid release.
+        if not node.is_dir():
+            raise HookCheck(refusal)
         part = pending.pop(0)
         # node is always tree plus non-symlink components, so a lexical parent is real.
         node = node.parent if part == '..' else node / part

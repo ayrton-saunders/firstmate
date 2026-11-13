@@ -58,7 +58,7 @@ Keep the domain's canonical home binding, mapping revision and its digest, resto
 The hook enforces the configuration schema and home match; the private release owns mapping revision/digest, epoch and mention admission enforcement.
 Do not change that release, its transport manifest or its journals through this repository's development work.
 Keep the journal paths and interpreter requirements unchanged unless separately approved.
-The [hook's configuration contract](../bin/fm-discord-hook.py) owns the enrolled package root rule; release module hashes are no longer compared.
+The [hook's configuration contract](../bin/fm-discord-hook.py) owns the enrolled package root rule and treatment of legacy release hashes.
 No paired Firstmate commit/digest replacement or source-pin verifier is required.
 If installation fails, leave the domain paused with backups intact and follow the private owner handoff.
 
@@ -131,9 +131,9 @@ The scoped executable tests are:
 FM_LIVE=0 bash bin/fm-test-run.sh --jobs 1 tests/fm-discord-dispatch.test.sh tests/fm-discord-reply.test.sh tests/fm-discord-hook.test.sh
 ```
 
-The dispatch suite covers exact payloads and automatic bindings, expired readiness, inadmissible lanes, existing intents, package integrity, domain isolation and missing delivery receipts.
-The reply suite covers authoritative returns, generation/scope/route mismatches, non-active lanes, fences, package integrity, incomplete publication and duplicate-safe approval.
-The hook suite covers source status fields present, stale or absent and retained home/schema protections.
+The dispatch suite covers exact payloads and automatic bindings, expired readiness, inadmissible lanes, existing intents, escaping package root refusal, domain isolation and missing delivery receipts.
+The reply suite covers authoritative returns, generation/scope/route mismatches, non-active lanes, fences, escaping package root refusal, incomplete publication and duplicate-safe approval.
+The hook suite covers source status fields present, stale or absent, optional legacy hashes, enrolled release switching, invalid package root refusal and retained home/schema protections.
 Successful fixture verification is not a claim that the live installation is aligned or unfenced.
 
 Exclude exactly `tests/fm-supervision-host.test.sh` from the broad suite for this environment.

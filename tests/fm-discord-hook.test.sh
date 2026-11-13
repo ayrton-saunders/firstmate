@@ -328,7 +328,10 @@ ln -s releases/up "$CODE/tree"
 ln -s ../outside/via "$CODE/via"
 ln -s "$CODE/releases" "$TMP_ROOT/outside/via"
 ln -s via/r1 "$CODE/intermediate"
-for form in plain switched escape dangling chain tree intermediate dotdot; do
+ln -s releases/missing/../r1 "$CODE/missingparent"
+printf 'not a directory' > "$CODE/releases/file"
+ln -s releases/file/../r1 "$CODE/fileparent"
+for form in plain switched escape dangling chain tree intermediate dotdot missingparent fileparent; do
   cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
   [ "$form" != switched ] || ln -sfn releases/r2 "$CODE/current"
   "$PY314" - "$MAPPED_HOME/config/discord-integration.json" "$CODE" "$form" <<'PY'
