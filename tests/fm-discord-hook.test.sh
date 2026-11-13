@@ -179,13 +179,15 @@ class Journal:
         pass
 PY
 cat > "$PACKAGE/personal_discord/routing.py" <<'PY'
+from pathlib import Path
 class Routing:
     def __init__(self, journal):
         self.journal = journal
     def consume(self, *args, **kwargs):
         self.journal.path.with_suffix('.consumed').write_text('consumed')
     def confirm(self, *args, **kwargs):
-        self.journal.path.with_suffix('.confirmed').write_text('confirmed')
+        # Records the directory this module was imported from, unresolved.
+        self.journal.path.with_suffix('.confirmed').write_text(str(Path(__file__).parent.parent))
 PY
 ln -s releases/r1 "$CODE/current"
 "$PY314" - "$MAPPED_HOME" "$CODE" "$ROOT" "$PY314" <<'PY'
@@ -323,7 +325,10 @@ ln -s "$CODE/releases/r1" "$TMP_ROOT/outside/hop"
 ln -s ../outside/hop "$CODE/chain"
 ln -s .. "$CODE/releases/up"
 ln -s releases/up "$CODE/tree"
-for form in plain switched escape dangling chain tree; do
+ln -s ../outside/via "$CODE/via"
+ln -s "$CODE/releases" "$TMP_ROOT/outside/via"
+ln -s via/r1 "$CODE/intermediate"
+for form in plain switched escape dangling chain tree intermediate dotdot; do
   cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
   [ "$form" != switched ] || ln -sfn releases/r2 "$CODE/current"
   "$PY314" - "$MAPPED_HOME/config/discord-integration.json" "$CODE" "$form" <<'PY'
@@ -331,7 +336,8 @@ import json, sys
 from pathlib import Path
 path, code, form = Path(sys.argv[1]), Path(sys.argv[2]).resolve(), sys.argv[3]
 config = json.loads(path.read_text())
-config['package_root'] = str({'plain': code / 'releases/r1', 'switched': code / 'current'}.get(form, code / form))
+config['package_root'] = {'plain': str(code / 'releases/r1'), 'switched': str(code / 'current'),
+                          'dotdot': str(code / 'releases/missing') + '/../r1'}.get(form, str(code / form))
 path.write_text(json.dumps(config))
 PY
   case "$form" in
@@ -340,7 +346,10 @@ PY
         FM_HOME="$MAPPED_HOME" FM_ROOT_OVERRIDE="$MAPPED_HOME" FM_SEND_SETTLE=0 \
         bash "$ROOT/bin/fm-send.sh" mapped "package root $form" >"$TMP_ROOT/out" 2>"$TMP_ROOT/err" \
         || fail "typed send with $form package root must deliver: $(<"$TMP_ROOT/err")"
-      [ -f "$MAPPED_HOME/journal.confirmed" ] || fail "$form package root must confirm delivery"
+      expected=$(cd "$CODE/releases/r1" && pwd -P)
+      [ "$form" != switched ] || expected=$(cd "$CODE/releases/r2" && pwd -P)
+      [ "$(<"$MAPPED_HOME/journal.confirmed")" = "$expected" ] \
+        || fail "$form package root must import from the resolved release, not the symlink"
       grep -q "package root $form" "$MAPPED_HOME/state/mapped.inbox/"*.msg || fail "$form steer must reach inbox"
       rm "$MAPPED_HOME/journal" "$MAPPED_HOME/journal.consumed" "$MAPPED_HOME/journal.confirmed"
       ;;
@@ -355,7 +364,7 @@ PY
 done
 ln -sfn releases/r1 "$CODE/current"
 cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
-pass 'Discord hook: package root accepts plain and switched enrolled releases, refuses escaping, dangling and tree-leaving chains'
+pass 'Discord hook: package root accepts plain and switched enrolled releases, refuses escaping, dangling, tree-leaving and non-canonical roots'
 
 mapped_hook() {
   FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" "$@"

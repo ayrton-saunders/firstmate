@@ -122,28 +122,36 @@ def verify_parent(config):
 def enrolled_release(package_root):
     """Resolve package_root to one canonical release directory inside its code tree.
 
-    The enrolled code tree is package_root's parent, resolved. package_root may be a
-    symlink (the self-updater switches <code>/current between releases); every hop of
-    its chain must stay inside that tree and end at an existing directory. Callers
-    import from the returned directory, so a later switch cannot mix releases.
+    The enrolled code tree is package_root's parent, which must be canonical.
+    package_root may be a symlink (the self-updater switches <code>/current between
+    releases). The walk follows the chain one path component at a time, so every
+    component it visits, through any symlink hop or symlinked intermediate
+    directory, must stay inside that tree, and the chain must end at an existing
+    directory. Callers import from the returned directory, so a later switch
+    cannot mix releases.
     """
     refusal = 'Integration package root must resolve to a canonical release inside the enrolled code tree'
     if not isinstance(package_root, str) or not Path(package_root).is_absolute():
         raise HookCheck(refusal)
-    node = Path(package_root)
-    tree = node.parent.resolve()
-    for _ in range(40):
-        if node.name in ('', '..'):
-            raise HookCheck(refusal)
-        node = node.parent.resolve() / node.name
-        if node == tree or not node.is_relative_to(tree):
-            raise HookCheck(refusal)
-        if not node.is_symlink():
-            break
-        node = node.parent / os.readlink(node)
-    else:
+    root = Path(package_root)
+    tree = root.parent
+    if root.name in ('', '..') or tree.resolve() != tree:
         raise HookCheck(refusal)
-    if not node.is_dir() or node.resolve() != node:
+    node, pending, hops = tree, [root.name], 0
+    while pending:
+        part = pending.pop(0)
+        # node is always tree plus non-symlink components, so a lexical parent is real.
+        node = node.parent if part == '..' else node / part
+        if not node.is_relative_to(tree):
+            raise HookCheck(refusal)
+        if node.is_symlink():
+            hops += 1
+            target = Path(os.readlink(node))
+            if hops > 40 or target.is_absolute() and not target.is_relative_to(tree):
+                raise HookCheck(refusal)
+            node, rest = (tree, target.relative_to(tree).parts) if target.is_absolute() else (node.parent, target.parts)
+            pending[:0] = rest
+    if node == tree or node.is_symlink() or not node.is_dir() or node.resolve() != node:
         raise HookCheck(refusal)
     return node
 
