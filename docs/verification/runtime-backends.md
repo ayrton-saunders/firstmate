@@ -1834,7 +1834,7 @@ HERDR_LAB_HELPER=bin/fm-herdr-lab.sh \
   tests/fm-backend-herdr-focus-flash-e2e.test.sh
 ```
 
-Observed output on Herdr 0.7.5:
+Observed output on Herdr 0.7.5 (before Part C switched to synchronous post-close observation):
 
 ```text
 ok - old path: the explicit last-pane close of a non-focused workspace stole focus (w3	w3:t1 -> w2	w2:t1)
@@ -1862,7 +1862,10 @@ evidence: herdr=0.8.0 protocol=19 steal_live=0 floor_verdict=0 default-session-t
 The same guarded named-lab command passed on 2026-09-03 against Herdr 0.8.2 after this regression joined the required `real-herdr-gated` lane.
 It reported `steal_live=0 floor_verdict=0 default-session-tripwire=armed`, with the fleet's default session unchanged before and after.
 
-Part C is the case the suite could not reach before: a doomed pane whose shell holds a persistent background child fails the lone-idle-shell proof on every sample, so the plan takes the plain explicit close, in the geometry where the closing workspace's right neighbour is a spacer rather than the focused anchor.
+Part C holds a persistent foreground child in the doomed pane, exhausting the lone-idle-shell proof so the plan takes the plain explicit close, in the geometry where the closing workspace's right neighbour is a spacer rather than the focused anchor.
+The current regression captures exact workspace and tab focus synchronously after the explicit close returns and before the adapter can restore focus, rather than requiring the concurrent sampler to catch a short wrong-focus window.
+On a defective release it requires that snapshot to differ from the anchor and the final focus to match the anchor exactly; on a focus-preserving release both snapshots must match the anchor and concurrent samples must contain no wrong or unreadable focus.
+The dated output above predates the synchronous observation and is not live evidence for the revised assertion.
 On 0.7.5 that fallback exposed a bounded four-sample wrong-focus window and restored the anchor exactly; on 0.8.0 the same fallback exposed none, which is why default-on projection is floored at 0.8.0 rather than mitigated further below it.
 The suite also cross-checks its own Part A measurement against the floor classifier on whatever release it runs, so a drifted protocol-to-release mapping fails there rather than silently gating on the wrong thing.
 
