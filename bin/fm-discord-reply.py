@@ -9,14 +9,14 @@ The words are an explicitly approved, single-line customer answer, not raw worke
 output. Generation, correlation, scope and the stable final event identifier are
 derived from existing custody and work records, never supplied by the caller.
 No readiness renewal, dispatch, synthetic return, credential read or network call
-is performed. Publication uses the pinned private release's approval API and its
+is performed. Publication uses the enrolled private release's approval API and its
 local egress projection; transport delivery is separate and is not claimed here.
 Successful publication is silent. An identical repeat repairs the same event;
 changed words cannot replace an already approved final. After any error, inspect
 the existing approval before retrying; never invent another event identifier.
 The shared gate-agent guard runs before configuration or journal access; its
 existing disposable-lab exception remains owned by fm-gate-refuse-lib.sh.
-The enabled home configuration, package hashes and CPython 3.14 runtime must
+The enabled home configuration, enrolled release and CPython 3.14 runtime must
 then pass the existing parent guard before any journal is opened.
 Installation and retained domain protections: docs/discord-owner-reply-install.md
 """

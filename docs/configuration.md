@@ -2508,13 +2508,13 @@ A fail-closed poll that already queued a wake, and a timeout, always print so th
 The optional private Discord parent integration is separate from the shared Relay below.
 This repository contains parent-side commands and the lifecycle hook, not the private bot core; installing these source changes does not start a bot, publish that core, or activate Discord or media.
 Leave the integration configuration absent for ordinary operation.
-The hook's [header and help](../bin/fm-discord-hook.py) own the exact configuration, release-pinning requirements, permit interface, and invocation mechanics; this is not a standalone bot setup path.
+The hook's [header and help](../bin/fm-discord-hook.py) own the exact configuration, enrolled release requirements, permit interface, and invocation mechanics; this is not a standalone bot setup path.
 The [owner install-and-test sheet](discord-owner-reply-install.md) coordinates both machines, owner approvals and the one-message round-trip proof.
 
 When enabled, ordinary local supervisory text can still reach explicitly mapped workers without consuming Discord permits; per-domain bot scoping does not restrict the primary's own coordination.
 Discord-lane sends, remote mapped sends, and mapped project spawns still require parent-issued permits rather than treating transport input as authorization.
 Mapped endpoint aliases cannot bypass the guard through direct terminal text, and mapped work cannot use parser-native invocations.
-Unmapped sends and ordinary local supervisory sends (including to mapped workers) retain their ordinary routing behavior after configuration validation and endpoint identity checks, without loading the pinned Discord interpreter or package.
+Unmapped sends and ordinary local supervisory sends (including to mapped workers) retain their ordinary routing behavior after configuration validation and endpoint identity checks, without loading the configured Discord interpreter or package.
 See the [hook's configuration contract](../bin/fm-discord-hook.py) for source status fields and the [owner cutover protections](discord-owner-reply-install.md#3-owner-action-preserve-the-domain-protections) for retained domain checks.
 A proven absent unrelated mapped endpoint does not block routing; an indeterminate identity lookup refuses delivery rather than risking a mapped terminal bypass.
 Capacity deferral remains a no-launch outcome and does not consume dispatch authority.

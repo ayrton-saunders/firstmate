@@ -216,8 +216,7 @@ class Dispatch(unittest.TestCase):
         self.config=dict(schema=2,enabled=True,home=str(self.home),source=str(self.source),
                          source_commit=subprocess.check_output(['git','-C',str(self.source),'rev-parse','HEAD'],text=True).strip(),
                          source_digest=digest(files),python_executable=str(Path(sys.executable).resolve()),
-                         package_root=str(self.package),hashes={str(p.relative_to(self.package)):hashlib.sha256(p.read_bytes()).hexdigest()
-                                                               for p in package.glob('*.py')},
+                         package_root=str(self.package),
                          journal=str(self.world/'parent.sqlite'),mapping={'fixture':True},
                          projects={'project':str(self.source)},routes=[dict(target='domain',project='project')])
         self.config_path=self.home/'config/discord-integration.json'
@@ -315,9 +314,13 @@ class Dispatch(unittest.TestCase):
         self.save_config()
         self.invoke()
 
-    def test_package_pins_refuse_before_journal(self):
+    def test_escaping_package_root_refuses_before_import_or_journal(self):
         (self.package/'personal_discord/routing.py').write_text('raise AssertionError("must not import")')
-        self.refuse('Integration release hash mismatch')
+        (self.world/'code').mkdir()
+        (self.world/'code/current').symlink_to(self.package)
+        self.config['package_root']=str(self.world/'code/current')
+        self.save_config()
+        self.refuse('canonical release inside the enrolled code tree')
         self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
 
     def test_home_binding_refuses_by_check_name_before_journal(self):
