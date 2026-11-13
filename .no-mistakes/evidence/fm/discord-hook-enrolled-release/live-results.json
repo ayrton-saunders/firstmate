@@ -1,0 +1,363 @@
+[
+  {
+    "label": "current with stale legacy hashes passes real parent validation on unmapped spawn",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "matched_contract": true
+  },
+  {
+    "label": "current without hashes passes parent validation",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "matched_contract": true
+  },
+  {
+    "label": "self-update switches current to second enrolled release without config changes",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "matched_contract": true
+  },
+  {
+    "label": "canonical direct release remains accepted",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "matched_contract": true
+  },
+  {
+    "label": "absolute in-tree symlink accepted",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 0,
+    "stdout": "",
+    "stderr": "",
+    "matched_contract": true
+  },
+  {
+    "label": "reject escape symlink target",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Integration package root must resolve to a canonical release inside the enrolled code tree\n",
+    "matched_contract": true
+  },
+  {
+    "label": "reject dangling symlink target",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Integration package root must resolve to a canonical release inside the enrolled code tree\n",
+    "matched_contract": true
+  },
+  {
+    "label": "reject loop symlink target",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Integration package root must resolve to a canonical release inside the enrolled code tree\n",
+    "matched_contract": true
+  },
+  {
+    "label": "reject tree symlink target",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Integration package root must resolve to a canonical release inside the enrolled code tree\n",
+    "matched_contract": true
+  },
+  {
+    "label": "reject leave-return symlink target",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Integration package root must resolve to a canonical release inside the enrolled code tree\n",
+    "matched_contract": true
+  },
+  {
+    "label": "reject missing-parent symlink target",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Integration package root must resolve to a canonical release inside the enrolled code tree\n",
+    "matched_contract": true
+  },
+  {
+    "label": "reject file-parent symlink target",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Integration package root must resolve to a canonical release inside the enrolled code tree\n",
+    "matched_contract": true
+  },
+  {
+    "label": "retain home guard",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Integration schema/home mismatch\n",
+    "matched_contract": true
+  },
+  {
+    "label": "retain schema guard",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Integration schema/home mismatch\n",
+    "matched_contract": true
+  },
+  {
+    "label": "retain routes guard",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Integration journal/routes/projects missing\n",
+    "matched_contract": true
+  },
+  {
+    "label": "retain projects guard",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Integration journal/routes/projects missing\n",
+    "matched_contract": true
+  },
+  {
+    "label": "retain python_executable guard",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "spawn",
+      "probe",
+      "{run-worktree}/.local-discord-validation/live/unmapped"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Pinned existing parent interpreter required\n",
+    "matched_contract": true
+  },
+  {
+    "label": "malformed Discord permit still refused",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "send",
+      "mapped",
+      "mapped",
+      "{run-worktree}/.local-discord-validation/live/home/state/mapped.meta",
+      "tmux"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Mapped routing requires a typed parent-issued lane permit\n",
+    "matched_contract": true
+  },
+  {
+    "label": "missing endpoint generation still refused",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "send",
+      "mapped",
+      "mapped",
+      "{run-worktree}/.local-discord-validation/live/home/state/mapped.meta",
+      "tmux"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Enabled mapped endpoint requires a recorded lifecycle generation\n",
+    "matched_contract": true
+  },
+  {
+    "label": "escaping release refused before private imports: fm-discord-hook.py ready",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "ready"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Integration package root must resolve to a canonical release inside the enrolled code tree\n",
+    "matched_contract": true
+  },
+  {
+    "label": "escaping release refused before private imports: fm-discord-hook.py outcome",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "outcome",
+      "note"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Integration package root must resolve to a canonical release inside the enrolled code tree\n",
+    "matched_contract": true
+  },
+  {
+    "label": "escaping release refused before private imports: fm-discord-hook.py confirm-send",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-hook.py",
+      "confirm-send",
+      "remote",
+      "receipt"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Integration package root must resolve to a canonical release inside the enrolled code tree\n",
+    "matched_contract": true
+  },
+  {
+    "label": "escaping release refused before private imports: fm-discord-dispatch.py request",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-dispatch.py",
+      "request",
+      "mapped",
+      "Question"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Discord dispatch refused: Integration package root must resolve to a canonical release inside the enrolled code tree\n",
+    "matched_contract": true
+  },
+  {
+    "label": "escaping release refused before private imports: fm-discord-reply.py request",
+    "command": [
+      "/opt/homebrew/opt/python@3.14/bin/python3.14",
+      "-I",
+      "{run-worktree}/bin/fm-discord-reply.py",
+      "request",
+      "mapped",
+      "Approved answer"
+    ],
+    "exit": 1,
+    "stdout": "",
+    "stderr": "error: Discord reply refused: Integration package root must resolve to a canonical release inside the enrolled code tree\n",
+    "matched_contract": true
+  }
+]

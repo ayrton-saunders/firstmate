@@ -1,0 +1,30 @@
+test_changed_words_cannot_replace_approval (__main__.Reply.test_changed_words_cannot_replace_approval) ... ok
+test_disabled_absent_and_symlink_configuration_refuse_before_open (__main__.Reply.test_disabled_absent_and_symlink_configuration_refuse_before_open) ... ok
+test_duplicate_configuration_refuses_by_check_name (__main__.Reply.test_duplicate_configuration_refuses_by_check_name) ... ok
+test_escaping_package_root_refuses_before_import_or_journal (__main__.Reply.test_escaping_package_root_refuses_before_import_or_journal) ... ok
+test_fences_refuse (__main__.Reply.test_fences_refuse) ... ok
+test_final_uses_existing_binding_and_exact_approved_words (__main__.Reply.test_final_uses_existing_binding_and_exact_approved_words) ... ok
+test_gate_lab_permits_approved_final_and_preserves_authority_signals (__main__.Reply.test_gate_lab_permits_approved_final_and_preserves_authority_signals) ... ok
+test_gate_lab_rejects_nonstock_override (__main__.Reply.test_gate_lab_rejects_nonstock_override) ... ok
+test_gate_refuses_before_configuration_and_journals (__main__.Reply.test_gate_refuses_before_configuration_and_journals) ... ok
+test_home_binding_refuses_by_check_name_before_journal (__main__.Reply.test_home_binding_refuses_by_check_name_before_journal) ... ok
+test_identical_repeat_uses_same_final_even_after_lane_finishes (__main__.Reply.test_identical_repeat_uses_same_final_even_after_lane_finishes) ... ok
+test_missing_return_refuses (__main__.Reply.test_missing_return_refuses) ... ok
+test_no_false_success_when_publication_is_incomplete (__main__.Reply.test_no_false_success_when_publication_is_incomplete) ... ok
+test_non_active_lane_refuses (__main__.Reply.test_non_active_lane_refuses) ... ok
+test_pinned_interpreter_reexec_preserves_reply_entrypoint (__main__.Reply.test_pinned_interpreter_reexec_preserves_reply_entrypoint) ... ok
+test_reply_does_not_renew_or_require_intake_readiness (__main__.Reply.test_reply_does_not_renew_or_require_intake_readiness) ... ok
+test_source_status_fields_are_optional_and_do_not_fence (__main__.Reply.test_source_status_fields_are_optional_and_do_not_fence) ... ok
+test_stale_generation_or_scope_refuses (__main__.Reply.test_stale_generation_or_scope_refuses) ... ok
+test_symlink_and_duplicate_return_refuse (__main__.Reply.test_symlink_and_duplicate_return_refuse) ... ok
+test_unknown_request_or_route_refuses (__main__.Reply.test_unknown_request_or_route_refuses) ... ok
+test_unresolved_return_refuses_without_manufacturing_resolution (__main__.Reply.test_unresolved_return_refuses_without_manufacturing_resolution) ... ok
+test_unsafe_or_oversized_words_refuse_before_journal_open (__main__.Reply.test_unsafe_or_oversized_words_refuse_before_journal_open) ... ok
+test_wrong_project_or_task_binding_refuses (__main__.Reply.test_wrong_project_or_task_binding_refuses) ... ok
+test_wrong_return_home_task_or_correlation_refuses (__main__.Reply.test_wrong_return_home_task_or_correlation_refuses) ... ok
+
+----------------------------------------------------------------------
+Ran 24 tests in 2.441s
+
+OK
+ok - Discord reply: approved final, authoritative return, isolation, replay and refusal paths

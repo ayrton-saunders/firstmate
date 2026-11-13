@@ -1,0 +1,30 @@
+test_ambient_overrides_are_not_child_authority (__main__.Dispatch.test_ambient_overrides_are_not_child_authority) ... ok
+test_disabled_absent_and_symlink_config_refuse_before_journal (__main__.Dispatch.test_disabled_absent_and_symlink_config_refuse_before_journal) ... ok
+test_duplicate_configuration_refuses_by_check_name (__main__.Dispatch.test_duplicate_configuration_refuses_by_check_name) ... ok
+test_escaping_package_root_refuses_before_import_or_journal (__main__.Dispatch.test_escaping_package_root_refuses_before_import_or_journal) ... ok
+test_exact_payload_and_automatic_bindings (__main__.Dispatch.test_exact_payload_and_automatic_bindings) ... ok
+test_existing_intent_in_any_phase_refuses (__main__.Dispatch.test_existing_intent_in_any_phase_refuses) ... ok
+test_expired_readiness_refuses_before_correlation_creation (__main__.Dispatch.test_expired_readiness_refuses_before_correlation_creation) ... ok
+test_fences_refuse (__main__.Dispatch.test_fences_refuse) ... ok
+test_gate_agent_cannot_dispatch (__main__.Dispatch.test_gate_agent_cannot_dispatch) ... ok
+test_generation_change_before_send_refuses (__main__.Dispatch.test_generation_change_before_send_refuses) ... ok
+test_home_binding_refuses_by_check_name_before_journal (__main__.Dispatch.test_home_binding_refuses_by_check_name_before_journal) ... ok
+test_no_false_success_without_owning_confirmation (__main__.Dispatch.test_no_false_success_without_owning_confirmation) ... ok
+test_non_dispatchable_lane_refuses (__main__.Dispatch.test_non_dispatchable_lane_refuses) ... ok
+test_parser_options_markers_and_size_refuse_before_journal (__main__.Dispatch.test_parser_options_markers_and_size_refuse_before_journal) ... ok
+test_pinned_interpreter_reexec_keeps_dispatch_entrypoint (__main__.Dispatch.test_pinned_interpreter_reexec_keeps_dispatch_entrypoint) ... ok
+test_repeat_does_not_mint_replacement_authority (__main__.Dispatch.test_repeat_does_not_mint_replacement_authority) ... ok
+test_route_requires_real_secondmate_generation (__main__.Dispatch.test_route_requires_real_secondmate_generation) ... ok
+test_scope_admission_is_not_bypassed (__main__.Dispatch.test_scope_admission_is_not_bypassed) ... ok
+test_send_failure_retains_unknown_attempt_and_refuses_repeat (__main__.Dispatch.test_send_failure_retains_unknown_attempt_and_refuses_repeat) ... ok
+test_source_status_fields_are_optional_and_do_not_fence (__main__.Dispatch.test_source_status_fields_are_optional_and_do_not_fence) ... ok
+test_supervision_authority_survives_child_environment_sanitation (__main__.Dispatch.test_supervision_authority_survives_child_environment_sanitation) ... ok
+test_unknown_request_refuses (__main__.Dispatch.test_unknown_request_refuses) ... ok
+test_visual_work_is_not_silently_reclassified (__main__.Dispatch.test_visual_work_is_not_silently_reclassified) ... ok
+test_wrong_project_or_unknown_route_refuses (__main__.Dispatch.test_wrong_project_or_unknown_route_refuses) ... ok
+
+----------------------------------------------------------------------
+Ran 24 tests in 3.280s
+
+OK
+ok - Discord dispatch: exact payload, automatic binding, isolation, receipt and refusal paths
