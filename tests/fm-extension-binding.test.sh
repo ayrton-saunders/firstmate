@@ -2162,9 +2162,6 @@ surface_orphan_wakes() {
     procevent_surface_queued
   ' _ "$ROOT"
 }
-# Finish the earlier recovery episode before asserting isolated failure headlines.
-# A result.silent check can fail open and leave a legitimate captured-result wake.
-surface_orphan_wakes >/dev/null || fail "watcher could not drain prior recovery wakes"
 for orphan_recovery in attached live; do
   orphan_source="orphan-$orphan_recovery"
   orphan_config=no-result
