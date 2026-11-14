@@ -1,0 +1,25 @@
+fm-afk-contract.sh enter --words "merge task-x1 when green": exit=0
+Away posture recorded at 2026-11-14T16:47:41Z: hold-for-return only. No phone channel is configured; anything that needs you waits for your return. Your away instructions are recorded verbatim; the away session will carry them out where it can, and anything it is unsure of, or that needs you, waits for your return. Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: not given. Spend cap: 4 concurrent workers.
+Away posture (recorded):
+  entered: 2026-11-14T16:47:41Z
+  expected return: not given
+  spend cap: 4 concurrent workers
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words (verbatim):
+    merge task-x1 when green
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7 --allow-no-actions
+Synthetic API input: {"away": true, "workflow": "on: pull_request\njobs: {}"}
+exit=2; merge mutation observed=False
+STDOUT:
+
+STDERR:
+error: --allow-no-actions is attended-only; while the away-posture record exists a GitHub merge requires a GitHub Actions check suite at the head when a pull_request workflow exists
+
+API REQUESTS:
+[]
+PERSISTED TASK METADATA:
+window=fm-task-x1
+worktree={run-worktree}/.local-validation/wt
+project={run-worktree}/.local-validation/wt
+kind=ship
+mode=no-mistakes

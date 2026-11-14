@@ -1,107 +1,116 @@
 [
   {
-    "name": "no-suite-refused",
-    "pass": true,
-    "exit": 1
+    "name": "missing-actions-refused",
+    "ok": true,
+    "exit": 1,
+    "merged": false
   },
   {
-    "name": "no-suite-mapping",
-    "pass": true,
-    "exit": 1
+    "name": "missing-actions-indentless",
+    "ok": true,
+    "exit": 1,
+    "merged": false
   },
   {
-    "name": "no-suite-block-list",
-    "pass": true,
-    "exit": 1
+    "name": "missing-actions-column-zero",
+    "ok": true,
+    "exit": 1,
+    "merged": false
   },
   {
-    "name": "no-suite-flow-list",
-    "pass": true,
-    "exit": 1
+    "name": "missing-actions-next-line-flow",
+    "ok": true,
+    "exit": 1,
+    "merged": false
   },
   {
-    "name": "no-suite-quoted",
-    "pass": true,
-    "exit": 1
+    "name": "missing-actions-next-line-map",
+    "ok": true,
+    "exit": 1,
+    "merged": false
   },
   {
-    "name": "status-only-refused",
-    "pass": true,
-    "exit": 1
+    "name": "missing-actions-quoted-hash",
+    "ok": true,
+    "exit": 1,
+    "merged": false
   },
   {
-    "name": "suite-present-merges",
-    "pass": true,
-    "exit": 0
+    "name": "missing-actions-status-only",
+    "ok": true,
+    "exit": 1,
+    "merged": false
   },
   {
-    "name": "no-workflows-merges",
-    "pass": true,
-    "exit": 0
+    "name": "suite-present",
+    "ok": true,
+    "exit": 0,
+    "merged": true
   },
   {
-    "name": "other-events-merges",
-    "pass": true,
-    "exit": 0
+    "name": "exempt-no-directory",
+    "ok": true,
+    "exit": 0,
+    "merged": true
   },
   {
-    "name": "waiver-merges",
-    "pass": true,
-    "exit": 0
+    "name": "exempt-other-events",
+    "ok": true,
+    "exit": 0,
+    "merged": true
   },
   {
-    "name": "waiver-red-refused",
-    "pass": true,
-    "exit": 1
+    "name": "exempt-property",
+    "ok": true,
+    "exit": 0,
+    "merged": true
   },
   {
-    "name": "waiver-missing-refused",
-    "pass": true,
-    "exit": 1
+    "name": "waiver-merge",
+    "ok": true,
+    "exit": 0,
+    "merged": true
   },
   {
-    "name": "suite-read-error",
-    "pass": true,
-    "exit": 1
+    "name": "waiver-red",
+    "ok": true,
+    "exit": 1,
+    "merged": false
   },
   {
-    "name": "suite-malformed",
-    "pass": true,
-    "exit": 1
+    "name": "unreadable-suites",
+    "ok": true,
+    "exit": 1,
+    "merged": false
   },
   {
-    "name": "workflow-list-error",
-    "pass": true,
-    "exit": 1
+    "name": "unreadable-listing",
+    "ok": true,
+    "exit": 1,
+    "merged": false
   },
   {
-    "name": "workflow-file-error",
-    "pass": true,
-    "exit": 1
+    "name": "unreadable-file",
+    "ok": true,
+    "exit": 1,
+    "merged": false
   },
   {
-    "name": "waiver-suite-read-error",
-    "pass": true,
-    "exit": 1
+    "name": "waiver-unreadable",
+    "ok": true,
+    "exit": 1,
+    "merged": false
   },
   {
-    "name": "waiver-away-refused",
-    "pass": true,
-    "exit": 2
+    "name": "waiver-away",
+    "ok": true,
+    "exit": 2,
+    "merged": false
   },
   {
-    "name": "waiver-value-refused",
-    "pass": true,
-    "exit": 2
-  },
-  {
-    "name": "waiver-gitlab-refused",
-    "pass": true,
-    "exit": 2
-  },
-  {
-    "name": "waiver-forgejo-refused",
-    "pass": true,
-    "exit": 2
+    "name": "waiver-non-github",
+    "ok": true,
+    "exit": 2,
+    "merged": false
   }
 ]

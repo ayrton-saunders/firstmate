@@ -1,170 +1,180 @@
-Local product validation: real bin/fm-pr-merge.sh + real gh CLI + disposable GitHub HTTP/GraphQL emulator.
-All homes, git fixtures, CLI configuration, certificates, and cache were isolated inside the worktree.
-HTTPS proxy accepted only api.github.com:443 and never forwarded traffic. Credentials were synthetic.
-Oracle: no Actions suite on a PR-workflow repository must refuse; only the attended named override waives absence, never red/missing checks or unreadable suites. The approved no-PR-workflow exemption is preserved.
+Live local validation: unmodified bin/fm-pr-merge.sh and real gh CLI, synthetic GitHub API over a loopback TLS proxy. No hosted repository or real login used. All local API/server threads stopped before return. Initial emulator shape/cache errors were corrected before the final run.
 
-=== no-suite-refused ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1
-exit=1; local API merged=False
-armed: state/task-x1.check.sh
-error: refusing to merge https://github.com/example/repo/pull/1
+
+## missing-actions-refused
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7
+Synthetic API input: {"workflow": "on: pull_request\njobs: {}"}
+exit=1; merge mutation observed=False
+error: refusing to merge https://github.com/example/repo/pull/7
   - head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa has no GitHub Actions check suite although base branch main has a workflow triggered by pull_request, so GitHub Actions never saw this pull request; Actions is likely not running (on a fork, GitHub's fork workflow gate stops every workflow run): see https://github.com/example/repo/actions, or pass --allow-no-actions for a repository with no Actions CI
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368, GET /repos/example/repo/contents/.github/workflows?ref=main, GET /repos/example/repo/contents/.github/workflows/ci.yml?ref=main
+Full API trace: missing-actions-refused.log
 
-=== no-suite-mapping ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1
-exit=1; local API merged=False
-armed: state/task-x1.check.sh
-error: refusing to merge https://github.com/example/repo/pull/1
+
+## missing-actions-indentless
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7
+Synthetic API input: {"workflow": "on:\n- pull_request\njobs: {}"}
+exit=1; merge mutation observed=False
+error: refusing to merge https://github.com/example/repo/pull/7
   - head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa has no GitHub Actions check suite although base branch main has a workflow triggered by pull_request, so GitHub Actions never saw this pull request; Actions is likely not running (on a fork, GitHub's fork workflow gate stops every workflow run): see https://github.com/example/repo/actions, or pass --allow-no-actions for a repository with no Actions CI
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368, GET /repos/example/repo/contents/.github/workflows?ref=main, GET /repos/example/repo/contents/.github/workflows/ci.yml?ref=main
+Full API trace: missing-actions-indentless.log
 
-=== no-suite-block-list ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1
-exit=1; local API merged=False
-armed: state/task-x1.check.sh
-error: refusing to merge https://github.com/example/repo/pull/1
+
+## missing-actions-column-zero
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7
+Synthetic API input: {"workflow": "on: [push,\npull_request]\njobs: {}"}
+exit=1; merge mutation observed=False
+error: refusing to merge https://github.com/example/repo/pull/7
   - head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa has no GitHub Actions check suite although base branch main has a workflow triggered by pull_request, so GitHub Actions never saw this pull request; Actions is likely not running (on a fork, GitHub's fork workflow gate stops every workflow run): see https://github.com/example/repo/actions, or pass --allow-no-actions for a repository with no Actions CI
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368, GET /repos/example/repo/contents/.github/workflows?ref=main, GET /repos/example/repo/contents/.github/workflows/ci.yml?ref=main
+Full API trace: missing-actions-column-zero.log
 
-=== no-suite-flow-list ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1
-exit=1; local API merged=False
-armed: state/task-x1.check.sh
-error: refusing to merge https://github.com/example/repo/pull/1
+
+## missing-actions-next-line-flow
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7
+Synthetic API input: {"workflow": "on:\n [push, pull_request]\njobs: {}"}
+exit=1; merge mutation observed=False
+error: refusing to merge https://github.com/example/repo/pull/7
   - head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa has no GitHub Actions check suite although base branch main has a workflow triggered by pull_request, so GitHub Actions never saw this pull request; Actions is likely not running (on a fork, GitHub's fork workflow gate stops every workflow run): see https://github.com/example/repo/actions, or pass --allow-no-actions for a repository with no Actions CI
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368, GET /repos/example/repo/contents/.github/workflows?ref=main, GET /repos/example/repo/contents/.github/workflows/ci.yml?ref=main
+Full API trace: missing-actions-next-line-flow.log
 
-=== no-suite-quoted ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1
-exit=1; local API merged=False
-armed: state/task-x1.check.sh
-error: refusing to merge https://github.com/example/repo/pull/1
+
+## missing-actions-next-line-map
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7
+Synthetic API input: {"workflow": "on:\n {push: {}, pull_request: {}}\njobs: {}"}
+exit=1; merge mutation observed=False
+error: refusing to merge https://github.com/example/repo/pull/7
   - head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa has no GitHub Actions check suite although base branch main has a workflow triggered by pull_request, so GitHub Actions never saw this pull request; Actions is likely not running (on a fork, GitHub's fork workflow gate stops every workflow run): see https://github.com/example/repo/actions, or pass --allow-no-actions for a repository with no Actions CI
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368, GET /repos/example/repo/contents/.github/workflows?ref=main, GET /repos/example/repo/contents/.github/workflows/ci.yml?ref=main
+Full API trace: missing-actions-next-line-map.log
 
-=== status-only-refused ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1
-exit=1; local API merged=False
-armed: state/task-x1.check.sh
-error: refusing to merge https://github.com/example/repo/pull/1
+
+## missing-actions-quoted-hash
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7
+Synthetic API input: {"workflow": "on: {workflow_dispatch: {inputs: {version: {description: \"Release # number\"}}}, pull_request: {}}\njobs: {}"}
+exit=1; merge mutation observed=False
+error: refusing to merge https://github.com/example/repo/pull/7
   - head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa has no GitHub Actions check suite although base branch main has a workflow triggered by pull_request, so GitHub Actions never saw this pull request; Actions is likely not running (on a fork, GitHub's fork workflow gate stops every workflow run): see https://github.com/example/repo/actions, or pass --allow-no-actions for a repository with no Actions CI
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368, GET /repos/example/repo/contents/.github/workflows?ref=main, GET /repos/example/repo/contents/.github/workflows/ci.yml?ref=main
+Full API trace: missing-actions-quoted-hash.log
 
-=== suite-present-merges ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1
-exit=0; local API merged=True
-armed: state/task-x1.check.sh
-verified: https://github.com/example/repo/pull/1 is merged (state=MERGED, merged=true, isInMergeQueue=false)
-verified: https://github.com/example/repo/pull/1 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368, POST /graphql, POST /graphql, POST /graphql
 
-=== no-workflows-merges ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1
-exit=0; local API merged=True
-armed: state/task-x1.check.sh
-verified: https://github.com/example/repo/pull/1 is merged (state=MERGED, merged=true, isInMergeQueue=false)
-verified: https://github.com/example/repo/pull/1 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368, GET /repos/example/repo/contents/.github/workflows?ref=main, POST /graphql, POST /graphql, POST /graphql
+## missing-actions-status-only
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7
+Synthetic API input: {"status_only": true, "workflow": "on: pull_request\njobs: {}"}
+exit=1; merge mutation observed=False
+error: refusing to merge https://github.com/example/repo/pull/7
+  - head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa has no GitHub Actions check suite although base branch main has a workflow triggered by pull_request, so GitHub Actions never saw this pull request; Actions is likely not running (on a fork, GitHub's fork workflow gate stops every workflow run): see https://github.com/example/repo/actions, or pass --allow-no-actions for a repository with no Actions CI
+Full API trace: missing-actions-status-only.log
 
-=== other-events-merges ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1
-exit=0; local API merged=True
-armed: state/task-x1.check.sh
-verified: https://github.com/example/repo/pull/1 is merged (state=MERGED, merged=true, isInMergeQueue=false)
-verified: https://github.com/example/repo/pull/1 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368, GET /repos/example/repo/contents/.github/workflows?ref=main, GET /repos/example/repo/contents/.github/workflows/ci.yml?ref=main, POST /graphql, POST /graphql, POST /graphql
 
-=== waiver-merges ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1 --allow-no-actions
-exit=0; local API merged=True
-armed: state/task-x1.check.sh
-verified: https://github.com/example/repo/pull/1 is merged (state=MERGED, merged=true, isInMergeQueue=false)
-verified: https://github.com/example/repo/pull/1 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, with no GitHub Actions check suite, waived by --allow-no-actions
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368, POST /graphql, POST /graphql, POST /graphql
+## suite-present
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7
+Synthetic API input: {"suites": 1, "workflow": "on: pull_request\njobs: {}"}
+exit=0; merge mutation observed=True
+verified: https://github.com/example/repo/pull/7 is merged (state=MERGED, merged=true, isInMergeQueue=false)
+verified: https://github.com/example/repo/pull/7 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+Full API trace: suite-present.log
 
-=== waiver-red-refused ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1 --allow-no-actions
-exit=1; local API merged=False
-armed: state/task-x1.check.sh
-error: refusing to merge https://github.com/example/repo/pull/1
+
+## exempt-no-directory
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7
+Synthetic API input: {"workflow": null}
+exit=0; merge mutation observed=True
+verified: https://github.com/example/repo/pull/7 is merged (state=MERGED, merged=true, isInMergeQueue=false)
+verified: https://github.com/example/repo/pull/7 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+Full API trace: exempt-no-directory.log
+
+
+## exempt-other-events
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7
+Synthetic API input: {"workflow": "on: [push, pull_request_target, pull_request_review]\njobs: {}"}
+exit=0; merge mutation observed=True
+verified: https://github.com/example/repo/pull/7 is merged (state=MERGED, merged=true, isInMergeQueue=false)
+verified: https://github.com/example/repo/pull/7 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+Full API trace: exempt-other-events.log
+
+
+## exempt-property
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7
+Synthetic API input: {"workflow": "on: push\njobs:\n a:\n  if: github.event.pull_request.number"}
+exit=0; merge mutation observed=True
+verified: https://github.com/example/repo/pull/7 is merged (state=MERGED, merged=true, isInMergeQueue=false)
+verified: https://github.com/example/repo/pull/7 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+Full API trace: exempt-property.log
+
+
+## waiver-merge
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7 --allow-no-actions
+Synthetic API input: {"workflow": "on: pull_request\njobs: {}"}
+exit=0; merge mutation observed=True
+verified: https://github.com/example/repo/pull/7 is merged (state=MERGED, merged=true, isInMergeQueue=false)
+verified: https://github.com/example/repo/pull/7 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, with no GitHub Actions check suite, waived by --allow-no-actions
+Full API trace: waiver-merge.log
+
+
+## waiver-red
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7 --allow-no-actions
+Synthetic API input: {"red": true, "workflow": "on: pull_request\njobs: {}"}
+exit=1; merge mutation observed=False
+error: refusing to merge https://github.com/example/repo/pull/7
   - check 'lint' is not green
 error: these checks are not green: lint
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368
+Full API trace: waiver-red.log
 
-=== waiver-missing-refused ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1 --allow-no-actions
-exit=1; local API merged=False
-armed: state/task-x1.check.sh
-error: refusing to merge https://github.com/example/repo/pull/1
-  - required check 'ci' has not reported at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
-error: these required checks have not reported: ci
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368
 
-=== suite-read-error ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1
-exit=1; local API merged=False
-armed: state/task-x1.check.sh
-error: refusing to merge https://github.com/example/repo/pull/1
+## unreadable-suites
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7
+Synthetic API input: {"error": "suites", "workflow": "on: pull_request\njobs: {}"}
+exit=1; merge mutation observed=False
+error: refusing to merge https://github.com/example/repo/pull/7
   - the GitHub Actions check suites at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa could not be read, so a head GitHub Actions never saw cannot be ruled out
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368
+Full API trace: unreadable-suites.log
 
-=== suite-malformed ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1
-exit=1; local API merged=False
-armed: state/task-x1.check.sh
-error: refusing to merge https://github.com/example/repo/pull/1
-  - the GitHub Actions check suites at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa could not be read, so a head GitHub Actions never saw cannot be ruled out
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368
 
-=== workflow-list-error ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1
-exit=1; local API merged=False
-armed: state/task-x1.check.sh
-error: refusing to merge https://github.com/example/repo/pull/1
+## unreadable-listing
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7
+Synthetic API input: {"error": "listing", "workflow": "on: pull_request\njobs: {}"}
+exit=1; merge mutation observed=False
+error: refusing to merge https://github.com/example/repo/pull/7
   - head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa has no GitHub Actions check suite and the workflow directory on base branch main could not be read, so a pull_request workflow GitHub Actions never ran cannot be ruled out
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368, GET /repos/example/repo/contents/.github/workflows?ref=main
+Full API trace: unreadable-listing.log
 
-=== workflow-file-error ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1
-exit=1; local API merged=False
-armed: state/task-x1.check.sh
-error: refusing to merge https://github.com/example/repo/pull/1
+
+## unreadable-file
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7
+Synthetic API input: {"error": "file", "workflow": "on: pull_request\njobs: {}"}
+exit=1; merge mutation observed=False
+error: refusing to merge https://github.com/example/repo/pull/7
   - head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa has no GitHub Actions check suite and workflow .github/workflows/ci.yml on base branch main could not be read, so a pull_request workflow GitHub Actions never ran cannot be ruled out
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368, GET /repos/example/repo/contents/.github/workflows?ref=main, GET /repos/example/repo/contents/.github/workflows/ci.yml?ref=main
+Full API trace: unreadable-file.log
 
-=== waiver-suite-read-error ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1 --allow-no-actions
-exit=1; local API merged=False
-armed: state/task-x1.check.sh
-error: refusing to merge https://github.com/example/repo/pull/1
+
+## waiver-unreadable
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7 --allow-no-actions
+Synthetic API input: {"error": "suites", "workflow": "on: pull_request\njobs: {}"}
+exit=1; merge mutation observed=False
+error: refusing to merge https://github.com/example/repo/pull/7
   - the GitHub Actions check suites at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa could not be read, so a head GitHub Actions never saw cannot be ruled out
-API calls: POST /graphql, POST /graphql, GET /repos/example/repo/branches/main, GET /repos/example/repo/rules/branches/main?per_page=100, GET /repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368
+Full API trace: waiver-unreadable.log
 
-=== waiver-away-refused ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1 --allow-no-actions
-exit=2; local API merged=False
 
+## waiver-away
+fm-afk-contract.sh enter --words "merge task-x1 when green": exit=0
+Away posture recorded at 2026-11-14T16:47:41Z: hold-for-return only. No phone channel is configured; anything that needs you waits for your return. Your away instructions are recorded verbatim; the away session will carry them out where it can, and anything it is unsure of, or that needs you, waits for your return. Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: not given. Spend cap: 4 concurrent workers.
+Away posture (recorded):
+  entered: 2026-11-14T16:47:41Z
+  expected return: not given
+  spend cap: 4 concurrent workers
+  reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.
+  your words (verbatim):
+    merge task-x1 when green
+$ bash bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/7 --allow-no-actions
+Synthetic API input: {"away": true, "workflow": "on: pull_request\njobs: {}"}
+exit=2; merge mutation observed=False
 error: --allow-no-actions is attended-only; while the away-posture record exists a GitHub merge requires a GitHub Actions check suite at the head when a pull_request workflow exists
-API calls: 
+Full API trace: waiver-away.log
 
-=== waiver-value-refused ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1 --allow-no-actions=yes
-exit=2; local API merged=False
 
-error: --allow-no-actions takes no value
-API calls: 
-
-=== waiver-gitlab-refused ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://gitlab.example/group/repo/-/merge_requests/1 --allow-no-actions
-exit=2; local API merged=False
-
+## waiver-non-github
+$ bash bin/fm-pr-merge.sh task-x1 https://gitlab.example/group/repo/-/merge_requests/7 --allow-no-actions
+Synthetic API input: {}
+exit=2; merge mutation observed=False
 error: --allow-no-actions applies only to GitHub, where it waives a pull request head with no GitHub Actions check suite
-API calls: 
-
-=== waiver-forgejo-refused ===
-$ FM_HOME=<disposable-lab> bin/fm-pr-merge.sh task-x1 https://forgejo.example/group/repo/pulls/1 --allow-no-actions
-exit=2; local API merged=False
-
-error: --allow-no-actions applies only to GitHub, where it waives a pull request head with no GitHub Actions check suite
-API calls: 
+Full API trace: waiver-non-github.log
