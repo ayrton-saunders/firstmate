@@ -1,0 +1,3 @@
+ok - fm-pr-merge refuses a head with no GitHub Actions check suite when a pull_request workflow exists
+ok - fm-pr-merge proceeds when Actions saw the head or no pull_request workflow exists
+ok - fm-pr-merge --allow-no-actions waives only a missing Actions suite, attended and on GitHub

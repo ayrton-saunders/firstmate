@@ -1,0 +1,12 @@
+{
+  "name": "waiver-value-refused",
+  "command": "bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1 --allow-no-actions=yes",
+  "exit": 2,
+  "expected_exit": 2,
+  "merged_in_local_api": false,
+  "pass": true,
+  "stdout": "",
+  "stderr": "error: --allow-no-actions takes no value\n",
+  "requests": [],
+  "persisted_meta": "window=fm-task-x1\nworktree={run-worktree}/.live-validation/waiver-value-refused/fixture\nproject={run-worktree}/.live-validation/waiver-value-refused/project\nkind=ship\nmode=no-mistakes\n"
+}

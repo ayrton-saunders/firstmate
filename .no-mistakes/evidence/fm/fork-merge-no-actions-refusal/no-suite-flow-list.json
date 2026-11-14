@@ -1,0 +1,48 @@
+{
+  "name": "no-suite-flow-list",
+  "command": "bin/fm-pr-merge.sh task-x1 https://github.com/example/repo/pull/1",
+  "exit": 1,
+  "expected_exit": 1,
+  "merged_in_local_api": false,
+  "pass": true,
+  "stdout": "armed: state/task-x1.check.sh\n",
+  "stderr": "\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\n\u25cf  WATCHER DOWN - SUPERVISION IS OFF\n\u25cf  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).\n\u25cf  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.\n\u25cf  This is a supervision warning only; the guarded operation WILL still run.\n\u25cf  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e {run-worktree}/.pi/extensions/fm-primary-turnend-guard.ts -e {run-worktree}/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.\n\u25cf\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\u2501\nerror: refusing to merge https://github.com/example/repo/pull/1\n  - head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa has no GitHub Actions check suite although base branch main has a workflow triggered by pull_request, so GitHub Actions never saw this pull request; Actions is likely not running (on a fork, GitHub's fork workflow gate stops every workflow run): see https://github.com/example/repo/actions, or pass --allow-no-actions for a repository with no Actions CI\n",
+  "requests": [
+    {
+      "method": "POST",
+      "path": "/graphql",
+      "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {headRefOid,id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+    },
+    {
+      "method": "POST",
+      "path": "/graphql",
+      "body": "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description},...on CheckRun {name,checkSuite{workflowRun{workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl}},pageInfo{hasNextPage,endCursor}}}}}},id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+    },
+    {
+      "method": "GET",
+      "path": "/repos/example/repo/branches/main",
+      "body": ""
+    },
+    {
+      "method": "GET",
+      "path": "/repos/example/repo/rules/branches/main?per_page=100",
+      "body": ""
+    },
+    {
+      "method": "GET",
+      "path": "/repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368",
+      "body": ""
+    },
+    {
+      "method": "GET",
+      "path": "/repos/example/repo/contents/.github/workflows?ref=main",
+      "body": ""
+    },
+    {
+      "method": "GET",
+      "path": "/repos/example/repo/contents/.github/workflows/ci.yml?ref=main",
+      "body": ""
+    }
+  ],
+  "persisted_meta": "window=fm-task-x1\nworktree={run-worktree}/.live-validation/no-suite-flow-list/fixture\nproject={run-worktree}/.live-validation/no-suite-flow-list/project\nkind=ship\nmode=no-mistakes\npr=https://github.com/example/repo/pull/1\npr_head=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n"
+}

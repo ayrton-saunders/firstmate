@@ -1,0 +1,107 @@
+[
+  {
+    "name": "no-suite-refused",
+    "pass": true,
+    "exit": 1
+  },
+  {
+    "name": "no-suite-mapping",
+    "pass": true,
+    "exit": 1
+  },
+  {
+    "name": "no-suite-block-list",
+    "pass": true,
+    "exit": 1
+  },
+  {
+    "name": "no-suite-flow-list",
+    "pass": true,
+    "exit": 1
+  },
+  {
+    "name": "no-suite-quoted",
+    "pass": true,
+    "exit": 1
+  },
+  {
+    "name": "status-only-refused",
+    "pass": true,
+    "exit": 1
+  },
+  {
+    "name": "suite-present-merges",
+    "pass": true,
+    "exit": 0
+  },
+  {
+    "name": "no-workflows-merges",
+    "pass": true,
+    "exit": 0
+  },
+  {
+    "name": "other-events-merges",
+    "pass": true,
+    "exit": 0
+  },
+  {
+    "name": "waiver-merges",
+    "pass": true,
+    "exit": 0
+  },
+  {
+    "name": "waiver-red-refused",
+    "pass": true,
+    "exit": 1
+  },
+  {
+    "name": "waiver-missing-refused",
+    "pass": true,
+    "exit": 1
+  },
+  {
+    "name": "suite-read-error",
+    "pass": true,
+    "exit": 1
+  },
+  {
+    "name": "suite-malformed",
+    "pass": true,
+    "exit": 1
+  },
+  {
+    "name": "workflow-list-error",
+    "pass": true,
+    "exit": 1
+  },
+  {
+    "name": "workflow-file-error",
+    "pass": true,
+    "exit": 1
+  },
+  {
+    "name": "waiver-suite-read-error",
+    "pass": true,
+    "exit": 1
+  },
+  {
+    "name": "waiver-away-refused",
+    "pass": true,
+    "exit": 2
+  },
+  {
+    "name": "waiver-value-refused",
+    "pass": true,
+    "exit": 2
+  },
+  {
+    "name": "waiver-gitlab-refused",
+    "pass": true,
+    "exit": 2
+  },
+  {
+    "name": "waiver-forgejo-refused",
+    "pass": true,
+    "exit": 2
+  }
+]
