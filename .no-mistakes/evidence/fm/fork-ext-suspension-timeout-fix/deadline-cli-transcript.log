@@ -1,0 +1,17 @@
+{"scenario": "stalled", "exit": 70, "stdout": "{\"code\":\"timeout\",\"deadline\":{\"bound\":\"invoke\",\"elapsed_ms\":1001,\"grace_ms\":0,\"operation\":\"source.poll\",\"overrun_ms\":1,\"timeout_ms\":1000},\"extension_id\":\"org.example.sleep\",\"operation\":\"source.poll\",\"schema\":\"firstmate.process-event-extension-error.v1\"}\n", "stderr": ""}
+ok - real deadline stalled
+{"scenario": "invoke", "exit": 0, "stdout": "active runner completed\n", "stderr": ""}
+ok - real deadline invoke
+{"scenario": "suspended-stall", "exit": 70, "stdout": "{\"code\":\"timeout\",\"deadline\":{\"bound\":\"invoke\",\"elapsed_ms\":5193,\"grace_ms\":1000,\"operation\":\"source.poll\",\"overrun_ms\":4193,\"timeout_ms\":1000},\"extension_id\":\"org.example.sleep\",\"operation\":\"source.poll\",\"schema\":\"firstmate.process-event-extension-error.v1\"}\n", "stderr": ""}
+ok - real deadline suspended-stall
+{"scenario": "startup", "exit": 0, "stdout": "", "stderr": ""}
+ok - real deadline startup
+{"scenario": "handshake", "exit": 0, "stdout": "bound: org.example.sleep@1.2.3\nbinding: /private/tmp/fm-extension-binding.KuMv2G/deadline-handshake/home/config/extensions.d/org.example.sleep.json\nbinding-digest: sha256:e20087156c017f3b6586667972de6ed09fd643cfce8176915ac8a5aaef752819\npackage: /private/tmp/fm-extension-binding.KuMv2G/deadline-handshake/home/data/extensions/packages/org.example.sleep/1.2.3/965fa09e242c54c5eb49d614f959caffae33a5df008b5e82fe688f1f1716ef2f\npackage-digest: sha256:965fa09e242c54c5eb49d614f959caffae33a5df008b5e82fe688f1f1716ef2f\nverified: process-event-adapter/1 (ext-sleep)\n", "stderr": ""}
+ok - real deadline handshake
+{"scenario": "launch", "exit": 0, "stdout": "bound: org.example.sleep@1.2.3\nbinding: /private/tmp/fm-extension-binding.KuMv2G/deadline-launch/home/config/extensions.d/org.example.sleep.json\nbinding-digest: sha256:1ea197d40a826a701d8129867524a57760bee374d6ed2fd88c0af66e4af35ef0\npackage: /private/tmp/fm-extension-binding.KuMv2G/deadline-launch/home/data/extensions/packages/org.example.sleep/1.2.3/5b32df4583bbcdafd533cfb174656d936540365d0b43085cc7878781c99253c0\npackage-digest: sha256:5b32df4583bbcdafd533cfb174656d936540365d0b43085cc7878781c99253c0\nverified: process-event-adapter/1 (ext-sleep)\n", "stderr": ""}
+ok - real deadline launch
+{"scenario": "double-suspended-stall", "exit": 70, "stdout": "{\"code\":\"timeout\",\"deadline\":{\"bound\":\"invoke\",\"elapsed_ms\":8513,\"grace_ms\":1000,\"operation\":\"source.poll\",\"overrun_ms\":7513,\"timeout_ms\":1000},\"extension_id\":\"org.example.sleep\",\"operation\":\"source.poll\",\"schema\":\"firstmate.process-event-extension-error.v1\"}\n", "stderr": ""}
+ok - real deadline double-suspended-stall
+ok - invoke, handshake, readiness and release survive suspension while awake stalls time out
+
+all extension-binding tests passed

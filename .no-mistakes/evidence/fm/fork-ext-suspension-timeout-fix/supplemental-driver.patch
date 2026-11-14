@@ -1,0 +1,63 @@
+--- tests/fm-extension-binding.test.sh
++++ tests/.validation-deadlines.test.sh
+@@ -720,7 +720,7 @@
+                 executable = code / "bin/fm-extension.mjs"
+             command = ["node", str(executable), "bind", str(local_package), "--adapter", "ext-sleep",
+                 "--trust-same-user-code", "--timeout-ms", "1000"]
+-            if kind in ("invoke", "stalled", "suspended-stall"):
++            if kind in ("invoke", "stalled", "suspended-stall", "double-suspended-stall"):
+                 subprocess.run(command, env=env, check=True, capture_output=True)
+                 resolution = subprocess.run(["node", str(host), "resolve-process-event", "ext-sleep"],
+                     env=env, check=True, capture_output=True, text=True).stdout.strip().split("\t")
+@@ -748,12 +748,20 @@
+             if kind != "stalled":
+                 os.kill(host_pid, signal.SIGSTOP)
+                 os.killpg(group, signal.SIGSTOP)
+-                time.sleep(4 if kind in ("invoke", "suspended-stall") else 8)
+-                if kind != "suspended-stall": release.touch()
++                time.sleep(4 if kind in ("invoke", "suspended-stall", "double-suspended-stall") else 8)
++                if kind not in ("suspended-stall", "double-suspended-stall"): release.touch()
+                 os.kill(host_pid, signal.SIGCONT)
+                 os.killpg(group, signal.SIGCONT)
++                if kind == "double-suspended-stall":
++                    time.sleep(.25)
++                    os.kill(host_pid, signal.SIGSTOP)
++                    os.killpg(group, signal.SIGSTOP)
++                    time.sleep(4)
++                    resumed = time.monotonic()
++                    os.kill(host_pid, signal.SIGCONT)
++                    os.killpg(group, signal.SIGCONT)
+         output, error = process.communicate(timeout=6)
+-        if kind in ("stalled", "suspended-stall"):
++        if kind in ("stalled", "suspended-stall", "double-suspended-stall"):
+             assert process.returncode != 0, "a genuinely stalled invocation succeeded"
+             evidence = json.loads(output)
+             assert evidence["code"] == "timeout", evidence
+@@ -762,6 +770,10 @@
+             if kind == "stalled":
+                 assert 1000 <= evidence["deadline"]["elapsed_ms"] < 3000, evidence
+                 assert evidence["deadline"]["grace_ms"] == 0, evidence
++            elif kind == "double-suspended-stall":
++                assert time.monotonic() - resumed < .9, "second suspension renewed grace"
++                assert evidence["deadline"]["grace_ms"] == 1000, evidence
++                assert 8000 <= evidence["deadline"]["elapsed_ms"] < 10000, evidence
+             else:
+                 assert 5000 <= evidence["deadline"]["elapsed_ms"] < 8000, evidence
+                 assert evidence["deadline"]["grace_ms"] == 1000, evidence
+@@ -769,6 +781,7 @@
+         else:
+             assert process.returncode == 0, (kind, process.returncode, output, error)
+             if kind == "invoke": assert b"active runner completed" in output, output
++        print(json.dumps(dict(scenario=kind, exit=process.returncode, stdout=output.decode(), stderr=error.decode())), flush=True)
+         print("ok - real deadline " + kind, flush=True)
+     finally:
+         if host_pid:
+@@ -787,7 +800,7 @@
+             except ProcessLookupError: pass
+ 
+ with concurrent.futures.ThreadPoolExecutor(max_workers=6) as executor:
+-    futures = [executor.submit(run_case, kind) for kind in ("invoke", "handshake", "launch", "startup", "stalled", "suspended-stall")]
++    futures = [executor.submit(run_case, kind) for kind in ("invoke", "handshake", "launch", "startup", "stalled", "suspended-stall", "double-suspended-stall")]
+     failures = []
+     for future in futures:
+         try: future.result()

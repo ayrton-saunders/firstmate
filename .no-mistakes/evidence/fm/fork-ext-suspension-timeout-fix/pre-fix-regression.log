@@ -1,0 +1,7 @@
+Traceback (most recent call last):
+  File "<stdin>", line 149, in <module>
+AssertionError: AssertionError(('invoke', 70, b'{"code":"timeout","extension_id":"org.example.sleep","operation":"source.poll","schema":"firstmate.process-event-extension-error.v1"}\n', b''))
+AssertionError(('handshake', 1, b'', b'error[binding-failed]: error[timeout]: extension handshake exceeded 5000 ms\n'))
+AssertionError(('launch', 1, b'', b'error[binding-failed]: error[timeout]: extension launch barrier did not publish ownership in time\n'))
+AssertionError(('startup', 125, b'', b'extension launch barrier: host did not release the launch barrier\n'))
+not ok - real invocation deadlines did not survive suspension with bounded stall enforcement

@@ -1,0 +1,12 @@
+error[binding-failed]: error[path-unsafe]: package source must not be inside a Git project or task copy
+error[binding-failed]: error[path-unsafe]: package source must not be inside a Git project or task copy
+error[binding-failed]: error[path-unsafe]: package source must not be inside a Git project or task copy
+ok - real deadline startup
+Traceback (most recent call last):
+  File "<stdin>", line 135, in <module>
+AssertionError: CalledProcessError(1, ['node', '{run-worktree}/bin/fm-extension.mjs', 'bind', '{run-worktree}/.validation-tmp/fm-extension-binding.eO5Xgo/deadline-invoke/package', '--adapter', 'ext-sleep', '--trust-same-user-code', '--timeout-ms', '1000'])
+AssertionError('deadline fixture did not reach its control boundary')
+AssertionError('deadline fixture did not reach its control boundary')
+CalledProcessError(1, ['node', '{run-worktree}/bin/fm-extension.mjs', 'bind', '{run-worktree}/.validation-tmp/fm-extension-binding.eO5Xgo/deadline-stalled/package', '--adapter', 'ext-sleep', '--trust-same-user-code', '--timeout-ms', '1000'])
+CalledProcessError(1, ['node', '{run-worktree}/bin/fm-extension.mjs', 'bind', '{run-worktree}/.validation-tmp/fm-extension-binding.eO5Xgo/deadline-suspended-stall/package', '--adapter', 'ext-sleep', '--trust-same-user-code', '--timeout-ms', '1000'])
+not ok - real invocation deadlines did not survive suspension with bounded stall enforcement

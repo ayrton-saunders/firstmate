@@ -1,0 +1,9 @@
+ok - real deadline stalled
+ok - real deadline invoke
+ok - real deadline suspended-stall
+ok - real deadline startup
+ok - real deadline handshake
+ok - real deadline launch
+ok - invoke, handshake, readiness and release survive suspension while awake stalls time out
+
+all extension-binding tests passed
