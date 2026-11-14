@@ -192,6 +192,9 @@ case " $* " in
   *" api repos/"*"/issues/"*"/comments?per_page=100 "*|*" api repos/"*"/pulls/"*"/reviews?per_page=100 "*|*" api repos/"*"/pulls/"*"/comments?per_page=100 "*)
     printf '%s\n' '[[]]'
     ;;
+  *" api repos/"*"/commits/"*"/check-suites?app_id=15368 "*)
+    printf '%s\n' '{"total_count":1,"check_suites":[{"app":{"id":15368}}]}'
+    ;;
   *" api repos/"*"/commits/"*"/check-runs?filter=all&per_page=100 "*)
     printf '%s\n' '[{"check_runs":[]}]'
     ;;
