@@ -1152,10 +1152,129 @@ EOF
   pass "home-summary excludes kind=secondmate from unowned_current and terminal_in_flight"
 }
 
+# A done ship whose metadata and in-flight row are retained because its delivery
+# has not landed is retained_unlanded, not terminal_in_flight. Landed-but-not-
+# cleaned and genuinely contradictory terminal pairs stay terminal_in_flight.
+make_local_only_project() {  # <project-dir> <worker-copy-dir>: prints the unlanded done head
+  local dir=$1 wt=$2
+  git init -q -b main "$dir"
+  git -C "$dir" -c user.email=t@example.invalid -c user.name=t commit -q --allow-empty -m base
+  git -C "$dir" worktree add -q -b fm/local-ship "$wt"
+  git -C "$wt" -c user.email=t@example.invalid -c user.name=t commit -q --allow-empty -m work
+  git -C "$wt" rev-parse HEAD
+}
+
+seed_merged_receipt() {  # <state> <id> <url>
+  (
+    # shellcheck source=bin/fm-pr-lib.sh
+    # shellcheck disable=SC1091
+    . "$ROOT/bin/fm-pr-lib.sh"
+    template="$ROOT/bin/fm-pr-poll.sh"
+    fm_pr_url_parse "$3" || exit 1
+    fm_pr_poll_prepare "$1" "$2" "$FM_PR_PROVIDER" "$3" "$FM_PR_HOST" "$FM_PR_PATH" "$FM_PR_NUMBER" "$template" || exit 1
+    fm_pr_poll_publish_prepared || exit 1
+    fm_pr_poll_snapshot_capture "$1" "$2" "$template" || exit 1
+    fm_pr_poll_retirement_publish "$1" "$2" "$template" merged || exit 1
+  ) || fail "could not seed a merge-poll retirement receipt for $2"
+}
+
+test_home_summary_reports_retained_unlanded_delivery_separately() {
+  local home fakebin out url pr_head local_head
+  home=$(make_home summary-retained-unlanded)
+  url=https://github.com/kunchenguid/firstmate/pull/41
+  pr_head=0123456789abcdef0123456789abcdef01234567
+  mkdir -p "$home/projects/pr-open" "$home/projects/pr-merged"
+  local_head=$(make_local_only_project "$home/projects/local" "$home/projects/local-wt")
+  cat > "$home/data/backlog.md" <<EOF
+## In flight
+- [ ] pr-open - Done ship whose PR awaits merge $url (repo: alpha) (kind: ship) (since 2026-07-11)
+- [ ] local-ready - Done local-only ship awaiting landing (repo: alpha) (kind: ship) (since 2026-07-11)
+
+## Queued
+
+## Done
+EOF
+  fm_write_meta "$home/state/pr-open.meta" \
+    "window=firstmate:fm-pr-open" "worktree=$home/projects/pr-open" "project=alpha" \
+    "harness=claude" "kind=ship" "mode=no-mistakes" "pr=$url" "pr_head=$pr_head"
+  fm_write_meta "$home/state/local-ready.meta" \
+    "window=firstmate:fm-local-ready" "worktree=$home/projects/local-wt" \
+    "project=$home/projects/local" "branch=fm/local-ship" \
+    "harness=claude" "kind=ship" "mode=local-only" "local_done_head=$local_head"
+  record_claude_idle "$home/state" pr-open
+  record_claude_idle "$home/state" local-ready
+  printf 'done: PR %s checks green\n' "$url" > "$home/state/pr-open.status"
+  printf 'done: ready branch fm/local-ship\n' > "$home/state/local-ready.status"
+  fakebin=$(make_fakebin "$home")
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
+  printf '%s' "$out" | jq -e '
+    .valid == true
+      and .reason == null
+      and .invalidity == {kind:null,ids:[]}
+      and (.retained_unlanded | sort_by(.id)) == [
+        {id:"local-ready",state:"done",via:"local-only"},
+        {id:"pr-open",state:"done",via:"pr"}]
+      and .counts.retained_unlanded == 2
+  ' >/dev/null || fail "retained unlanded deliveries must not invalidate the home: $out"
+
+  # Landed but not cleaned up: a merge-poll receipt for the PR, and the
+  # local-only done head fast-forwarded into the local default branch.
+  seed_merged_receipt "$home/state" pr-open "$url"
+  git -C "$home/projects/local" merge -q --ff-only fm/local-ship
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
+  printf '%s' "$out" | jq -e '
+    .valid == false
+      and .invalidity.kind == "terminal_in_flight"
+      and (.invalidity.ids | sort) == ["local-ready","pr-open"]
+      and (.reason | contains("local-ready=done"))
+      and (.reason | contains("pr-open=done"))
+      and .retained_unlanded == []
+  ' >/dev/null || fail "landed but uncleaned deliveries must stay terminal_in_flight: $out"
+
+  # Genuinely contradictory pairs: a failed ship and a done ship with no
+  # recorded delivery, and a done scout.
+  rm -f "$home/state/pr-open."* "$home/state/local-ready."*
+  cat > "$home/data/backlog.md" <<EOF
+## In flight
+- [ ] failed-ship - Failed ship with no delivery (repo: alpha) (kind: ship) (since 2026-07-11)
+- [ ] no-delivery - Done ship with no recorded delivery (repo: alpha) (kind: ship) (since 2026-07-11)
+- [ ] done-scout - Done scout still in flight (repo: alpha) (kind: scout) (since 2026-07-11)
+
+## Queued
+
+## Done
+EOF
+  mkdir -p "$home/projects/failed" "$home/projects/scout"
+  fm_write_meta "$home/state/failed-ship.meta" \
+    "window=firstmate:fm-failed-ship" "worktree=$home/projects/failed" "project=alpha" \
+    "harness=claude" "kind=ship" "mode=no-mistakes"
+  fm_write_meta "$home/state/no-delivery.meta" \
+    "window=firstmate:fm-no-delivery" "worktree=$home/projects/pr-merged" "project=alpha" \
+    "harness=claude" "kind=ship" "mode=no-mistakes"
+  fm_write_meta "$home/state/done-scout.meta" \
+    "window=firstmate:fm-done-scout" "worktree=$home/projects/scout" "project=alpha" \
+    "harness=claude" "kind=scout"
+  record_claude_idle "$home/state" failed-ship
+  record_claude_idle "$home/state" no-delivery
+  record_claude_idle "$home/state" done-scout
+  printf 'failed: stopped\n' > "$home/state/failed-ship.status"
+  printf 'done: complete\n' > "$home/state/no-delivery.status"
+  printf 'done: report written\n' > "$home/state/done-scout.status"
+  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
+  printf '%s' "$out" | jq -e '
+    .valid == false
+      and .invalidity.kind == "terminal_in_flight"
+      and (.invalidity.ids | sort) == ["done-scout","failed-ship","no-delivery"]
+      and .retained_unlanded == []
+  ' >/dev/null || fail "contradictory terminal pairs must stay terminal_in_flight: $out"
+  pass "home-summary reports retained unlanded deliveries apart from terminal_in_flight"
+}
+
 fm_test_run \
   test_empty_fleet_json \
   test_fixture_snapshot_json \
   test_home_summary_excludes_secondmate_from_child_inventory \
+  test_home_summary_reports_retained_unlanded_delivery_separately \
   test_undated_captain_hold_phrasing_and_aging \
   test_hold_buckets_are_total_and_text_blind \
   test_main_inventory_orphan_and_unstructured_disclosure \

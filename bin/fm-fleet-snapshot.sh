@@ -64,6 +64,11 @@
 #     fm-classify-lib.sh's authoritative status_open_decisions fold and reconciled
 #     against current_state; hints.pending_decision and hints.blocked_event are
 #     booleans derived from that set.
+#     delivery is null except on a done or failed ship, where it is
+#     {landing,via}: via is "local-only" or "pr", and landing is
+#     task_delivery_landing's landed|closed|unlanded|unknown verdict from local
+#     records only (merge-poll retirement receipt, crew-state PR disposition, or
+#     the local-only done head against the project's local default branch).
 #     endpoint.exists is the cheap local backend endpoint-presence read.
 #     endpoint.agent_alive is populated for local secondmates only, where it is
 #     useful return-channel supervision data; remote secondmates use "unknown"
@@ -234,6 +239,14 @@ esac
 . "$SCRIPT_DIR/fm-merge-authority-lib.sh"
 # shellcheck source=bin/fm-hold-reason-lib.sh
 . "$SCRIPT_DIR/fm-hold-reason-lib.sh"
+# fm_dod_local_done_head and, through fm-pr-lib.sh, the merge-poll retirement
+# receipt check: the local landing evidence read by task_delivery_landing.
+# shellcheck source=bin/fm-dod-lib.sh
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/fm-dod-lib.sh"
+# shellcheck source=bin/fm-tangle-lib.sh
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/fm-tangle-lib.sh"  # fm_default_branch
 
 usage() {
   cat <<'EOF'
@@ -253,6 +266,12 @@ aggregation, includes generated_epoch for freshness arithmetic, and marks
 inventory contradictions or unavailable child state invalid.
 kind=secondmate meta records are not child inventory for unowned_current or
 terminal_in_flight; they never have backlog rows.
+A done or failed ship whose in-flight row and metadata are retained because its
+delivery has not landed - its worker copy is present and its delivery landing
+reads unlanded (a recorded PR with no merge receipt and no merged or closed
+disposition, or a local-only done head absent from the local default branch) -
+is listed in retained_unlanded and is not terminal_in_flight. Landed, closed,
+unknown, PR-less, and worker-copy-less terminal children stay terminal_in_flight.
 Its invalidity object names the normalized failure kind and affected ids.
 Actionable tasks-axi captain holds appear as decisions_open and stay visible in
 queued with hold_reason, hold_kind, hold_until,
@@ -746,12 +765,54 @@ prefetch_task_current_states() {
   fi
 }
 
+# Landing evidence for a terminal ship's delivery, read only from records this
+# home already holds (no forge call of its own). Prints one word, or nothing
+# when the task is not a done or failed ship:
+#   landed   - the merge poller's retirement receipt matches the recorded PR,
+#              crew state reports the PR merged, or a local-only done head is
+#              already contained in the project's local default branch
+#   closed   - crew state reports the PR closed without merging
+#   unlanded - a recorded PR with none of the above, or a local-only done head
+#              that exists in the project but its local default branch lacks
+#   unknown  - no delivery identity, or a local-only read that cannot answer
+# The home-summary classifier owns what each value means for inventory validity.
+task_delivery_landing() {  # <id> <kind> <mode> <state> <detail> <pr> <captured-meta>
+  local id=$1 kind=$2 mode=$3 state=$4 detail=$5 pr=$6 meta=$7 head project default rc
+  [ "$kind" = ship ] || return 0
+  case "$state" in done|failed) ;; *) return 0 ;; esac
+  if [ "$mode" = local-only ]; then
+    head=$(fm_dod_local_done_head "$meta" 2>/dev/null) || { printf 'unknown'; return 0; }
+    project=$(meta_value "$meta" project)
+    case "$project" in /*) ;; *) printf 'unknown'; return 0 ;; esac
+    default=$(fm_default_branch "$project" 2>/dev/null) || { printf 'unknown'; return 0; }
+    git -C "$project" cat-file -e "$head^{commit}" 2>/dev/null || { printf 'unknown'; return 0; }
+    rc=0
+    git -C "$project" merge-base --is-ancestor "$head" "refs/heads/$default" 2>/dev/null || rc=$?
+    case "$rc" in
+      0) printf 'landed' ;;
+      1) printf 'unlanded' ;;
+      *) printf 'unknown' ;;
+    esac
+    return 0
+  fi
+  [ -n "$pr" ] || { printf 'unknown'; return 0; }
+  if fm_pr_poll_retirement_receipt_valid "$STATE" "$id" 2>/dev/null; then
+    printf 'landed'
+    return 0
+  fi
+  case "$detail" in
+    *"run passed: PR merged"*) printf 'landed' ;;
+    *"run passed: PR closed"*) printf 'closed' ;;
+    *) printf 'unlanded' ;;
+  esac
+}
+
 task_json_lines() {
   local meta original_meta id kind harness mode yolo project worktree home projects spawn_gen backend target status_log report_path
   local remote_host remote_root remote_session remote_binding current_file endpoint_file observation_line index=0
   local pr pr_source event_json current_json endpoint_exists agent_alive meta_json status_json report_json worktree_json home_json
   local last_event_raw current_state current_source pending_decision blocked_event report_present=0 pr_from_status
-  local open_decisions_tsv open_decisions_json
+  local open_decisions_tsv open_decisions_json current_detail delivery_landing
 
   while [ "$index" -lt "$SNAPSHOT_TASK_META_COUNT" ]; do
     meta=${SNAPSHOT_TASK_METAS[index]}
@@ -806,6 +867,12 @@ task_json_lines() {
     read -r current_state current_source < <(
       printf '%s' "$current_json" | jq -r '[.state // "", .source // ""] | @tsv'
     )
+    delivery_landing=
+    if [ "$kind" = ship ] && { [ "$current_state" = "done" ] || [ "$current_state" = failed ]; }; then
+      current_detail=$(printf '%s' "$current_json" | jq -r '.detail // ""')
+      delivery_landing=$(task_delivery_landing "$id" "$kind" "$mode" "$current_state" \
+        "$current_detail" "$pr" "$meta")
+    fi
 
     # Durable keyed open-decision set: fold the WHOLE status stream
     # (fm-classify-lib.sh's status_open_decisions) so a later unrelated event can
@@ -884,6 +951,7 @@ task_json_lines() {
       --arg pr "$pr" \
       --arg pr_source "$pr_source" \
       --arg pr_head "$(meta_value "$meta" pr_head)" \
+      --arg delivery_landing "$delivery_landing" \
       --arg agent_alive "$agent_alive" \
       --arg observed_at "$SNAPSHOT_NOW" \
       --arg last_event_raw "$last_event_raw" \
@@ -924,6 +992,9 @@ task_json_lines() {
                   else "unknown" end),
           observed_at:$observed_at,freshness:"fresh"},
         pr:{url:($pr | if . == "" then null else . end),source:$pr_source,head:($pr_head | if . == "" then null else . end)},
+        delivery:(if $delivery_landing == "" then null
+                  else {landing:$delivery_landing,
+                        via:(if $mode == "local-only" then "local-only" else "pr" end)} end),
         hints:{
           pending_decision:$pending_decision,
           blocked_event:$blocked_event,
@@ -1042,7 +1113,11 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
          | $tasks[]
          | select(.kind != "secondmate")
          | select(.id == $work.id and (.current_state.state == "done" or .current_state.state == "failed"))
-         | {id,state:.current_state.state} ]) as $terminal_in_flight
+         | {id,state:.current_state.state,
+            retained:((.delivery.landing // null) == "unlanded" and (.paths.worktree.present == true)),
+            via:(.delivery.via // null)} ]) as $terminal_matched
+    | ([ $terminal_matched[] | select(.retained) | {id,state,via} ]) as $retained_unlanded
+    | ([ $terminal_matched[] | select(.retained | not) | {id,state} ]) as $terminal_in_flight
     | ([if $backlog.present != true then
           {kind:"missing_backlog",ids:[],reason:"missing structured backlog"}
         else empty end,
@@ -1144,6 +1219,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
              + (map(select(.captain_actionable == true)) | newest_filed_first))
           | .[:$queued_n]),
         landed:(if $landed_n == 0 then $landed_all else $landed_all[:$landed_n] end),
+        retained_unlanded:$retained_unlanded[:$child_n],
         endpoints:([$tasks[] | {id,state:.current_state.state,source:.current_state.source,
           endpoint:(.endpoint + {target:((.endpoint.target // null) | if . == null then null else trunc(240) end)})}][:$child_n]),
         counts:{
@@ -1152,12 +1228,14 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
           holds:($holds_all | length),
           queued:($queued_all | length),
           landed:($landed_all | length),
+          retained_unlanded:($retained_unlanded | length),
           endpoints:($tasks | length)
         },
         omitted:[
           (if ($active_all | length) > $child_n then {surface:"active_children",count:(($active_all | length) - $child_n)} else empty end),
           (if ($decisions_all | length) > $decisions_n then {surface:"decisions_open",count:(($decisions_all | length) - $decisions_n)} else empty end),
           (if ($queued_all | length) > $queued_n then {surface:"queued",count:(($queued_all | length) - $queued_n)} else empty end),
+          (if ($retained_unlanded | length) > $child_n then {surface:"retained_unlanded",count:(($retained_unlanded | length) - $child_n)} else empty end),
           (if ($tasks | length) > $child_n then {surface:"endpoints",count:(($tasks | length) - $child_n)} else empty end),
           (if $landed_n > 0 and ($landed_all | length) > $landed_n then {surface:"landed",count:(($landed_all | length) - $landed_n)} else empty end)
         ]
@@ -1914,7 +1992,8 @@ secondmate_current_json() {  # <parent-tasks-json-file> <output-file>
          active_children:$summary.active_children,
          decisions_open:$summary.decisions_open,holds:$summary.holds,queued:$summary.queued,
          contributions:($summary.contributions // null),
-         landed:$summary.landed,endpoints:$summary.endpoints,counts:$summary.counts,omitted:$summary.omitted,
+         landed:$summary.landed,retained_unlanded:($summary.retained_unlanded // null),
+         endpoints:$summary.endpoints,counts:$summary.counts,omitted:$summary.omitted,
          parent_event:{raw:$event_raw,note:$event_note,age_seconds:$event_age,open_activities:$activities,open_decisions:$decisions,activity_scan:$activity_scan,reconciliation:$reconciliation},
          terminal_evidence:$terminal,contradiction:$contradiction}' >> "$records_file" || return 1
     else
