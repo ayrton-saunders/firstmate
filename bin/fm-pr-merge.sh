@@ -81,11 +81,12 @@
 # a disabled or absent ruleset leaves an empty required set, and a head
 # Actions never saw then has no check that could be red or unreported. The
 # usual cause is Actions not running at all, which on a fork is GitHub's fork
-# workflow gate. A workflow counts when, after comments are removed, the
-# top-level on value names pull_request as a scalar or immediate event in a
-# block or flow collection, allowing quoted names and multiline collections;
-# pull_request_target and other events do not count, and a base branch with no
-# .github/workflows directory has none. An unreadable check suite read,
+# workflow gate. A workflow conservatively counts when raw text contains
+# pull_request bounded before by a line start, whitespace, [, {, comma, or
+# quote, and after by a line end, whitespace, colon, comma, ], }, or quote.
+# Non-trigger mentions (including comments) also count: --allow-no-actions is
+# the remedy for such a repository. pull_request_target and property access
+# do not count, and a base branch with no .github/workflows directory has none. An unreadable check suite read,
 # directory listing, or workflow file refuses. An attended --allow-no-actions,
 # for a repository that genuinely runs no Actions CI, waives only that absence:
 # the check suite is still read, a waived absence is named in the verified
@@ -1173,77 +1174,7 @@ FM_PR_GITHUB_ACTIONS_APP_ID=15368
 # Whether one workflow file, read on stdin, is triggered by pull_request. The
 # header owns which spellings count.
 github_workflow_triggers_pull_request() {
-  awk -v sq="'" '
-    function trim(s) {
-      sub(/^[[:space:]]+/, "", s)
-      sub(/[[:space:]]+$/, "", s)
-      return s
-    }
-    function event(s, q) {
-      s = trim(s)
-      q = substr(s, 1, 1)
-      if ((q == sq || q == "\"") && substr(s, length(s), 1) == q)
-        s = substr(s, 2, length(s) - 2)
-      if (s == "pull_request") found = 1
-    }
-    function flow(s, i, c) {
-      for (i = 1; i <= length(s); i++) {
-        c = substr(s, i, 1)
-        if (quoted != "") {
-          if (depth == 1) token = token c
-          if (escaped) escaped = 0
-          else if (quoted == "\"" && c == "\\") escaped = 1
-          else if (c == quoted) quoted = ""
-        } else if (c == sq || c == "\"") {
-          quoted = c
-          if (depth == 1) token = token c
-        } else if (c == "[" || c == "{") {
-          if (depth == 0) { sequence = (c == "["); key = 1; token = "" }
-          depth++
-        } else if (c == "]" || c == "}") {
-          if (depth == 1 && sequence) event(token)
-          depth--
-        } else if (depth == 1 && c == ",") {
-          if (sequence) event(token)
-          token = ""
-          key = 1
-        } else if (depth == 1 && c == ":" && !sequence) {
-          if (key) event(token)
-          key = 0
-          token = ""
-        } else if (depth == 1 && (sequence || key)) token = token c
-      }
-      token = token " "
-    }
-    {
-      line = $0
-      sub(/(^|[[:space:]])#.*/, "", line)
-      if (!active) {
-        if (line !~ /^(on|"on"|\047on\047)[[:space:]]*:/) next
-        active = 1
-        sub(/^[^:]*:/, "", line)
-        value = trim(line)
-        if (value == "") { mode = "block"; next }
-        if (value ~ /^[\[{]/) mode = "flow"
-        else { event(value); exit }
-      } else if (depth == 0 && line ~ /^[[:alnum:]_"\047][^:]*:/) exit
-      if (mode == "flow") { flow(line); if (depth == 0) exit; next }
-      if (trim(line) == "") next
-      match(line, /[^[:space:]]/)
-      indent = RSTART - 1
-      if (!have_indent) { event_indent = indent; have_indent = 1 }
-      if (indent != event_indent) next
-      value = trim(line)
-      if (value ~ /^-[[:space:]]+/) {
-        sub(/^-[[:space:]]+/, "", value)
-        event(value)
-      } else if (value ~ /:/) {
-        sub(/:.*/, "", value)
-        event(value)
-      }
-    }
-    END { exit !found }
-  '
+  grep -E "(^|[[:space:][{,\"'])pull_request($|[][:space:]:,}\"'])" >/dev/null
 }
 
 # Whether the base branch holds a workflow triggered by pull_request. Prints

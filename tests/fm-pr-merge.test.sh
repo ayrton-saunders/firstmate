@@ -5384,7 +5384,7 @@ test_github_no_actions_suite_refuses_with_pull_request_workflow() {
 
   # Every pull_request trigger spelling refuses, with nothing required at all,
   # the shape a disabled or absent ruleset leaves.
-  for variant in key list indentless-list scalar flow multiline-flow column-zero-flow multiline-map quoted single-quoted; do
+  for variant in key list indentless-list scalar flow multiline-flow column-zero-flow multiline-map next-line-flow next-line-map quoted-hash quoted single-quoted env-key nested-input nested-flow flow-value commented; do
     case "$variant" in
       key) body=$'name: ci\non:\n  push:\n  pull_request:\n    branches: [main]\njobs: {}' ;;
       list) body=$'on:\n  - push\n  - pull_request # checks\njobs: {}' ;;
@@ -5394,6 +5394,14 @@ test_github_no_actions_suite_refuses_with_pull_request_workflow() {
       multiline-flow) body=$'on: [push,\n pull_request]\njobs: {}' ;;
       column-zero-flow) body=$'on: [push,\npull_request]\njobs: {}' ;;
       multiline-map) body=$'on: {push: {},\n "pull_request": {}}\njobs: {}' ;;
+      next-line-flow) body=$'on:\n [push, pull_request]\njobs: {}' ;;
+      next-line-map) body=$'on:\n {push: {}, pull_request: {}}\njobs: {}' ;;
+      quoted-hash) body=$'on: {workflow_dispatch: {inputs: {version: {description: "Release # number"}}}, pull_request: {}}\njobs: {}' ;;
+      env-key) body=$'on: push\nenv:\n pull_request: example\njobs: {}' ;;
+      nested-input) body=$'on:\n  workflow_dispatch:\n    inputs:\n      pull_request:\n        type: string\njobs: {}' ;;
+      nested-flow) body=$'on: {workflow_dispatch: {inputs:\n{pull_request: {type: string}}}}\njobs: {}' ;;
+      flow-value) body=$'on: {push: {branches: [pull_request]}}\njobs: {}' ;;
+      commented) body=$'on:\n  push:\n  # pull_request:\njobs: {}' ;;
       quoted) body=$'"on":\n  "pull_request":\njobs: {}' ;;
       single-quoted) body=$'\'on\': [push,\n \'pull_request\']\njobs: {}' ;;
     esac
@@ -5465,29 +5473,18 @@ test_github_no_actions_suite_proceeds_without_pull_request_workflow() {
   assert_no_grep 'waived by --allow-no-actions' "$case_dir/stderr" "actions-suite-present: an absent waiver was reported"
   assert_logged_gh_merge "$case_dir" 123 example/repo --squash
 
-  # No pull_request workflow on the base branch: no directory, workflows for
-  # other events only, a pull_request mention outside the triggers, or a
-  # commented-out trigger.
-  for variant in no-directory other-events expression env-key nested-input nested-flow flow-value commented; do
+  for variant in no-directory other-events expression non-yaml; do
     case_dir=$(make_case "github-no-actions-$variant")
     add_gh_mocks "$case_dir" "$head"
     write_no_actions_suite "$case_dir"
     case "$variant" in
       other-events)
-        write_base_workflow "$case_dir" target.yml $'on:\n  pull_request_target:\n  push:\njobs: {}'
+        write_base_workflow "$case_dir" target.yml $'on:\n  pull_request_target:\n  pull_request_review:\n  push:\njobs: {}'
         write_base_workflow "$case_dir" notes.md 'pull_request:' ;;
       expression)
         write_base_workflow "$case_dir" push.yml $'on: push\njobs:\n  a:\n    if: github.event.pull_request.number\n    runs-on: x' ;;
-      env-key)
-        write_base_workflow "$case_dir" push.yml $'on: push\nenv:\n pull_request: example\njobs: {}' ;;
-      nested-input)
-        write_base_workflow "$case_dir" ci.yml $'on:\n  workflow_dispatch:\n    inputs:\n      pull_request:\n        type: string\njobs: {}' ;;
-      nested-flow)
-        write_base_workflow "$case_dir" ci.yml $'on: {workflow_dispatch: {inputs:\n{pull_request: {type: string}}}}\njobs: {}' ;;
-      flow-value)
-        write_base_workflow "$case_dir" ci.yml $'on: {push: {branches: [pull_request]}}\njobs: {}' ;;
-      commented)
-        write_base_workflow "$case_dir" ci.yml $'on:\n  push:\n  # pull_request:\njobs: {}' ;;
+      non-yaml)
+        write_base_workflow "$case_dir" notes.md 'pull_request:' ;;
     esac
     run_required_case "$case_dir" 124
     expect_code 0 "$RC" "no-actions-$variant: no pull_request workflow should merge: $(cat "$case_dir/stderr")"
