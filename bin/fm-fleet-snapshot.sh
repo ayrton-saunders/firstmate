@@ -655,7 +655,7 @@ snapshot_task_generation_is_current() {  # <captured-meta> <id>
 
 prefetch_task_observations() {  # <meta> <id>
   local meta=$1 id=$2 remote_host current_file endpoint_file current_pid='' current_rc=0
-  local status_log status_capture report_path report_capture
+  local status_log status_capture report_path report_capture accepted_meta
   local kind backend target endpoint_exists=null agent_alive=not_checked generation_current=1
   remote_host=$(meta_value "$meta" remote_host)
   current_file="$SNAPSHOT_TASK_DIR/$id.json"
@@ -698,6 +698,15 @@ prefetch_task_observations() {  # <meta> <id>
   fi
 
   [ -z "$current_pid" ] || wait "$current_pid" || current_rc=1
+  if [ "$(meta_value "$meta" mode)" = local-only ] && ! grep -q '^local_done_head=' "$meta"; then
+    accepted_meta="$SNAPSHOT_TASK_DIR/$id.accepted-meta"
+    if cp -- "$STATE/$id.meta" "$accepted_meta" 2>/dev/null \
+      && fm_dod_local_done_head "$accepted_meta" >/dev/null 2>&1 \
+      && [ "$(grep -v '^local_done_head=' "$accepted_meta")" = "$(<"$meta")" ]; then
+      mv -- "$accepted_meta" "$meta" || current_rc=1
+    fi
+    rm -f -- "$accepted_meta"
+  fi
   # All mutable observations must belong to the metadata generation captured in
   # the manifest. If teardown/relaunch raced any read, discard the whole sample.
   if ! snapshot_task_generation_is_current "$meta" "$id"; then
@@ -801,8 +810,8 @@ task_delivery_landing() {  # <id> <kind> <mode> <state> <detail> <pr> <captured-
     return 0
   fi
   case "$detail" in
-    *"run passed: PR merged"*) printf 'landed' ;;
-    *"run passed: PR closed"*) printf 'closed' ;;
+    *"run passed: PR merged"*|*"checks green: PR merged"*) printf 'landed' ;;
+    *"run passed: PR closed"*|*"checks green: PR closed"*) printf 'closed' ;;
     *) printf 'unlanded' ;;
   esac
 }

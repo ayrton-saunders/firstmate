@@ -1179,7 +1179,7 @@ seed_merged_receipt() {  # <state> <id> <url>
 }
 
 test_home_summary_reports_retained_unlanded_delivery_separately() {
-  local home fakebin out url pr_head local_head
+  local home fakebin out url pr_head local_head generation
   home=$(make_home summary-retained-unlanded)
   url=https://github.com/kunchenguid/firstmate/pull/41
   pr_head=0123456789abcdef0123456789abcdef01234567
@@ -1197,17 +1197,21 @@ EOF
   fm_write_meta "$home/state/pr-open.meta" \
     "window=firstmate:fm-pr-open" "worktree=$home/projects/pr-open" "project=alpha" \
     "harness=claude" "kind=ship" "mode=no-mistakes" "pr=$url" "pr_head=$pr_head"
-  fm_write_meta "$home/state/local-ready.meta" \
-    "window=firstmate:fm-local-ready" "worktree=$home/projects/local-wt" \
-    "project=$home/projects/local" "branch=fm/local-ship" \
-    "harness=claude" "kind=ship" "mode=local-only" "local_done_head=$local_head"
   record_claude_idle "$home/state" pr-open
-  record_claude_idle "$home/state" local-ready
   printf 'done: PR %s checks green\n' "$url" > "$home/state/pr-open.status"
   printf 'done: ready branch fm/local-ship\n' > "$home/state/local-ready.status"
   fakebin=$(make_fakebin "$home")
-  out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
-  printf '%s' "$out" | jq -e '
+  for generation in legacy generated; do
+    fm_write_meta "$home/state/local-ready.meta" \
+      "window=firstmate:fm-local-ready" "worktree=$home/projects/local-wt" \
+      "project=$home/projects/local" "branch=fm/local-ship" \
+      "harness=claude" "kind=ship" "mode=local-only"
+    if [ "$generation" = generated ]; then
+      printf 'spawn_gen=local-ready-generation\n' >> "$home/state/local-ready.meta"
+    fi
+    record_claude_idle "$home/state" local-ready
+    out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
+    printf '%s' "$out" | jq -e '
     .valid == true
       and .reason == null
       and .invalidity == {kind:null,ids:[]}
@@ -1216,6 +1220,10 @@ EOF
         {id:"pr-open",state:"done",via:"pr"}]
       and .counts.retained_unlanded == 2
   ' >/dev/null || fail "retained unlanded deliveries must not invalidate the home: $out"
+
+  assert_contains "$(<"$home/state/local-ready.meta")" "local_done_head=$local_head" \
+    "first readiness observation must persist its accepted head"
+  done
 
   # Landed but not cleaned up: a merge-poll receipt for the PR, and the
   # local-only done head fast-forwarded into the local default branch.

@@ -1977,6 +1977,15 @@ test_terminal_green_delivery_disposition() {
                 assert_contains "$out" "PR merged" "merged delivery has current evidence"
                 assert_not_contains "$out" "held for merge" "merged delivery is no longer held"
               fi ;;
+            closed)
+              expected=failed
+              case "$route" in
+                cancelled-*) expected=unknown
+                  assert_contains "$out" "run cancelled: no verdict" "cancellation retains no verdict" ;;
+              esac
+              assert_contains "$out" "state: $expected" "$route/$provider: closed delivery retains terminal state"
+              assert_contains "$out" "PR closed" "$route/$provider: closed disposition is preserved"
+              assert_not_contains "$out" "held for merge" "closed delivery cannot await merge" ;;
             *)
               expected=failed
               case "$route" in
@@ -1987,6 +1996,25 @@ test_terminal_green_delivery_disposition() {
               assert_not_contains "$out" "held for merge" "unproven open delivery cannot await merge"
               assert_not_contains "$out" "PR merged" "unproven merge cannot be claimed" ;;
           esac
+          if [ "$route/$provider" = failed-outcome/github ]; then
+            case "$disposition" in
+              open|merged|closed)
+                mkdir -p "$d/data"
+                printf 'pr=%s\n' "$url" >> "$d/state/delivery.meta"
+                printf '## In flight\n- [ ] delivery - Delivery awaiting cleanup (kind: ship)\n' > "$d/data/backlog.md"
+                out=$(PATH="$d/fakebin:$PATH" FM_HOME="$d" "$ROOT/bin/fm-fleet-snapshot.sh" --secondmate-home-summary)
+                if [ "$disposition" = open ]; then
+                  printf '%s' "$out" | jq -e '
+                    .valid == true and .retained_unlanded == [{id:"delivery",state:"done",via:"pr"}]
+                  ' >/dev/null || fail "open recovered delivery must remain retained: $out"
+                else
+                  printf '%s' "$out" | jq -e '
+                    .valid == false and .invalidity == {kind:"terminal_in_flight",ids:["delivery"]}
+                    and .retained_unlanded == []
+                  ' >/dev/null || fail "$disposition recovered delivery must require cleanup: $out"
+                fi ;;
+            esac
+          fi
           pass "$route/$provider/$disposition: terminal delivery uses current disposition"
         ) || failures=$((failures + 1))
       done
