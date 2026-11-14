@@ -911,7 +911,7 @@ task_json_lines() {
           && [ "$reconciled_pr" != "$(meta_value "$meta" pr)" ]; then
           pr_head=
           pr=$reconciled_pr
-          pr_source=run-step
+          pr_source="run-step"
         fi
       fi
       delivery_landing=$(task_delivery_landing "$id" "$kind" "$mode" "$current_state" \
