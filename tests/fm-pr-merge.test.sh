@@ -5384,13 +5384,15 @@ test_github_no_actions_suite_refuses_with_pull_request_workflow() {
 
   # Every pull_request trigger spelling refuses, with nothing required at all,
   # the shape a disabled or absent ruleset leaves.
-  for variant in key list scalar flow multiline-flow multiline-map quoted single-quoted; do
+  for variant in key list indentless-list scalar flow multiline-flow column-zero-flow multiline-map quoted single-quoted; do
     case "$variant" in
       key) body=$'name: ci\non:\n  push:\n  pull_request:\n    branches: [main]\njobs: {}' ;;
       list) body=$'on:\n  - push\n  - pull_request # checks\njobs: {}' ;;
+      indentless-list) body=$'on:\n- push\n- pull_request\njobs: {}' ;;
       scalar) body=$'on: pull_request\njobs: {}' ;;
       flow) body=$'on: [push, pull_request]\njobs: {}' ;;
       multiline-flow) body=$'on: [push,\n pull_request]\njobs: {}' ;;
+      column-zero-flow) body=$'on: [push,\npull_request]\njobs: {}' ;;
       multiline-map) body=$'on: {push: {},\n "pull_request": {}}\njobs: {}' ;;
       quoted) body=$'"on":\n  "pull_request":\njobs: {}' ;;
       single-quoted) body=$'\'on\': [push,\n \'pull_request\']\njobs: {}' ;;
@@ -5466,7 +5468,7 @@ test_github_no_actions_suite_proceeds_without_pull_request_workflow() {
   # No pull_request workflow on the base branch: no directory, workflows for
   # other events only, a pull_request mention outside the triggers, or a
   # commented-out trigger.
-  for variant in no-directory other-events expression env-key commented; do
+  for variant in no-directory other-events expression env-key nested-input nested-flow flow-value commented; do
     case_dir=$(make_case "github-no-actions-$variant")
     add_gh_mocks "$case_dir" "$head"
     write_no_actions_suite "$case_dir"
@@ -5478,6 +5480,12 @@ test_github_no_actions_suite_proceeds_without_pull_request_workflow() {
         write_base_workflow "$case_dir" push.yml $'on: push\njobs:\n  a:\n    if: github.event.pull_request.number\n    runs-on: x' ;;
       env-key)
         write_base_workflow "$case_dir" push.yml $'on: push\nenv:\n pull_request: example\njobs: {}' ;;
+      nested-input)
+        write_base_workflow "$case_dir" ci.yml $'on:\n  workflow_dispatch:\n    inputs:\n      pull_request:\n        type: string\njobs: {}' ;;
+      nested-flow)
+        write_base_workflow "$case_dir" ci.yml $'on: {workflow_dispatch: {inputs:\n{pull_request: {type: string}}}}\njobs: {}' ;;
+      flow-value)
+        write_base_workflow "$case_dir" ci.yml $'on: {push: {branches: [pull_request]}}\njobs: {}' ;;
       commented)
         write_base_workflow "$case_dir" ci.yml $'on:\n  push:\n  # pull_request:\njobs: {}' ;;
     esac

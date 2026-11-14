@@ -82,8 +82,8 @@
 # Actions never saw then has no check that could be red or unreported. The
 # usual cause is Actions not running at all, which on a fork is GitHub's fork
 # workflow gate. A workflow counts when, after comments are removed, the
-# top-level on value (with optionally quoted keys and events) names pull_request
-# as a mapping key, block list item, scalar, or single/multiline flow element;
+# top-level on value names pull_request as a scalar or immediate event in a
+# block or flow collection, allowing quoted names and multiline collections;
 # pull_request_target and other events do not count, and a base branch with no
 # .github/workflows directory has none. An unreadable check suite read,
 # directory listing, or workflow file refuses. An attended --allow-no-actions,
@@ -1173,27 +1173,77 @@ FM_PR_GITHUB_ACTIONS_APP_ID=15368
 # Whether one workflow file, read on stdin, is triggered by pull_request. The
 # header owns which spellings count.
 github_workflow_triggers_pull_request() {
-  local text flow
-  text=$(sed -E 's/(^|[[:space:]])#.*$//' | awk "
-    /^['\"]?on['\"]?[[:space:]]*:/ { active = 1; print; next }
-    /^[^[:space:]]/ { active = 0 }
-    active { print }
-  ")
-  printf '%s\n' "$text" | grep -Eq \
-    -e "^[[:space:]]*['\"]?pull_request['\"]?[[:space:]]*:" \
-    -e "^[[:space:]]*-[[:space:]]*['\"]?pull_request['\"]?[[:space:]]*$" \
-    -e "^['\"]?on['\"]?[[:space:]]*:[[:space:]]*['\"]?pull_request['\"]?[[:space:]]*$" \
-    && return 0
-  flow=$(printf '%s\n' "$text" \
-    | sed -E "1s/^['\"]?on['\"]?[[:space:]]*:[[:space:]]*//" \
-    | tr '\n' ' ' | sed -E 's/^[[:space:]]*//')
-  case "$flow" in
-    \[*|\{*) ;;
-    *) return 1 ;;
-  esac
-  printf '%s\n' "$flow" | awk -F '[][{},:]' '{ for (i = 1; i <= NF; i++) print $i }' \
-    | sed -E "s/^[[:space:]]*['\"]?//; s/['\"]?[[:space:]]*$//" \
-    | grep -qx 'pull_request'
+  awk -v sq="'" '
+    function trim(s) {
+      sub(/^[[:space:]]+/, "", s)
+      sub(/[[:space:]]+$/, "", s)
+      return s
+    }
+    function event(s, q) {
+      s = trim(s)
+      q = substr(s, 1, 1)
+      if ((q == sq || q == "\"") && substr(s, length(s), 1) == q)
+        s = substr(s, 2, length(s) - 2)
+      if (s == "pull_request") found = 1
+    }
+    function flow(s, i, c) {
+      for (i = 1; i <= length(s); i++) {
+        c = substr(s, i, 1)
+        if (quoted != "") {
+          if (depth == 1) token = token c
+          if (escaped) escaped = 0
+          else if (quoted == "\"" && c == "\\") escaped = 1
+          else if (c == quoted) quoted = ""
+        } else if (c == sq || c == "\"") {
+          quoted = c
+          if (depth == 1) token = token c
+        } else if (c == "[" || c == "{") {
+          if (depth == 0) { sequence = (c == "["); key = 1; token = "" }
+          depth++
+        } else if (c == "]" || c == "}") {
+          if (depth == 1 && sequence) event(token)
+          depth--
+        } else if (depth == 1 && c == ",") {
+          if (sequence) event(token)
+          token = ""
+          key = 1
+        } else if (depth == 1 && c == ":" && !sequence) {
+          if (key) event(token)
+          key = 0
+          token = ""
+        } else if (depth == 1 && (sequence || key)) token = token c
+      }
+      token = token " "
+    }
+    {
+      line = $0
+      sub(/(^|[[:space:]])#.*/, "", line)
+      if (!active) {
+        if (line !~ /^(on|"on"|\047on\047)[[:space:]]*:/) next
+        active = 1
+        sub(/^[^:]*:/, "", line)
+        value = trim(line)
+        if (value == "") { mode = "block"; next }
+        if (value ~ /^[\[{]/) mode = "flow"
+        else { event(value); exit }
+      } else if (depth == 0 && line ~ /^[[:alnum:]_"\047][^:]*:/) exit
+      if (mode == "flow") { flow(line); if (depth == 0) exit; next }
+      if (trim(line) == "") next
+      match(line, /[^[:space:]]/)
+      indent = RSTART - 1
+      if (!have_indent) { event_indent = indent; have_indent = 1 }
+      if (indent != event_indent) next
+      value = trim(line)
+      if (value ~ /^-[[:space:]]+/) {
+        sub(/^-[[:space:]]+/, "", value)
+        event(value)
+      } else if (value ~ /:/) {
+        sub(/:.*/, "", value)
+        event(value)
+      }
+    }
+    END { exit !found }
+  '
 }
 
 # Whether the base branch holds a workflow triggered by pull_request. Prints
