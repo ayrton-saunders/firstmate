@@ -81,9 +81,9 @@
 # a disabled or absent ruleset leaves an empty required set, and a head
 # Actions never saw then has no check that could be red or unreported. The
 # usual cause is Actions not running at all, which on a fork is GitHub's fork
-# workflow gate. A workflow counts when, after comments are removed, a line
-# names pull_request as a mapping key, a block list item, the scalar value of
-# a top-level on key, or an element of a flow list or mapping on that line;
+# workflow gate. A workflow counts when, after comments are removed, the
+# top-level on value (with optionally quoted keys and events) names pull_request
+# as a mapping key, block list item, scalar, or single/multiline flow element;
 # pull_request_target and other events do not count, and a base branch with no
 # .github/workflows directory has none. An unreadable check suite read,
 # directory listing, or workflow file refuses. An attended --allow-no-actions,
@@ -1174,14 +1174,23 @@ FM_PR_GITHUB_ACTIONS_APP_ID=15368
 # header owns which spellings count.
 github_workflow_triggers_pull_request() {
   local text flow
-  text=$(sed -E 's/(^|[[:space:]])#.*$//')
+  text=$(sed -E 's/(^|[[:space:]])#.*$//' | awk "
+    /^['\"]?on['\"]?[[:space:]]*:/ { active = 1; print; next }
+    /^[^[:space:]]/ { active = 0 }
+    active { print }
+  ")
   printf '%s\n' "$text" | grep -Eq \
     -e "^[[:space:]]*['\"]?pull_request['\"]?[[:space:]]*:" \
     -e "^[[:space:]]*-[[:space:]]*['\"]?pull_request['\"]?[[:space:]]*$" \
     -e "^['\"]?on['\"]?[[:space:]]*:[[:space:]]*['\"]?pull_request['\"]?[[:space:]]*$" \
     && return 0
   flow=$(printf '%s\n' "$text" \
-    | sed -nE "s/^['\"]?on['\"]?[[:space:]]*:[[:space:]]*([[{].*)$/\\1/p")
+    | sed -E "1s/^['\"]?on['\"]?[[:space:]]*:[[:space:]]*//" \
+    | tr '\n' ' ' | sed -E 's/^[[:space:]]*//')
+  case "$flow" in
+    \[*|\{*) ;;
+    *) return 1 ;;
+  esac
   printf '%s\n' "$flow" | awk -F '[][{},:]' '{ for (i = 1; i <= NF; i++) print $i }' \
     | sed -E "s/^[[:space:]]*['\"]?//; s/['\"]?[[:space:]]*$//" \
     | grep -qx 'pull_request'
