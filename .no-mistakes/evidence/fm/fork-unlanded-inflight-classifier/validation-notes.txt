@@ -1,0 +1,21 @@
+Local product validation
+Executed real bin/fm-fleet-snapshot.sh --json and --secondmate-home-summary, bin/fm-busy-event.sh, git, tasks-axi and tmux against disposable .v FM_HOME and NM_HOME. No PATH shims were used. The tmux endpoint was a synthetic sleep process, not an agent or primary; idle lifecycle records and status declarations were synthetic inputs to the real snapshot product. This validates the local classifier, not harness execution or forge state.
+
+Passed local scenarios:
+- Failed deliveries with status-only PR identity across GitHub, GitLab, Gerrit and Forgejo remain valid retained_unlanded inventory.
+- A completed ship with recorded PR identity/head remains valid retained_unlanded inventory.
+- Removing its worker copy invalidates inventory (child_current_unavailable); no retained exemption applies.
+- A completed ship without a recorded delivery stays terminal_in_flight.
+- First observation of a local-only ready branch, both with and without spawn_gen, pins its accepted head and retains valid inventory.
+- Fast-forward landing that same head makes the remaining In-flight record terminal_in_flight again.
+- Backlog bytes stayed unchanged, and task metadata and worker copies remained present.
+
+Setup corrections before the final successful run: direct-PR done without published-head proof was properly blocked by DoD; switched to a no-mistakes published PR record with pr_head. A missing worker produces unavailable current state rather than a terminal state; the invariant tested is invalid inventory without a retained exemption.
+
+Supporting automated checks (not live scenarios): targeted snapshot tests and test_terminal_green_delivery_disposition passed. Those tests use external-boundary mocks, including run and forge responses. An initial temporary crew runner unintentionally included the file's top-level test invocations and timed out after 240 seconds; no remaining children were found. The runner was corrected to execute only the requested disposition function, which exited 0.
+
+Live limitation: recovered terminal CI disposition, run-only PR substitution, and matching-meta Bearings provenance require an attributed real no-mistakes terminal run and reconciled forge evidence. No such isolated run was supplied. Creating or controlling another pipeline is forbidden in this test phase; real fleet/run records cannot be used or changed. Mocked focused tests cover the behavior but do not count as live proof. Provide a disposable attributed run plus sandbox forge endpoint/access, or authorize a separate upstream-owned setup phase to create them, then rerun this phase.
+
+An attempted real Claude lab primary stopped at the workspace-trust prompt. It was stopped without accepting trust or changing user configuration. No primary or authenticated forge behavior is claimed. The classifier scenarios do not need a running primary; they consume synthetic durable inputs on an isolated real terminal endpoint.
+
+All owned tmux servers and test children stopped; disposable worktree files removed after evidence capture. This change is CLI/JSON-only; no rendered UI change requires screenshot evidence.

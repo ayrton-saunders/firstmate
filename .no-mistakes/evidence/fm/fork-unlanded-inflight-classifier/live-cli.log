@@ -1,0 +1,221 @@
+{
+  "valid": true,
+  "invalidity": {
+    "kind": null,
+    "ids": []
+  },
+  "retained_unlanded": [
+    {
+      "id": "delivery",
+      "state": "failed",
+      "via": "pr"
+    }
+  ],
+  "counts": {
+    "active_children": 0,
+    "decisions_open": 0,
+    "holds": 0,
+    "queued": 0,
+    "landed": 0,
+    "retained_unlanded": 1,
+    "endpoints": 1
+  }
+}
+{
+  "valid": true,
+  "invalidity": {
+    "kind": null,
+    "ids": []
+  },
+  "retained_unlanded": [
+    {
+      "id": "delivery",
+      "state": "failed",
+      "via": "pr"
+    }
+  ],
+  "counts": {
+    "active_children": 0,
+    "decisions_open": 0,
+    "holds": 0,
+    "queued": 0,
+    "landed": 0,
+    "retained_unlanded": 1,
+    "endpoints": 1
+  }
+}
+{
+  "valid": true,
+  "invalidity": {
+    "kind": null,
+    "ids": []
+  },
+  "retained_unlanded": [
+    {
+      "id": "delivery",
+      "state": "failed",
+      "via": "pr"
+    }
+  ],
+  "counts": {
+    "active_children": 0,
+    "decisions_open": 0,
+    "holds": 0,
+    "queued": 0,
+    "landed": 0,
+    "retained_unlanded": 1,
+    "endpoints": 1
+  }
+}
+{
+  "valid": true,
+  "invalidity": {
+    "kind": null,
+    "ids": []
+  },
+  "retained_unlanded": [
+    {
+      "id": "delivery",
+      "state": "failed",
+      "via": "pr"
+    }
+  ],
+  "counts": {
+    "active_children": 0,
+    "decisions_open": 0,
+    "holds": 0,
+    "queued": 0,
+    "landed": 0,
+    "retained_unlanded": 1,
+    "endpoints": 1
+  }
+}
+{
+  "valid": true,
+  "invalidity": {
+    "kind": null,
+    "ids": []
+  },
+  "retained_unlanded": [
+    {
+      "id": "delivery",
+      "state": "done",
+      "via": "pr"
+    }
+  ],
+  "counts": {
+    "active_children": 0,
+    "decisions_open": 0,
+    "holds": 0,
+    "queued": 0,
+    "landed": 0,
+    "retained_unlanded": 1,
+    "endpoints": 1
+  }
+}
+{
+  "valid": false,
+  "invalidity": {
+    "kind": "child_current_unavailable",
+    "ids": [
+      "delivery"
+    ]
+  },
+  "retained_unlanded": [],
+  "counts": {
+    "active_children": 0,
+    "decisions_open": 0,
+    "holds": 0,
+    "queued": 0,
+    "landed": 0,
+    "retained_unlanded": 0,
+    "endpoints": 1
+  }
+}
+{
+  "valid": false,
+  "invalidity": {
+    "kind": "terminal_in_flight",
+    "ids": [
+      "delivery"
+    ]
+  },
+  "retained_unlanded": [],
+  "counts": {
+    "active_children": 0,
+    "decisions_open": 0,
+    "holds": 0,
+    "queued": 0,
+    "landed": 0,
+    "retained_unlanded": 0,
+    "endpoints": 1
+  }
+}
+{
+  "valid": true,
+  "invalidity": {
+    "kind": null,
+    "ids": []
+  },
+  "retained_unlanded": [
+    {
+      "id": "delivery",
+      "state": "done",
+      "via": "local-only"
+    }
+  ],
+  "counts": {
+    "active_children": 0,
+    "decisions_open": 0,
+    "holds": 0,
+    "queued": 0,
+    "landed": 0,
+    "retained_unlanded": 1,
+    "endpoints": 1
+  }
+}
+local_done_head=611f31714236bf72e739ae9cb098c8e9558c9f2a
+{
+  "valid": true,
+  "invalidity": {
+    "kind": null,
+    "ids": []
+  },
+  "retained_unlanded": [
+    {
+      "id": "delivery",
+      "state": "done",
+      "via": "local-only"
+    }
+  ],
+  "counts": {
+    "active_children": 0,
+    "decisions_open": 0,
+    "holds": 0,
+    "queued": 0,
+    "landed": 0,
+    "retained_unlanded": 1,
+    "endpoints": 1
+  }
+}
+local_done_head=611f31714236bf72e739ae9cb098c8e9558c9f2a
+{
+  "valid": false,
+  "invalidity": {
+    "kind": "terminal_in_flight",
+    "ids": [
+      "delivery"
+    ]
+  },
+  "retained_unlanded": [],
+  "counts": {
+    "active_children": 0,
+    "decisions_open": 0,
+    "holds": 0,
+    "queued": 0,
+    "landed": 0,
+    "retained_unlanded": 0,
+    "endpoints": 1
+  }
+}
+Backlog unchanged; metadata and worker copies retained. All live CLI assertions passed.

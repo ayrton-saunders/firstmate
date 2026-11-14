@@ -1,0 +1,237 @@
+{
+  "schema": "fm-fleet-snapshot.v1",
+  "generated": "2026-11-14T16:21:03Z",
+  "fm_home": "{run-worktree}/.v",
+  "roots": {
+    "fm_root": "{run-worktree}",
+    "state": "{run-worktree}/.v/state",
+    "data": "{run-worktree}/.v/data",
+    "config": "{run-worktree}/.v/config",
+    "projects": "{run-worktree}/.v/projects"
+  },
+  "backlog": {
+    "records": [
+      {
+        "done": null,
+        "hold_kind": null,
+        "reported": null,
+        "order": 1,
+        "title": "Awaiting landing",
+        "body_lines": [],
+        "current_role": "worker",
+        "pr_url": null,
+        "blocked_by_ids": [],
+        "structured": true,
+        "kind": "ship",
+        "report_path": null,
+        "captain_actionable": false,
+        "priority": null,
+        "checked": false,
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "local_note": null,
+        "since": null,
+        "unresolved_blocker_ids": [],
+        "body_excerpt": null,
+        "hold_bucket": null,
+        "blocked_reason": null,
+        "links": [],
+        "hold_set": null,
+        "requires_child_metadata": true,
+        "hold_age_days": null,
+        "blocked_by": null,
+        "hold_reason": null,
+        "merged": null,
+        "state": "in_flight",
+        "raw": "- [ ] delivery - Awaiting landing (kind: ship)",
+        "repo": null,
+        "id": "delivery",
+        "hold_until": null
+      }
+    ],
+    "path": "{run-worktree}/.v/data/backlog.md",
+    "present": true
+  },
+  "tasks": [
+    {
+      "id": "delivery",
+      "kind": "ship",
+      "harness": "claude",
+      "mode": "no-mistakes",
+      "yolo": "",
+      "branch": null,
+      "project": "",
+      "spawn_gen": null,
+      "backend": "tmux",
+      "remote": null,
+      "paths": {
+        "meta": {
+          "path": "{run-worktree}/.v/state/delivery.meta",
+          "present": true
+        },
+        "status_log": {
+          "path": "{run-worktree}/.v/state/delivery.status",
+          "present": true,
+          "kind": "event_history",
+          "last_event": {
+            "state": "failed",
+            "note": "delivery retained <https://gitlab.com/example/demo/-/merge_requests/41>",
+            "raw": "failed: delivery retained <https://gitlab.com/example/demo/-/merge_requests/41>",
+            "age_seconds": null
+          }
+        },
+        "worktree": {
+          "path": "{run-worktree}/.v/projects/worker",
+          "present": true
+        },
+        "home": {
+          "path": null,
+          "present": false
+        },
+        "report": {
+          "path": "{run-worktree}/.v/data/delivery/report.md",
+          "present": false
+        }
+      },
+      "secondmate_projects": [],
+      "current_state": {
+        "state": "failed",
+        "source": "status-log",
+        "detail": "delivery retained <https://gitlab.com/example/demo/-/merge_requests/41>",
+        "raw": "state: failed · source: status-log · delivery retained <https://gitlab.com/example/demo/-/merge_requests/41>",
+        "observed_at": "2026-11-14T16:21:03Z",
+        "freshness": "fresh"
+      },
+      "endpoint": {
+        "target": "fixture:fm-delivery",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-11-14T16:21:03Z",
+        "freshness": "fresh"
+      },
+      "pr": {
+        "url": "https://gitlab.com/example/demo/-/merge_requests/41",
+        "source": "status_event",
+        "head": null
+      },
+      "delivery": {
+        "landing": "unlanded",
+        "via": "pr"
+      },
+      "hints": {
+        "pending_decision": false,
+        "blocked_event": false,
+        "open_decisions": [],
+        "scout_report_present": false,
+        "last_event_text": "failed: delivery retained <https://gitlab.com/example/demo/-/merge_requests/41>"
+      },
+      "actions": {
+        "watch": "bin/fm-peek.sh fm-delivery",
+        "steer": "bin/fm-send.sh fm-delivery '<instruction>'",
+        "return_channel_note": null
+      },
+      "backlog": {
+        "done": null,
+        "hold_kind": null,
+        "reported": null,
+        "order": 1,
+        "title": "Awaiting landing",
+        "body_lines": [],
+        "current_role": "worker",
+        "pr_url": null,
+        "blocked_by_ids": [],
+        "structured": true,
+        "kind": "ship",
+        "report_path": null,
+        "captain_actionable": false,
+        "priority": null,
+        "checked": false,
+        "completion": {
+          "verb": null,
+          "date": null
+        },
+        "local_note": null,
+        "since": null,
+        "unresolved_blocker_ids": [],
+        "body_excerpt": null,
+        "hold_bucket": null,
+        "blocked_reason": null,
+        "links": [],
+        "hold_set": null,
+        "requires_child_metadata": true,
+        "hold_age_days": null,
+        "blocked_by": null,
+        "hold_reason": null,
+        "merged": null,
+        "state": "in_flight",
+        "raw": "- [ ] delivery - Awaiting landing (kind: ship)",
+        "repo": null,
+        "id": "delivery",
+        "hold_until": null
+      }
+    }
+  ],
+  "main_inventory": {
+    "valid": true,
+    "reason": null,
+    "orphan_in_flight": [],
+    "unstructured_current_count": 0
+  },
+  "contributions": {
+    "known": 0,
+    "checked": 0,
+    "counts": {
+      "captain": 0,
+      "fleet": 0,
+      "maintainer": 0,
+      "nobody": 0
+    },
+    "unmeasured": 0,
+    "complete": true,
+    "proven_clear": true,
+    "stale_verdicts": 0,
+    "missing_verdicts": 0,
+    "unreadable_records": 0,
+    "valid_until": 900,
+    "captain": [],
+    "captain_omitted": 0
+  },
+  "scout_reports": [],
+  "secondmate_current": {
+    "registry": {
+      "present": false,
+      "available": true,
+      "complete": true,
+      "reason": null,
+      "provenance": "registered-table",
+      "path": "{run-worktree}/.v/data/secondmates.md",
+      "freshness": {
+        "status": "fresh",
+        "observed_at": "2026-11-14T16:21:03Z"
+      },
+      "records": [],
+      "input_truncated": false,
+      "records_truncated": false,
+      "reasons": [],
+      "lines_in_window": 0,
+      "records_in_window": 0
+    },
+    "records": [],
+    "total_registered": 0,
+    "total": 0,
+    "shown": 0,
+    "truncated": 0
+  },
+  "secondmate_landed": {
+    "records": [],
+    "truncated": [],
+    "unreadable": [],
+    "partial": []
+  },
+  "secondmate_guidance": {
+    "note": "For kind=secondmate, bearings selects validated structured state from that registered home; parent events and bounded terminal evidence are fallback-only supplements and never current-state authority."
+  }
+}
