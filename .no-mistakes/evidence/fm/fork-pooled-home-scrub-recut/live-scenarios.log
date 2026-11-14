@@ -1,0 +1,76 @@
+{run-worktree}/.validation/parent
+🌳 Setting up worktree...
+🌳 Leased worktree at ~/.no-mistakes/worktrees/5611073f0314/01M7DBCPY1R7T81R82WZBCTXZR/.validation/pool/.treehouse/code-9e9bb0/1/code. Run 'treehouse return ~/.no-mistakes/worktrees/5611073f0314/01M7DBCPY1R7T81R82WZBCTXZR/.validation/pool/.treehouse/code-9e9bb0/1/code' to release it.
+
+=== Retire leased home: before ===
+base  main  (repository default)
+1     leased       ~/.no-mistakes/worktrees/5611073f0314/01M7DBCPY1R7T81R82WZBCTXZR/.validation/pool/.treehouse/code-9e9bb0/1/code  (detached)
+{run-worktree}/.validation/pool/.treehouse/code-9e9bb0/1/code/data/secret
+{run-worktree}/.validation/pool/.treehouse/code-9e9bb0/1/code/state/.lock
+{run-worktree}/.validation/pool/.treehouse/code-9e9bb0/1/code/state/secret
+{run-worktree}/.validation/pool/.treehouse/code-9e9bb0/1/code/config/secret
+{run-worktree}/.validation/pool/.treehouse/code-9e9bb0/1/code/projects/secret
+{run-worktree}/.validation/pool/.treehouse/code-9e9bb0/1/code/.no-mistakes/secret
+
+=== Real teardown ===
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.validation/parent
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 1s ago).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e {run-worktree}/.validation/code/.pi/extensions/fm-primary-turnend-guard.ts -e {run-worktree}/.validation/code/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌳 Worktree returned to pool.
+teardown mate-one complete (window fm-lab-validation:fm-mate-one, worktree {run-worktree}/.validation/pool/.treehouse/code-9e9bb0/1/code)
+
+=== After retirement ===
+data absent
+state absent
+config absent
+projects absent
+.no-mistakes absent
+public.txt preserved: tracked public content
+base  main  (repository default)
+1     available    ~/.no-mistakes/worktrees/5611073f0314/01M7DBCPY1R7T81R82WZBCTXZR/.validation/pool/.treehouse/code-9e9bb0/1/code  (detached)
+🌳 Setting up worktree...
+🌳 Leased worktree at ~/.no-mistakes/worktrees/5611073f0314/01M7DBCPY1R7T81R82WZBCTXZR/.validation/pool/.treehouse/code-9e9bb0/1/code. Run 'treehouse return ~/.no-mistakes/worktrees/5611073f0314/01M7DBCPY1R7T81R82WZBCTXZR/.validation/pool/.treehouse/code-9e9bb0/1/code' to release it.
+Next lease reused same slot, with no private directories: {run-worktree}/.validation/pool/.treehouse/code-9e9bb0/1/code
+
+=== Unsafe escaping private directory refuses retirement ===
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.validation/parent
+WARNING: watcher still down (same stale episode; last beat: 5s ago, grace 300s) - full banner already printed this episode.
+REFUSED: unsafe secondmate home projects directory {run-worktree}/.validation/pool/.treehouse/code-9e9bb0/1/code/projects resolves outside the secondmate home
+Unsafe retirement exit=1; external sentinel, home data, and task record preserved
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.validation/parent
+WARNING: watcher still down (same stale episode; last beat: 6s ago, grace 300s) - full banner already printed this episode.
+🌳 Worktree returned to pool.
+teardown unsafe-home complete (window fm-lab-validation:fm-unsafe-home, worktree {run-worktree}/.validation/pool/.treehouse/code-9e9bb0/1/code)
+
+=== Unlanded pooled ship refuses and preserves work ===
+🌳 Setting up worktree...
+🌳 Leased worktree at ~/.no-mistakes/worktrees/5611073f0314/01M7DBCPY1R7T81R82WZBCTXZR/.validation/pool/.treehouse/code-9e9bb0/1/code. Run 'treehouse return ~/.no-mistakes/worktrees/5611073f0314/01M7DBCPY1R7T81R82WZBCTXZR/.validation/pool/.treehouse/code-9e9bb0/1/code' to release it.
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.validation/parent
+WARNING: watcher still down (same stale episode; last beat: 10s ago, grace 300s) - full banner already printed this episode.
+REFUSED: local-only worktree {run-worktree}/.validation/pool/.treehouse/code-9e9bb0/1/code has work not yet merged into main and not on any remote.
+commits not yet on main:
+51264f4 unlanded feature
+Merge the branch into local main first (bin/fm-merge-local.sh after the captain approves), or push to a fork/remote, or get the captain's explicit OK to discard, then --force.
+Unlanded retirement exit=1; commit=51264f4000a9d9d49fab1d5bd3b81621038418e5, feature, private data, and task record preserved
+
+=== Landed ordinary ship does not scrub home-owned ignored data ===
+Updating fce0f6b..51264f4
+Fast-forward
+ feature.txt | 1 +
+ 1 file changed, 1 insertion(+)
+ create mode 100644 feature.txt
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.validation/parent
+WARNING: watcher still down (same stale episode; last beat: 11s ago, grace 300s) - full banner already printed this episode.
+🌳 Worktree returned to pool.
+teardown unlanded complete (window fm-lab-validation:fm-unlanded, worktree {run-worktree}/.validation/pool/.treehouse/code-9e9bb0/1/code)
+Backlog: unlanded just finished (config/backlog-backend selects manual editing). Update {run-worktree}/.validation/parent/data/backlog.md - move unlanded to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+Ordinary landed ship returned successfully; ignored data/secret preserved
+base  main  (repository default)
+1     available    ~/.no-mistakes/worktrees/5611073f0314/01M7DBCPY1R7T81R82WZBCTXZR/.validation/pool/.treehouse/code-9e9bb0/1/code  (detached)
+
+ALL FOUR LIVE SCENARIOS PASSED
