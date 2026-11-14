@@ -91,8 +91,8 @@
 #   --all-pr-repos   query every discovered repository under --include-prs
 #   -h,--help        usage
 #
-# Output contract: `fm-bearings.v1`. No locks or reports; the underlying snapshot's
-# parent-side remote-ledger cache refresh is the only default fleet-state mutation.
+# Output contract: `fm-bearings.v1`. No locks or reports; the underlying
+# fm-fleet-snapshot.sh header owns observation side effects.
 set -u
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
