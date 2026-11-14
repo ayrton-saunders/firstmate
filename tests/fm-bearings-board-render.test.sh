@@ -295,7 +295,65 @@ EOF
   pass "the complete snapshot question and options reach rendered decision text"
 }
 
+# The original incident payload: every decision card offered no option and only
+# freeform input, so the built board showed nothing but the injected Reconcile.
+freeform_only_decisions() {
+  jq -n '[range(1; 7) as $i | {
+    key:("held-call-\($i)"), type:"decision", repo:"sample",
+    title:("Held call \($i)"), decide:"Which way?", options:[], allow_freeform:true}]'
+}
+
+test_a_decision_needs_an_authored_choice_and_its_counterfactual_renders() {
+  local home data out rc calls
+  home=$(make_home authored-choice)
+  data="$home/payload.json"
+  jq -n --argjson calls "$(freeform_only_decisions)" '{
+    schema:"fm-bearings-board.v1", home:"render-home", generated:"2026-10-01T00:00Z",
+    prs_live:false, captains_call:$calls, underway:[], landed:[], charted:[]}' > "$data"
+  out=$(PATH="$home/fakebin:$PATH" FM_HOME="$home" \
+    FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
+    FM_PROCEVENT_CLAIM_ROOT="$home/procevent-claims" \
+    LAVISH_AXI_STATE_DIR="$home/lavish-state" \
+    "$BOARD" build "$data" 2>&1)
+  rc=$?
+  [ "$rc" -ne 0 ] || fail "a board of freeform-only decision cards was accepted"
+  assert_contains "$out" "an authored choice is required" "the refusal did not ask for an authored choice: $out"
+  assert_contains "$out" "held-call-1" "the refusal did not name the first card: $out"
+  assert_contains "$out" "held-call-6" "the refusal did not name the last card: $out"
+  assert_absent "$home/.lavish/bearings-board.html" "a refused payload still produced a board"
+
+  # The counterfactual: the same cards with authored options build and render
+  # those options, with the build's Reconcile alongside rather than alone.
+  calls=$(freeform_only_decisions | jq '[.[] | .options = [
+    {value:"proceed",label:"Proceed as planned"},{value:"hold",label:"Hold for now"}]]')
+  out=$(render_board "$home" '[]' '[]' 0 0 "$calls")
+  printf '%s' "$out" | jq -e '
+    .error == "" and (.captains_call | length) == 6
+      and ([.captains_call[]
+        | contains("Proceed as planned") and contains("Hold for now") and contains("Reconcile")]
+        | all)
+  ' >/dev/null || fail "the counterfactual did not render its authored options: $out"
+  pass "a freeform-only decision refuses by name and its authored counterfactual renders"
+}
+
+test_a_credential_card_may_stay_freeform_only() {
+  local home out
+  home=$(make_home credential-freeform)
+  out=$(render_board "$home" '[]' '[]' 0 0 '[
+    {"key":"credential.sample-login","type":"credential","repo":"sample",
+     "title":"Sign in to the sample registry","options":[],"allow_freeform":true}
+  ]')
+  printf '%s' "$out" | jq -e '
+    .error == "" and (.captains_call | length) == 1
+      and (.captains_call[0] | contains("Sign in to the sample registry")
+        and (contains("Reconcile") | not))
+  ' >/dev/null || fail "a freeform-only credential card did not render: $out"
+  pass "a credential card still renders with freeform input and no options"
+}
+
 test_full_snapshot_question_reaches_the_rendered_decision
+test_a_decision_needs_an_authored_choice_and_its_counterfactual_renders
+test_a_credential_card_may_stay_freeform_only
 test_an_underway_row_leads_with_the_task_name_and_keeps_its_run_status
 test_an_underway_identifier_label_is_not_replaced_by_run_status
 test_charted_next_reads_newest_filed_first
