@@ -401,8 +401,15 @@ status_event_json() {  # <observed-status-log> [<contract-path>]
 }
 
 first_pr_url_in_file() {  # <file>
+  local url
   [ -f "$1" ] || return 1
-  grep -Eo 'https?://[^[:space:])"]+/pull/[0-9]+' "$1" 2>/dev/null | head -1
+  while IFS= read -r url; do
+    if fm_pr_url_parse "$url"; then
+      printf '%s\n' "$url"
+      return 0
+    fi
+  done < <(grep -Eo 'https://[^[:space:]<>)"]+' "$1" 2>/dev/null)
+  return 1
 }
 
 # Isolate this read-only projection from the fleet collector's shell state.
@@ -805,7 +812,8 @@ task_delivery_landing() {  # <id> <kind> <mode> <state> <detail> <pr> <captured-
     return 0
   fi
   [ -n "$pr" ] || { printf 'unknown'; return 0; }
-  if fm_pr_poll_retirement_receipt_valid "$STATE" "$id" 2>/dev/null; then
+  if fm_pr_poll_retirement_receipt_valid "$STATE" "$id" 2>/dev/null \
+    && [ "$FM_PR_RETIRE_URL" = "$pr" ]; then
     printf 'landed'
     return 0
   fi
@@ -819,7 +827,7 @@ task_delivery_landing() {  # <id> <kind> <mode> <state> <detail> <pr> <captured-
 task_json_lines() {
   local meta original_meta id kind harness mode yolo project worktree home projects spawn_gen backend target status_log report_path
   local remote_host remote_root remote_session remote_binding current_file endpoint_file observation_line index=0
-  local pr pr_source event_json current_json endpoint_exists agent_alive meta_json status_json report_json worktree_json home_json
+  local pr pr_source pr_head reconciled_pr event_json current_json endpoint_exists agent_alive meta_json status_json report_json worktree_json home_json
   local last_event_raw current_state current_source pending_decision blocked_event report_present=0 pr_from_status
   local open_decisions_tsv open_decisions_json current_detail delivery_landing
 
@@ -876,9 +884,21 @@ task_json_lines() {
     read -r current_state current_source < <(
       printf '%s' "$current_json" | jq -r '[.state // "", .source // ""] | @tsv'
     )
+    pr_head=
+    if [ "$pr" = "$(meta_value "$meta" pr)" ]; then
+      pr_head=$(meta_value "$meta" pr_head)
+    fi
     delivery_landing=
     if [ "$kind" = ship ] && { [ "$current_state" = "done" ] || [ "$current_state" = failed ]; }; then
       current_detail=$(printf '%s' "$current_json" | jq -r '.detail // ""')
+      if [ "$current_source" = run-step ]; then
+        reconciled_pr=${current_detail##*" · pr="}
+        if [ "$reconciled_pr" != "$current_detail" ] && fm_pr_url_parse "$reconciled_pr"; then
+          [ "$reconciled_pr" = "$(meta_value "$meta" pr)" ] || pr_head=
+          pr=$reconciled_pr
+          pr_source=run-step
+        fi
+      fi
       delivery_landing=$(task_delivery_landing "$id" "$kind" "$mode" "$current_state" \
         "$current_detail" "$pr" "$meta")
     fi
@@ -959,7 +979,7 @@ task_json_lines() {
       --arg remote_binding "$remote_binding" \
       --arg pr "$pr" \
       --arg pr_source "$pr_source" \
-      --arg pr_head "$(meta_value "$meta" pr_head)" \
+      --arg pr_head "$pr_head" \
       --arg delivery_landing "$delivery_landing" \
       --arg agent_alive "$agent_alive" \
       --arg observed_at "$SNAPSHOT_NOW" \

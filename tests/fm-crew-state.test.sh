@@ -1996,11 +1996,21 @@ test_terminal_green_delivery_disposition() {
               assert_not_contains "$out" "held for merge" "unproven open delivery cannot await merge"
               assert_not_contains "$out" "PR merged" "unproven merge cannot be claimed" ;;
           esac
-          if [ "$route/$provider" = failed-outcome/github ]; then
+          if [ "$route" = failed-outcome ]; then
             case "$disposition" in
               open|merged|closed)
                 mkdir -p "$d/data"
-                printf 'pr=%s\n' "$url" >> "$d/state/delivery.meta"
+                out=$(PATH="$d/fakebin:$PATH" FM_HOME="$d" "$ROOT/bin/fm-fleet-snapshot.sh" --json)
+                printf '%s' "$out" | jq -e --arg url "$url" '
+                  .tasks[] | select(.id == "delivery")
+                  | .pr == {url:$url,source:"run-step",head:null}
+                ' >/dev/null || fail "run-only delivery identity must reach the snapshot: $out"
+                printf 'pr=https://github.com/o/r/pull/999\npr_head=0123456789abcdef0123456789abcdef01234567\n' >> "$d/state/delivery.meta"
+                out=$(PATH="$d/fakebin:$PATH" FM_HOME="$d" "$ROOT/bin/fm-fleet-snapshot.sh" --json)
+                printf '%s' "$out" | jq -e --arg url "$url" '
+                  .tasks[] | select(.id == "delivery")
+                  | .pr == {url:$url,source:"run-step",head:null}
+                ' >/dev/null || fail "reconciled delivery must override stale metadata without borrowing its head: $out"
                 printf '## In flight\n- [ ] delivery - Delivery awaiting cleanup (kind: ship)\n' > "$d/data/backlog.md"
                 out=$(PATH="$d/fakebin:$PATH" FM_HOME="$d" "$ROOT/bin/fm-fleet-snapshot.sh" --secondmate-home-summary)
                 if [ "$disposition" = open ]; then

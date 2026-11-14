@@ -1278,7 +1278,40 @@ EOF
   pass "home-summary reports retained unlanded deliveries apart from terminal_in_flight"
 }
 
+test_status_only_delivery_identity_across_forges() {
+  local home fakebin url out index=0
+  for url in \
+    https://github.com/o/r/pull/41 \
+    https://gitlab.com/o/r/-/merge_requests/41 \
+    https://review.example.com/c/o/r/+/41 \
+    https://codeberg.org/o/r/pulls/41; do
+    index=$((index + 1))
+    home=$(make_home "status-delivery-$index")
+    mkdir -p "$home/projects/worker"
+    fm_write_meta "$home/state/delivery.meta" \
+      "window=firstmate:fm-delivery" "worktree=$home/projects/worker" \
+      "harness=claude" "kind=ship" "mode=direct-PR"
+    record_claude_idle "$home/state" delivery
+    printf 'failed: https://example.com/help delivery remains available <%s>\n' "$url" > "$home/state/delivery.status"
+    printf '## In flight\n- [ ] delivery - Awaiting landing (kind: ship)\n' > "$home/data/backlog.md"
+    fakebin=$(make_fakebin "$home")
+    out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --json)
+    printf '%s' "$out" | jq -e --arg url "$url" '
+      .tasks[] | select(.id == "delivery")
+      | .pr == {url:$url,source:"status_event",head:null}
+        and .current_state.state == "failed"
+        and .delivery.landing == "unlanded"
+    ' >/dev/null || fail "status-only delivery identity must support $url: $out"
+    out=$(PATH="$fakebin:$PATH" FM_HOME="$home" "$SNAPSHOT" --secondmate-home-summary)
+    printf '%s' "$out" | jq -e '
+      .valid == true and .retained_unlanded == [{id:"delivery",state:"failed",via:"pr"}]
+    ' >/dev/null || fail "status-only delivery must remain retained for $url: $out"
+  done
+  pass "status-only deliveries retain identity across supported forges"
+}
+
 fm_test_run \
+  test_status_only_delivery_identity_across_forges \
   test_empty_fleet_json \
   test_fixture_snapshot_json \
   test_home_summary_excludes_secondmate_from_child_inventory \
