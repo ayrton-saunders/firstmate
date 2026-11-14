@@ -1,0 +1,95 @@
+{run-worktree}/.l
+{
+  "valid": true,
+  "invalidity": {
+    "kind": null,
+    "ids": []
+  },
+  "retained_unlanded": [
+    {
+      "id": "pr",
+      "state": "done",
+      "via": "pr"
+    },
+    {
+      "id": "failed",
+      "state": "failed",
+      "via": "pr"
+    },
+    {
+      "id": "local",
+      "state": "done",
+      "via": "local-only"
+    }
+  ],
+  "counts": {
+    "active_children": 0,
+    "decisions_open": 0,
+    "holds": 0,
+    "queued": 0,
+    "landed": 0,
+    "retained_unlanded": 3,
+    "endpoints": 3
+  },
+  "omitted": []
+}
+true
+local_done_head=6558188cd95b014ba67f14cddf05f70feedc72a9
+true
+{
+  "valid": false,
+  "invalidity": {
+    "kind": "terminal_in_flight",
+    "ids": [
+      "pr",
+      "local"
+    ]
+  },
+  "retained_unlanded": [
+    {
+      "id": "failed",
+      "state": "failed",
+      "via": "pr"
+    }
+  ],
+  "counts": {
+    "active_children": 0,
+    "decisions_open": 0,
+    "holds": 0,
+    "queued": 0,
+    "landed": 0,
+    "retained_unlanded": 1,
+    "endpoints": 3
+  },
+  "omitted": []
+}
+true
+{
+  "valid": false,
+  "invalidity": {
+    "kind": "terminal_in_flight",
+    "ids": [
+      "identity",
+      "scout"
+    ]
+  },
+  "retained_unlanded": [
+    {
+      "id": "failed",
+      "state": "failed",
+      "via": "pr"
+    }
+  ],
+  "counts": {
+    "active_children": 0,
+    "decisions_open": 0,
+    "holds": 0,
+    "queued": 0,
+    "landed": 0,
+    "retained_unlanded": 1,
+    "endpoints": 4
+  },
+  "omitted": []
+}
+true
+All three local product scenarios completed. Private tmux server and lab removed by EXIT trap.

@@ -1,0 +1,112 @@
+{
+  "schema": "fm-secondmate-home-summary.v1",
+  "hold_classifier_schema": "fm-captain-hold-buckets.v1",
+  "contributions": {
+    "known": 1,
+    "checked": 0,
+    "counts": {
+      "captain": 0,
+      "fleet": 1,
+      "maintainer": 0,
+      "nobody": 0
+    },
+    "unmeasured": 0,
+    "complete": false,
+    "proven_clear": false,
+    "stale_verdicts": 0,
+    "missing_verdicts": 0,
+    "unreadable_records": 0,
+    "valid_until": 900,
+    "captain": [],
+    "captain_omitted": 0
+  },
+  "generated": "2026-11-14T16:51:20Z",
+  "generated_epoch": 1794675080,
+  "home": "{run-worktree}/.l",
+  "valid": false,
+  "reason": "in-flight backlog item has terminal child state: identity=failed, scout=done",
+  "invalidity": {
+    "kind": "terminal_in_flight",
+    "ids": [
+      "identity",
+      "scout"
+    ]
+  },
+  "state": "unknown",
+  "active_children": [],
+  "decisions_open": [],
+  "holds": [],
+  "queued": [],
+  "landed": [],
+  "retained_unlanded": [
+    {
+      "id": "failed",
+      "state": "failed",
+      "via": "pr"
+    }
+  ],
+  "endpoints": [
+    {
+      "id": "failed",
+      "state": "failed",
+      "source": "status-log",
+      "endpoint": {
+        "target": "worker:0",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-11-14T16:51:20Z",
+        "freshness": "fresh"
+      }
+    },
+    {
+      "id": "identity",
+      "state": "failed",
+      "source": "status-log",
+      "endpoint": {
+        "target": "worker:0",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-11-14T16:51:20Z",
+        "freshness": "fresh"
+      }
+    },
+    {
+      "id": "missing",
+      "state": "unknown",
+      "source": "none",
+      "endpoint": {
+        "target": "worker:0",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-11-14T16:51:20Z",
+        "freshness": "fresh"
+      }
+    },
+    {
+      "id": "scout",
+      "state": "done",
+      "source": "status-log",
+      "endpoint": {
+        "target": "worker:0",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-11-14T16:51:20Z",
+        "freshness": "fresh"
+      }
+    }
+  ],
+  "counts": {
+    "active_children": 0,
+    "decisions_open": 0,
+    "holds": 0,
+    "queued": 0,
+    "landed": 0,
+    "retained_unlanded": 1,
+    "endpoints": 4
+  },
+  "omitted": []
+}

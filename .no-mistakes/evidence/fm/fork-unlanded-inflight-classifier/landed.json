@@ -1,0 +1,99 @@
+{
+  "schema": "fm-secondmate-home-summary.v1",
+  "hold_classifier_schema": "fm-captain-hold-buckets.v1",
+  "contributions": {
+    "known": 1,
+    "checked": 0,
+    "counts": {
+      "captain": 0,
+      "fleet": 1,
+      "maintainer": 0,
+      "nobody": 0
+    },
+    "unmeasured": 0,
+    "complete": false,
+    "proven_clear": false,
+    "stale_verdicts": 0,
+    "missing_verdicts": 0,
+    "unreadable_records": 0,
+    "valid_until": 900,
+    "captain": [],
+    "captain_omitted": 0
+  },
+  "generated": "2026-11-14T16:51:18Z",
+  "generated_epoch": 1794675078,
+  "home": "{run-worktree}/.l",
+  "valid": false,
+  "reason": "in-flight backlog item has terminal child state: pr=done, local=done",
+  "invalidity": {
+    "kind": "terminal_in_flight",
+    "ids": [
+      "pr",
+      "local"
+    ]
+  },
+  "state": "no_active_work",
+  "active_children": [],
+  "decisions_open": [],
+  "holds": [],
+  "queued": [],
+  "landed": [],
+  "retained_unlanded": [
+    {
+      "id": "failed",
+      "state": "failed",
+      "via": "pr"
+    }
+  ],
+  "endpoints": [
+    {
+      "id": "failed",
+      "state": "failed",
+      "source": "status-log",
+      "endpoint": {
+        "target": "worker:0",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-11-14T16:51:18Z",
+        "freshness": "fresh"
+      }
+    },
+    {
+      "id": "local",
+      "state": "done",
+      "source": "status-log",
+      "endpoint": {
+        "target": "worker:0",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-11-14T16:51:18Z",
+        "freshness": "fresh"
+      }
+    },
+    {
+      "id": "pr",
+      "state": "done",
+      "source": "status-log",
+      "endpoint": {
+        "target": "worker:0",
+        "exists": true,
+        "agent_alive": "not_checked",
+        "status": "unknown",
+        "observed_at": "2026-11-14T16:51:18Z",
+        "freshness": "fresh"
+      }
+    }
+  ],
+  "counts": {
+    "active_children": 0,
+    "decisions_open": 0,
+    "holds": 0,
+    "queued": 0,
+    "landed": 0,
+    "retained_unlanded": 1,
+    "endpoints": 3
+  },
+  "omitted": []
+}
