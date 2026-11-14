@@ -6,8 +6,9 @@
 # The command does not acquire the session lock, drain wakes, arm watchers,
 # mutate backlog state, or write reports. Its default ledger collector may
 # atomically refresh parent-side cached copies of remote home summaries under
-# state/secondmate-summary-cache; those observational cache writes are its only
-# fleet-state mutation.
+# state/secondmate-summary-cache. The delegated crew-state read may also accept
+# and persist local-only readiness under fm-dod-lib.sh's contract; the snapshot
+# itself makes no other fleet-state mutation.
 #
 # Top-level fields:
 #   schema: stable schema id.
@@ -50,7 +51,9 @@
 #     by id. A record removed before capture is omitted. If a captured task's
 #     generation changes while observations run, its selected metadata remains
 #     but mutable current-state, status, report, and endpoint evidence is discarded
-#     rather than attributed to the replacement generation.
+#     rather than attributed to the replacement generation. A local_done_head
+#     newly accepted by crew-state is adopted only when the rest of the live
+#     metadata still matches the captured record, before the generation check.
 #     Local current_state is parsed from bin/fm-crew-state.sh <id> and preserves
 #     state, source, detail, and raw line separately. Remote secondmate rows use
 #     an explicit unknown value because their endpoint liveness belongs to
@@ -64,6 +67,12 @@
 #     fm-classify-lib.sh's authoritative status_open_decisions fold and reconciled
 #     against current_state; hints.pending_decision and hints.blocked_event are
 #     booleans derived from that set.
+#     pr carries url, source, and head. For a done or failed ship, a valid PR
+#     identity reconciled by crew-state's run-step overrides a different or
+#     absent metadata PR with source "run-step" and head null; a matching
+#     metadata PR retains source "meta" and its recorded head. Otherwise the
+#     captured metadata or supported-forge status URL supplies the identity,
+#     and head is retained only when that identity matches metadata.
 #     delivery is null except on a done or failed ship, where it is
 #     {landing,via}: via is "local-only" or "pr", and landing is
 #     task_delivery_landing's landed|closed|unlanded|unknown verdict from local
@@ -90,7 +99,12 @@
 #     observed status file's mtime instead: freshness is how fresh this snapshot's
 #     own observation is, never when a worker emitted the event.
 #     Each structured-home record carries active_children, decisions_open, holds,
-#     queued, landed, endpoints, counts, and omitted. provenance.summary_source
+#     queued, landed, retained_unlanded, endpoints, counts, and omitted.
+#     retained_unlanded contains {id,state,via} rows under the inventory rule
+#     described by --help, bounded by FM_SNAPSHOT_SECONDMATE_CHILDREN; counts
+#     records its full size and omitted discloses any truncated rows. Older
+#     summaries without this field project null.
+#     provenance.summary_source
 #     distinguishes "local-ledger", "remote-ledger", and "remote-ledger-cache";
 #     freshness is "cached" only for the cache source, and observed_at/age_seconds
 #     come from the selected summary's generation. Every successfully sampled home also carries
