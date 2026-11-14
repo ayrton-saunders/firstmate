@@ -893,8 +893,9 @@ task_json_lines() {
       current_detail=$(printf '%s' "$current_json" | jq -r '.detail // ""')
       if [ "$current_source" = run-step ]; then
         reconciled_pr=${current_detail##*" · pr="}
-        if [ "$reconciled_pr" != "$current_detail" ] && fm_pr_url_parse "$reconciled_pr"; then
-          [ "$reconciled_pr" = "$(meta_value "$meta" pr)" ] || pr_head=
+        if [ "$reconciled_pr" != "$current_detail" ] && fm_pr_url_parse "$reconciled_pr" \
+          && [ "$reconciled_pr" != "$(meta_value "$meta" pr)" ]; then
+          pr_head=
           pr=$reconciled_pr
           pr_source=run-step
         fi

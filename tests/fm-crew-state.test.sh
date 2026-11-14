@@ -2011,6 +2011,20 @@ test_terminal_green_delivery_disposition() {
                   .tasks[] | select(.id == "delivery")
                   | .pr == {url:$url,source:"run-step",head:null}
                 ' >/dev/null || fail "reconciled delivery must override stale metadata without borrowing its head: $out"
+                fm_write_meta "$d/state/delivery.meta" \
+                  "window=fm:fm-delivery" "worktree=$d/wt" "kind=ship" "pr=$url" \
+                  "pr_head=0123456789abcdef0123456789abcdef01234567"
+                out=$(PATH="$d/fakebin:$PATH" FM_HOME="$d" "$ROOT/bin/fm-fleet-snapshot.sh" --json)
+                printf '%s' "$out" | jq -e --arg url "$url" '
+                  .tasks[] | select(.id == "delivery")
+                  | .pr == {url:$url,source:"meta",head:"0123456789abcdef0123456789abcdef01234567"}
+                ' >/dev/null || fail "confirmed delivery must retain its recorded provenance and head: $out"
+                if [ "$provider/$disposition" = github/open ]; then
+                  out=$(PATH="$d/fakebin:$PATH" FM_HOME="$d" "$ROOT/bin/fm-bearings-snapshot.sh" --json)
+                  printf '%s' "$out" | jq -e --arg url "$url" '
+                    .recorded_prs == [{id:"delivery",url:$url}]
+                  ' >/dev/null || fail "confirmed terminal delivery must remain recorded in Bearings: $out"
+                fi
                 printf '## In flight\n- [ ] delivery - Delivery awaiting cleanup (kind: ship)\n' > "$d/data/backlog.md"
                 out=$(PATH="$d/fakebin:$PATH" FM_HOME="$d" "$ROOT/bin/fm-fleet-snapshot.sh" --secondmate-home-summary)
                 if [ "$disposition" = open ]; then
