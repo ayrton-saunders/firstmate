@@ -6,7 +6,7 @@
 #   fm-remote-herdr-guard.sh <herdr-path> <session>
 #
 # bin/fm-remote-doctor.sh renders the launch agent as the account's login
-# shell running `exec <this script> <herdr> fm-remote` with
+# shell running `exec <this script> <herdr> <session>` with
 # LimitLoadToSessionType=Aqua, RunAtLoad, KeepAlive={SuccessfulExit=false},
 # and ThrottleInterval=10, then bootstraps it into gui/<uid>. That domain, not
 # the login shell, is what gives this process and every server it execs the
@@ -31,8 +31,12 @@
 #                                          another foreign server
 #   ownership is unproven or contradictory -> exit 1, preserve the server
 #   the proven foreign server does not release the socket in time -> exit 1
-# A takeover closes every pane in that session; the parent firstmate's
-# secondmate liveness sweep relaunches its mates into the Aqua-born server.
+#   any other start (RunAtLoad at login, a KeepAlive restart, or an automatic
+#   readiness repair) over a proven foreign server -> exit 0, leave it alone
+# A takeover closes every pane in that session, so it happens only on the
+# operator's explicit request: that --fix writes its pid and process-start identity to
+# ~/.firstmate/remote-herdr-takeover-<s>, and this guard consumes that one-shot
+# marker and honors it only while the authorizing doctor is still running.
 # bin/fm-remote-herdr-owner-lib.sh owns the owner discovery and the birth
 # markers; FM_REMOTE_HERDR_GUARD_STOP_WAIT_TENTHS (default 50) bounds the
 # release wait in tenths of a second. Every decision prints one line to
@@ -45,6 +49,8 @@ SCRIPT_DIR=${SCRIPT_SELF%/*}
 SCRIPT_DIR=$(CDPATH='' cd -- "$SCRIPT_DIR" && pwd -P)
 # shellcheck source=bin/fm-remote-herdr-owner-lib.sh
 . "$SCRIPT_DIR/fm-remote-herdr-owner-lib.sh"
+# shellcheck source=bin/fm-remote-job-lib.sh
+. "$SCRIPT_DIR/fm-remote-job-lib.sh"
 
 usage() { sed -n '2,6p' "$0" | sed 's/^# \{0,1\}//'; exit 2; }
 [ "$#" -eq 2 ] || usage
@@ -96,6 +102,23 @@ fi
 if [ "$BIRTH" != ssh ]; then
   log "session $SESSION ownership is unproven or contradictory ($BIRTH); refusing takeover"
   exit 1
+fi
+
+takeover_authorized() {
+  local marker="${HOME:-}/.firstmate/remote-herdr-takeover-$SESSION" claimed pid='' start='' actual
+  claimed="$marker.claimed.$$"
+  mv -- "$marker" "$claimed" 2>/dev/null || return 1
+  { IFS= read -r pid; IFS= read -r start; } < "$claimed" || true
+  rm -f -- "$claimed"
+  case "$pid" in ''|*[!0-9]*) return 1 ;; esac
+  [ -n "$start" ] && kill -0 "$pid" 2>/dev/null || return 1
+  actual=$(fm_remote_job_process_start "$pid") || return 1
+  [ "$actual" = "$start" ]
+}
+
+if ! takeover_authorized; then
+  log "session $SESSION is served by ${OWNER:+pid }${OWNER:-an unproven process} born outside the Aqua login session ($BIRTH); leaving it alone, because only the operator's fm-remote-doctor.sh --fix authorizes a takeover"
+  exit 0
 fi
 
 log "session $SESSION is served by ${OWNER:+pid }${OWNER:-an unproven process} born outside the Aqua login session ($BIRTH); its panes cannot reach the login keychain, taking the session over"
