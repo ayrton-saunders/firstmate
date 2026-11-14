@@ -15,8 +15,8 @@
 # Usage:
 #   fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--update-branch]
 #     [--expected-head <full-sha>]
-#     [--allow-red <check>] [--allow-missing <check>] [--allow-no-pipeline]
-#     [-- <forge merge flags>]
+#     [--allow-red <check>] [--allow-missing <check>] [--allow-no-actions]
+#     [--allow-no-pipeline] [-- <forge merge flags>]
 #   fm-pr-merge.sh -h | --help
 #
 # Merge method on GitHub defaults to --squash when the caller passes none of
@@ -74,7 +74,23 @@
 # refused while the away-posture record exists, and neither
 # applies on GitLab, where a merge already requires the head pipeline to have
 # succeeded, or on Forgejo, where a merge already requires the head's combined
-# commit status to have succeeded. After gh returns success, GitHub's live
+# commit status to have succeeded.
+# A GitHub merge is also refused when the live head has no check suite from the
+# GitHub Actions app (app id 15368) while the base branch's .github/workflows
+# holds a workflow triggered by pull_request, even when nothing is required:
+# a disabled or absent ruleset leaves an empty required set, and a head
+# Actions never saw then has no check that could be red or unreported. The
+# usual cause is Actions not running at all, which on a fork is GitHub's fork
+# workflow gate. A workflow counts when, after comments are removed, a line
+# names pull_request as a mapping key, a block list item, the scalar value of
+# a top-level on key, or an element of a flow list or mapping on that line;
+# pull_request_target and other events do not count, and a base branch with no
+# .github/workflows directory has none. An unreadable check suite read,
+# directory listing, or workflow file refuses. An attended --allow-no-actions,
+# for a repository that genuinely runs no Actions CI, waives only that absence:
+# the check suite is still read, a waived absence is named in the verified
+# line, and it is refused while the away-posture record exists and on any
+# forge other than GitHub. After gh returns success, GitHub's live
 # state is read back and
 # accepted only when the pull request is merged or in the merge queue. gh's
 # GraphQL API supplies that queue-aware read; when that read fails, gh-axi's
@@ -219,7 +235,7 @@
 # explicit captain instruction and never skips the live green check, the
 # away-record read, or a captain hold.
 #
-# Usage: fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--update-branch] [--expected-head <full-sha>] [--allow-red <check-name>] [--allow-missing <check-name>] [--allow-no-pipeline] [-- <extra forge merge args>]
+# Usage: fm-pr-merge.sh <task-id> <pr-url> [--attended-override] [--update-branch] [--expected-head <full-sha>] [--allow-red <check-name>] [--allow-missing <check-name>] [--allow-no-actions] [--allow-no-pipeline] [-- <extra forge merge args>]
 #
 # On GitLab, this script confirms the MR is actually merged before reporting it;
 # an auto-merge-queued or unconfirmed request leaves the poll armed and records
@@ -306,6 +322,7 @@ require_expected_head() {
 }
 UPDATE_BRANCH=false
 ALLOW_NO_PIPELINE=false
+ALLOW_NO_ACTIONS=false
 ALLOW_RED=()
 ALLOW_MISSING=()
 while [ "$#" -gt 0 ]; do
@@ -344,6 +361,14 @@ while [ "$#" -gt 0 ]; do
       ;;
     --allow-missing=*)
       echo "error: --allow-missing requires a separate check name argument" >&2
+      exit 2
+      ;;
+    --allow-no-actions)
+      ALLOW_NO_ACTIONS=true
+      shift
+      ;;
+    --allow-no-actions=*)
+      echo "error: --allow-no-actions takes no value" >&2
       exit 2
       ;;
     --allow-no-pipeline)
@@ -408,6 +433,12 @@ fi
 # combined status have no such state to waive, so it is refused there too.
 if [ "$ALLOW_NO_PIPELINE" = true ] && [ "$PROVIDER" != gitlab ]; then
   echo "error: --allow-no-pipeline applies only to GitLab, where it waives a merge request that has no head pipeline at all" >&2
+  exit 2
+fi
+# --allow-no-actions waives only GitHub's missing Actions check suite, which
+# neither GitLab's head pipeline nor Forgejo's combined status reads.
+if [ "$ALLOW_NO_ACTIONS" = true ] && [ "$PROVIDER" != github ]; then
+  echo "error: --allow-no-actions applies only to GitHub, where it waives a pull request head with no GitHub Actions check suite" >&2
   exit 2
 fi
 if [ "${#ALLOW_MISSING[@]}" -gt 0 ]; then
@@ -1135,6 +1166,108 @@ github_required_checks_missing() {
   ' 2>/dev/null || return 1
 }
 
+# The GitHub Actions app, whose check suite at a head proves Actions saw the
+# event. The header owns what its absence means for a merge.
+FM_PR_GITHUB_ACTIONS_APP_ID=15368
+
+# Whether one workflow file, read on stdin, is triggered by pull_request. The
+# header owns which spellings count.
+github_workflow_triggers_pull_request() {
+  local text flow
+  text=$(sed -E 's/(^|[[:space:]])#.*$//')
+  printf '%s\n' "$text" | grep -Eq \
+    -e "^[[:space:]]*['\"]?pull_request['\"]?[[:space:]]*:" \
+    -e "^[[:space:]]*-[[:space:]]*['\"]?pull_request['\"]?[[:space:]]*$" \
+    -e "^['\"]?on['\"]?[[:space:]]*:[[:space:]]*['\"]?pull_request['\"]?[[:space:]]*$" \
+    && return 0
+  flow=$(printf '%s\n' "$text" \
+    | sed -nE "s/^['\"]?on['\"]?[[:space:]]*:[[:space:]]*([[{].*)$/\\1/p")
+  printf '%s\n' "$flow" | awk -F '[][{},:]' '{ for (i = 1; i <= NF; i++) print $i }' \
+    | sed -E "s/^[[:space:]]*['\"]?//; s/['\"]?[[:space:]]*$//" \
+    | grep -qx 'pull_request'
+}
+
+# Whether the base branch holds a workflow triggered by pull_request. Prints
+# yes or no; returns 1, printing the unreadable source instead, when a read
+# fails, so the caller refuses rather than guessing.
+github_base_has_pull_request_workflow() {
+  local base=$1 ref listing names name api_err err_text body
+  ref=$(github_urlencode_path_segment "$base")
+  if ! api_err=$(mktemp "${TMPDIR:-/tmp}/fm-pr-merge-workflows.XXXXXX"); then
+    printf 'the workflow directory on base branch %s' "$base"
+    return 1
+  fi
+  if ! listing=$(gh api "repos/$PR_OWNER/$PR_REPO/contents/.github/workflows?ref=$ref" 2>"$api_err"); then
+    err_text=$(cat "$api_err" 2>/dev/null)
+    rm -f "$api_err"
+    case "$err_text" in
+      *"HTTP 404"*)
+        printf 'no'
+        return 0
+        ;;
+    esac
+    printf 'the workflow directory on base branch %s' "$base"
+    return 1
+  fi
+  rm -f "$api_err"
+  if ! names=$(printf '%s' "$listing" | jq -r '
+      if type != "array" then error("not a directory") else .[] end
+      | if type == "object" and (.name | type) == "string" and (.type | type) == "string"
+        then . else error("invalid entry") end
+      | select(.type == "file" and (.name | test("\\.ya?ml$")))
+      | .name' 2>/dev/null); then
+    printf 'the workflow directory on base branch %s' "$base"
+    return 1
+  fi
+  while IFS= read -r name; do
+    [ -n "$name" ] || continue
+    if ! body=$(gh api -H 'Accept: application/vnd.github.raw' \
+      "repos/$PR_OWNER/$PR_REPO/contents/.github/workflows/$(github_urlencode_path_segment "$name")?ref=$ref" 2>/dev/null); then
+      printf 'workflow .github/workflows/%s on base branch %s' "$name" "$base"
+      return 1
+    fi
+    if printf '%s\n' "$body" | github_workflow_triggers_pull_request; then
+      printf 'yes'
+      return 0
+    fi
+  done <<EOF
+$names
+EOF
+  printf 'no'
+}
+
+# Sets FM_PR_GITHUB_ACTIONS_REFUSAL to the refusal line for a head GitHub
+# Actions never saw, empty when the merge may proceed, and
+# FM_PR_GITHUB_ACTIONS_WAIVED when --allow-no-actions covered an absent suite.
+FM_PR_GITHUB_ACTIONS_REFUSAL=
+FM_PR_GITHUB_ACTIONS_WAIVED=false
+github_actions_suite_refusal() {
+  local head=$1 base=$2 suites count has
+  FM_PR_GITHUB_ACTIONS_REFUSAL=
+  FM_PR_GITHUB_ACTIONS_WAIVED=false
+  if ! suites=$(gh api "repos/$PR_OWNER/$PR_REPO/commits/$head/check-suites?app_id=$FM_PR_GITHUB_ACTIONS_APP_ID" 2>/dev/null) \
+    || ! count=$(printf '%s' "$suites" | jq -er '
+        if type == "object" and (.total_count | type) == "number" then .total_count
+        else error("invalid check suites") end' 2>/dev/null); then
+    FM_PR_GITHUB_ACTIONS_REFUSAL="  - the GitHub Actions check suites at head $head could not be read, so a head GitHub Actions never saw cannot be ruled out
+"
+    return 0
+  fi
+  [ "$count" -eq 0 ] || return 0
+  if [ "$ALLOW_NO_ACTIONS" = true ]; then
+    FM_PR_GITHUB_ACTIONS_WAIVED=true
+    return 0
+  fi
+  if ! has=$(github_base_has_pull_request_workflow "$base"); then
+    FM_PR_GITHUB_ACTIONS_REFUSAL="  - head $head has no GitHub Actions check suite and $has could not be read, so a pull_request workflow GitHub Actions never ran cannot be ruled out
+"
+    return 0
+  fi
+  [ "$has" = yes ] || return 0
+  FM_PR_GITHUB_ACTIONS_REFUSAL="  - head $head has no GitHub Actions check suite although base branch $base has a workflow triggered by pull_request, so GitHub Actions never saw this pull request; Actions is likely not running (on a fork, GitHub's fork workflow gate stops every workflow run): see https://$PR_HOST/$PR_OWNER/$PR_REPO/actions, or pass --allow-no-actions for a repository with no Actions CI
+"
+}
+
 # Pre-merge conditions from a live PR view, base requirements, and head producers.
 # Sets FM_PR_MERGE_HEAD to the verified head on success. Returns 3, rather than
 # the usual 1, when mergeable=UNKNOWN is the only failing condition, so the
@@ -1299,6 +1432,9 @@ $missing
 EOF
   fi
 
+  github_actions_suite_refusal "$live_head" "$base"
+  refusals="$refusals$FM_PR_GITHUB_ACTIONS_REFUSAL"
+
   note_expected_head "$live_head"
   if [ -n "$FM_PR_EXPECTED_HEAD_REFUSAL" ]; then
     FM_PR_GITHUB_OTHER_REFUSAL=true
@@ -1320,8 +1456,13 @@ EOF
     [ -z "$unreported" ] || printf 'error: these required checks have not reported: %s\n' "$unreported" >&2
     return 1
   fi
-  printf 'verified: %s is open and mergeable, with every unwaived required check reported and every unwaived check green at head %s\n' \
-    "$URL" "$live_head" >&2
+  if [ "$FM_PR_GITHUB_ACTIONS_WAIVED" = true ]; then
+    printf 'verified: %s is open and mergeable, with every unwaived required check reported and every unwaived check green at head %s, with no GitHub Actions check suite, waived by --allow-no-actions\n' \
+      "$URL" "$live_head" >&2
+  else
+    printf 'verified: %s is open and mergeable, with every unwaived required check reported and every unwaived check green at head %s\n' \
+      "$URL" "$live_head" >&2
+  fi
   require_expected_head "$live_head" || return 1
   FM_PR_MERGE_HEAD=${EXPECTED_HEAD:-$live_head}
   FM_PR_GITHUB_BASE=$base
@@ -1667,6 +1808,10 @@ require_current_away_authority() {
   fi
   if [ "$FM_PR_AWAY_POSTURE" = true ] && [ "${#ALLOW_MISSING[@]}" -gt 0 ]; then
     echo "error: --allow-missing is attended-only; while the away-posture record exists every required check must report" >&2
+    return 2
+  fi
+  if [ "$FM_PR_AWAY_POSTURE" = true ] && [ "$ALLOW_NO_ACTIONS" = true ]; then
+    echo "error: --allow-no-actions is attended-only; while the away-posture record exists a GitHub merge requires a GitHub Actions check suite at the head when a pull_request workflow exists" >&2
     return 2
   fi
   if [ "$FM_PR_AWAY_POSTURE" = true ] && [ "$ALLOW_NO_PIPELINE" = true ]; then

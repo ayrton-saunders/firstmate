@@ -307,6 +307,44 @@ case "${1:-} ${2:-}" in
         printf '{"message":"Updating pull request branch."}\n'
         exit 0
         ;;
+      # The GitHub Actions check suites at the head: one suite unless the case
+      # writes github-check-suites.json, unreadable when that file is
+      # github-check-suites-fail.
+      *" repos/"*"/commits/"*"/check-suites?app_id=15368 "*)
+        api_dir=$(dirname "$FM_TEST_GH_VIEW_JSON")
+        [ ! -e "$api_dir/github-check-suites-fail" ] || exit 1
+        if [ -f "$api_dir/github-check-suites.json" ]; then
+          cat "$api_dir/github-check-suites.json"
+        else
+          printf '{"total_count":1,"check_suites":[{"app":{"id":15368}}]}\n'
+        fi
+        exit 0
+        ;;
+      # The base branch's workflow files, served from the case's workflows/
+      # directory: absent answers 404, and a file named in
+      # github-workflows-fail fails its read.
+      *" repos/"*"/contents/.github/workflows"*)
+        api_dir=$(dirname "$FM_TEST_GH_VIEW_JSON")
+        [ -d "$api_dir/workflows" ] || { echo 'gh: Not Found (HTTP 404)' >&2; exit 1; }
+        case " $* " in
+          *"?ref=main "*) ;;
+          *) exit 1 ;;
+        esac
+        wf_path=" $* "
+        wf_path=${wf_path#* repos/*/contents/.github/workflows}
+        wf_path=${wf_path%%\?ref=*}
+        if [ -z "$wf_path" ]; then
+          [ ! -e "$api_dir/github-workflows-listing-fail" ] || exit 1
+          ( cd "$api_dir/workflows" && for wf in *; do [ -e "$wf" ] && printf '%s\n' "$wf"; done ) \
+            | jq -Rsc 'split("\n") | map(select(length > 0) | {name: ., path: (".github/workflows/" + .), type: "file"})'
+          exit 0
+        fi
+        wf_name=${wf_path#/}
+        [ "$wf_name" != "$(cat "$api_dir/github-workflows-fail" 2>/dev/null)" ] || exit 1
+        case " $* " in *" -H Accept: application/vnd.github.raw "*) ;; *) exit 1 ;; esac
+        cat "$api_dir/workflows/$wf_name"
+        exit $?
+        ;;
       *" repos/"*"/commits/"*"/check-runs"*)
         case "$*" in
           *"/commits/$(cat "$FM_TEST_GH_HEAD")/check-runs"*) ;;
@@ -5328,6 +5366,186 @@ test_allow_missing_follows_the_allow_red_rules() {
   pass "fm-pr-merge --allow-missing is single use, attended-only, and GitHub-only like --allow-red"
 }
 
+# A head with no GitHub Actions check suite: Actions never saw the pull request.
+# Args: case_dir
+write_no_actions_suite() {
+  printf '{"total_count":0,"check_suites":[]}\n' > "$1/github-check-suites.json"
+}
+
+# One base-branch workflow file. Args: case_dir name body
+write_base_workflow() {
+  mkdir -p "$1/workflows"
+  printf '%s\n' "$3" > "$1/workflows/$2"
+}
+
+test_github_no_actions_suite_refuses_with_pull_request_workflow() {
+  local case_dir head variant body
+  head=a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7
+
+  # Every pull_request trigger spelling refuses, with nothing required at all,
+  # the shape a disabled or absent ruleset leaves.
+  for variant in key list scalar flow quoted; do
+    case "$variant" in
+      key) body=$'name: ci\non:\n  push:\n  pull_request:\n    branches: [main]\njobs: {}' ;;
+      list) body=$'on:\n  - push\n  - pull_request # checks\njobs: {}' ;;
+      scalar) body=$'on: pull_request\njobs: {}' ;;
+      flow) body=$'on: [push, pull_request]\njobs: {}' ;;
+      quoted) body=$'"on":\n  "pull_request":\njobs: {}' ;;
+    esac
+    case_dir=$(make_case "github-no-actions-$variant")
+    add_gh_mocks "$case_dir" "$head"
+    write_no_actions_suite "$case_dir"
+    write_base_workflow "$case_dir" release.yml $'on:\n  push:\n    tags: ["v*"]\njobs: {}'
+    write_base_workflow "$case_dir" ci.yaml "$body"
+    run_required_case "$case_dir" 120
+    expect_code 1 "$RC" "no-actions-$variant: a head Actions never saw must refuse: $(cat "$case_dir/stderr")"
+    assert_grep "has no GitHub Actions check suite although base branch main has a workflow triggered by pull_request" \
+      "$case_dir/stderr" "no-actions-$variant: the refusal did not name the missing suite"
+    assert_grep "fork workflow gate" "$case_dir/stderr" "no-actions-$variant: the refusal did not name the likely cause"
+    assert_grep "https://github.com/example/repo/actions" "$case_dir/stderr" \
+      "no-actions-$variant: the refusal did not name the Actions URL"
+    assert_no_grep 'every unwaived check green' "$case_dir/stderr" \
+      "no-actions-$variant: the merge was still reported verified"
+    assert_no_grep 'pr merge' "$case_dir/gh.log" "no-actions-$variant: gh pr merge ran for a head Actions never saw"
+  done
+
+  # A required set satisfied by a commit status still refuses.
+  case_dir=$(make_case github-no-actions-status-only)
+  add_gh_mocks "$case_dir" "$head"
+  write_github_rollup_json "$case_dir" "$head" "$(status_context ci SUCCESS)"
+  write_github_required "$case_dir" ruleset:ci
+  write_no_actions_suite "$case_dir"
+  write_base_workflow "$case_dir" ci.yml $'on: [pull_request]\njobs: {}'
+  run_required_case "$case_dir" 121
+  expect_code 1 "$RC" "no-actions-status-only: a reported status must not stand in for Actions"
+  assert_no_grep 'pr merge' "$case_dir/gh.log" "no-actions-status-only: gh pr merge ran"
+
+  # Every unreadable source refuses and names the missing requirement.
+  for variant in suites listing file; do
+    case_dir=$(make_case "github-no-actions-unreadable-$variant")
+    add_gh_mocks "$case_dir" "$head"
+    write_no_actions_suite "$case_dir"
+    write_base_workflow "$case_dir" ci.yml $'on: push\njobs: {}'
+    case "$variant" in
+      suites) : > "$case_dir/github-check-suites-fail" ;;
+      listing) : > "$case_dir/github-workflows-listing-fail" ;;
+      file) printf 'ci.yml' > "$case_dir/github-workflows-fail" ;;
+    esac
+    run_required_case "$case_dir" 122
+    expect_code 1 "$RC" "no-actions-unreadable-$variant: an unreadable source must refuse: $(cat "$case_dir/stderr")"
+    case "$variant" in
+      suites) assert_grep "GitHub Actions check suites at head $head could not be read" "$case_dir/stderr" \
+        "no-actions-unreadable-suites: the refusal did not name the suite read" ;;
+      listing) assert_grep "the workflow directory on base branch main could not be read" "$case_dir/stderr" \
+        "no-actions-unreadable-listing: the refusal did not name the directory read" ;;
+      file) assert_grep "workflow .github/workflows/ci.yml on base branch main could not be read" "$case_dir/stderr" \
+        "no-actions-unreadable-file: the refusal did not name the workflow read" ;;
+    esac
+    assert_no_grep 'pr merge' "$case_dir/gh.log" "no-actions-unreadable-$variant: gh pr merge ran"
+  done
+  pass "fm-pr-merge refuses a head with no GitHub Actions check suite when a pull_request workflow exists"
+}
+
+test_github_no_actions_suite_proceeds_without_pull_request_workflow() {
+  local case_dir head variant
+  head=a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8
+
+  # A suite present at the head proceeds as before, whatever the workflows say.
+  case_dir=$(make_case github-actions-suite-present)
+  add_gh_mocks "$case_dir" "$head"
+  write_base_workflow "$case_dir" ci.yml $'on: pull_request\njobs: {}'
+  run_required_case "$case_dir" 123
+  expect_code 0 "$RC" "actions-suite-present: a head Actions saw should merge: $(cat "$case_dir/stderr")"
+  assert_grep 'every unwaived check green' "$case_dir/stderr" "actions-suite-present: the merge was not verified"
+  assert_no_grep 'waived by --allow-no-actions' "$case_dir/stderr" "actions-suite-present: an absent waiver was reported"
+  assert_logged_gh_merge "$case_dir" 123 example/repo --squash
+
+  # No pull_request workflow on the base branch: no directory, workflows for
+  # other events only, a pull_request mention outside the triggers, or a
+  # commented-out trigger.
+  for variant in no-directory other-events expression commented; do
+    case_dir=$(make_case "github-no-actions-$variant")
+    add_gh_mocks "$case_dir" "$head"
+    write_no_actions_suite "$case_dir"
+    case "$variant" in
+      other-events)
+        write_base_workflow "$case_dir" target.yml $'on:\n  pull_request_target:\n  push:\njobs: {}'
+        write_base_workflow "$case_dir" notes.md 'pull_request:' ;;
+      expression)
+        write_base_workflow "$case_dir" push.yml $'on: push\njobs:\n  a:\n    if: github.event.pull_request.number\n    runs-on: x' ;;
+      commented)
+        write_base_workflow "$case_dir" ci.yml $'on:\n  push:\n  # pull_request:\njobs: {}' ;;
+    esac
+    run_required_case "$case_dir" 124
+    expect_code 0 "$RC" "no-actions-$variant: no pull_request workflow should merge: $(cat "$case_dir/stderr")"
+    assert_logged_gh_merge "$case_dir" 124 example/repo --squash
+  done
+  pass "fm-pr-merge proceeds when Actions saw the head or no pull_request workflow exists"
+}
+
+test_allow_no_actions_waives_only_the_missing_suite() {
+  local case_dir head
+  head=a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9a9
+
+  case_dir=$(make_case github-allow-no-actions)
+  add_gh_mocks "$case_dir" "$head"
+  write_no_actions_suite "$case_dir"
+  write_base_workflow "$case_dir" ci.yml $'on: pull_request\njobs: {}'
+  run_required_case "$case_dir" 125 --allow-no-actions
+  expect_code 0 "$RC" "allow-no-actions: the waiver should merge: $(cat "$case_dir/stderr")"
+  assert_grep "at head $head, with no GitHub Actions check suite, waived by --allow-no-actions" "$case_dir/stderr" \
+    "allow-no-actions: the waiver was not recorded in the verified line"
+  assert_logged_gh_merge "$case_dir" 125 example/repo --squash
+
+  # The waiver covers the absent suite only: a red check still refuses.
+  case_dir=$(make_case github-allow-no-actions-red)
+  add_gh_mocks "$case_dir" "$head"
+  write_github_red_json "$case_dir" "$head" lint
+  write_no_actions_suite "$case_dir"
+  write_base_workflow "$case_dir" ci.yml $'on: pull_request\njobs: {}'
+  run_required_case "$case_dir" 126 --allow-no-actions
+  expect_code 1 "$RC" "allow-no-actions-red: a red check must still refuse"
+  assert_grep "check 'lint' is not green" "$case_dir/stderr" "allow-no-actions-red: the red check was not named"
+  assert_no_grep 'pr merge' "$case_dir/gh.log" "allow-no-actions-red: gh pr merge ran with a red check"
+
+  # An unreadable suite still refuses under the waiver.
+  case_dir=$(make_case github-allow-no-actions-unreadable)
+  add_gh_mocks "$case_dir" "$head"
+  : > "$case_dir/github-check-suites-fail"
+  run_required_case "$case_dir" 127 --allow-no-actions
+  expect_code 1 "$RC" "allow-no-actions-unreadable: an unreadable suite read must still refuse"
+  assert_no_grep 'pr merge' "$case_dir/gh.log" "allow-no-actions-unreadable: gh pr merge ran"
+
+  case_dir=$(make_case github-allow-no-actions-value)
+  add_gh_mocks "$case_dir" "$head"
+  run_required_case "$case_dir" 128 --allow-no-actions=yes
+  expect_code 2 "$RC" "allow-no-actions-value: a value must be refused"
+  assert_no_grep 'pr merge' "$case_dir/gh.log" "allow-no-actions-value: gh pr merge ran"
+
+  case_dir=$(make_case github-allow-no-actions-away)
+  add_gh_mocks "$case_dir" "$head"
+  write_no_actions_suite "$case_dir"
+  write_base_workflow "$case_dir" ci.yml $'on: pull_request\njobs: {}'
+  write_away_record "$case_dir" --words 'merge task-x1 when green'
+  run_required_case "$case_dir" 129 --allow-no-actions
+  expect_code 2 "$RC" "allow-no-actions-away: the waiver must be refused while away"
+  assert_grep '--allow-no-actions is attended-only' "$case_dir/stderr" \
+    "allow-no-actions-away: the refusal did not name attended-only"
+  assert_no_grep 'pr merge' "$case_dir/gh.log" "allow-no-actions-away: gh pr merge ran despite an away waiver"
+
+  case_dir=$(make_gitlab_case gitlab-allow-no-actions)
+  set +e
+  run_pr_merge "$case_dir" task-x1 "$MR_URL" --allow-no-actions \
+    > "$case_dir/stdout" 2> "$case_dir/stderr"
+  RC=$?
+  set -e
+  expect_code 2 "$RC" "gitlab-allow-no-actions: the waiver must not apply on GitLab"
+  assert_grep '--allow-no-actions applies only to GitHub' "$case_dir/stderr" \
+    "gitlab-allow-no-actions: the refusal did not name GitHub"
+  [ ! -s "$case_dir/glab.log" ] || fail "gitlab-allow-no-actions: glab ran despite the waiver"
+  pass "fm-pr-merge --allow-no-actions waives only a missing Actions suite, attended and on GitHub"
+}
+
 test_allow_red_refused_on_forgejo() {
   local case_dir rc
   case_dir=$(make_forgejo_case forgejo-allow-red)
@@ -5612,6 +5830,9 @@ test_app_bound_required_status_context_matches_by_name
 test_required_partial_reads_report_all_failures
 test_allow_red_refused_on_forgejo
 test_allow_missing_refused_on_forgejo
+test_github_no_actions_suite_refuses_with_pull_request_workflow
+test_github_no_actions_suite_proceeds_without_pull_request_workflow
+test_allow_no_actions_waives_only_the_missing_suite
 test_allow_no_pipeline_merges_only_a_null_head_pipeline
 test_allow_no_pipeline_is_attended_only_and_gitlab_only
 test_expected_head_matching_reaches_each_forge
