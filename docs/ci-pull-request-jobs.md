@@ -2,7 +2,7 @@
 
 ## Scope and evidence
 
-This audit covers every pull-request-triggered workflow in `.github/workflows/`: `CI`, `Require no-mistakes`, and `Admission canary`.
+This audit covers every pull-request-triggered workflow in `.github/workflows/`: `CI` and `Require no-mistakes`.
 `Windows Herdr automation spike` is manual-only and runs no job on a pull request.
 The workflows own execution; [CONTRIBUTING.md](../CONTRIBUTING.md#maintaining-required-checks) owns the required-check maintenance procedure.
 This document records the current coverage rationale and proposals, not permission to change validation policy.
@@ -11,22 +11,19 @@ Costs below reuse the **Personal-fork CI duration review**, measured November 10
 No duration, journal, or runner study was repeated for this change.
 Linux costs are mean elapsed runner seconds per first attempt, calculated from that report's ten existing observations, not CPU seconds or additive wall time.
 Its baseline median first-attempt CI wall is 28m14.5s; serial tests account for 70.7% of execution and lint for 13.5%.
-The baseline does not measure the new lint verdict jobs, the admission workflow, or compliance workflow execution.
+The baseline does not measure the new lint verdict jobs or compliance workflow execution.
 Their costs are explicitly unmeasured rather than inferred from the CI-only sample.
 
 ### Required checks versus jobs
 
-The effective `main` branch rules read on November 10, 2026 from `GET /repos/ayrton-saunders/firstmate/rules/branches/main` require 17 contexts, all bound to GitHub Actions integration 15368.
+The effective `main` branch rules read on November 14, 2026 from `GET /repos/ayrton-saunders/firstmate/rules/branches/main` require 22 contexts, all bound to GitHub Actions integration 15368, with `strict_required_status_checks_policy` off.
 They are marked **yes** in the table below.
-The actual rule differs from the recommended list in CONTRIBUTING: it does not directly require `Full suite`, serial 2/10/11, herdr-core, or the timing aggregate.
-That gap matters: individual jobs can skip before an outside PR receives `full-ci`, and the required individual names alone do not enforce the go-ahead.
-Recommend separately approving alignment with the documented required-check policy, especially `Full suite`; this PR changes no rules or existing context names.
-The job set includes `Behavior portable serial 11`, while CONTRIBUTING's required-list recommendation stops at serial 10 and the inspected personal-fork rule does not directly require serial 11.
-Deciding whether to require that shard and then update the documented policy needs the captain's separate approval; this performance change leaves that list untouched.
+The actual rule differs from the recommended list in CONTRIBUTING: it also requires `Behavior portable serial 11` and `Behavior tests (herdr-core)`, and does not require the timing aggregate.
+Requiring `Full suite` matters because individual jobs can skip before an outside PR receives `full-ci`, and the required individual names alone do not enforce the go-ahead.
 
 Normal CI names below acquire the existing `Not run for label - ` prefix on an unrelated label event, so that event cannot replace a real failure under the required name.
 The `full-ci` trust/label policy and fork skip variables are unchanged.
-The compliance workflow also triggers on body edits; the admission workflow triggers only on synchronization.
+The compliance workflow also triggers on body edits.
 
 ## Named inventory and verdicts
 
@@ -46,7 +43,7 @@ Each serial row is a distinct, disjoint assignment exposed by `fm-test-run.sh --
 | CI / tests-portable-parallel-1 | `Behavior portable parallel 1` | yes | Proven-isolated regression subset, including checker and Pi prerequisites; lint cannot prove behavior. | 1288.4s. | Keep. |
 | CI / tests-portable-parallel-2 | `Behavior portable parallel 2` | yes | Other disjoint proven-isolated subset, not a repeat of lane 1. | 1234.9s. | Keep. |
 | CI / tests-portable-serial (1) | `Behavior portable serial 1` | yes | Stateful regression assignment 1, with per-script serial isolation; no other portable shard executes these scripts. | 1200.0s. | Keep. |
-| CI / tests-portable-serial (2) | `Behavior portable serial 2` | no | Disjoint stateful assignment 2. | 1489.6s. | Keep. |
+| CI / tests-portable-serial (2) | `Behavior portable serial 2` | yes | Disjoint stateful assignment 2. | 1489.6s. | Keep. |
 | CI / tests-portable-serial (3) | `Behavior portable serial 3` | yes | Disjoint stateful assignment 3. | 1314.6s. | Keep. |
 | CI / tests-portable-serial (4) | `Behavior portable serial 4` | yes | Disjoint stateful assignment 4. | 1494.2s. | Keep. |
 | CI / tests-portable-serial (5) | `Behavior portable serial 5` | yes | Disjoint stateful assignment 5. | 1372.5s. | Keep. |
@@ -54,21 +51,18 @@ Each serial row is a distinct, disjoint assignment exposed by `fm-test-run.sh --
 | CI / tests-portable-serial (7) | `Behavior portable serial 7` | yes | Disjoint stateful assignment 7. | 1242.0s. | Keep. |
 | CI / tests-portable-serial (8) | `Behavior portable serial 8` | yes | Disjoint stateful assignment 8. | 1441.7s. | Keep. |
 | CI / tests-portable-serial (9) | `Behavior portable serial 9` | yes | Disjoint stateful assignment 9. | 1549.4s. | Keep. |
-| CI / tests-portable-serial (10) | `Behavior portable serial 10` | no | Disjoint stateful assignment 10. | 1296.3s. | Keep. |
-| CI / tests-portable-serial (11) | `Behavior portable serial 11` | no | Disjoint stateful assignment 11. | 1555.9s. | Keep. |
+| CI / tests-portable-serial (10) | `Behavior portable serial 10` | yes | Disjoint stateful assignment 10. | 1296.3s. | Keep. |
+| CI / tests-portable-serial (11) | `Behavior portable serial 11` | yes | Disjoint stateful assignment 11. | 1555.9s. | Keep. |
 | CI / tests-herdr | `Behavior tests (Herdr)` | yes | Pinned real Herdr protocol, focus, cleanup and default-session safety; fake/portable fixtures cannot prove these. | 548.2s. | Keep. |
-| CI / tests-hc | `Behavior tests (herdr-core)` | no | Real hc backend and lab cleanup; some unit behavior overlaps portable tests but actual hc execution does not. | 47.6s. | Keep; removing it loses distinct backend coverage for negligible critical-path benefit. |
+| CI / tests-hc | `Behavior tests (herdr-core)` | yes | Real hc backend and lab cleanup; some unit behavior overlaps portable tests but actual hc execution does not. | 47.6s. | Keep; removing it loses distinct backend coverage for negligible critical-path benefit. |
 | CI / tests-timing-aggregate | `Behavior timing aggregate` | no | Invalid aggregate inputs and artifact assembly; collects even after failed lanes and does not prove every lane passed. | 8.4s. | Make advisory if future rules add it: no need for a separate blocking context. |
 | CI / macos-stock-bash | `Stock macOS Bash snapshot compatibility` | yes | Real Bash 3.2 parse sweep and snapshot/helper regressions with BSD tools; Linux assertions are not a substitute. | Successful execution 317-439s, median 387s; failed acquisitions execute nothing and wait 901s. | Keep, unchanged runner/pool and conditions. |
 | CI / invariants | `Repo invariants` | yes | Broken CLAUDE pointer/skill symlink or tracked private fleet paths; some local verification overlaps, but behavioral test success alone does not establish these invariants. | 6.1s. | Merge into another job as a future proposal, retaining every assertion. |
-| CI / full-suite | `Full suite` | no | Missing outside-PR go-ahead or failed/cancelled dependencies; individual skipped jobs can otherwise look acceptable. | 3.4s. | Keep; recommend separate approval to require it. |
+| CI / full-suite | `Full suite` | yes | Missing outside-PR go-ahead or failed/cancelled dependencies; individual skipped jobs can otherwise look acceptable. | 3.4s. | Keep. |
 | Require no-mistakes / check | `PR must be raised via no-mistakes` | yes | Missing/stale pipeline attestation or invalid focused-integration qualification; neither behavioral CI nor local lint establishes provenance. | Unmeasured; fresh runner plus base qualification or native verification. | Keep with all current exceptions, digest and pass conditions. |
-| Admission canary / probe | `Admission canary` | no | Only demonstrates GitHub can acquire a runner and execute printf; every started CI job already establishes that, with no product assertion. | Unmeasured; one hosted runner for one printf, timeout 2m. | Remove as a proposal. |
 
 ## What actually overlaps, and what removal costs
 
-- **Admission canary removal:** loses the separately named synchronization-only admission sentinel, not product test coverage; real CI execution already witnesses admission.
-  Its small runner request can help diagnose a platform outage independently, so removal requires the captain's approval, not an assumption that the sentinel has no operational owner.
 - **Merge invariants into coverage guard:** loses no assertions if pointer, symlink and private-path checks remain mandatory there; loses independent failure isolation and requires a coordinated decision about the existing required context.
   Only one six-second job's runner/setup is at stake, not minutes on the critical path; captain approval is required before merging checks or retiring a name.
 - **Timing aggregate advisory:** current personal-fork rules already do not require it, and Full suite does not depend on it.
