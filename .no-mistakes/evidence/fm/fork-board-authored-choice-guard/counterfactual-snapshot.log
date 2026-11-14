@@ -1,0 +1,50 @@
+page:
+  title: Bearings - fleet board
+  refs: 41
+snapshot:
+uid=g9:9_0 RootWebArea "Bearings - fleet board" url="file://{run-worktree}/.gate-test/home/.lavish/bearings-board.html"
+  uid=g9:9_1 banner
+    uid=g9:9_2 "bearings"
+  uid=g9:9_3 main
+    uid=g9:9_4 "7"
+    uid=g9:9_5 "NEED YOU"
+    uid=g9:9_6 "0"
+    uid=g9:9_7 "UNDERWAY"
+    uid=g9:9_8 "0"
+    uid=g9:9_9 "LANDED RECENTLY"
+    uid=g9:9_10 "0"
+    uid=g9:9_11 "CHARTED NEXT"
+    uid=g9:9_12 "CAPTAIN'S CALL"
+    uid=g9:9_13 "7 ITEMS WAIT ON YOU, CAPTAIN"
+    uid=g9:9_14 "DECISION"
+    uid=g9:9_15 "sample"
+    uid=g9:9_16 heading "Held call 1" level="3"
+    uid=g9:9_17 "DECIDE"
+    uid=g9:9_18 "Which way?"
+    uid=g9:9_19 form
+      uid=g9:9_20 radio "Proceed as planned"
+      uid=g9:9_21 "Proceed as planned"
+      uid=g9:9_22 radio "Hold for now"
+      uid=g9:9_23 "Hold for now"
+      uid=g9:9_24 radio "Reconcile Re-check the latest state, then close this with evidence or keep it open with a note"
+      uid=g9:9_25 "Reconcile"
+      uid=g9:9_26 "Re-check the latest state, then close this with evidence or keep it open with a note"
+      uid=g9:9_27 textbox "or answer in your own words…"
+      uid=g9:9_28 button "Queue answer"
+    uid=g9:9_29 "card 1 of 7"
+    uid=g9:9_30 button "Previous card" disableable disabled
+    uid=g9:9_31 button "Next card"
+    uid=g9:9_32 "CHARTED NEXT"
+    uid=g9:9_33 "Nothing is queued."
+    uid=g9:9_34 "NOTHING PICKED"
+    uid=g9:9_35 button "Queue dispatch order"
+    uid=g9:9_36 "UNDERWAY"
+    uid=g9:9_37 "Nothing is underway."
+    uid=g9:9_38 "RECENTLY LANDED"
+    uid=g9:9_39 "No recent completions are in the current baseline."
+    uid=g9:9_40 "fm-bearings-board.v1 · 2026-10-01T00:00Z"
+help[4]:
+  Run `chrome-devtools-axi fill @g9:9_27 "text"` to fill the "or answer in your own words…" field
+  Run `chrome-devtools-axi click @g9:9_28` to click the "Queue answer" button
+  Run `chrome-devtools-axi scroll down` to scroll down
+  Use `chrome-devtools-axi eval <expr>` for JS expressions. For multi-statement code, pass a function: `eval "() => { ...; return result }"`

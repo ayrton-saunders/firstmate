@@ -1,0 +1,3 @@
+result: "{\"pass\":true,\"state\":{\"selected\":\"proceed\",\"freeform\":\"Proceed after checking the registry\"}}"
+help[1]:
+  Run `chrome-devtools-axi snapshot` to see current page state

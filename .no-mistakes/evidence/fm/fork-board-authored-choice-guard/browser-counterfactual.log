@@ -1,0 +1,3 @@
+result: "{\"pass\":true,\"actual\":[{\"radios\":[\"proceed\",\"hold\",\"reconcile\"],\"freeform\":true},{\"radios\":[\"proceed\",\"hold\",\"reconcile\"],\"freeform\":true},{\"radios\":[\"proceed\",\"hold\",\"reconcile\"],\"freeform\":true},{\"radios\":[\"proceed\",\"hold\",\"reconcile\"],\"freeform\":true},{\"radios\":[\"proceed\",\"hold\",\"reconcile\"],\"freeform\":true},{\"radios\":[\"proceed\",\"hold\",\"reconcile\"],\"freeform\":true},{\"radios\":[],\"freeform\":true}]}"
+help[1]:
+  Run `chrome-devtools-axi snapshot` to see current page state
