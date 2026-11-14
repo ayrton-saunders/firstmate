@@ -131,7 +131,14 @@ case "${1:-} ${2:-}" in
       *) printf '%s\n' '[]' ;;
     esac
     ;;
-  "api repos/"*) printf '%s\n' '{"name":"main","protected":false}' ;;
+  "api repos/"*)
+    case " $* " in
+      *"/check-suites?app_id=15368 "*)
+        printf '%s\n' '{"total_count":1,"check_suites":[{"app":{"id":15368}}]}'
+        ;;
+      *) printf '%s\n' '{"name":"main","protected":false}' ;;
+    esac
+    ;;
 esac
 SH
   cat > "$home/fakebin/gh-axi" <<'SH'
