@@ -1,0 +1,9 @@
+SCENARIO: live-waiver-away
+Real fm-pr-merge.sh + real gh, isolated HTTPS GitHub emulator; synthetic head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+command flags: ['--allow-no-actions']
+exit: 2
+error: --allow-no-actions is attended-only; while the away-posture record exists a GitHub merge requires a GitHub Actions check suite at the head when a pull_request workflow exists
+
+Emulator merged state: False
+HTTP/GraphQL traffic:
+[]

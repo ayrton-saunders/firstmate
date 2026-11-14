@@ -1,0 +1,9 @@
+SCENARIO: live-waiver-value
+Real fm-pr-merge.sh + real gh, isolated HTTPS GitHub emulator; synthetic head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+command flags: ['--allow-no-actions=yes']
+exit: 2
+error: --allow-no-actions takes no value
+
+Emulator merged state: False
+HTTP/GraphQL traffic:
+[]

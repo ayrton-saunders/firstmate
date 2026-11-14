@@ -1,0 +1,9 @@
+SCENARIO: live-waiver-wrong-forge
+Real fm-pr-merge.sh + real gh, isolated HTTPS GitHub emulator; synthetic head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+command flags: ['--allow-no-actions']
+exit: 2
+error: --allow-no-actions applies only to GitHub, where it waives a pull request head with no GitHub Actions check suite
+
+Emulator merged state: False
+HTTP/GraphQL traffic:
+[]

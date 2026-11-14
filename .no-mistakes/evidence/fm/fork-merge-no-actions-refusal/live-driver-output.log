@@ -1,0 +1,497 @@
+SCENARIO: live-no-suite-refusal
+Real fm-pr-merge.sh + real gh, isolated HTTPS GitHub emulator; synthetic head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+command flags: []
+exit: 1
+armed: state/task-x1.check.sh
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e {run-worktree}/.pi/extensions/fm-primary-turnend-guard.ts -e {run-worktree}/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: refusing to merge https://github.com/example/repo/pull/1
+  - head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa has no GitHub Actions check suite although base branch main has a workflow triggered by pull_request, so GitHub Actions never saw this pull request; Actions is likely not running (on a fork, GitHub's fork workflow gate stops every workflow run): see https://github.com/example/repo/actions, or pass --allow-no-actions for a repository with no Actions CI
+
+Emulator merged state: False
+HTTP/GraphQL traffic:
+[
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {headRefOid,id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description},...on CheckRun {name,checkSuite{workflowRun{workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl}},pageInfo{hasNextPage,endCursor}}}}}},id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/repos/example/repo/branches/main",
+    ""
+  ],
+  [
+    "/repos/example/repo/rules/branches/main?per_page=100",
+    ""
+  ],
+  [
+    "/repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368",
+    ""
+  ],
+  [
+    "/repos/example/repo/contents/.github/workflows?ref=main",
+    ""
+  ],
+  [
+    "/repos/example/repo/contents/.github/workflows/ci.yml?ref=main",
+    ""
+  ]
+]
+
+SCENARIO: live-indentless-refusal
+Real fm-pr-merge.sh + real gh, isolated HTTPS GitHub emulator; synthetic head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+command flags: []
+exit: 1
+armed: state/task-x1.check.sh
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e {run-worktree}/.pi/extensions/fm-primary-turnend-guard.ts -e {run-worktree}/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: refusing to merge https://github.com/example/repo/pull/1
+  - head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa has no GitHub Actions check suite although base branch main has a workflow triggered by pull_request, so GitHub Actions never saw this pull request; Actions is likely not running (on a fork, GitHub's fork workflow gate stops every workflow run): see https://github.com/example/repo/actions, or pass --allow-no-actions for a repository with no Actions CI
+
+Emulator merged state: False
+HTTP/GraphQL traffic:
+[
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {headRefOid,id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description},...on CheckRun {name,checkSuite{workflowRun{workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl}},pageInfo{hasNextPage,endCursor}}}}}},id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/repos/example/repo/branches/main",
+    ""
+  ],
+  [
+    "/repos/example/repo/rules/branches/main?per_page=100",
+    ""
+  ],
+  [
+    "/repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368",
+    ""
+  ],
+  [
+    "/repos/example/repo/contents/.github/workflows?ref=main",
+    ""
+  ],
+  [
+    "/repos/example/repo/contents/.github/workflows/ci.yml?ref=main",
+    ""
+  ]
+]
+
+SCENARIO: live-next-line-flow-refusal
+Real fm-pr-merge.sh + real gh, isolated HTTPS GitHub emulator; synthetic head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+command flags: []
+exit: 1
+armed: state/task-x1.check.sh
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e {run-worktree}/.pi/extensions/fm-primary-turnend-guard.ts -e {run-worktree}/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: refusing to merge https://github.com/example/repo/pull/1
+  - head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa has no GitHub Actions check suite although base branch main has a workflow triggered by pull_request, so GitHub Actions never saw this pull request; Actions is likely not running (on a fork, GitHub's fork workflow gate stops every workflow run): see https://github.com/example/repo/actions, or pass --allow-no-actions for a repository with no Actions CI
+
+Emulator merged state: False
+HTTP/GraphQL traffic:
+[
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {headRefOid,id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description},...on CheckRun {name,checkSuite{workflowRun{workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl}},pageInfo{hasNextPage,endCursor}}}}}},id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/repos/example/repo/branches/main",
+    ""
+  ],
+  [
+    "/repos/example/repo/rules/branches/main?per_page=100",
+    ""
+  ],
+  [
+    "/repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368",
+    ""
+  ],
+  [
+    "/repos/example/repo/contents/.github/workflows?ref=main",
+    ""
+  ],
+  [
+    "/repos/example/repo/contents/.github/workflows/ci.yml?ref=main",
+    ""
+  ]
+]
+
+SCENARIO: live-quoted-hash-refusal
+Real fm-pr-merge.sh + real gh, isolated HTTPS GitHub emulator; synthetic head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+command flags: []
+exit: 1
+armed: state/task-x1.check.sh
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e {run-worktree}/.pi/extensions/fm-primary-turnend-guard.ts -e {run-worktree}/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: refusing to merge https://github.com/example/repo/pull/1
+  - head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa has no GitHub Actions check suite although base branch main has a workflow triggered by pull_request, so GitHub Actions never saw this pull request; Actions is likely not running (on a fork, GitHub's fork workflow gate stops every workflow run): see https://github.com/example/repo/actions, or pass --allow-no-actions for a repository with no Actions CI
+
+Emulator merged state: False
+HTTP/GraphQL traffic:
+[
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {headRefOid,id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description},...on CheckRun {name,checkSuite{workflowRun{workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl}},pageInfo{hasNextPage,endCursor}}}}}},id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/repos/example/repo/branches/main",
+    ""
+  ],
+  [
+    "/repos/example/repo/rules/branches/main?per_page=100",
+    ""
+  ],
+  [
+    "/repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368",
+    ""
+  ],
+  [
+    "/repos/example/repo/contents/.github/workflows?ref=main",
+    ""
+  ],
+  [
+    "/repos/example/repo/contents/.github/workflows/ci.yml?ref=main",
+    ""
+  ]
+]
+
+SCENARIO: live-waived-absence
+Real fm-pr-merge.sh + real gh, isolated HTTPS GitHub emulator; synthetic head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+command flags: ['--allow-no-actions']
+exit: 0
+armed: state/task-x1.check.sh
+verified: https://github.com/example/repo/pull/1 is merged (state=MERGED, merged=true, isInMergeQueue=false)
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e {run-worktree}/.pi/extensions/fm-primary-turnend-guard.ts -e {run-worktree}/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+verified: https://github.com/example/repo/pull/1 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa, with no GitHub Actions check suite, waived by --allow-no-actions
+
+Emulator merged state: True
+HTTP/GraphQL traffic:
+[
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {headRefOid,id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description},...on CheckRun {name,checkSuite{workflowRun{workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl}},pageInfo{hasNextPage,endCursor}}}}}},id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/repos/example/repo/branches/main",
+    ""
+  ],
+  [
+    "/repos/example/repo/rules/branches/main?per_page=100",
+    ""
+  ],
+  [
+    "/repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368",
+    ""
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"query PullRequest_fields2{WorkflowRun: __type(name: \\\"WorkflowRun\\\"){fields(includeDeprecated: true){name}}}\"}\n"
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"query PullRequest_fields{PullRequest: __type(name: \\\"PullRequest\\\"){fields(includeDeprecated: true){name}},StatusCheckRollupContextConnection: __type(name: \\\"StatusCheckRollupContextConnection\\\"){fields(includeDeprecated: true){name}}}\"}\n"
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {id,number,state,title,commits(last:1){nodes{commit{oid}
+SCENARIO: live-no-pr-workflow
+Real fm-pr-merge.sh + real gh, isolated HTTPS GitHub emulator; synthetic head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+command flags: []
+exit: 0
+armed: state/task-x1.check.sh
+verified: https://github.com/example/repo/pull/1 is merged (state=MERGED, merged=true, isInMergeQueue=false)
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e {run-worktree}/.pi/extensions/fm-primary-turnend-guard.ts -e {run-worktree}/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+verified: https://github.com/example/repo/pull/1 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+Emulator merged state: True
+HTTP/GraphQL traffic:
+[
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {headRefOid,id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description},...on CheckRun {name,checkSuite{workflowRun{workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl}},pageInfo{hasNextPage,endCursor}}}}}},id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/repos/example/repo/branches/main",
+    ""
+  ],
+  [
+    "/repos/example/repo/rules/branches/main?per_page=100",
+    ""
+  ],
+  [
+    "/repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368",
+    ""
+  ],
+  [
+    "/repos/example/repo/contents/.github/workflows?ref=main",
+    ""
+  ],
+  [
+    "/repos/example/repo/contents/.github/workflows/ci.yml?ref=main",
+    ""
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"query PullRequest_fields2{WorkflowRun: __type(name: \\\"WorkflowRun\\\"){fields(includeDeprecated: true){name}}}\"}\n"
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"query PullRequest_fields{PullRequest: __type(name: \\\"PullRequest\\\"){fields(includeDeprecated: true){name}},StatusCheckRollupContextConnection: __type(name: \\\"StatusCheckRollupContextConnection\\\"){fields(includeDeprecated: true){name}}}\"}\n"
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullReque
+----------------------------------------
+Exception occurred during processing of request from ('127.0.0.1', 53180)
+Traceback (most recent call last):
+  File "/opt/homebrew/Cellar/python@3.15/3.15.2/Frameworks/Python.framework/Versions/3.15/lib/python3.15/socketserver.py", line 694, in process_request_thread
+    self.finish_request(request, client_address)
+    ~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.15/3.15.2/Frameworks/Python.framework/Versions/3.15/lib/python3.15/socketserver.py", line 359, in finish_request
+    self.RequestHandlerClass(request, client_address, self)
+    ~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.15/3.15.2/Frameworks/Python.framework/Versions/3.15/lib/python3.15/socketserver.py", line 763, in __init__
+    self.handle()
+    ~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.15/3.15.2/Frameworks/Python.framework/Versions/3.15/lib/python3.15/http/server.py", line 474, in handle
+    self.handle_one_request()
+    ~~~~~~~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.15/3.15.2/Frameworks/Python.framework/Versions/3.15/lib/python3.15/http/server.py", line 462, in handle_one_request
+    method()
+    ~~~~~~^^
+  File "{run-worktree}/.validation/live.py", line 11, in do_CONNECT
+    self.connection=ctx.wrap_socket(self.connection,server_side=True)
+                    ~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/opt/homebrew/Cellar/python@3.15/3.15.2/Frameworks/Python.framework/Versions/3.15/lib/python3.15/ssl.py", line 469, in wrap_socket
+    return self.sslsocket_class._create(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~~~~^
+        sock=sock,
+        ^^^^^^^^^^
+    ...<5 lines>...
+        session=session
+        ^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/opt/homebrew/Cellar/python@3.15/3.15.2/Frameworks/Python.framework/Versions/3.15/lib/python3.15/ssl.py", line 1103, in _create
+    self.do_handshake()
+    ~~~~~~~~~~~~~~~~~^^
+  File "/opt/homebrew/Cellar/python@3.15/3.15.2/Frameworks/Python.framework/Versions/3.15/lib/python3.15/ssl.py", line 1434, in do_handshake
+    self._sslobj.do_handshake()
+    ~~~~~~~~~~~~~~~~~~~~~~~~~^^
+ssl.SSLError: [SSL: TLS_ALERT_BAD_CERTIFICATE] tls alert bad certificate (_ssl.c:1147)
+----------------------------------------
+SCENARIO: live-suite-present
+Real fm-pr-merge.sh + real gh, isolated HTTPS GitHub emulator; synthetic head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+command flags: []
+exit: 0
+armed: state/task-x1.check.sh
+verified: https://github.com/example/repo/pull/1 is merged (state=MERGED, merged=true, isInMergeQueue=false)
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e {run-worktree}/.pi/extensions/fm-primary-turnend-guard.ts -e {run-worktree}/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+verified: https://github.com/example/repo/pull/1 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+Emulator merged state: True
+HTTP/GraphQL traffic:
+[
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {headRefOid,id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description},...on CheckRun {name,checkSuite{workflowRun{workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl}},pageInfo{hasNextPage,endCursor}}}}}},id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/repos/example/repo/branches/main",
+    ""
+  ],
+  [
+    "/repos/example/repo/rules/branches/main?per_page=100",
+    ""
+  ],
+  [
+    "/repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368",
+    ""
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"query PullRequest_fields2{WorkflowRun: __type(name: \\\"WorkflowRun\\\"){fields(includeDeprecated: true){name}}}\"}\n"
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"query PullRequest_fields{PullRequest: __type(name: \\\"PullRequest\\\"){fields(includeDeprecated: true){name}},StatusCheckRollupContextConnection: __type(name: \\\"StatusCheckRollupContextConnection\\\"){fields(includeDeprecated: true){name}}}\"}\n"
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {id,number,state,title,commits(last:1){nodes{commit{oid}}},mergeStateStatus,headRefName,baseRefName,headRefOid,isCrossRepository,isInMergeQueue
+SCENARIO: live-waiver-red
+Real fm-pr-merge.sh + real gh, isolated HTTPS GitHub emulator; synthetic head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+command flags: ['--allow-no-actions']
+exit: 1
+armed: state/task-x1.check.sh
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e {run-worktree}/.pi/extensions/fm-primary-turnend-guard.ts -e {run-worktree}/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: refusing to merge https://github.com/example/repo/pull/1
+  - check 'ci' is not green
+error: these checks are not green: ci
+
+Emulator merged state: False
+HTTP/GraphQL traffic:
+[
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {headRefOid,id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description},...on CheckRun {name,checkSuite{workflowRun{workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl}},pageInfo{hasNextPage,endCursor}}}}}},id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/repos/example/repo/branches/main",
+    ""
+  ],
+  [
+    "/repos/example/repo/rules/branches/main?per_page=100",
+    ""
+  ],
+  [
+    "/repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368",
+    ""
+  ]
+]
+
+SCENARIO: live-waiver-unreadable
+Real fm-pr-merge.sh + real gh, isolated HTTPS GitHub emulator; synthetic head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+command flags: ['--allow-no-actions']
+exit: 1
+armed: state/task-x1.check.sh
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e {run-worktree}/.pi/extensions/fm-primary-turnend-guard.ts -e {run-worktree}/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: refusing to merge https://github.com/example/repo/pull/1
+  - the GitHub Actions check suites at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa could not be read, so a head GitHub Actions never saw cannot be ruled out
+
+Emulator merged state: False
+HTTP/GraphQL traffic:
+[
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {headRefOid,id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/graphql",
+    "{\"query\":\"\\n\\tquery PullRequestByNumber($owner: String!, $repo: String!, $pr_number: Int!) {\\n\\t\\trepository(owner: $owner, name: $repo) {\\n\\t\\t\\tpullRequest(number: $pr_number) {state,isDraft,mergeable,mergeStateStatus,headRefOid,baseRefName,statusCheckRollup: commits(last: 1) {nodes {commit {statusCheckRollup {contexts(first:100) {nodes {__typename...on StatusContext {context,state,targetUrl,createdAt,description},...on CheckRun {name,checkSuite{workflowRun{workflow{name}}},status,conclusion,startedAt,completedAt,detailsUrl}},pageInfo{hasNextPage,endCursor}}}}}},id,number}\\n\\t\\t}\\n\\t}\",\"variables\":{\"owner\":\"example\",\"pr_number\":1,\"repo\":\"repo\"}}"
+  ],
+  [
+    "/repos/example/repo/branches/main",
+    ""
+  ],
+  [
+    "/repos/example/repo/rules/branches/main?per_page=100",
+    ""
+  ],
+  [
+    "/repos/example/repo/commits/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/check-suites?app_id=15368",
+    ""
+  ]
+]
+
+SCENARIO: live-waiver-value
+Real fm-pr-merge.sh + real gh, isolated HTTPS GitHub emulator; synthetic head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+command flags: ['--allow-no-actions=yes']
+exit: 2
+error: --allow-no-actions takes no value
+
+Emulator merged state: False
+HTTP/GraphQL traffic:
+[]
+
+SCENARIO: live-waiver-wrong-forge
+Real fm-pr-merge.sh + real gh, isolated HTTPS GitHub emulator; synthetic head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+command flags: ['--allow-no-actions']
+exit: 2
+error: --allow-no-actions applies only to GitHub, where it waives a pull request head with no GitHub Actions check suite
+
+Emulator merged state: False
+HTTP/GraphQL traffic:
+[]
+
+SCENARIO: live-waiver-away
+Real fm-pr-merge.sh + real gh, isolated HTTPS GitHub emulator; synthetic head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+command flags: ['--allow-no-actions']
+exit: 2
+error: --allow-no-actions is attended-only; while the away-posture record exists a GitHub merge requires a GitHub Actions check suite at the head when a pull_request workflow exists
+
+Emulator merged state: False
+HTTP/GraphQL traffic:
+[]
+
