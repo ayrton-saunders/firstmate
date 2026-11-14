@@ -1,0 +1,4 @@
+ok - unknown extension conformance section selectors fail before setup
+ok - the section coordinator propagates ordered failures and bounded cleanup
+
+all coordinator tests passed
