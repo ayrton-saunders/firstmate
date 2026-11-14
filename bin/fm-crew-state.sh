@@ -131,7 +131,7 @@
 #      forge evidence leaves the original failed or unknown classification.
 #      A monitor whose only remaining job is to observe a merge decision must not
 #      convert the absence of that decision into a failure verdict
-#      (nm_reclassify_failed_run_as_held_green). In the
+#      (nm_reconcile_terminal_green_ci). In the
 #      coarse runs-ledger fallback (no steps table, no ci log), a terminal
 #      FAILED record whose daemon an explicit probe proves down reads unknown,
 #      never failed: an instrument failure must not read as work failure
@@ -877,13 +877,16 @@ EOF
 
 # Apply the header's terminal-delivery safeguard. The earlier green log cannot
 # prove current PR disposition: a subsequent close can itself end the monitor.
-nm_reclassify_failed_run_as_held_green() {
+nm_reconcile_terminal_green_ci() {
   nm_failed_run_is_green_held_ci || return 1
   local disposition pr_url
   disposition=$(passed_pr_detail)
   case "$disposition" in
     "run passed: PR open") RUN_DETAIL="checks green: PR held for merge (ci monitor ended)" ;;
     "run passed: PR merged") RUN_DETAIL="checks green: PR merged (ci monitor ended)" ;;
+    "run passed: PR closed")
+      RUN_DETAIL="$RUN_DETAIL${SEP}checks green: PR closed (ci monitor ended)"
+      return 0 ;;
     *) return 1 ;;
   esac
   RUN_STATE="done"
@@ -1313,13 +1316,11 @@ if [ "$HAVE_RUN" = 1 ]; then
         passed-with-skips) RUN_STATE="done"; RUN_DETAIL="$(passed_pr_detail) (publication/CI verification skipped)" ;;
         checks-passed) RUN_STATE="done"; RUN_DETAIL="checks green: PR ready for review" ;;
         failed)
-          if nm_reclassify_failed_run_as_held_green; then :; else
-            RUN_STATE=failed; RUN_DETAIL="run failed"
-          fi ;;
+          RUN_STATE=failed; RUN_DETAIL="run failed"
+          nm_reconcile_terminal_green_ci || true ;;
         cancelled)
-          if nm_reclassify_failed_run_as_held_green; then :; else
-            RUN_STATE=unknown; RUN_DETAIL="run cancelled: no verdict"
-          fi ;;
+          RUN_STATE=unknown; RUN_DETAIL="run cancelled: no verdict"
+          nm_reconcile_terminal_green_ci || true ;;
         *)             RUN_STATE=unknown; RUN_DETAIL="outcome: $outcome" ;;
       esac
     elif [ -n "$awaiting" ] || [ "$status" = awaiting_approval ] || [ "$status" = fix_review ] || [ -n "$gate_status" ] || [ "$has_gate" = 1 ]; then
@@ -1346,13 +1347,11 @@ if [ "$HAVE_RUN" = 1 ]; then
         running|fixing) RUN_STATE=working; RUN_DETAIL="validating ($status)" ;;
         completed)      RUN_STATE="done"; RUN_DETAIL="run completed" ;;
         failed)
-          if nm_reclassify_failed_run_as_held_green; then :; else
-            RUN_STATE=failed; RUN_DETAIL="run failed"
-          fi ;;
+          RUN_STATE=failed; RUN_DETAIL="run failed"
+          nm_reconcile_terminal_green_ci || true ;;
         cancelled)
-          if nm_reclassify_failed_run_as_held_green; then :; else
-            RUN_STATE=unknown; RUN_DETAIL="run cancelled: no verdict"
-          fi ;;
+          RUN_STATE=unknown; RUN_DETAIL="run cancelled: no verdict"
+          nm_reconcile_terminal_green_ci || true ;;
         "")             RUN_STATE=working; RUN_DETAIL="run active" ;;
         *)              RUN_STATE=working; RUN_DETAIL="run active ($status)" ;;
       esac
