@@ -43,7 +43,7 @@ def require(condition, message):
         raise Refusal(message)
 
 
-def configuration(home):
+def configuration(home, *, entrypoint=None):
     # Reuse the owning guard, without changing its lifecycle hash or executing
     # its main. Select the pinned interpreter here so its re-exec cannot switch
     # this command into the hook's CLI with unrelated arguments.
@@ -56,7 +56,7 @@ def configuration(home):
     interpreter = Path(config['python_executable'])
     require(interpreter.is_absolute() and interpreter.is_file(), 'pinned parent interpreter required')
     if Path(sys.executable).resolve() != interpreter.resolve():
-        os.execv(str(interpreter), [str(interpreter), '-I', str(Path(__file__).resolve()), *sys.argv[1:]])
+        os.execv(str(interpreter), [str(interpreter), '-I', str(entrypoint or Path(__file__).resolve()), *sys.argv[1:]])
     config = HOOK['load'](home)
     require(config is not None and {'mapping', 'ingress', 'egress'} <= set(config),
             'pinned parent publication mapping required')

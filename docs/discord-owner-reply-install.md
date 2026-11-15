@@ -118,6 +118,25 @@ An identical approved reply can repair the same final event; changed words canno
 Expired intake readiness blocks dispatch, but does not erase an already-owed final.
 Coding, visual input preparation, continuation and public follow-up authority are outside this read-only question-and-answer path.
 
+## Optional contextual acknowledgement (inactive by default)
+
+`bin/fm-discord-acknowledge.py --help` owns the opt-in configuration, cheap reasoning command contract and invocation syntax.
+Do not enable its separate `config/discord-acknowledgement.json` switch until both Discord hosts run the release containing [the acknowledgement transport API](https://github.com/ayrton-saunders/firstmate-discord/pull/27).
+This change neither activates the switch nor installs or changes either host.
+
+After dispatch, the trusted parent judges whether the real answer is well over about 30 seconds away, based on the actual request and remaining work, not elapsed time alone.
+For imminent answers, skip the optional line entirely.
+Only for a clearly slow answer, invoke the adapter once with `well-over-30s` and one line of verified, public-safe facts about what is actually being checked.
+The configured wording command must use a cheap reasoning tier, not the parent's expensive reasoning tier; it receives only that context and the sentence-writing instruction, not custody records or raw worker output.
+Select the command's model explicitly in the local configuration when enabling the feature; the adapter is model/runtime-neutral and never chooses a more expensive fallback.
+A useful sentence names the concrete subject being checked, without invented progress, promises or time estimates.
+The live approval API validates public-caption safety without approval side effects on refusal; offline `validate-reply` does not support acknowledgement copy.
+
+A closed window (`published:false`) or a changed revision/generation (`Conflict`) means no line, carry on with the real answer, without retry, alert or a new decision.
+The transport owns the one-line-per-request guarantee; the adapter adds no suppression machinery.
+A rare acknowledgement followed seconds later by the final is accepted.
+Publication is not delivery proof, and the acknowledgement retains ordinary transport delivery and ordering behavior.
+
 ## Local qualification and the excluded test
 
 These are development checks, not owner authorization to run the installation steps.
@@ -133,6 +152,7 @@ FM_LIVE=0 bash bin/fm-test-run.sh --jobs 1 tests/fm-discord-dispatch.test.sh tes
 
 The dispatch suite covers exact payloads and automatic bindings, expired readiness, inadmissible lanes, existing intents, escaping package root refusal, domain isolation and missing delivery receipts.
 The reply suite covers authoritative returns, generation/scope/route mismatches, non-active lanes, fences, escaping package root refusal, incomplete publication and duplicate-safe approval.
+It also exercises the optional acknowledgement command with a fake cheap wording command and integration: slow versus imminent answers, inactive configuration, complete original origin/current bindings, silent closed-window and Conflict outcomes, and unsafe or oversized wording refusal.
 The hook suite covers source status fields present, stale or absent, optional legacy hashes, enrolled release switching, invalid package root refusal and retained home/schema protections.
 Successful fixture verification is not a claim that the live installation is aligned or unfenced.
 

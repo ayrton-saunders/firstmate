@@ -11,7 +11,7 @@ if [ -z "$PY314" ]; then
 fi
 fm_git_init_commit "$TMP_ROOT/source"
 mkdir -p "$TMP_ROOT/source/bin"
-cp "$ROOT/bin/fm-discord-reply.py" "$ROOT/bin/fm-discord-hook.py" \
+cp "$ROOT/bin/fm-discord-reply.py" "$ROOT/bin/fm-discord-acknowledge.py" "$ROOT/bin/fm-discord-hook.py" \
   "$ROOT/bin/fm-gate-refuse-lib.sh" "$TMP_ROOT/source/bin/"
 for name in fm-inbox.sh fm-send.sh fm-spawn.sh; do
   printf 'inert fixture for %s\n' "$name" > "$TMP_ROOT/source/bin/$name"
@@ -50,6 +50,9 @@ from pathlib import Path
 
 def digest(value):
     return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',', ':'),ensure_ascii=False).encode()).hexdigest()
+
+class Conflict(ValueError):
+    pass
 
 class Journal:
     def __init__(self, path):
@@ -100,6 +103,27 @@ class Integration:
         assert environment['HOME'] == str(home)
         for key in ('NO_MISTAKES_GATE', 'FM_SUPERVISION_ACTOR', 'PI_CODING_AGENT'):
             assert environment.get(key) == os.environ.get(key)
+    def approve_acknowledgement(self, ident, **body):
+        from .journal import Conflict
+        fixture = self.j.fixture()
+        assert ident == fixture['id']
+        assert body['origin'] == fixture['request']['origin']
+        assert body['revision'] == 7 and type(body['revision']) is int
+        assert body['generation'] == fixture['binding']['generation']
+        assert body['correlation'] == fixture['binding']['correlation']
+        assert body['approved'] is True
+        # Model the live public-caption guard: no approval side effects on refusal.
+        if 'secret' in body['safe_text']:
+            raise ValueError('unsafe private caption fixture')
+        self.j.db.execute('INSERT INTO approvals VALUES(?,?)',('attempt',json.dumps(body)))
+        self.j.db.commit()
+        if fixture.get('conflict'):
+            raise Conflict('private exception must never escape')
+        if fixture.get('unpublished'):
+            return {'event':'ack','published':False}
+        self.j.db.execute('INSERT INTO approvals VALUES(?,?)',('ack',json.dumps(body)))
+        self.j.db.commit()
+        return {'event':'ack','published':True}
     def approve_update(self, ident, **body):
         fixture = self.j.fixture()
         binding = fixture['binding']
@@ -406,6 +430,136 @@ class Reply(unittest.TestCase):
         self.invoke()
         with database(self.config['journal']) as db:
             self.assertEqual(json.loads(db.execute('SELECT body FROM fixture').fetchone()[0])['readiness'],{'expires':0})
+
+
+class AcknowledgementTests(unittest.TestCase):
+    setUp = Reply.setUp
+    lifecycle_return = Reply.lifecycle_return
+    update = Reply.update
+    approvals = Reply.approvals
+
+    def configure(self, *, enabled=True, words='I am checking the invoice totals.'):
+        command = self.world/'cheap-wording.py'
+        command.write_text('import json, sys\nfrom pathlib import Path\n'
+                           'data=json.load(sys.stdin)\n'
+                           'assert data["verified_public_context"] == "Checking invoice totals against receipts."\n'
+                           'assert "Maximum 400 UTF-8 bytes" in data["instruction"]\n'
+                           f'Path({str(self.world/"wording-called")!r}).touch()\n'
+                           f'print({words!r})\n')
+        (self.home/'config/discord-acknowledgement.json').write_text(json.dumps(
+            dict(enabled=enabled, wording_command=[sys.executable, '-I', str(command)])))
+
+    def invoke_ack(self, *, delay='well-over-30s', success=True, command=None, env=None):
+        result = subprocess.run([command or sys.executable, '-I', str(self.source/'bin/fm-discord-acknowledge.py'),
+                                 self.ident, 'domain', delay, 'Checking invoice totals against receipts.'],
+                                capture_output=True, text=True, timeout=15,
+                                env={**os.environ, 'FM_HOME':str(self.home), **(env or {})})
+        self.assertEqual(result.returncode, 0 if success else 1, result.stderr)
+        self.assertEqual(result.stdout, '')
+        if success:
+            self.assertEqual(result.stderr, '')
+        else:
+            self.assertNotIn(str(self.world), result.stderr)
+            self.assertNotIn('unsafe private caption fixture', result.stderr)
+        return result
+
+    def test_slow_sends_one_contextual_line_with_original_binding(self):
+        self.fixture['request']['origin'].update(thread_id='123', message_id='456', extra={'preserve':True})
+        self.update()
+        self.configure()
+        self.invoke_ack()
+        rows = self.approvals()
+        self.assertEqual([row[0] for row in rows], ['attempt', 'ack'])
+        body = json.loads(rows[1][1])
+        self.assertEqual(body['safe_text'], 'I am checking the invoice totals.')
+        self.assertEqual(body['origin'], self.fixture['request']['origin'])
+        self.assertEqual(body['generation'], self.binding['generation'])
+        self.assertEqual(body['correlation'], self.binding['correlation'])
+        self.assertEqual(body['revision'], 7)
+        self.assertTrue((self.world/'wording-called').exists())
+
+    def test_imminent_never_opens_configuration_journal_or_model(self):
+        self.configure()
+        self.config_path.write_text('invalid')
+        self.invoke_ack(delay='imminent')
+        self.assertEqual(self.approvals(), [])
+        self.assertFalse((self.world/'wording-called').exists())
+        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
+
+    def test_absent_and_inactive_switch_send_nothing(self):
+        self.invoke_ack()
+        self.configure(enabled=False)
+        self.invoke_ack()
+        self.assertEqual(self.approvals(), [])
+        self.assertFalse((self.world/'wording-called').exists())
+        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
+
+    def test_closed_window_and_conflict_are_silent_single_attempts(self):
+        for flag in ('unpublished', 'conflict'):
+            with self.subTest(flag=flag):
+                self.setUp()
+                self.fixture[flag] = True
+                self.update()
+                self.configure()
+                before = list((self.home/'state').rglob('*'))
+                self.invoke_ack()
+                self.assertEqual([row[0] for row in self.approvals()], ['attempt'])
+                self.assertEqual(list((self.home/'state').rglob('*')), before)
+
+    def test_overlong_and_multiline_wording_never_reach_approval(self):
+        for words in ('x'*401, '\u00e9'*201, '', 'Two\nlines', 'Two\u2028lines', 'Two\x01lines'):
+            with self.subTest(words=repr(words)):
+                self.configure(words=words)
+                self.invoke_ack(success=False)
+                self.assertEqual(self.approvals(), [])
+
+    def test_unsafe_copy_uses_live_guard_without_approval_side_effect(self):
+        self.configure(words='The secret invoice total is available.')
+        self.invoke_ack(success=False)
+        self.assertEqual(self.approvals(), [])
+
+    def test_pinned_reexec_keeps_acknowledgement_entrypoint(self):
+        self.configure()
+        python = next((path for path in (shutil.which('python3.12'), '/usr/bin/python3', shutil.which('python3'))
+                       if path and Path(path).is_file() and Path(path).resolve() != Path(sys.executable).resolve()), None)
+        if python is None:
+            self.skipTest('no alternate Python interpreter installed')
+        self.invoke_ack(command=python)
+        self.assertEqual([row[0] for row in self.approvals()], ['attempt', 'ack'])
+
+    def test_gate_refuses_before_wording_and_journal(self):
+        self.configure()
+        self.invoke_ack(success=False, env={'NO_MISTAKES_GATE':'review', 'FM_GATE_REFUSE_BYPASS':''})
+        self.assertFalse((self.world/'wording-called').exists())
+        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
+        self.assertEqual(self.approvals(), [])
+
+    def test_wording_failure_is_not_retried_or_published(self):
+        self.configure()
+        command = self.world/'cheap-wording.py'
+        command.write_text('from pathlib import Path\nimport sys\n'
+                           f'p=Path({str(self.world/"attempts")!r})\n'
+                           'p.write_text(p.read_text()+"x" if p.exists() else "x")\n'
+                           'sys.exit(1)\n')
+        self.invoke_ack(success=False)
+        self.assertEqual((self.world/'attempts').read_text(), 'x')
+        self.assertEqual(self.approvals(), [])
+
+    def test_wrong_binding_refuses_before_wording(self):
+        self.configure()
+        self.binding['generation'] = 'old'
+        self.update()
+        self.invoke_ack(success=False)
+        self.assertFalse((self.world/'wording-called').exists())
+        self.assertEqual(self.approvals(), [])
+
+    def test_does_not_require_a_finished_return_to_acknowledge(self):
+        self.configure()
+        self.lifecycle_return(phase='awaiting_report')
+        before = self.return_path.read_bytes()
+        self.invoke_ack()
+        self.assertEqual(self.return_path.read_bytes(), before)
+        self.assertEqual(len(self.approvals()), 2)
 
 
 unittest.main(argv=['discord-reply'],verbosity=2)
