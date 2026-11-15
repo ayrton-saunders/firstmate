@@ -11,12 +11,14 @@ The spawn owner calls capacity-deferred only after proving exit 75 before launch
 it records retryable no-launch evidence without consuming dispatch authority.
 Exact pre-marker message (send) or brief SHA256 (spawn) arrives on stdin.
 FM_HOME selects the invoking parent home, as in the owning lifecycle script.
-Absent config/discord-integration.json preserves legacy behavior.
+With FM_DISCORD_DOMAIN unset, absent config/discord-integration.json preserves
+legacy behavior.
 Trusted local FM_DISCORD_DOMAIN (lowercase slug, 1-48 characters) instead binds
 config/discord/<domain>/integration.json; missing/disabled bound config refuses,
 never falls back. Never derive this environment variable from Discord input.
 Bound configs carry domain and instance_root, matching the runner's Instance
-layout: <base>/<domain>/parent, state beneath that root, code/current runtime.
+layout: <base>/<domain>/parent, writable paths beneath its state/ directory,
+code/current runtime.
 Each domain requires distinct mapped mates and reviewed model context, with
 separately enrolled credential principals; paths alone are not OS isolation.
 This hook neither provisions credentials nor grants model-context isolation.

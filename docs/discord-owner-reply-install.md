@@ -184,7 +184,7 @@ FM_LIVE=0 bash bin/fm-test-run.sh --jobs 1 tests/fm-discord-dispatch.test.sh tes
 The dispatch suite covers exact payloads and automatic bindings, expired readiness, inadmissible lanes, existing intents, escaping package root refusal, domain isolation and missing delivery receipts.
 The reply suite covers authoritative returns, generation/scope/route mismatches, non-active lanes, fences, escaping package root refusal, incomplete publication and duplicate-safe approval.
 It also exercises the optional acknowledgement command with a fake cheap wording command and integration: slow versus imminent answers, inactive configuration, complete original origin/current bindings, silent closed-window and Conflict outcomes, and unsafe or oversized wording refusal.
-The hook suite covers source status fields present, stale or absent, optional legacy hashes, enrolled release switching, invalid package root refusal and retained home/schema protections.
+The hook suite covers source status fields present, stale or absent, optional legacy hashes, enrolled release switching, invalid package root refusal, retained home/schema protections, and domain-only lifecycle activation, including permit consumption/confirmation and missing/disabled binding checks.
 The dispatch and reply suites also exercise simultaneous domain bindings, unchanged global routing, same-project foreign origins in both directions, separate mate returns and egress, and missing or invalid local bindings through the executable commands and hook.
 Successful fixture verification is not a claim that the live installation is aligned or unfenced.
 
