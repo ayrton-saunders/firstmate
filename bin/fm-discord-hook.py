@@ -13,14 +13,19 @@ Exact pre-marker message (send) or brief SHA256 (spawn) arrives on stdin.
 FM_HOME selects the invoking parent home, as in the owning lifecycle script.
 With FM_DISCORD_DOMAIN unset, absent config/discord-integration.json preserves
 legacy behavior.
-Trusted local FM_DISCORD_DOMAIN (lowercase slug, 1-48 characters) instead binds
+Trusted local FM_DISCORD_DOMAIN (1-48 characters, initial a-z followed by
+lowercase a-z, digits or hyphens) instead binds
 config/discord/<domain>/integration.json; missing/disabled bound config refuses,
 never falls back. Never derive this environment variable from Discord input.
 Bound configs carry domain and instance_root, matching the runner's Instance
 layout: <base>/<domain>/parent, writable paths beneath its state/ directory,
-code/current runtime.
-Each domain requires distinct mapped mates and reviewed model context, with
-separately enrolled credential principals; paths alone are not OS isolation.
+code/current runtime. Bound configs require mapping, ingress and egress;
+each mapping's bridge_id must equal the selected domain, and request origins
+must match exactly one mapping across bridge, owner, guild, parent channel,
+mapping revision and project key.
+Mapped mate identities (including fm- aliases) must be distinct across enabled
+configs, including the global config; malformed sibling routing refuses.
+Deployment prerequisites: docs/discord-owner-reply-install.md#trusted-local-domain-binding.
 This hook neither provisions credentials nor grants model-context isolation.
 Bound lifecycle calls refuse global/sibling mapped targets (including backend
 aliases) and foreign-only project roots before local or permit authorization.

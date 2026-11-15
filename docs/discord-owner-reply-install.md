@@ -35,23 +35,15 @@ python3 -I "$SOURCE/bin/fm-discord-reply.py" --help
 
 ## Trusted local domain binding
 
-The [hook configuration contract](../bin/fm-discord-hook.py) owns domain selection, runner-compatible paths and the checks shared by both commands.
-The invoking trusted local process must bind `FM_DISCORD_DOMAIN` for an enrolled domain and preserve it through lifecycle calls; no Discord message, origin field, question text or return may select it or `FM_HOME`.
-With that variable absent, the existing global configuration and personal/Galagoa route remain unchanged, even when domain configurations coexist.
-There is no migration, global-config replacement or fallback from a missing domain configuration.
+The [hook configuration contract](../bin/fm-discord-hook.py) owns trusted local `FM_DISCORD_DOMAIN` selection, global compatibility, runner-compatible paths, captured-note outcome binding and cross-domain routing refusals.
+Never derive that binding or `FM_HOME` from Discord input, and never replace the existing global configuration to enroll another domain.
 Fresh enrollment and runner environment propagation belong to the separate firstmate-discord installation work, not these commands.
 
-Each enabled domain needs a distinct mapped mate, domain-local journals and egress, and separately reviewed bot/endpoint credential principals.
-The commands preserve the lifecycle owner's existing home-local correlation records and distinct mate inboxes rather than inventing another return store.
-New notes captured under a trusted domain binding retain it in their header, and replies use that stored binding even from an unbound or differently bound supervising session.
-Ordinary unmarked notes retain global-only outcome handling and do not warn merely because domain configurations exist.
+Each enabled domain needs separately reviewed bot/endpoint credential principals and reviewed model context for its distinct mapped mate.
 If a captured domain note cannot reach its own journal, the existing durable-reply reconciliation warning preserves the reply without resending it.
-Shared mates, foreign origins, foreign state paths and returns owned by another mate are refused before publication.
-Bound lifecycle calls also refuse targets and foreign-only projects mapped by the global route or another domain, whether or not a permit was supplied.
-A project shared by multiple domains remains usable under the selected domain's own permit.
 The local parent publishes only into the selected domain's egress; the separately enrolled transport must consume only that egress using its own bot principal.
-Within the shared trusted parent, the commands dispatch only the selected domain's supplied reviewed question/context and correlation to its distinct mate, reject foreign returns, and resolve replies through that domain's integration mapping and egress.
-Domain dispatch and reply journal writes remain beneath that domain's instance state root; lifecycle correlations retain the existing home-local store with distinct mate ownership.
+The commands forward the supplied reviewed question; they do not select or sanitize the trusted parent's model context.
+Lifecycle correlations retain the existing home-local store with distinct mate ownership rather than gaining OS isolation from domain-local journal paths.
 The separate firstmate-discord fresh-enrollment work must provision and qualify per-bot credential principals (separate tokens and OS accounts) and OS/model isolation before any client exposure.
 Never feed another domain's conversation, reports or memory into a mate's reviewed context; these command fixtures do not prove deployment isolation or live bot delivery.
 
