@@ -20,6 +20,7 @@ import json
 import os
 from pathlib import Path
 import shutil
+import shlex
 import sqlite3
 import subprocess
 import sys
@@ -199,8 +200,10 @@ class Dispatch(unittest.TestCase):
         shutil.copytree(root/'source',self.source)
         for name in ('fm-inbox.sh','fm-spawn.sh'):
             (self.source/'bin'/name).write_text('inert fixture\n')
-        (self.source/'bin/fm-send.sh').write_text(SEND)
-        (self.source/'bin/fm-pending-reply-lib.sh').write_text(CORRELATION)
+        # Production deliberately sanitizes PATH; fixture owners use the discovered
+        # interpreter, including installations outside the production PATH.
+        (self.source/'bin/fm-send.sh').write_text(SEND.replace('python3.14', shlex.quote(sys.executable)))
+        (self.source/'bin/fm-pending-reply-lib.sh').write_text(CORRELATION.replace('python3.14', shlex.quote(sys.executable)))
         self.home=self.world/'home'
         (self.home/'config').mkdir(parents=True)
         (self.home/'state').mkdir()

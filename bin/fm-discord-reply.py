@@ -43,7 +43,7 @@ def require(condition, message):
         raise Refusal(message)
 
 
-def configuration(home):
+def configuration(home, *, entrypoint=None):
     # Reuse the owning guard, without changing its lifecycle hash or executing
     # its main. Select the pinned interpreter here so its re-exec cannot switch
     # this command into the hook's CLI with unrelated arguments.
@@ -56,14 +56,14 @@ def configuration(home):
     interpreter = Path(config['python_executable'])
     require(interpreter.is_absolute() and interpreter.is_file(), 'pinned parent interpreter required')
     if Path(sys.executable).resolve() != interpreter.resolve():
-        os.execv(str(interpreter), [str(interpreter), '-I', str(Path(__file__).resolve()), *sys.argv[1:]])
+        os.execv(str(interpreter), [str(interpreter), '-I', str(entrypoint or Path(__file__).resolve()), *sys.argv[1:]])
     config = HOOK['load'](home)
     require(config is not None and {'mapping', 'ingress', 'egress'} <= set(config),
             'pinned parent publication mapping required')
     return config
 
 
-def resolved_return(home, binding):
+def correlated_return(home, binding):
     correlation = binding['correlation']
     require(isinstance(correlation, str) and re.fullmatch('[0-9a-f]{16}', correlation),
             'existing parent correlation required')
@@ -78,7 +78,12 @@ def resolved_return(home, binding):
             fields[key] = value
     require(fields.get('corr_id') == correlation and fields.get('task_id') == binding['work_id']
             and fields.get('parent_home') == str(home), 'return belongs to another route or home')
-    require(fields.get('phase') == 'resolved', 'authoritative correlated return is not resolved')
+    return fields
+
+
+def resolved_return(home, binding):
+    require(correlated_return(home, binding).get('phase') == 'resolved',
+            'authoritative correlated return is not resolved')
 
 
 def reply(args):

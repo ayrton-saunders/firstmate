@@ -11,7 +11,7 @@ Never substitute an old frozen helper with hardcoded historical pins or epochs.
 Confirm the exact bot, controlling owner, channel, mapped project, existing second mate and canonical parent home.
 Do not infer another domain's authority from matching source revisions.
 The [hook's configuration contract](../bin/fm-discord-hook.py) owns the source status fields.
-Install the complete approved source, including both commands and the lifecycle hook and owners.
+Install the complete approved source, including the parent commands and the lifecycle hook and owners.
 Keep the already approved private package and architecture-matching CPython 3.14 runtime unless a separate immutable-release upgrade is explicitly approved.
 No new token, key, user, mapping, ACL, project charter or launchd job is needed for these parent commands.
 Any such change needs a separate owner decision, not an installation repair.
@@ -118,6 +118,39 @@ An identical approved reply can repair the same final event; changed words canno
 Expired intake readiness blocks dispatch, but does not erase an already-owed final.
 Coding, visual input preparation, continuation and public follow-up authority are outside this read-only question-and-answer path.
 
+## Optional contextual acknowledgement (inactive by default)
+
+`bin/fm-discord-acknowledge.py --help` owns the opt-in configuration, cheap reasoning command contract and invocation syntax.
+Do not enable its separate `config/discord-acknowledgement.json` switch until both Discord hosts run the release containing [the acknowledgement transport API](https://github.com/ayrton-saunders/firstmate-discord/pull/27).
+Installing the parent adapter neither activates the switch nor upgrades either host.
+
+After the dispatch's delivery is confirmed (`fm-send` succeeded), the trusted parent judges whether the real answer is well over about 30 seconds away, based on the actual request and remaining work, not elapsed time alone.
+The [command help](../bin/fm-discord-acknowledge.py) owns the authoritative delivery-evidence check before wording.
+For imminent answers, skip the optional line entirely.
+Only for a clearly slow answer, invoke the adapter once with `well-over-30s` and one line of verified, public-safe facts about what is actually being checked.
+Select the command's cheap reasoning model explicitly in the local configuration when enabling the feature; the adapter is model/runtime-neutral and never chooses a more expensive fallback.
+Follow the [command help's isolation contract](../bin/fm-discord-acknowledge.py) for the wrapper, sanitized environment and process-group timeout.
+For a reviewed Claude CLI installation, this is the wrapper shape (replace the executable path with the approved local one; do not run this example during fixture validation):
+
+```sh
+#!/bin/sh
+exec /absolute/path/to/claude --print --model claude-haiku-4-5 --effort low \
+  --setting-sources '' --tools '' --strict-mcp-config --no-session-persistence \
+  --disable-slash-commands --system-prompt 'Follow the acknowledgement instruction in the JSON input; output only its sentence.'
+```
+
+The API-capability check runs before wording and reports one plain diagnostic if the enrolled parent release is too old; keep the switch off rather than retrying.
+A useful sentence names the concrete subject being checked, without invented progress, promises or time estimates.
+Use one sentence of plain customer words, not repository/commit/pull-request terminology, internal identifiers, status labels, bracketed text, fractions, hexadecimal strings, private paths, links or mentions.
+These constraints guide context and model wording; the transport remains the authoritative public-caption validator.
+The live approval API validates public-caption safety without approval side effects on refusal; offline `validate-reply` does not support acknowledgement copy.
+
+A closed window (`published:false`) or a changed revision/generation (`Conflict`) means no line, carry on with the real answer, without retry, alert or a new decision.
+The transport owns the one-line-per-request guarantee; the adapter adds no suppression machinery.
+A rare acknowledgement followed seconds later by the final is accepted.
+Publication is not delivery proof.
+The installed release's [contextual acknowledgement contract](https://github.com/ayrton-saunders/firstmate-discord/blob/main/deploy/PARENT-CONNECTION.md#contextual-acknowledgement) owns typing, delivery ordering and unresolved-post recovery.
+
 ## Local qualification and the excluded test
 
 These are development checks, not owner authorization to run the installation steps.
@@ -133,6 +166,7 @@ FM_LIVE=0 bash bin/fm-test-run.sh --jobs 1 tests/fm-discord-dispatch.test.sh tes
 
 The dispatch suite covers exact payloads and automatic bindings, expired readiness, inadmissible lanes, existing intents, escaping package root refusal, domain isolation and missing delivery receipts.
 The reply suite covers authoritative returns, generation/scope/route mismatches, non-active lanes, fences, escaping package root refusal, incomplete publication and duplicate-safe approval.
+It also exercises the optional acknowledgement command with a fake cheap wording command and integration: slow versus imminent answers, inactive configuration, complete original origin/current bindings, silent closed-window and Conflict outcomes, and unsafe or oversized wording refusal.
 The hook suite covers source status fields present, stale or absent, optional legacy hashes, enrolled release switching, invalid package root refusal and retained home/schema protections.
 Successful fixture verification is not a claim that the live installation is aligned or unfenced.
 
