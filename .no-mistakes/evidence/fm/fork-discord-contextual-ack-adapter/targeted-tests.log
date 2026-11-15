@@ -1,4 +1,4 @@
-FM_TEST_BEGIN 2026-11-15T19:25:00Z tests/fm-discord-dispatch.test.sh family=unclassified expected_gate_skip=none
+FM_TEST_BEGIN 2026-11-15T20:24:05Z tests/fm-discord-dispatch.test.sh family=unclassified expected_gate_skip=none
 test_ambient_overrides_are_not_child_authority (__main__.Dispatch.test_ambient_overrides_are_not_child_authority) ... ok
 test_disabled_absent_and_symlink_config_refuse_before_journal (__main__.Dispatch.test_disabled_absent_and_symlink_config_refuse_before_journal) ... ok
 test_duplicate_configuration_refuses_by_check_name (__main__.Dispatch.test_duplicate_configuration_refuses_by_check_name) ... ok
@@ -25,22 +25,25 @@ test_visual_work_is_not_silently_reclassified (__main__.Dispatch.test_visual_wor
 test_wrong_project_or_unknown_route_refuses (__main__.Dispatch.test_wrong_project_or_unknown_route_refuses) ... ok
 
 ----------------------------------------------------------------------
-Ran 24 tests in 2.331s
+Ran 24 tests in 2.390s
 
 OK
 ok - Discord dispatch: exact payload, automatic binding, isolation, receipt and refusal paths
-FM_TEST_END 2026-11-15T19:25:03Z tests/fm-discord-dispatch.test.sh exit=0 duration_ms=2619 gate_skip=false
-FM_TEST_BEGIN 2026-11-15T19:25:03Z tests/fm-discord-reply.test.sh family=unclassified expected_gate_skip=none
+FM_TEST_END 2026-11-15T20:24:08Z tests/fm-discord-dispatch.test.sh exit=0 duration_ms=2607 gate_skip=false
+FM_TEST_BEGIN 2026-11-15T20:24:08Z tests/fm-discord-reply.test.sh family=unclassified expected_gate_skip=none
 test_absent_and_inactive_switch_send_nothing (__main__.AcknowledgementTests.test_absent_and_inactive_switch_send_nothing) ... ok
 test_closed_window_and_conflict_are_silent_single_attempts (__main__.AcknowledgementTests.test_closed_window_and_conflict_are_silent_single_attempts) ... ok
 test_does_not_require_a_finished_return_to_acknowledge (__main__.AcknowledgementTests.test_does_not_require_a_finished_return_to_acknowledge) ... ok
 test_gate_refuses_before_wording_and_journal (__main__.AcknowledgementTests.test_gate_refuses_before_wording_and_journal) ... ok
 test_imminent_never_opens_configuration_journal_or_model (__main__.AcknowledgementTests.test_imminent_never_opens_configuration_journal_or_model) ... ok
+test_missing_delivery_evidence_skips_before_wording (__main__.AcknowledgementTests.test_missing_delivery_evidence_skips_before_wording) ... ok
+test_missing_transport_api_is_safe_before_wording (__main__.AcknowledgementTests.test_missing_transport_api_is_safe_before_wording) ... ok
 test_overlong_and_multiline_wording_never_reach_approval (__main__.AcknowledgementTests.test_overlong_and_multiline_wording_never_reach_approval) ... ok
 test_pinned_reexec_keeps_acknowledgement_entrypoint (__main__.AcknowledgementTests.test_pinned_reexec_keeps_acknowledgement_entrypoint) ... ok
 test_slow_sends_one_contextual_line_with_original_binding (__main__.AcknowledgementTests.test_slow_sends_one_contextual_line_with_original_binding) ... ok
 test_unsafe_copy_uses_live_guard_without_approval_side_effect (__main__.AcknowledgementTests.test_unsafe_copy_uses_live_guard_without_approval_side_effect) ... ok
 test_wording_failure_is_not_retried_or_published (__main__.AcknowledgementTests.test_wording_failure_is_not_retried_or_published) ... ok
+test_wording_timeout_kills_the_whole_process_group (__main__.AcknowledgementTests.test_wording_timeout_kills_the_whole_process_group) ... ok
 test_wrong_binding_refuses_before_wording (__main__.AcknowledgementTests.test_wrong_binding_refuses_before_wording) ... ok
 test_changed_words_cannot_replace_approval (__main__.Reply.test_changed_words_cannot_replace_approval) ... ok
 test_disabled_absent_and_symlink_configuration_refuse_before_open (__main__.Reply.test_disabled_absent_and_symlink_configuration_refuse_before_open) ... ok
@@ -68,12 +71,12 @@ test_wrong_project_or_task_binding_refuses (__main__.Reply.test_wrong_project_or
 test_wrong_return_home_task_or_correlation_refuses (__main__.Reply.test_wrong_return_home_task_or_correlation_refuses) ... ok
 
 ----------------------------------------------------------------------
-Ran 35 tests in 3.025s
+Ran 38 tests in 23.841s
 
 OK
 ok - Discord reply: approved final, authoritative return, isolation, replay and refusal paths
-FM_TEST_END 2026-11-15T19:25:06Z tests/fm-discord-reply.test.sh exit=0 duration_ms=3259 gate_skip=false
-FM_TEST_BEGIN 2026-11-15T19:25:06Z tests/fm-discord-hook.test.sh family=unclassified expected_gate_skip=none
+FM_TEST_END 2026-11-15T20:24:32Z tests/fm-discord-reply.test.sh exit=0 duration_ms=24075 gate_skip=false
+FM_TEST_BEGIN 2026-11-15T20:24:32Z tests/fm-discord-hook.test.sh family=unclassified expected_gate_skip=none
 ok - Discord hook: absent integration preserves legacy delivery
 ok - Discord hook: disabled integration preserves legacy delivery
 ok - Discord hook: malformed configuration refuses without echoing private payload
@@ -92,9 +95,9 @@ ok - Discord hook: permit-free confirmation refuses before journal access withou
 ok - Discord hook: Discord lane missing, malformed and unknown permits refuse before consume
 ok - Discord hook: local sends retain parser, metadata and generation protections
 ok - Discord hook: bounded local authority retains lifecycle, payload and delivery failure checks
-FM_TEST_END 2026-11-15T19:25:19Z tests/fm-discord-hook.test.sh exit=0 duration_ms=13178 gate_skip=false
-FM_TEST_SUMMARY total=3 failed=0 skipped_gate=0 duration_ms=19191
-FM_TEST_SUMMARY_FAMILY family=unclassified count=3 duration_ms=19056 failed=0
-FM_TEST_SLOWEST rank=1 script=tests/fm-discord-hook.test.sh duration_ms=13178
-FM_TEST_SLOWEST rank=2 script=tests/fm-discord-reply.test.sh duration_ms=3259
-FM_TEST_SLOWEST rank=3 script=tests/fm-discord-dispatch.test.sh duration_ms=2619
+FM_TEST_END 2026-11-15T20:24:46Z tests/fm-discord-hook.test.sh exit=0 duration_ms=14394 gate_skip=false
+FM_TEST_SUMMARY total=3 failed=0 skipped_gate=0 duration_ms=41230
+FM_TEST_SUMMARY_FAMILY family=unclassified count=3 duration_ms=41076 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-discord-reply.test.sh duration_ms=24075
+FM_TEST_SLOWEST rank=2 script=tests/fm-discord-hook.test.sh duration_ms=14394
+FM_TEST_SLOWEST rank=3 script=tests/fm-discord-dispatch.test.sh duration_ms=2607
