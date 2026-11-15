@@ -140,6 +140,29 @@ assert_not_contains "$(<"$TMP_ROOT/default-defer.err")" 'Traceback' 'default-hom
 [ ! -e "$DEFAULT_HOME/state/deferred-worker.meta" ] || fail 'deferred worker must not launch'
 pass 'Discord hook: unset FM_HOME preserves disabled default-home spawn and deferral'
 
+rm "$DEFAULT_HOME/config/discord-integration.json"
+mkdir -p "$DEFAULT_HOME/config/discord/pristine-valets"
+for mode in missing disabled; do
+  if [ "$mode" = disabled ]; then
+    printf '%s\n' '{"enabled":false}' > "$DEFAULT_HOME/config/discord/pristine-valets/integration.json"
+  fi
+  printf '%s 1\n' "${PROJECT##*/}" > "$DEFAULT_HOME/config/project-capacity"
+  fm_test_spawn_brief "$DEFAULT_HOME" "bound-deferred-$mode"
+  rc=0
+  FM_DISCORD_DOMAIN=pristine-valets run_default_spawn "bound-deferred-$mode" "$PROJECT" --scout --backend tmux \
+    >"$TMP_ROOT/out" 2>"$TMP_ROOT/err" || rc=$?
+  [ "$rc" -eq 75 ] || fail 'bound capacity deferral must retain exit 75'
+  assert_contains "$(<"$TMP_ROOT/err")" 'Discord admission receipt needs reconciliation' 'bound deferral must check domain-only configuration'
+  rm "$DEFAULT_HOME/config/project-capacity"
+  fm_test_spawn_brief "$DEFAULT_HOME" "bound-worker-$mode"
+  if FM_DISCORD_DOMAIN=pristine-valets run_default_spawn "bound-worker-$mode" "$PROJECT" --scout --backend tmux \
+    >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail 'missing or disabled bound configuration must refuse spawn'
+  fi
+  [ ! -e "$DEFAULT_HOME/state/bound-worker-$mode.meta" ] || fail 'refused bound worker must not launch'
+done
+pass 'Discord hook: domain-only spawn and deferral check missing and disabled bindings'
+
 # Enabled mapped delivery uses a pinned, inert private-package fixture, never a
 # live Discord package/config. A journal marker detects even an accidental open.
 PY314=$(command -v python3.14 || true)
@@ -447,3 +470,60 @@ fi
 [ ! -e "$MAPPED_HOME/journal" ] || fail 'local safety checks must not access journal'
 [ ! -e "$MAPPED_HOME/journal.consumed" ] || fail 'local safety checks must not consume permits'
 pass 'Discord hook: bounded local authority retains lifecycle, payload and delivery failure checks'
+
+DOMAIN_HOME="$TMP_ROOT/domain-only-home"
+DOMAIN_INSTANCE="$TMP_ROOT/domains/pristine-valets/parent"
+mkdir -p "$DOMAIN_HOME/config/discord/pristine-valets" "$DOMAIN_HOME/state" \
+  "$DOMAIN_INSTANCE/code/releases/r1/venv/bin" "$DOMAIN_INSTANCE/state"
+cp -R "$PACKAGE/personal_discord" "$DOMAIN_INSTANCE/code/releases/r1/"
+ln -s "$PY314" "$DOMAIN_INSTANCE/code/releases/r1/venv/bin/python"
+ln -s releases/r1 "$DOMAIN_INSTANCE/code/current"
+"$PY314" - "$TMP_ROOT/current-config.json" "$DOMAIN_HOME" "$DOMAIN_INSTANCE" <<'PY'
+import json, sys
+from pathlib import Path
+config = json.loads(Path(sys.argv[1]).read_text())
+home, instance = map(lambda p: Path(p).resolve(), sys.argv[2:])
+config.update(home=str(home), domain='pristine-valets', instance_root=str(instance),
+              package_root=str(instance/'code/current'),
+              python_executable=str(instance/'code/current/venv/bin/python'),
+              mapping=dict(bridge_id='pristine-valets'),
+              **{key:str(instance/'state'/key) for key in ('journal','ingress','egress')})
+(home/'config/discord/pristine-valets/integration.json').write_text(json.dumps(config))
+PY
+fm_write_meta "$DOMAIN_HOME/state/mapped.meta" 'window=sess:fm-mapped' 'backend=tmux' 'harness=pi' 'kind=ship' 'spawn_gen=fixture-gen'
+run_domain_send() {
+  env FM_DISCORD_DOMAIN=pristine-valets FM_DISCORD_AUTH=11111111111111111111111111111111 \
+    PATH="$TMP_ROOT/send-tools:$PATH" FM_HOME="$DOMAIN_HOME" \
+    FM_ROOT_OVERRIDE="$DOMAIN_HOME" FM_SEND_SETTLE=0 \
+    bash "$ROOT/bin/fm-send.sh" mapped 'domain-only reviewed context'
+}
+run_domain_send >"$TMP_ROOT/out" 2>"$TMP_ROOT/err" \
+  || fail "domain-only typed delivery must succeed: $(<"$TMP_ROOT/err")"
+[ -f "$DOMAIN_INSTANCE/state/journal.consumed" ] || fail 'domain-only delivery must consume permit'
+[ -f "$DOMAIN_INSTANCE/state/journal.confirmed" ] || fail 'domain-only delivery must confirm receipt'
+assert_contains "$(<"$DOMAIN_HOME/state/mapped.inbox/001.msg")" 'domain-only reviewed context' 'domain-only steer must be durable'
+for mode in disabled missing; do
+  if [ "$mode" = disabled ]; then
+    "$PY314" - "$DOMAIN_HOME/config/discord/pristine-valets/integration.json" <<'PY'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+config = json.loads(path.read_text())
+config['enabled'] = False
+path.write_text(json.dumps(config))
+PY
+  else
+    rm "$DOMAIN_HOME/config/discord/pristine-valets/integration.json"
+  fi
+  if run_domain_send >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail "$mode bound configuration must refuse actual send"
+  fi
+  [ ! -e "$DOMAIN_HOME/state/mapped.inbox/002.msg" ] || fail 'refused domain send must not deliver'
+  note=$(FM_DISCORD_DOMAIN=pristine-valets FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" note --json 'domain-only request')
+  id=$(printf '%s' "$note" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+  FM_DISCORD_DOMAIN=pristine-valets FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" drain >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"
+  assert_contains "$(<"$TMP_ROOT/err")" 'readiness not renewed' 'bound readiness must run without global config'
+  FM_DISCORD_DOMAIN=pristine-valets FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" reply "$id" 'reviewed reply' >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"
+  assert_contains "$(<"$TMP_ROOT/err")" 'do not resend' 'bound outcome must run without global config'
+done
+pass 'Discord hook: domain-only lifecycle delivery consumes and confirms, missing/disabled bindings refuse'

@@ -300,6 +300,10 @@ class Dispatch(unittest.TestCase):
                 binding = json.loads(db.execute('SELECT body FROM bindings').fetchone()[0])
                 self.assertEqual(body['text'], 'Only '+domain+' reviewed question')
                 self.assertEqual(body['target'], domain+'-mate')
+                delivered = (self.home/'state'/(domain+'-mate-delivered-words')).read_text()
+                self.assertEqual(delivered, 'Only '+domain+' reviewed question')
+                created = (self.home/'state'/(domain+'-mate-created-words')).read_text()
+                self.assertEqual(created, delivered)
                 record = self.home/'state/pending-replies'/binding['correlation']
                 self.assertIn('task_id='+domain+'-mate', record.read_text())
                 correlations.add(binding['correlation'])
@@ -307,6 +311,19 @@ class Dispatch(unittest.TestCase):
         self.assertEqual(self.rows('intents'), [])
         self.assertEqual(self.config_path.read_bytes(), before)
         self.invoke()  # The still-global personal/Galagoa route is unchanged.
+
+    def test_domain_dispatch_writes_leave_sibling_state_untouched(self):
+        configs = self.domain_configs()
+        for domain, config in configs.items():
+            sibling = next(value for key, value in configs.items() if key != domain)
+            state = Path(sibling['instance_root'])/'state'
+            before = {p.relative_to(state):p.read_bytes() for p in state.rglob('*') if p.is_file()}
+            result = self.domain_call(domain, config, 'Reviewed context exclusively for '+domain)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual({p.relative_to(state):p.read_bytes() for p in state.rglob('*') if p.is_file()}, before)
+            with database(config['journal']) as db:
+                body = json.loads(db.execute('SELECT body FROM permits').fetchone()[0])
+                self.assertEqual(body['text'], 'Reviewed context exclusively for '+domain)
 
     def test_existing_personal_galagoa_mapping_remains_global_without_selector(self):
         configs = self.domain_configs()

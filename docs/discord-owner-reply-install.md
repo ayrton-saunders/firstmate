@@ -45,9 +45,10 @@ Each enabled domain needs a distinct mapped mate, domain-local journals and egre
 The commands preserve the lifecycle owner's existing home-local correlation records and distinct mate inboxes rather than inventing another return store.
 Shared mates, foreign origins, foreign state paths and returns owned by another mate are refused before publication.
 The local parent publishes only into the selected domain's egress; the separately enrolled transport must consume only that egress using its own bot principal.
-These path and routing checks do not establish OS isolation or isolate the trusted parent's model context.
-Enrollment must separately restrict each bot and mate to its own reviewed context and credentials; never feed another domain's conversation, reports or memory into its prompt.
-Do not treat fixture qualification as proof of those deployment protections or of live bot delivery.
+Within the shared trusted parent, the commands dispatch only the selected domain's supplied reviewed question/context and correlation to its distinct mate, reject foreign returns, and resolve replies through that domain's integration mapping and egress.
+Domain dispatch and reply journal writes remain beneath that domain's instance state root; lifecycle correlations retain the existing home-local store with distinct mate ownership.
+The separate firstmate-discord fresh-enrollment work must provision and qualify per-bot credential principals (separate tokens and OS accounts) and OS/model isolation before any client exposure.
+Never feed another domain's conversation, reports or memory into a mate's reviewed context; these command fixtures do not prove deployment isolation or live bot delivery.
 
 ## 2. Owner action: pause and preserve
 

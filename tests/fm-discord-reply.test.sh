@@ -99,6 +99,7 @@ class Integration:
         self.home = home
         assert parent.mapping == self.j.fixture().get('mapping',{'fixture':True})
         assert environment.get('FM_DISCORD_DOMAIN') == os.environ.get('FM_DISCORD_DOMAIN')
+        self.mapping = parent.mapping
         self.egress = egress
         assert environment['FM_HOME'] == environment['FM_ROOT_OVERRIDE'] == str(home)
         assert environment['FM_STATE_OVERRIDE'] == str(home/'state')
@@ -152,7 +153,7 @@ class Integration:
         self.j.db.commit()
         if 'mapping' in fixture:
             self.egress.db.execute('CREATE TABLE IF NOT EXISTS sent(bot,text)')
-            self.egress.db.execute('INSERT INTO sent VALUES(?,?)', (fixture['mapping']['bridge_id'],body['safe_text']))
+            self.egress.db.execute('INSERT INTO sent VALUES(?,?)', (json.dumps(self.mapping,sort_keys=True),body['safe_text']))
             self.egress.db.commit()
         return {'event':event_id,'published':not fixture.get('unpublished',False)}
 '''
@@ -252,13 +253,42 @@ class Reply(unittest.TestCase):
             for job in jobs:
                 result = job.result()
                 self.assertEqual(result.returncode, 0, result.stderr)
-        for domain, config in configs.items():
+        for index, (domain, config) in enumerate(configs.items()):
+            expected = dict(bridge_id=domain, owner_id='owner', guild_id=str(index+1),
+                            parent_channel_id=str(index+10), mapping_revision='pilot-v1', project_key='project')
             with database(config['egress']) as db:
                 self.assertEqual(db.execute('SELECT bot,text FROM sent').fetchall(),
-                                 [(domain, 'Only '+domain+' approved answer')])
+                                 [(json.dumps(expected, sort_keys=True), 'Only '+domain+' approved answer')])
         self.assertEqual(self.config_path.read_bytes(), before)
         self.assertEqual(self.approvals(), [])
         self.invoke()  # Legacy reply still uses only the unchanged global configuration.
+
+    def test_domain_reply_writes_leave_sibling_state_untouched(self):
+        configs = self.domain_configs()
+        for domain, config in configs.items():
+            sibling = next(value for key, value in configs.items() if key != domain)
+            state = Path(sibling['instance_root'])/'state'
+            before = {p.relative_to(state):p.read_bytes() for p in state.rglob('*') if p.is_file()}
+            result = self.domain_call(domain, config)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual({p.relative_to(state):p.read_bytes() for p in state.rglob('*') if p.is_file()}, before)
+
+    def test_bound_reply_missing_disabled_or_mismatched_binding_never_falls_back(self):
+        configs = self.domain_configs()
+        for domain, config in configs.items():
+            path = self.home/'config/discord'/domain/'integration.json'
+            for mode, message in (('missing', 'Bound domain configuration required'),
+                                  ('disabled', 'enabled parent configuration required'), ('mismatched', 'domain/root mismatch')):
+                if mode == 'missing':
+                    path.unlink()
+                else:
+                    path.write_text(json.dumps(dict(config, **({'enabled':False} if mode == 'disabled' else {'domain':'foreign'}))))
+                result = self.domain_call(domain, config)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(message, result.stderr)
+                self.assertFalse(Path(config['egress']).with_suffix('.opened').exists())
+                self.assertEqual(self.approvals(), [])
+            path.write_text(json.dumps(config))
 
     def test_foreign_origin_and_return_refuse_before_egress_in_both_directions(self):
         import copy

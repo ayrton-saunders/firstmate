@@ -634,7 +634,7 @@ cmd_reply() {
   mv "$staging" "$REPLIES/$id"
   fm_lock_release "$REPLY_SEQ_LOCK"
   # Record only the private reply digest; the parent approves any public final.
-  if [ -e "$FM_HOME/config/discord-integration.json" ]; then
+  if [ "${FM_DISCORD_DOMAIN+x}" = x ] || [ -e "$FM_HOME/config/discord-integration.json" ]; then
     reply_digest=$(shasum -a 256 "$REPLIES/$id" | awk '{print $1}')
     if ! printf '%s' "$reply_digest" | FM_HOME="$FM_HOME" python3 -I "$SELF_DIR/fm-discord-hook.py" outcome "$id"; then
       echo 'warning: reply recorded; Discord final needs reconciliation, do not resend' >&2
@@ -1121,7 +1121,7 @@ cmd_list() {
 }
 
 cmd_drain() {
-  if [ -e "$FM_HOME/config/discord-integration.json" ]; then
+  if [ "${FM_DISCORD_DOMAIN+x}" = x ] || [ -e "$FM_HOME/config/discord-integration.json" ]; then
     if ! FM_HOME="$FM_HOME" python3 -I "$SELF_DIR/fm-discord-hook.py" ready; then
       echo 'warning: Discord readiness not renewed; saved requests remain unaccepted' >&2
     fi

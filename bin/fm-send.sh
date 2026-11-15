@@ -957,7 +957,7 @@ else
   # Never preflight the parent release here.
   # Source commit/digest are status only; the hook retains route/permit checks.
   # Leave its concrete check-failure diagnostic intact on stderr.
-  if [ -e "$FM_HOME/config/discord-integration.json" ]; then
+  if [ "${FM_DISCORD_DOMAIN+x}" = x ] || [ -e "$FM_HOME/config/discord-integration.json" ]; then
     DISCORD_ROUTE_INFO=$(printf '%s' "$MESSAGE" | FM_HOME="$FM_HOME" python3 -I "$SCRIPT_DIR/fm-discord-hook.py" send \
       "$RAW_TARGET" "$T" "$TARGET_META" "$TARGET_BACKEND") || exit 1
     if [ -n "$DISCORD_ROUTE_INFO" ]; then
