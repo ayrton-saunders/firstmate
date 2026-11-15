@@ -122,18 +122,14 @@ Coding, visual input preparation, continuation and public follow-up authority ar
 
 `bin/fm-discord-acknowledge.py --help` owns the opt-in configuration, cheap reasoning command contract and invocation syntax.
 Do not enable its separate `config/discord-acknowledgement.json` switch until both Discord hosts run the release containing [the acknowledgement transport API](https://github.com/ayrton-saunders/firstmate-discord/pull/27).
-This change neither activates the switch nor installs or changes either host.
+Installing the parent adapter neither activates the switch nor upgrades either host.
 
 After the dispatch's delivery is confirmed (`fm-send` succeeded), the trusted parent judges whether the real answer is well over about 30 seconds away, based on the actual request and remaining work, not elapsed time alone.
-The adapter checks for authoritative `delivered_epoch` evidence or a resolved correlated return before spending a wording call; unconfirmed delivery sends no line.
+The [command help](../bin/fm-discord-acknowledge.py) owns the authoritative delivery-evidence check before wording.
 For imminent answers, skip the optional line entirely.
 Only for a clearly slow answer, invoke the adapter once with `well-over-30s` and one line of verified, public-safe facts about what is actually being checked.
-The configured wording command must use a cheap reasoning tier, not the parent's expensive reasoning tier; it receives only that context and the sentence-writing instruction, not custody records or raw worker output.
-Select the command's model explicitly in the local configuration when enabling the feature; the adapter is model/runtime-neutral and never chooses a more expensive fallback.
-The [command help](../bin/fm-discord-acknowledge.py) owns the exact sanitized environment and timeout contract.
-The model receives the normal OS-account HOME/USER/LOGNAME so its existing login can work, but no API keys or parent `FM_*` variables.
-It runs in an empty temporary directory outside the parent home, not a Firstmate project, with the fixed documented PATH; after 20 seconds the adapter kills its whole dedicated process group.
-Use a wrapper that `exec`s the explicitly selected model CLI without settings, hooks, tools, MCP or session persistence, never a backgrounded or detached model.
+Select the command's cheap reasoning model explicitly in the local configuration when enabling the feature; the adapter is model/runtime-neutral and never chooses a more expensive fallback.
+Follow the [command help's isolation contract](../bin/fm-discord-acknowledge.py) for the wrapper, sanitized environment and process-group timeout.
 For a reviewed Claude CLI installation, this is the wrapper shape (replace the executable path with the approved local one; do not run this example during fixture validation):
 
 ```sh
