@@ -64,6 +64,10 @@ class Journal:
         f=self.fixture()
         if family=='request' and ident==f['id']:
             return f['request']
+        if family=='route-permit':
+            row=self.db.execute('SELECT body FROM permits WHERE id=?',(ident,)).fetchone()
+            if row:
+                return json.loads(row[0])
         raise KeyError('unknown')
     def state(self,family,ident):
         if family=='route-permit':
@@ -82,7 +86,7 @@ PARENT = '''import json
 class Parent:
     def __init__(self,j,mapping):
         self.j=j
-        assert mapping=={'fixture':True}
+        assert mapping==self.j.fixture().get('mapping',{'fixture':True})
     def readiness(self):
         return {'expires':self.j.fixture()['expires']}
     def prepare_dispatch(self,ident,*,binding):
@@ -93,7 +97,7 @@ class Parent:
         assert binding['kind']=='read-only'
         assert binding['scope_digest']==f['state'].get('current_scope_digest',f['request']['scope_digest'])
         assert len(binding['generation'])==32 and len(binding['correlation'])==16
-        assert binding['work_id']=='domain'
+        assert binding['work_id']==f.get('target','domain')
         assert self.j.db.execute('SELECT phase FROM lanes WHERE request=?',(ident,)).fetchone()[0]=='queued'
         self.j.db.execute('INSERT INTO bindings VALUES(?,?)',(ident,json.dumps(binding)))
         self.j.db.execute("INSERT INTO intents VALUES(?,?)",(ident,'prepared'))
@@ -112,7 +116,8 @@ class Routing:
     def __init__(self,j):
         self.j=j
     def issue(self,**body):
-        assert body['project']=='project' and body['target']=='domain'
+        assert body['project']==self.j.fixture()['request']['origin']['project_key']
+        assert body['target']==self.j.fixture().get('target','domain')
         assert body['operation']=='new' and body['endpoint_generation']=='endpoint-gen'
         assert self.j.db.execute('SELECT phase FROM lanes WHERE request=?',(body['request'],)).fetchone()[0]=='active'
         assert self.j.work_binding(body['request'])['generation']==body['generation']
@@ -145,7 +150,8 @@ corr=secrets.token_hex(8)
 p=pathlib.Path(state)/'pending-replies'/corr
 p.parent.mkdir(exist_ok=True)
 p.write_text('corr_id='+corr+'\\ntask_id='+target+'\\nparent_home='+home+'\\nphase=awaiting_report\\n')
-(pathlib.Path(state)/'created-words').write_bytes(words.encode())
+prefix=target+'-' if 'FM_DISCORD_DOMAIN' in os.environ else ''
+(pathlib.Path(state)/(prefix+'created-words')).write_bytes(words.encode())
 print(corr,end='')
 OWNER
 }
@@ -159,7 +165,8 @@ home=pathlib.Path(os.environ['FM_HOME'])
 assert os.environ['HOME']==str(home)
 for key,child in [('FM_STATE_OVERRIDE','state'),('FM_DATA_OVERRIDE','data'),('FM_CONFIG_OVERRIDE','config'),('FM_PROJECTS_OVERRIDE','projects')]:
     assert os.environ[key]==str(home/child)
-config=json.loads((home/'config/discord-integration.json').read_text())
+path=home/'config/discord'/os.environ['FM_DISCORD_DOMAIN']/'integration.json' if 'FM_DISCORD_DOMAIN' in os.environ else home/'config/discord-integration.json'
+config=json.loads(path.read_text())
 db=sqlite3.connect(config['journal'])
 f=json.loads(db.execute('SELECT body FROM fixture').fetchone()[0])
 if f.get('check_actor'):
@@ -174,7 +181,8 @@ assert os.environ['FM_SEND_EXPECTED_SPAWN_GEN']==body['endpoint_generation']
 binding=json.loads(db.execute('SELECT body FROM bindings WHERE id=?',(body['request'],)).fetchone()[0])
 assert os.environ['FM_PENDING_REPLY_EXISTING_CORR']==binding['correlation']
 assert (home/'state/pending-replies'/binding['correlation']).is_file()
-assert (home/'state/created-words').read_bytes()==body['text'].encode()
+prefix=body['target']+'-' if 'FM_DISCORD_DOMAIN' in os.environ else ''
+assert (home/'state'/(prefix+'created-words')).read_bytes()==body['text'].encode()
 assert os.environ['FM_ROOT_OVERRIDE']==config['source']
 if f.get('changed_generation'):
     sys.exit(1)
@@ -187,7 +195,7 @@ if f.get('send_failed'):
 if not f.get('missing_receipt'):
     db.execute("UPDATE permits SET phase='confirmed' WHERE id=?",(permit,))
     db.commit()
-(home/'state/delivered-words').write_bytes(body['text'].encode())
+(home/'state'/(prefix+'delivered-words')).write_bytes(body['text'].encode())
 OWNER
 '''
 
@@ -234,6 +242,176 @@ class Dispatch(unittest.TestCase):
                              'CREATE TABLE permits(id PRIMARY KEY,body,phase);')
             db.execute('INSERT INTO fixture VALUES(?)',(json.dumps(self.fixture),))
             db.execute('INSERT INTO lanes VALUES(?,?,?)',('project',self.ident,'queued'))
+
+    def test_missing_bound_domain_never_falls_back_to_legacy(self):
+        self.invoke('Bound domain configuration required', env={'FM_DISCORD_DOMAIN':'pristine-valets'})
+        self.assertEqual(self.rows('intents'), [])
+
+    def domain_configs(self):
+        import copy
+        configs = {}
+        for index, domain in enumerate(('pristine-valets', 'galagoa-new')):
+            instance = self.world/'domains'/domain/'parent'
+            (instance/'code/current/venv/bin').mkdir(parents=True)
+            (instance/'code/current/venv/bin/python').symlink_to(Path(sys.executable).resolve())
+            shutil.copytree(self.package/'personal_discord', instance/'code/current/personal_discord')
+            (instance/'state').mkdir()
+            config = dict(self.config, domain=domain, instance_root=str(instance),
+                          package_root=str(instance/'code/current'),
+                          python_executable=str(instance/'code/current/venv/bin/python'),
+                          **{key:str(instance/'state'/(key+'.sqlite')) for key in ('journal','ingress','egress')})
+            config['mapping'] = dict(bridge_id=domain, owner_id='owner', guild_id=str(index+1),
+                                     parent_channel_id=str(index+10), mapping_revision='pilot-v1', project_key='project')
+            target = domain+'-mate'
+            config['routes'] = [dict(target=target, project='project')]
+            path = self.home/'config/discord'/domain/'integration.json'
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps(config))
+            (self.home/'state'/(target+'.meta')).write_text('kind=secondmate\nspawn_gen=endpoint-gen\n')
+            shutil.copyfile(self.config['journal'], config['journal'])
+            fixture = copy.deepcopy(self.fixture)
+            fixture.update(mapping=config['mapping'], target=target)
+            fixture['request']['origin'] = dict(config['mapping'], thread_id=str(index+10), source_message_id='100')
+            with database(config['journal']) as db:
+                db.execute('UPDATE fixture SET body=?', (json.dumps(fixture),))
+            configs[domain] = config
+        return configs
+
+    def domain_call(self, domain, config, words):
+        return subprocess.run([sys.executable, '-I', str(self.source/'bin/fm-discord-dispatch.py'),
+                               self.ident, config['routes'][0]['target'], words],
+                              env={**os.environ, 'FM_HOME':str(self.home), 'FM_DISCORD_DOMAIN':domain},
+                              capture_output=True, text=True, timeout=15)
+
+    def test_two_bound_domains_concurrent_and_legacy_route_unchanged(self):
+        from concurrent.futures import ThreadPoolExecutor
+        configs = self.domain_configs()
+        before = self.config_path.read_bytes()
+        with ThreadPoolExecutor() as executor:
+            jobs = [executor.submit(self.domain_call, domain, config, 'Only '+domain+' reviewed question')
+                    for domain, config in configs.items()]
+            for job in jobs:
+                result = job.result()
+                self.assertEqual(result.returncode, 0, result.stderr)
+        correlations = set()
+        for domain, config in configs.items():
+            with database(config['journal']) as db:
+                body = json.loads(db.execute('SELECT body FROM permits').fetchone()[0])
+                binding = json.loads(db.execute('SELECT body FROM bindings').fetchone()[0])
+                self.assertEqual(body['text'], 'Only '+domain+' reviewed question')
+                self.assertEqual(body['target'], domain+'-mate')
+                record = self.home/'state/pending-replies'/binding['correlation']
+                self.assertIn('task_id='+domain+'-mate', record.read_text())
+                correlations.add(binding['correlation'])
+        self.assertEqual(len(correlations), 2)
+        self.assertEqual(self.rows('intents'), [])
+        self.assertEqual(self.config_path.read_bytes(), before)
+        self.invoke()  # The still-global personal/Galagoa route is unchanged.
+
+    def test_existing_personal_galagoa_mapping_remains_global_without_selector(self):
+        configs = self.domain_configs()
+        mapping = dict(bridge_id='personal-discord-galagoa', project_key='galagoa', mapping_revision='pilot-v1',
+                       owner_id='owner', guild_id='existing-guild', parent_channel_id='existing-channel')
+        self.config.update(mapping=mapping, projects={'galagoa':str(self.source)},
+                           routes=[dict(target='domain', project='galagoa')])
+        self.fixture['mapping'] = mapping
+        self.fixture['request']['origin'] = mapping
+        self.save_config()
+        self.update()
+        with database(self.config['journal']) as db:
+            db.execute("UPDATE lanes SET project='galagoa'")
+        before = self.config_path.read_bytes()
+        self.invoke()
+        self.assertEqual(self.config_path.read_bytes(), before)
+        permit = json.loads(self.rows('permits')[0][1])
+        self.assertEqual((permit['project'], permit['target']), ('galagoa', 'domain'))
+        for config in configs.values():
+            self.assertFalse(Path(config['journal']).with_suffix('.opened').exists())
+
+    def test_bound_dispatch_refuses_foreign_origins_in_both_directions(self):
+        configs = self.domain_configs()
+        for domain, config in configs.items():
+            other = next(value for key, value in configs.items() if key != domain)
+            with database(config['journal']) as db:
+                fixture = json.loads(db.execute('SELECT body FROM fixture').fetchone()[0])
+                fixture['request']['origin'] = other['mapping']
+                db.execute('UPDATE fixture SET body=?', (json.dumps(fixture),))
+            result = self.domain_call(domain, config, 'Not authorized')
+            self.assertEqual(result.returncode, 1)
+            self.assertIn('Request origin belongs to another bound domain', result.stderr)
+            with database(config['journal']) as db:
+                self.assertEqual(db.execute('SELECT * FROM intents').fetchall(), [])
+        self.assertFalse((self.home/'state/pending-replies').exists())
+
+    def test_bound_domain_refuses_shared_mate_and_foreign_state(self):
+        configs = self.domain_configs()
+        domain, config = next(iter(configs.items()))
+        path = self.home/'config/discord'/domain/'integration.json'
+        original = json.loads(path.read_text())
+        for key, value, message in (
+                ('routes', self.config['routes'], 'separate mapped mates'),
+                ('egress', self.config['journal'], 'writable path belongs to another domain'),
+                ('domain', 'foreign', 'domain/root mismatch')):
+            path.write_text(json.dumps(dict(original, **{key:value})))
+            result = self.domain_call(domain, config, 'Not authorized')
+            self.assertEqual(result.returncode, 1)
+            self.assertIn(message, result.stderr)
+            self.assertFalse(Path(config['journal']).with_suffix('.opened').exists())
+        path.write_text(json.dumps(original))
+
+    def test_hook_cannot_consume_or_confirm_another_domains_permit(self):
+        configs = self.domain_configs()
+        permits = {}
+        for domain, config in configs.items():
+            result = self.domain_call(domain, config, 'Only '+domain+' question')
+            self.assertEqual(result.returncode, 0, result.stderr)
+            with database(config['journal']) as db:
+                permits[domain] = db.execute('SELECT id,body,phase FROM permits').fetchone()
+        for domain, config in configs.items():
+            foreign = next(value for key, value in permits.items() if key != domain)
+            target = config['routes'][0]['target']
+            for copied in (False, True):
+                if copied:
+                    with database(config['journal']) as db:
+                        db.execute('INSERT INTO permits VALUES(?,?,?)', foreign)
+                for operation in (['send', target, target, str(self.home/'state'/(target+'.meta')), 'tmux'],
+                                  ['confirm-send', 'local', '001.msg']):
+                    result = subprocess.run([sys.executable, '-I', str(self.source/'bin/fm-discord-hook.py'), *operation],
+                                            input='Only reviewed words', text=True, capture_output=True,
+                                            env={**os.environ, 'FM_HOME':str(self.home), 'FM_DISCORD_DOMAIN':domain,
+                                                 'FM_DISCORD_AUTH':foreign[0]})
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn('another bound route' if copied else 'Route permit lookup failed', result.stderr)
+            with database(config['journal']) as db:
+                self.assertEqual(db.execute('SELECT id,body,phase FROM permits WHERE id=?',
+                                            (permits[domain][0],)).fetchone(), permits[domain])
+
+    def test_domain_hook_refuses_cross_route_and_invalid_local_bindings(self):
+        configs = self.domain_configs()
+        (self.source/'bin/fm-backend.sh').write_text('fm_backend_target_matches_meta() { return 1; }\n')
+        for domain, config in configs.items():
+            other = next(value for key, value in configs.items() if key != domain)
+            target = config['routes'][0]['target']
+            foreign = other['routes'][0]['target']
+            for route, authority, message in ((target, {}, None),
+                    (foreign, {'FM_DISCORD_AUTH':'a'*32}, 'unmapped route')):
+                result = subprocess.run([sys.executable, '-I', str(self.source/'bin/fm-discord-hook.py'),
+                                         'send', route, route, str(self.home/'state'/(route+'.meta')), 'tmux'],
+                                        input='Only reviewed local words', text=True, capture_output=True,
+                                        env={**os.environ, 'FM_HOME':str(self.home), 'FM_DISCORD_DOMAIN':domain, **authority})
+                self.assertEqual(result.returncode, int(message is not None), result.stderr)
+                if message:
+                    self.assertIn(message, result.stderr)
+            self.assertFalse(Path(config['journal']).with_suffix('.opened').exists())
+        for domain in ('', '../galagoa-new', '/galagoa-new', 'Galagoa', 'x'*49):
+            self.invoke('Invalid trusted domain binding', env={'FM_DISCORD_DOMAIN':domain})
+        domain, config = next(iter(configs.items()))
+        path = self.home/'config/discord'/domain/'integration.json'
+        path.write_text(json.dumps(dict(config, enabled=False)))
+        self.invoke('enabled parent configuration required', env={'FM_DISCORD_DOMAIN':domain})
+        path.unlink()
+        path.symlink_to(self.config_path)
+        self.invoke('Bound domain configuration required', env={'FM_DISCORD_DOMAIN':domain})
 
     def save_config(self):
         self.config_path.write_text(json.dumps(self.config))

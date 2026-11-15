@@ -33,6 +33,22 @@ python3 -I "$SOURCE/bin/fm-discord-dispatch.py" --help
 python3 -I "$SOURCE/bin/fm-discord-reply.py" --help
 ```
 
+## Trusted local domain binding
+
+The [hook configuration contract](../bin/fm-discord-hook.py) owns domain selection, runner-compatible paths and the checks shared by both commands.
+The invoking trusted local process must bind `FM_DISCORD_DOMAIN` for an enrolled domain and preserve it through lifecycle calls; no Discord message, origin field, question text or return may select it or `FM_HOME`.
+With that variable absent, the existing global configuration and personal/Galagoa route remain unchanged, even when domain configurations coexist.
+There is no migration, global-config replacement or fallback from a missing domain configuration.
+Fresh enrollment and runner environment propagation belong to the separate firstmate-discord installation work, not these commands.
+
+Each enabled domain needs a distinct mapped mate, domain-local journals and egress, and separately reviewed bot/endpoint credential principals.
+The commands preserve the lifecycle owner's existing home-local correlation records and distinct mate inboxes rather than inventing another return store.
+Shared mates, foreign origins, foreign state paths and returns owned by another mate are refused before publication.
+The local parent publishes only into the selected domain's egress; the separately enrolled transport must consume only that egress using its own bot principal.
+These path and routing checks do not establish OS isolation or isolate the trusted parent's model context.
+Enrollment must separately restrict each bot and mate to its own reviewed context and credentials; never feed another domain's conversation, reports or memory into its prompt.
+Do not treat fixture qualification as proof of those deployment protections or of live bot delivery.
+
 ## 2. Owner action: pause and preserve
 
 Pause only this domain's Discord parent CLI/hook invocations, not the parent reasoning session or unrelated work.
@@ -168,6 +184,7 @@ The dispatch suite covers exact payloads and automatic bindings, expired readine
 The reply suite covers authoritative returns, generation/scope/route mismatches, non-active lanes, fences, escaping package root refusal, incomplete publication and duplicate-safe approval.
 It also exercises the optional acknowledgement command with a fake cheap wording command and integration: slow versus imminent answers, inactive configuration, complete original origin/current bindings, silent closed-window and Conflict outcomes, and unsafe or oversized wording refusal.
 The hook suite covers source status fields present, stale or absent, optional legacy hashes, enrolled release switching, invalid package root refusal and retained home/schema protections.
+The dispatch and reply suites also exercise simultaneous domain bindings, unchanged global routing, same-project foreign origins in both directions, separate mate returns and egress, and missing or invalid local bindings through the executable commands and hook.
 Successful fixture verification is not a claim that the live installation is aligned or unfenced.
 
 Exclude exactly `tests/fm-supervision-host.test.sh` from the broad suite for this environment.

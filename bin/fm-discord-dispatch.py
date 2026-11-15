@@ -3,6 +3,7 @@
 
 Usage: FM_HOME=/absolute/parent-home python3 -I bin/fm-discord-dispatch.py REQUEST ROUTE 'Question'
 
+Trusted local domain binding follows fm-discord-hook.py --help, never message input.
 Only the trusted parent invokes this after reviewing the captured request and
 its exact scope. This surface reserves read-only question/decision work, not
 coding approval, continuation, maintenance or public follow-up authority.
@@ -45,12 +46,14 @@ def require(condition, message):
 
 
 def configuration(home):
-    path = home / 'config/discord-integration.json'
+    path = HOOK['configuration_path'](home)
     require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 65536,
             'enabled regular parent configuration required')
     config = json.loads(path.read_text(), object_pairs_hook=HOOK['unique'])
     require(isinstance(config, dict) and config.get('enabled') is True,
             'enabled parent configuration required')
+    if 'FM_DISCORD_DOMAIN' in os.environ:
+        config = HOOK['load'](home, routing_only=True)
     interpreter = Path(config['python_executable'])
     require(interpreter.is_absolute() and interpreter.is_file(), 'pinned parent interpreter required')
     if Path(sys.executable).resolve() != interpreter.resolve():
@@ -101,6 +104,8 @@ def dispatch(args):
     for key in ('NO_MISTAKES_GATE', 'FM_SUPERVISION_ACTOR', 'PI_CODING_AGENT'):
         if key in os.environ:
             environment[key] = os.environ[key]
+    if 'FM_DISCORD_DOMAIN' in os.environ:
+        environment['FM_DISCORD_DOMAIN'] = os.environ['FM_DISCORD_DOMAIN']
     journal_type = importlib.import_module('personal_discord.journal').Journal
     parent_type = importlib.import_module('personal_discord.parent').Parent
     routing_type = importlib.import_module('personal_discord.routing').Routing
@@ -110,6 +115,7 @@ def dispatch(args):
         require(not journal.fenced and not journal.delivery_fenced, 'parent intake or delivery remains fenced')
         parent = parent_type(journal, config['mapping'])
         request = HOOK['checked_record'](journal, 'request', ident)
+        HOOK['checked_origin'](config, request)
         _, state = journal.state('request', ident)
         require(request['origin']['project_key'] == project, 'request belongs to another mapped project')
         require(not journal.db.execute('SELECT 1 FROM intents WHERE request=?', (ident,)).fetchone(),
