@@ -1,0 +1,196 @@
+[
+  {
+    "scenario": "Inactive and imminent paths",
+    "approvals": [],
+    "events": [],
+    "wording_calls": 0,
+    "result": "pass"
+  },
+  {
+    "scenario": "Slow local approval, interpreter re-exec, replay and immediate final",
+    "cli": {
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "original_origin": {
+      "bridge_id": "isolated-ack-lab",
+      "owner_id": "1",
+      "guild_id": "4",
+      "parent_channel_id": "5",
+      "mapping_revision": "1",
+      "project_key": "invoice-lab",
+      "thread_id": "5",
+      "source_message_id": "1571607529127936100"
+    },
+    "binding": {
+      "generation": "accepted-generation",
+      "work_id": "invoice-mate",
+      "correlation": "0123456789abcdef",
+      "scope_digest": "d507501cea279b2e0556e4d3b0dd955f9abb78dba4f6a325db459f2d478f0230",
+      "kind": "read-only"
+    },
+    "approval": [
+      {
+        "caption_policy": "contextual-ack-v1",
+        "emit": {
+          "approved": true,
+          "event_id": "acknowledgement.27e09d1ad981bd57de05cf772416efe49162b51ce678268302f0cccfdada71de",
+          "generation": "accepted-generation",
+          "ident": "e02033677e204890f059340a207479dad06e6a8472f72297d07f674bc3860cfe",
+          "kind": "decision",
+          "outcome": "completed",
+          "safe_text": "I am checking the invoice totals against the receipts.",
+          "terminal": false
+        },
+        "request": "e02033677e204890f059340a207479dad06e6a8472f72297d07f674bc3860cfe"
+      }
+    ],
+    "events": [
+      {
+        "at": "2026-11-15T19:27:14Z",
+        "generation": "accepted-generation",
+        "id": "acknowledgement.27e09d1ad981bd57de05cf772416efe49162b51ce678268302f0cccfdada71de",
+        "kind": "decision",
+        "origin": {
+          "bridge_id": "isolated-ack-lab",
+          "guild_id": "4",
+          "mapping_revision": "1",
+          "owner_id": "1",
+          "parent_channel_id": "5",
+          "project_key": "invoice-lab",
+          "source_message_id": "1571607529127936100",
+          "thread_id": "5"
+        },
+        "outcome": null,
+        "request": "e02033677e204890f059340a207479dad06e6a8472f72297d07f674bc3860cfe",
+        "text": "I am checking the invoice totals against the receipts."
+      },
+      {
+        "at": "2026-11-15T19:27:14Z",
+        "generation": "accepted-generation",
+        "id": "synthetic.final",
+        "kind": "final",
+        "origin": {
+          "bridge_id": "isolated-ack-lab",
+          "guild_id": "4",
+          "mapping_revision": "1",
+          "owner_id": "1",
+          "parent_channel_id": "5",
+          "project_key": "invoice-lab",
+          "source_message_id": "1571607529127936100",
+          "thread_id": "5"
+        },
+        "outcome": "completed",
+        "request": "e02033677e204890f059340a207479dad06e6a8472f72297d07f674bc3860cfe",
+        "text": "The invoice totals match the receipts."
+      }
+    ],
+    "result": "pass"
+  },
+  {
+    "scenario": "Closed final window silently carries on",
+    "cli": {
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "approvals": [],
+    "events": [
+      {
+        "at": "2026-11-15T19:27:14Z",
+        "generation": "accepted-generation",
+        "id": "already.final",
+        "kind": "final",
+        "origin": {
+          "bridge_id": "isolated-ack-lab",
+          "guild_id": "4",
+          "mapping_revision": "1",
+          "owner_id": "1",
+          "parent_channel_id": "5",
+          "project_key": "invoice-lab",
+          "source_message_id": "1571607529127936100",
+          "thread_id": "5"
+        },
+        "outcome": "completed",
+        "request": "e02033677e204890f059340a207479dad06e6a8472f72297d07f674bc3860cfe",
+        "text": "The invoice totals match the receipts."
+      }
+    ],
+    "result": "pass"
+  },
+  {
+    "scenario": "Concurrent revision Conflict silently carries on without retry",
+    "cli": {
+      "exit": 0,
+      "stdout": "",
+      "stderr": ""
+    },
+    "current_revision": 3,
+    "approvals": [],
+    "events": [],
+    "wording_calls": 1,
+    "result": "pass"
+  },
+  {
+    "scenario": "Unsafe copy, failed wording and stale binding cannot approve",
+    "attempts": [
+      {
+        "proposed": "Two\nlines",
+        "cli": {
+          "exit": 1,
+          "stdout": "",
+          "stderr": "error: Discord acknowledgement refused: wording must be one nonempty line within 400 UTF-8 bytes\n"
+        }
+      },
+      {
+        "proposed": "\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9\u00e9",
+        "cli": {
+          "exit": 1,
+          "stdout": "",
+          "stderr": "error: Discord acknowledgement refused: wording must be one nonempty line within 400 UTF-8 bytes\n"
+        }
+      },
+      {
+        "proposed": "",
+        "cli": {
+          "exit": 1,
+          "stdout": "",
+          "stderr": "error: Discord acknowledgement refused: wording must be one nonempty line within 400 UTF-8 bytes\n"
+        }
+      },
+      {
+        "proposed": "Checking the repository.",
+        "cli": {
+          "exit": 1,
+          "stdout": "",
+          "stderr": "error: Discord acknowledgement refused: configuration or authority validation check failed; do not retry the optional line\n"
+        }
+      },
+      {
+        "proposed": "Checking ~/private.txt.",
+        "cli": {
+          "exit": 1,
+          "stdout": "",
+          "stderr": "error: Discord acknowledgement refused: configuration or authority validation check failed; do not retry the optional line\n"
+        }
+      },
+      {
+        "proposed": "wording command exits 7",
+        "cli": {
+          "exit": 1,
+          "stdout": "",
+          "stderr": "error: Discord acknowledgement refused: cheap reasoning wording command failed\n"
+        }
+      }
+    ],
+    "stale_binding_cli": {
+      "exit": 1,
+      "stdout": "",
+      "stderr": "error: Discord acknowledgement refused: required field check failed; do not retry the optional line\n"
+    },
+    "approvals": [],
+    "events": [],
+    "result": "pass"
+  }
+]
