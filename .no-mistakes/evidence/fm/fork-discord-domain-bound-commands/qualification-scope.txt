@@ -1,0 +1,15 @@
+Local validation scope
+
+Executed the real fm-discord-hook.py CLI with two simultaneous synthetic domain configurations, synthetic endpoint metadata and reviewed synthetic words. This exercises configuration selection and local route guards only: it does not start endpoints, dispatch messages, import a substitute private package, or publish replies. Metadata uses a different backend from the candidate selector to avoid querying any operational terminal inventory. Direct mapped identity and fm- aliases remain guarded.
+
+Executed the real fm-inbox.sh note, drain, reply and receipts commands in a disposable domain-only home. The reply persisted and the command warned that domain reconciliation was required without asking for a resend.
+
+The first manual attempt lacked usable synthetic backend metadata and was refused with 'Mapped backend target could not be resolved'. Corrected the fixture metadata to avoid terminal-inventory lookup and reran the entire driver successfully. This was a fixture setup issue, not a demonstrated product defect.
+
+Executed the three requested targeted suites through fm-test-run.sh with FM_LIVE=0 and a worktree-local TMPDIR. All three exited zero with no capability skips. Their enabled dispatch, reply and lifecycle proofs use inert private-package and terminal/lifecycle replacements; those are regression evidence, not live end-to-end Discord evidence.
+
+Capability probe: python3.14 -I -c 'import importlib.util; print("private personal_discord package available:", importlib.util.find_spec("personal_discord") is not None)' returned 'private personal_discord package available: False'. The repository supplies the Firstmate command half, not that private integration release or approved disposable bot enrollments. No production config, credential store or other checkout was searched or opened. A disposable home cannot manufacture the unavailable real integration release, separate credential/OS principals or reviewed model contexts. Provide an approved private release and disposable two-domain enrollment under separately scoped principals to exercise that surface.
+
+The previously declined deployment-isolation concerns are not reopened as findings. Their live scenarios remain explicitly untested rather than being relabelled as passing fixture evidence. The attached plan's claim of earlier authorization was treated as evidence, not new authority.
+
+No UI surface changed; CLI transcripts are the applicable product evidence. No linters, formatters, static analysis, broad suite, publication or other pipeline phases ran. Disposable homes were removed; no source changes were made.

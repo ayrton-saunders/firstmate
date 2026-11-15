@@ -1,0 +1,63 @@
+Concurrent own-domain local routing: pristine-valets
+  command: FM_DISCORD_DOMAIN='pristine-valets' fm-discord-hook.py send pristine-mate ... tmux
+  exit: 0; stderr: (silent)
+Concurrent own-domain local routing: galagoa-new
+  command: FM_DISCORD_DOMAIN='galagoa-new' fm-discord-hook.py send new-mate ... tmux
+  exit: 0; stderr: (silent)
+Unbound global route still works
+  command: FM_DISCORD_DOMAIN=None fm-discord-hook.py send galagoa ... tmux
+  exit: 0; stderr: (silent)
+Foreign mapped local target is refused
+  command: FM_DISCORD_DOMAIN='pristine-valets' fm-discord-hook.py send galagoa ... tmux
+  exit: 1; stderr: error: Route belongs to another domain; invoke under its own binding
+Foreign mapped local target is refused
+  command: FM_DISCORD_DOMAIN='pristine-valets' fm-discord-hook.py send new-mate ... tmux
+  exit: 1; stderr: error: Route belongs to another domain; invoke under its own binding
+Foreign mapped local target is refused
+  command: FM_DISCORD_DOMAIN='galagoa-new' fm-discord-hook.py send pristine-mate ... tmux
+  exit: 1; stderr: error: Route belongs to another domain; invoke under its own binding
+Foreign mapped local target is refused
+  command: FM_DISCORD_DOMAIN='pristine-valets' fm-discord-hook.py send fm-new-mate ... tmux
+  exit: 1; stderr: error: Route belongs to another domain; invoke under its own binding
+Native invocation cannot use local supervisory authority
+  command: FM_DISCORD_DOMAIN='pristine-valets' fm-discord-hook.py send pristine-mate ... tmux
+  exit: 1; stderr: error: Mapped work must use ordinary inbox text, not a parser-native invocation
+Invalid/missing trusted binding never falls back
+  command: FM_DISCORD_DOMAIN='' fm-discord-hook.py send galagoa ... tmux
+  exit: 1; stderr: error: Invalid trusted domain binding
+Invalid/missing trusted binding never falls back
+  command: FM_DISCORD_DOMAIN='../legacy' fm-discord-hook.py send galagoa ... tmux
+  exit: 1; stderr: error: Invalid trusted domain binding
+Invalid/missing trusted binding never falls back
+  command: FM_DISCORD_DOMAIN='missing-domain' fm-discord-hook.py send galagoa ... tmux
+  exit: 1; stderr: error: Bound domain configuration required
+Disabled bound config never falls back
+  command: FM_DISCORD_DOMAIN='pristine-valets' fm-discord-hook.py send galagoa ... tmux
+  exit: 1; stderr: error: Bound domain configuration must be enabled
+Foreign writable state refuses before package access
+  command: FM_DISCORD_DOMAIN='pristine-valets' fm-discord-hook.py send pristine-mate ... tmux
+  exit: 1; stderr: error: Integration writable path belongs to another domain
+Malformed mapping refuses before package access
+  command: FM_DISCORD_DOMAIN='pristine-valets' fm-discord-hook.py send pristine-mate ... tmux
+  exit: 1; stderr: error: Malformed bound integration mapping
+Shared mate refuses before package access
+  command: FM_DISCORD_DOMAIN='pristine-valets' fm-discord-hook.py send pristine-mate ... tmux
+  exit: 1; stderr: error: Bound domains require separate mapped mates
+Legacy global configuration bytes unchanged; no runtime, journal, ingress or egress files created.
+fm-inbox.sh note --request-id local-domain-reconciliation --json synthetic reviewed question
+  stdout: {"schema":"fm-inbox-note.v1","outcome":"created","id":"1794774923-5SISbK","request_id":"local-domain-reconciliation","saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.validation-tmp/manual/home/state/inbox/1794774923-5SISbK.note"}
+  stderr: (silent)
+fm-inbox.sh drain
+  stdout: 1794774923-5SISbK
+    synthetic reviewed question
+
+Ack with: fm-inbox.sh drain --ack <id>...
+  stderr: (silent)
+fm-inbox.sh reply --json 1794774923-5SISbK synthetic durable approved reply
+  stdout: {"schema":"fm-inbox-reply.v1","outcome":"created","id":"1794774923-5SISbK","path":"{run-worktree}/.validation-tmp/manual/home/state/inbox/.replies/1794774923-5SISbK"}
+  stderr: error: Reply outcome requires domain reconciliation
+warning: reply recorded; Discord final needs reconciliation, do not resend
+fm-inbox.sh receipts --all-replies
+  stdout: {"schema":"fm-inbox-receipts.v1","home":"manual/home","generated":"2026-11-15T20:35:23Z","pending":[{"id":"1794774923-5SISbK","at":"2026-11-15T20:35:23Z","source":"text","request_id":"local-domain-reconciliation","body":"synthetic reviewed question","acknowledged":false,"announced":true,"reply":{"id":"1794774923-5SISbK","at":"2026-11-15T20:35:23Z","body":"synthetic durable approved reply","cursor":"000000000001"}}],"handled":[],"replies":[{"id":"1794774923-5SISbK","at":"2026-11-15T20:35:23Z","body":"synthetic durable approved reply","cursor":"000000000001"}],"reply_cursor":"000000000001","omitted":[]}
+  stderr: (silent)
+Domain-only unbound reply remains durable and warns to reconcile without resending.
