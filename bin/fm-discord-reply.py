@@ -3,6 +3,7 @@
 
 Usage: FM_HOME=/absolute/parent-home python3 -I bin/fm-discord-reply.py REQUEST ROUTE 'Approved answer.'
 
+Trusted local domain binding follows fm-discord-hook.py --help, never message input.
 Only the trusted parent invokes this command after reviewing the actual return.
 REQUEST is the captured request identifier; ROUTE is a configured mapped target.
 The words are an explicitly approved, single-line customer answer, not raw worker
@@ -47,12 +48,14 @@ def configuration(home, *, entrypoint=None):
     # Reuse the owning guard, without changing its lifecycle hash or executing
     # its main. Select the pinned interpreter here so its re-exec cannot switch
     # this command into the hook's CLI with unrelated arguments.
-    path = home / 'config/discord-integration.json'
+    path = HOOK['configuration_path'](home)
     require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 65536,
             'enabled regular parent configuration required')
     config = json.loads(path.read_text(), object_pairs_hook=HOOK['unique'])
     require(isinstance(config, dict) and config.get('enabled') is True,
             'enabled parent configuration required')
+    if 'FM_DISCORD_DOMAIN' in os.environ:
+        config = HOOK['load'](home, routing_only=True)
     interpreter = Path(config['python_executable'])
     require(interpreter.is_absolute() and interpreter.is_file(), 'pinned parent interpreter required')
     if Path(sys.executable).resolve() != interpreter.resolve():
@@ -113,6 +116,7 @@ def reply(args):
     try:
         require(not journal.fenced and not journal.delivery_fenced, 'parent intake or delivery remains fenced')
         request = HOOK['checked_record'](journal, 'request', ident)
+        HOOK['checked_origin'](config, request)
         revision, state = journal.state('request', ident)
         binding = journal.work_binding(ident)
         require(request['origin']['project_key'] == routes[0]['project'] and binding['work_id'] == target,
@@ -135,6 +139,8 @@ def reply(args):
         for key in ('NO_MISTAKES_GATE', 'FM_SUPERVISION_ACTOR', 'PI_CODING_AGENT'):
             if key in os.environ:
                 environment[key] = os.environ[key]
+        if 'FM_DISCORD_DOMAIN' in os.environ:
+            environment['FM_DISCORD_DOMAIN'] = os.environ['FM_DISCORD_DOMAIN']
         egress = journal_type(config['egress'])
         try:
             integration = integration_type(parent_type(journal, config['mapping']), config['ingress'], egress,

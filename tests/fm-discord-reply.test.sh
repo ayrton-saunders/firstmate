@@ -97,7 +97,10 @@ class Integration:
     def __init__(self, parent, ingress, egress, *, source, home, environment):
         self.j = parent.j
         self.home = home
-        assert parent.mapping == {'fixture':True}
+        assert parent.mapping == self.j.fixture().get('mapping',{'fixture':True})
+        assert environment.get('FM_DISCORD_DOMAIN') == os.environ.get('FM_DISCORD_DOMAIN')
+        self.mapping = parent.mapping
+        self.egress = egress
         assert environment['FM_HOME'] == environment['FM_ROOT_OVERRIDE'] == str(home)
         assert environment['FM_STATE_OVERRIDE'] == str(home/'state')
         assert environment['FM_DATA_OVERRIDE'] == str(home/'data')
@@ -148,6 +151,10 @@ class Integration:
             raise ValueError('immutable approved final')
         self.j.db.execute('INSERT OR IGNORE INTO approvals VALUES(?,?)',(event_id,encoded))
         self.j.db.commit()
+        if 'mapping' in fixture:
+            self.egress.db.execute('CREATE TABLE IF NOT EXISTS sent(bot,text)')
+            self.egress.db.execute('INSERT INTO sent VALUES(?,?)', (json.dumps(self.mapping,sort_keys=True),body['safe_text']))
+            self.egress.db.commit()
         return {'event':event_id,'published':not fixture.get('unpublished',False)}
 '''
 
@@ -196,6 +203,128 @@ class Reply(unittest.TestCase):
         sqlite3.connect(self.config['egress']).close()
         self.return_path = self.home / 'state/pending-replies' / self.binding['correlation']
         self.lifecycle_return()
+
+    def domain_configs(self):
+        import copy
+        configs = {}
+        for index, domain in enumerate(('pristine-valets', 'galagoa-new')):
+            instance = self.world/'domains'/domain/'parent'
+            (instance/'code/current/venv/bin').mkdir(parents=True)
+            (instance/'code/current/venv/bin/python').symlink_to(Path(sys.executable).resolve())
+            shutil.copytree(self.package/'personal_discord', instance/'code/current/personal_discord')
+            (instance/'state').mkdir()
+            config = dict(self.config, domain=domain, instance_root=str(instance),
+                          package_root=str(instance/'code/current'),
+                          python_executable=str(instance/'code/current/venv/bin/python'),
+                          **{key:str(instance/'state'/(key+'.sqlite')) for key in ('journal','ingress','egress')})
+            config['mapping'] = dict(bridge_id=domain, owner_id='owner', guild_id=str(index+1),
+                                     parent_channel_id=str(index+10), mapping_revision='pilot-v1', project_key='project')
+            target = domain+'-mate'
+            config['routes'] = [dict(target=target, project='project')]
+            path = self.home/'config/discord'/domain/'integration.json'
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps(config))
+            shutil.copyfile(self.config['journal'], config['journal'])
+            shutil.copyfile(self.config['egress'], config['egress'])
+            fixture = copy.deepcopy(self.fixture)
+            fixture['mapping'] = config['mapping']
+            fixture['request']['origin'] = dict(config['mapping'], thread_id=str(index+10), source_message_id='100')
+            fixture['binding'].update(work_id=target, correlation=str(index+1)*16)
+            with database(config['journal']) as db:
+                db.execute('UPDATE fixture SET body=?', (json.dumps(fixture),))
+            record = self.home/'state/pending-replies'/fixture['binding']['correlation']
+            record.write_text('corr_id='+fixture['binding']['correlation']+'\ntask_id='+target+
+                              '\nparent_home='+str(self.home)+'\nphase=resolved\n')
+            configs[domain] = config
+        return configs
+
+    def domain_call(self, domain, config):
+        return subprocess.run([sys.executable, '-I', str(self.source/'bin/fm-discord-reply.py'),
+                               self.ident, config['routes'][0]['target'], 'Only '+domain+' approved answer'],
+                              env={**os.environ, 'FM_HOME':str(self.home), 'FM_DISCORD_DOMAIN':domain},
+                              capture_output=True, text=True, timeout=15)
+
+    def test_two_domains_reply_concurrently_to_only_their_own_bot(self):
+        from concurrent.futures import ThreadPoolExecutor
+        configs = self.domain_configs()
+        before = self.config_path.read_bytes()
+        with ThreadPoolExecutor() as executor:
+            jobs = [executor.submit(self.domain_call, domain, config) for domain, config in configs.items()]
+            for job in jobs:
+                result = job.result()
+                self.assertEqual(result.returncode, 0, result.stderr)
+        for index, (domain, config) in enumerate(configs.items()):
+            expected = dict(bridge_id=domain, owner_id='owner', guild_id=str(index+1),
+                            parent_channel_id=str(index+10), mapping_revision='pilot-v1', project_key='project')
+            with database(config['egress']) as db:
+                self.assertEqual(db.execute('SELECT bot,text FROM sent').fetchall(),
+                                 [(json.dumps(expected, sort_keys=True), 'Only '+domain+' approved answer')])
+        self.assertEqual(self.config_path.read_bytes(), before)
+        self.assertEqual(self.approvals(), [])
+        self.invoke()  # Legacy reply still uses only the unchanged global configuration.
+
+    def test_domain_reply_writes_leave_sibling_state_untouched(self):
+        configs = self.domain_configs()
+        for domain, config in configs.items():
+            sibling = next(value for key, value in configs.items() if key != domain)
+            state = Path(sibling['instance_root'])/'state'
+            before = {p.relative_to(state):p.read_bytes() for p in state.rglob('*') if p.is_file()}
+            result = self.domain_call(domain, config)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual({p.relative_to(state):p.read_bytes() for p in state.rglob('*') if p.is_file()}, before)
+
+    def test_bound_reply_missing_disabled_or_mismatched_binding_never_falls_back(self):
+        configs = self.domain_configs()
+        for domain, config in configs.items():
+            path = self.home/'config/discord'/domain/'integration.json'
+            for mode, message in (('missing', 'Bound domain configuration required'),
+                                  ('disabled', 'enabled parent configuration required'), ('mismatched', 'domain/root mismatch')):
+                if mode == 'missing':
+                    path.unlink()
+                else:
+                    path.write_text(json.dumps(dict(config, **({'enabled':False} if mode == 'disabled' else {'domain':'foreign'}))))
+                result = self.domain_call(domain, config)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(message, result.stderr)
+                self.assertFalse(Path(config['egress']).with_suffix('.opened').exists())
+                self.assertEqual(self.approvals(), [])
+            path.write_text(json.dumps(config))
+
+    def test_foreign_origin_and_return_refuse_before_egress_in_both_directions(self):
+        import copy
+        configs = self.domain_configs()
+        for domain, config in configs.items():
+            other = next(value for key, value in configs.items() if key != domain)
+            with database(config['journal']) as db:
+                original = json.loads(db.execute('SELECT body FROM fixture').fetchone()[0])
+            for kind in ('origin', 'return'):
+                fixture = copy.deepcopy(original)
+                if kind == 'origin':
+                    fixture['request']['origin'] = other['mapping']
+                else:
+                    fixture['binding']['correlation'] = '2'*16 if domain == 'pristine-valets' else '1'*16
+                with database(config['journal']) as db:
+                    db.execute('UPDATE fixture SET body=?', (json.dumps(fixture),))
+                result = self.domain_call(domain, config)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn('another bound domain' if kind == 'origin' else 'another route or home', result.stderr)
+                self.assertFalse(Path(config['egress']).with_suffix('.opened').exists())
+                with database(config['journal']) as db:
+                    self.assertEqual(db.execute('SELECT * FROM approvals').fetchall(), [])
+
+    def test_unbound_ordinary_outcome_stays_silent_with_domain_configs(self):
+        self.domain_configs()
+        with database(self.config['journal']) as db:
+            db.execute('CREATE TABLE records(id,family)')
+        for global_config in (True, False):
+            if not global_config:
+                self.config_path.unlink()
+            environment = {key:value for key,value in os.environ.items() if key != 'FM_DISCORD_DOMAIN'}
+            result = subprocess.run([sys.executable, '-I', str(self.source/'bin/fm-discord-hook.py'),
+                                     'outcome', 'domain-note'], input='a'*64, text=True, capture_output=True,
+                                    env={**environment, 'FM_HOME':str(self.home)})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stderr, '')
 
     def lifecycle_return(self, **changes):
         # Fake lifecycle owner, not the command under test, records the return.
