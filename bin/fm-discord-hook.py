@@ -23,11 +23,14 @@ Each domain requires distinct mapped mates and reviewed model context, with
 separately enrolled credential principals; paths alone are not OS isolation.
 This hook neither provisions credentials nor grants model-context isolation.
 Bound lifecycle calls refuse global/sibling mapped targets (including backend
-aliases) and project roots before local or permit authority can authorize them.
+aliases) and foreign-only project roots before local or permit authorization.
+Shared projects still require the bound domain's own permit.
 The runner-only capabilities and peer_capabilities fields are accepted and ignored
 in bound documents, like legacy hashes; they grant no lifecycle authority.
-An unbound outcome that cannot match its selected journal while domain configs
-exist refuses with a reconciliation diagnostic, never silently loses the result.
+Inbox notes captured under a trusted binding retain it in their header; replies
+use that stored binding, not ambient reply-session selection or message text.
+A bound outcome missing its captured request refuses for reconciliation;
+unmarked ordinary notes retain global-only outcome behavior.
 Unmapped sends and ordinary local supervisory sends resolve routing configuration
 only, never the configured parent interpreter or package.
 An enabled config binds schema=2, canonical home, private package root,
@@ -316,8 +319,12 @@ def project_key(config, project_path):
     return None
 
 
-def refuse_foreign_route(home, args):
+def refuse_foreign_route(home, config, args):
     if 'FM_DISCORD_DOMAIN' not in os.environ:
+        return
+    # A project may legitimately serve more than one domain. Its bound mapping
+    # owns authorization here; only foreign-only project roots are refused.
+    if args[0] in ('spawn', 'capacity-deferred') and len(args) == 3 and project_key(config, args[2]) is not None:
         return
     for sibling in enabled_siblings(home, configuration_path(home)):
         if args[0] == 'send' and len(args) == 5:
@@ -331,16 +338,10 @@ def refuse_foreign_route(home, args):
             raise HookCheck('Route belongs to another domain; invoke under its own binding')
 
 
-def domain_configurations_exist(home):
-    return any((home / 'config/discord').glob('*/integration.json'))
-
-
 def guard(args):
     home = Path(os.environ['FM_HOME']).resolve(strict=True)
     config = load(home, routing_only=bool(args and args[0] == 'send'))
     if config is None:
-        if args and args[0] == 'outcome' and domain_configurations_exist(home):
-            raise HookCheck('Reply outcome requires domain reconciliation')
         return
     if not args or args[0] not in ('send', 'spawn', 'capacity-deferred', 'outcome', 'ready', 'confirm-send'):
         raise HookCheck('Unknown hook operation')
@@ -406,12 +407,12 @@ def guard(args):
                         journal.put('pending-final', row['id'],
                                     {'note_id': args[1], 'reply_digest': reply_digest,
                                      'generation': state.get('note_generation', state.get('generation', 'preacceptance'))})
-            if not matched and domain_configurations_exist(home):
+            if not matched and 'FM_DISCORD_DOMAIN' in os.environ:
                 raise HookCheck('Reply outcome requires domain reconciliation')
         finally:
             journal.close()
         return
-    refuse_foreign_route(home, args)
+    refuse_foreign_route(home, config, args)
     project = None
     target = None
     generation = ''

@@ -457,6 +457,20 @@ class Dispatch(unittest.TestCase):
                     self.assertIn('Route belongs to another domain', result.stderr)
         self.assertFalse(Path(bound['journal']).with_suffix('.opened').exists())
 
+    def test_bound_spawn_shared_project_reaches_own_permit_guard(self):
+        configs = self.domain_configs()  # Both domains and global map this source root.
+        domain, config = next(iter(configs.items()))
+        for operation in ('spawn', 'capacity-deferred'):
+            for authority, message in (({}, 'Mapped routing requires a typed parent-issued lane permit'),
+                    ({'FM_DISCORD_AUTH':'0'*32}, 'Route permit lookup failed')):
+                result = subprocess.run([sys.executable, '-I', str(self.source/'bin/fm-discord-hook.py'),
+                                         operation, config['routes'][0]['target'], str(self.source)],
+                                        input='a'*64, text=True, capture_output=True,
+                                        env={**os.environ, 'FM_HOME':str(self.home), 'FM_DISCORD_DOMAIN':domain, **authority})
+                self.assertEqual(result.returncode, 1)
+                self.assertIn(message, result.stderr)
+                self.assertNotIn('Route belongs to another domain', result.stderr)
+
     def test_runner_cutover_document_shape_is_accepted(self):
         configs = self.domain_configs()
         for domain, config in configs.items():

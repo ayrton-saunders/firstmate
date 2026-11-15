@@ -312,7 +312,7 @@ class Reply(unittest.TestCase):
                 with database(config['journal']) as db:
                     self.assertEqual(db.execute('SELECT * FROM approvals').fetchall(), [])
 
-    def test_unbound_unmatched_outcome_warns_for_domain_reconciliation(self):
+    def test_unbound_ordinary_outcome_stays_silent_with_domain_configs(self):
         self.domain_configs()
         with database(self.config['journal']) as db:
             db.execute('CREATE TABLE records(id,family)')
@@ -323,8 +323,8 @@ class Reply(unittest.TestCase):
             result = subprocess.run([sys.executable, '-I', str(self.source/'bin/fm-discord-hook.py'),
                                      'outcome', 'domain-note'], input='a'*64, text=True, capture_output=True,
                                     env={**environment, 'FM_HOME':str(self.home)})
-            self.assertEqual(result.returncode, 1, result.stderr)
-            self.assertIn('Reply outcome requires domain reconciliation', result.stderr)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stderr, '')
 
     def lifecycle_return(self, **changes):
         # Fake lifecycle owner, not the command under test, records the return.

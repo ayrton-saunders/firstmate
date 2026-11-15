@@ -43,9 +43,12 @@ Fresh enrollment and runner environment propagation belong to the separate first
 
 Each enabled domain needs a distinct mapped mate, domain-local journals and egress, and separately reviewed bot/endpoint credential principals.
 The commands preserve the lifecycle owner's existing home-local correlation records and distinct mate inboxes rather than inventing another return store.
-When an unbound supervising session answers a domain note, an outcome not found in its selected journal produces the existing durable-reply reconciliation warning instead of silently succeeding; reconcile under the note's reviewed local domain binding without resending the reply.
+New notes captured under a trusted domain binding retain it in their header, and replies use that stored binding even from an unbound or differently bound supervising session.
+Ordinary unmarked notes retain global-only outcome handling and do not warn merely because domain configurations exist.
+If a captured domain note cannot reach its own journal, the existing durable-reply reconciliation warning preserves the reply without resending it.
 Shared mates, foreign origins, foreign state paths and returns owned by another mate are refused before publication.
-Bound lifecycle calls also refuse targets and projects mapped by the global route or another domain, whether or not a permit was supplied.
+Bound lifecycle calls also refuse targets and foreign-only projects mapped by the global route or another domain, whether or not a permit was supplied.
+A project shared by multiple domains remains usable under the selected domain's own permit.
 The local parent publishes only into the selected domain's egress; the separately enrolled transport must consume only that egress using its own bot principal.
 Within the shared trusted parent, the commands dispatch only the selected domain's supplied reviewed question/context and correlation to its distinct mate, reject foreign returns, and resolve replies through that domain's integration mapping and egress.
 Domain dispatch and reply journal writes remain beneath that domain's instance state root; lifecycle correlations retain the existing home-local store with distinct mate ownership.

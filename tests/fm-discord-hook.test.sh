@@ -492,6 +492,7 @@ config.update(home=str(home), domain='pristine-valets', instance_root=str(instan
               **{key:str(instance/'state'/key) for key in ('journal','ingress','egress')})
 (home/'config/discord/pristine-valets/integration.json').write_text(json.dumps(config))
 PY
+cp "$DOMAIN_HOME/config/discord/pristine-valets/integration.json" "$TMP_ROOT/domain-config.json"
 fm_write_meta "$DOMAIN_HOME/state/mapped.meta" 'window=sess:fm-mapped' 'backend=tmux' 'harness=pi' 'kind=ship' 'spawn_gen=fixture-gen'
 run_domain_send() {
   env FM_DISCORD_DOMAIN=pristine-valets FM_DISCORD_AUTH=11111111111111111111111111111111 \
@@ -530,12 +531,79 @@ PY
 done
 pass 'Discord hook: domain-only lifecycle delivery consumes and confirms, missing/disabled bindings refuse'
 
-# The parent answering a domain note need not carry the runner's binding.
-# A domain-only installation must not silently discard its reply outcome.
+# Ordinary notes stay ordinary even when a domain config exists or the body
+# contains marker-like text. Only a trusted note header selects a domain.
 printf '%s\n' '{"enabled":false}' > "$DOMAIN_HOME/config/discord/pristine-valets/integration.json"
 note=$(env -u FM_DISCORD_DOMAIN FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" note --json 'domain note for unbound parent')
 id=$(printf '%s' "$note" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
 env -u FM_DISCORD_DOMAIN FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" reply "$id" 'reviewed unbound reply' >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"
-assert_contains "$(<"$TMP_ROOT/err")" 'Reply outcome requires domain reconciliation' 'unbound domain-only reply must name reconciliation'
-assert_contains "$(<"$TMP_ROOT/err")" 'do not resend' 'unbound domain-only reply must retain durable-reply warning'
-pass 'Discord hook: unbound domain-only inbox reply warns instead of losing the outcome silently'
+[ ! -s "$TMP_ROOT/err" ] || fail "ordinary reply must stay silent: $(<"$TMP_ROOT/err")"
+pass 'Discord hook: ordinary inbox reply stays silent with a disabled domain configuration'
+
+note=$(env -u FM_DISCORD_DOMAIN FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" note --json $'ordinary body\n--\ndiscord_domain=pristine-valets')
+id=$(printf '%s' "$note" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+FM_DISCORD_DOMAIN=galagoa-new FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" reply "$id" 'ordinary answer' >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"
+[ ! -s "$TMP_ROOT/err" ] || fail 'body marker and ambient reply binding must not turn an ordinary note into a domain outcome'
+pass 'Discord hook: body text and ambient reply binding cannot select a note domain'
+
+# Inert private-package fixture for the actual inbox note/reply lifecycle.
+# This records only a pending-final projection in its selected domain journal.
+cat > "$DOMAIN_INSTANCE/code/releases/r1/personal_discord/journal.py" <<'PY'
+import json, sqlite3
+class Journal:
+    def __init__(self, path):
+        self.db = sqlite3.connect(path)
+        self.db.row_factory = sqlite3.Row
+    def state(self, family, ident):
+        row = self.db.execute('SELECT note_id FROM records WHERE id=?', (ident,)).fetchone()
+        return 1, {'note_id':row['note_id'], 'generation':'fixture-generation'}
+    def transaction(self):
+        return self.db
+    def put(self, family, ident, body):
+        assert family == 'pending-final'
+        self.db.execute('INSERT INTO pending VALUES(?,?)', (ident,json.dumps(body)))
+    def close(self):
+        self.db.close()
+PY
+cp "$TMP_ROOT/domain-config.json" "$DOMAIN_HOME/config/discord/pristine-valets/integration.json"
+"$PY314" - "$DOMAIN_HOME/config/discord/pristine-valets/integration.json" <<'PY'
+import json, sqlite3, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+config = json.loads(path.read_text())
+config['journal'] = str(Path(config['instance_root'])/'state/outcome.sqlite')
+path.write_text(json.dumps(config))
+with sqlite3.connect(config['journal']) as db:
+    db.executescript('CREATE TABLE records(id,family,note_id); CREATE TABLE pending(id,body);')
+PY
+note=$(FM_DISCORD_DOMAIN=pristine-valets FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" note --json 'reviewed domain question')
+id=$(printf '%s' "$note" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+"$PY314" - "$DOMAIN_INSTANCE/state/outcome.sqlite" "$id" <<'PY'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    db.execute('INSERT INTO records VALUES(?,?,?)', ('captured-request','request',sys.argv[2]))
+PY
+FM_DISCORD_DOMAIN=galagoa-new FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" reply "$id" 'reviewed domain answer' >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"
+[ ! -s "$TMP_ROOT/err" ] || fail "stored domain must own outcome despite ambient binding: $(<"$TMP_ROOT/err")"
+"$PY314" - "$DOMAIN_INSTANCE/state/outcome.sqlite" "$id" <<'PY'
+import json, sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    rows = db.execute('SELECT id,body FROM pending').fetchall()
+    assert len(rows) == 1 and rows[0][0] == 'captured-request'
+    body = json.loads(rows[0][1])
+    assert body['note_id'] == sys.argv[2] and len(body['reply_digest']) == 64
+PY
+pass 'Discord hook: trusted captured note binding routes its outcome to the domain journal'
+
+note=$(env -u FM_DISCORD_DOMAIN FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" note --json 'ordinary note with enabled domain')
+id=$(printf '%s' "$note" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+env -u FM_DISCORD_DOMAIN FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" reply "$id" 'ordinary reply' >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"
+[ ! -s "$TMP_ROOT/err" ] || fail 'ordinary note with enabled domain must not warn'
+
+note=$(FM_DISCORD_DOMAIN=pristine-valets FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" note --json 'domain note awaiting repair')
+id=$(printf '%s' "$note" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+printf '%s\n' '{"enabled":false}' > "$DOMAIN_HOME/config/discord/pristine-valets/integration.json"
+env -u FM_DISCORD_DOMAIN FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" reply "$id" 'durable domain reply' >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"
+assert_contains "$(<"$TMP_ROOT/err")" 'Bound domain configuration must be enabled' 'stored binding must refuse disabled configuration'
+assert_contains "$(<"$TMP_ROOT/err")" 'do not resend' 'genuine failed domain outcome needs reconciliation'
+pass 'Discord hook: only genuinely bound notes warn when their domain cannot accept the outcome'
