@@ -634,7 +634,8 @@ cmd_reply() {
   mv "$staging" "$REPLIES/$id"
   fm_lock_release "$REPLY_SEQ_LOCK"
   # Record only the private reply digest; the parent approves any public final.
-  if [ "${FM_DISCORD_DOMAIN+x}" = x ] || [ -e "$FM_HOME/config/discord-integration.json" ]; then
+  # An unbound supervisor must warn rather than silently lose a domain's outcome.
+  if [ "${FM_DISCORD_DOMAIN+x}" = x ] || [ -e "$FM_HOME/config/discord-integration.json" ] || [ -d "$FM_HOME/config/discord" ]; then
     reply_digest=$(shasum -a 256 "$REPLIES/$id" | awk '{print $1}')
     if ! printf '%s' "$reply_digest" | FM_HOME="$FM_HOME" python3 -I "$SELF_DIR/fm-discord-hook.py" outcome "$id"; then
       echo 'warning: reply recorded; Discord final needs reconciliation, do not resend' >&2

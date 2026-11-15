@@ -212,6 +212,7 @@ class Dispatch(unittest.TestCase):
         # interpreter, including installations outside the production PATH.
         (self.source/'bin/fm-send.sh').write_text(SEND.replace('python3.14', shlex.quote(sys.executable)))
         (self.source/'bin/fm-pending-reply-lib.sh').write_text(CORRELATION.replace('python3.14', shlex.quote(sys.executable)))
+        (self.source/'bin/fm-backend.sh').write_text('fm_backend_target_matches_meta() { return 1; }\n')
         self.home=self.world/'home'
         (self.home/'config').mkdir(parents=True)
         (self.home/'state').mkdir()
@@ -411,7 +412,7 @@ class Dispatch(unittest.TestCase):
             target = config['routes'][0]['target']
             foreign = other['routes'][0]['target']
             for route, authority, message in ((target, {}, None),
-                    (foreign, {'FM_DISCORD_AUTH':'a'*32}, 'unmapped route')):
+                    (foreign, {'FM_DISCORD_AUTH':'a'*32}, 'Route belongs to another domain')):
                 result = subprocess.run([sys.executable, '-I', str(self.source/'bin/fm-discord-hook.py'),
                                          'send', route, route, str(self.home/'state'/(route+'.meta')), 'tmux'],
                                         input='Only reviewed local words', text=True, capture_output=True,
@@ -429,6 +430,57 @@ class Dispatch(unittest.TestCase):
         path.unlink()
         path.symlink_to(self.config_path)
         self.invoke('Bound domain configuration required', env={'FM_DISCORD_DOMAIN':domain})
+
+    def test_bound_hook_refuses_foreign_lifecycle_calls_without_permits(self):
+        configs = self.domain_configs()
+        (self.source/'bin/fm-backend.sh').write_text('fm_backend_target_matches_meta() { return 1; }\n')
+        domain, bound = next(iter(configs.items()))
+        sibling = next(value for key, value in configs.items() if key != domain)
+        # Distinct roots are necessary to probe a foreign-only project, rather
+        # than matching the bound fixture's deliberately shared source root.
+        for index, config in enumerate((self.config, sibling)):
+            project = self.world/('foreign-project-'+str(index))
+            project.mkdir()
+            config['projects'] = {'project':str(project)}
+            path = self.config_path if config is self.config else self.home/'config/discord'/config['domain']/'integration.json'
+            path.write_text(json.dumps(config))
+            target = config['routes'][0]['target']
+            metadata = str(self.home/'state'/(target+'.meta'))
+            for operation, text in ((['send', target, target, metadata, 'remote'], 'Foreign question'),
+                                    (['send', 'fm-'+target, target, metadata, 'tmux'], '/native-command'),
+                                    (['spawn', 'new-task', str(project)], 'a'*64)):
+                with self.subTest(domain=config.get('domain','global'), operation=operation):
+                    result = subprocess.run([sys.executable, '-I', str(self.source/'bin/fm-discord-hook.py'), *operation],
+                                            input=text, text=True, capture_output=True,
+                                            env={**os.environ, 'FM_HOME':str(self.home), 'FM_DISCORD_DOMAIN':domain})
+                    self.assertEqual(result.returncode, 1, result.stderr)
+                    self.assertIn('Route belongs to another domain', result.stderr)
+        self.assertFalse(Path(bound['journal']).with_suffix('.opened').exists())
+
+    def test_runner_cutover_document_shape_is_accepted(self):
+        configs = self.domain_configs()
+        for domain, config in configs.items():
+            # cutover.py's parent document keeps these runner-only capability
+            # advertisements in the same per-domain integration.json.
+            config.update(capabilities={'reaction_associations':True},
+                          peer_capabilities={'reaction_associations':True})
+            for key in ('source_commit','source_digest'):
+                config.pop(key, None)
+            path = self.home/'config/discord'/domain/'integration.json'
+            path.write_text(json.dumps(config))
+            result = self.domain_call(domain, config, 'Only '+domain+' question')
+            self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_malformed_bound_mapping_has_specific_refusal(self):
+        configs = self.domain_configs()
+        domain, config = next(iter(configs.items()))
+        path = self.home/'config/discord'/domain/'integration.json'
+        for mapping in ({'bridge_id':domain}, [], ['invalid'], None):
+            path.write_text(json.dumps(dict(config, mapping=mapping)))
+            result = self.domain_call(domain, config, 'No dispatch')
+            self.assertEqual(result.returncode, 1)
+            self.assertIn('Malformed bound integration mapping', result.stderr)
+            self.assertFalse(Path(config['journal']).with_suffix('.opened').exists())
 
     def save_config(self):
         self.config_path.write_text(json.dumps(self.config))

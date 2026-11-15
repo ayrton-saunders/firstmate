@@ -22,6 +22,12 @@ code/current runtime.
 Each domain requires distinct mapped mates and reviewed model context, with
 separately enrolled credential principals; paths alone are not OS isolation.
 This hook neither provisions credentials nor grants model-context isolation.
+Bound lifecycle calls refuse global/sibling mapped targets (including backend
+aliases) and project roots before local or permit authority can authorize them.
+The runner-only capabilities and peer_capabilities fields are accepted and ignored
+in bound documents, like legacy hashes; they grant no lifecycle authority.
+An unbound outcome that cannot match its selected journal while domain configs
+exist refuses with a reconciliation diagnostic, never silently loses the result.
 Unmapped sends and ordinary local supervisory sends resolve routing configuration
 only, never the configured parent interpreter or package.
 An enabled config binds schema=2, canonical home, private package root,
@@ -104,7 +110,12 @@ def bound_configuration(config):
             or root.name != 'parent' or root.parent.name != domain):
         raise HookCheck('Integration domain/root mismatch')
     mappings = config['mapping'] if isinstance(config['mapping'], list) else [config['mapping']]
-    if not mappings or any(mapping['bridge_id'] != domain for mapping in mappings):
+    fields = {'bridge_id', 'owner_id', 'guild_id', 'parent_channel_id', 'mapping_revision', 'project_key'}
+    if not mappings or any(not isinstance(mapping, dict) or not fields <= mapping.keys()
+                           or any(not isinstance(mapping[key], str) or not mapping[key] for key in fields)
+                           for mapping in mappings):
+        raise HookCheck('Malformed bound integration mapping')
+    if any(mapping['bridge_id'] != domain for mapping in mappings):
         raise HookCheck('Integration mapping belongs to another domain')
     for key in ('journal', 'ingress', 'egress', 'assets'):
         if key in config:
@@ -116,9 +127,8 @@ def bound_configuration(config):
         raise HookCheck('Integration runtime belongs to another domain')
 
 
-def distinct_routes(home, path, config):
-    """Do not let two bound contexts share an endpoint/return inbox."""
-    targets = {alias for route in config['routes'] for alias in (route['target'], 'fm-' + route['target'])}
+def enabled_siblings(home, path):
+    """Read trusted routing declarations only, never sibling packages or journals."""
     others = [home / 'config/discord-integration.json', *sorted((home / 'config/discord').glob('*/integration.json'))]
     for other in others:
         if other == path or not other.exists():
@@ -128,8 +138,23 @@ def distinct_routes(home, path, config):
         sibling = json.loads(other.read_text(), object_pairs_hook=unique)
         if not isinstance(sibling, dict) or type(sibling.get('enabled')) is not bool:
             raise HookCheck('Malformed sibling integration configuration')
-        if sibling.get('enabled') is True and any(
-                targets.intersection((route['target'], 'fm-' + route['target'])) for route in sibling['routes']):
+        if not sibling['enabled']:
+            continue
+        if (sibling.get('home') != str(home) or not isinstance(sibling.get('routes'), list)
+                or not isinstance(sibling.get('projects'), dict)
+                or any(not isinstance(root, str) or not Path(root).is_absolute() for root in sibling['projects'].values())
+                or any(not isinstance(route, dict) or set(route) != {'target', 'project'}
+                       or not isinstance(route['target'], str) or not route['target']
+                       or route['project'] not in sibling['projects'] for route in sibling['routes'])):
+            raise HookCheck('Malformed sibling integration configuration')
+        yield sibling
+
+
+def distinct_routes(home, path, config):
+    """Do not let two bound contexts share an endpoint/return inbox."""
+    targets = {alias for route in config['routes'] for alias in (route['target'], 'fm-' + route['target'])}
+    for sibling in enabled_siblings(home, path):
+        if any(targets.intersection((route['target'], 'fm-' + route['target'])) for route in sibling['routes']):
             raise HookCheck('Bound domains require separate mapped mates')
 
 
@@ -176,6 +201,8 @@ def load(home, *, routing_only=False):
     optional = {'mapping', 'ingress', 'egress', 'assets', 'source_commit', 'source_digest', 'hashes'}
     if 'FM_DISCORD_DOMAIN' in os.environ:
         fields |= {'domain', 'instance_root', 'mapping', 'ingress', 'egress'}
+        # Enrollment retains these advertisements for the runner, not this guard.
+        optional |= {'capabilities', 'peer_capabilities'}
     if not fields <= set(config) or set(config) - fields - optional or config['schema'] != 2 or config['home'] != str(home):
         raise HookCheck('Integration schema/home mismatch')
     if (not Path(config['journal']).is_absolute() or not config['routes'] or not config['projects']
@@ -259,10 +286,61 @@ def meta_value(path, key):
     return values[0] if values else ''
 
 
+def send_matches(home, route_id, raw, resolved, candidate_backend):
+    if raw in (route_id, 'fm-' + route_id):
+        return True
+    path = home / f'state/{route_id}.meta'
+    if not path.exists():
+        return False
+    backend = Path(__file__).resolve().parent / 'fm-backend.sh'
+    result = subprocess.run(['/bin/bash', '-c', '. "$1"; fm_backend_target_matches_meta "$2" "$3" "$4"',
+                             '_', str(backend), candidate_backend, resolved, str(path)],
+                            text=True, capture_output=True, timeout=5)
+    if result.returncode not in (0, 1):
+        raise HookCheck('Mapped backend target could not be resolved')
+    return result.returncode == 0
+
+
+def project_key(config, project_path):
+    def common(path):
+        result = subprocess.run(['/usr/bin/git', '-C', str(path), 'rev-parse', '--path-format=absolute', '--git-common-dir'],
+                                capture_output=True, text=True, timeout=5,
+                                env={'PATH': '/usr/bin:/bin', 'GIT_CONFIG_GLOBAL': '/dev/null', 'GIT_CONFIG_SYSTEM': '/dev/null'})
+        return result.stdout.strip() if result.returncode == 0 else None
+    candidate_common = common(project_path)
+    for key, root in config['projects'].items():
+        root_common = common(root)
+        if (Path(project_path).resolve() == Path(root).resolve()
+                or candidate_common and root_common and candidate_common == root_common):
+            return key
+    return None
+
+
+def refuse_foreign_route(home, args):
+    if 'FM_DISCORD_DOMAIN' not in os.environ:
+        return
+    for sibling in enabled_siblings(home, configuration_path(home)):
+        if args[0] == 'send' and len(args) == 5:
+            foreign = any(send_matches(home, route['target'], args[1], args[2], args[4])
+                          for route in sibling['routes'])
+        elif args[0] in ('spawn', 'capacity-deferred') and len(args) == 3:
+            foreign = project_key(sibling, args[2]) is not None
+        else:
+            continue
+        if foreign:
+            raise HookCheck('Route belongs to another domain; invoke under its own binding')
+
+
+def domain_configurations_exist(home):
+    return any((home / 'config/discord').glob('*/integration.json'))
+
+
 def guard(args):
     home = Path(os.environ['FM_HOME']).resolve(strict=True)
     config = load(home, routing_only=bool(args and args[0] == 'send'))
     if config is None:
+        if args and args[0] == 'outcome' and domain_configurations_exist(home):
+            raise HookCheck('Reply outcome requires domain reconciliation')
         return
     if not args or args[0] not in ('send', 'spawn', 'capacity-deferred', 'outcome', 'ready', 'confirm-send'):
         raise HookCheck('Unknown hook operation')
@@ -319,16 +397,21 @@ def guard(args):
             reply_digest = sys.stdin.read(65)
             if len(reply_digest) != 64 or any(c not in '0123456789abcdef' for c in reply_digest):
                 raise HookCheck('Exact terminal reply digest required')
+            matched = False
             for row in journal.db.execute("SELECT id FROM records WHERE family='request'"):
                 _, state = journal.state('request', row['id'])
                 if state.get('note_id') == args[1]:
+                    matched = True
                     with journal.transaction():
                         journal.put('pending-final', row['id'],
                                     {'note_id': args[1], 'reply_digest': reply_digest,
                                      'generation': state.get('note_generation', state.get('generation', 'preacceptance'))})
+            if not matched and domain_configurations_exist(home):
+                raise HookCheck('Reply outcome requires domain reconciliation')
         finally:
             journal.close()
         return
+    refuse_foreign_route(home, args)
     project = None
     target = None
     generation = ''
@@ -338,16 +421,7 @@ def guard(args):
             route_id = route['target']
             path = home / f'state/{route_id}.meta'
             direct = raw in (route_id, 'fm-' + route_id)
-            matches = False
-            if not direct and path.exists():
-                backend = Path(__file__).resolve().parent / 'fm-backend.sh'
-                result = subprocess.run(['/bin/bash', '-c', '. "$1"; fm_backend_target_matches_meta "$2" "$3" "$4"',
-                                         '_', str(backend), candidate_backend, resolved, str(path)],
-                                        text=True, capture_output=True, timeout=5)
-                if result.returncode not in (0, 1):
-                    raise HookCheck('Mapped backend target could not be resolved')
-                matches = result.returncode == 0
-            if direct or matches:
+            if send_matches(home, route_id, raw, resolved, candidate_backend):
                 if not direct or not metadata or Path(metadata).resolve() != path.resolve():
                     raise HookCheck('Explicit-terminal text cannot bypass the mapped parent route')
                 project, target = route['project'], route_id
@@ -355,18 +429,7 @@ def guard(args):
                 break
     elif args[0] in ('spawn', 'capacity-deferred') and len(args) == 3:
         _, target, project_path = args
-        def common(path):
-            result = subprocess.run(['/usr/bin/git', '-C', str(path), 'rev-parse', '--path-format=absolute', '--git-common-dir'],
-                                    capture_output=True, text=True, timeout=5,
-                                    env={'PATH': '/usr/bin:/bin', 'GIT_CONFIG_GLOBAL': '/dev/null', 'GIT_CONFIG_SYSTEM': '/dev/null'})
-            return result.stdout.strip() if result.returncode == 0 else None
-        candidate_common = common(project_path)
-        for key, root in config['projects'].items():
-            root_common = common(root)
-            if (Path(project_path).resolve() == Path(root).resolve()
-                    or candidate_common and root_common and candidate_common == root_common):
-                project = key
-                break
+        project = project_key(config, project_path)
     else:
         raise HookCheck('Invalid hook arguments')
     if project is None:

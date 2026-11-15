@@ -486,7 +486,9 @@ home, instance = map(lambda p: Path(p).resolve(), sys.argv[2:])
 config.update(home=str(home), domain='pristine-valets', instance_root=str(instance),
               package_root=str(instance/'code/current'),
               python_executable=str(instance/'code/current/venv/bin/python'),
-              mapping=dict(bridge_id='pristine-valets'),
+              mapping=dict(bridge_id='pristine-valets', owner_id='owner', guild_id='guild',
+                           parent_channel_id='channel', mapping_revision='pilot-v1', project_key='fixture'),
+              capabilities={'reaction_associations':True}, peer_capabilities={'reaction_associations':True},
               **{key:str(instance/'state'/key) for key in ('journal','ingress','egress')})
 (home/'config/discord/pristine-valets/integration.json').write_text(json.dumps(config))
 PY
@@ -527,3 +529,13 @@ PY
   assert_contains "$(<"$TMP_ROOT/err")" 'do not resend' 'bound outcome must run without global config'
 done
 pass 'Discord hook: domain-only lifecycle delivery consumes and confirms, missing/disabled bindings refuse'
+
+# The parent answering a domain note need not carry the runner's binding.
+# A domain-only installation must not silently discard its reply outcome.
+printf '%s\n' '{"enabled":false}' > "$DOMAIN_HOME/config/discord/pristine-valets/integration.json"
+note=$(env -u FM_DISCORD_DOMAIN FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" note --json 'domain note for unbound parent')
+id=$(printf '%s' "$note" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+env -u FM_DISCORD_DOMAIN FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" reply "$id" 'reviewed unbound reply' >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"
+assert_contains "$(<"$TMP_ROOT/err")" 'Reply outcome requires domain reconciliation' 'unbound domain-only reply must name reconciliation'
+assert_contains "$(<"$TMP_ROOT/err")" 'do not resend' 'unbound domain-only reply must retain durable-reply warning'
+pass 'Discord hook: unbound domain-only inbox reply warns instead of losing the outcome silently'
