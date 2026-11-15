@@ -23,7 +23,9 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import sqlite3
+import time
 import subprocess
 import sys
 import unittest
@@ -94,6 +96,7 @@ class Integration:
                     source_digest=digest(files))
     def __init__(self, parent, ingress, egress, *, source, home, environment):
         self.j = parent.j
+        self.home = home
         assert parent.mapping == {'fixture':True}
         assert environment['FM_HOME'] == environment['FM_ROOT_OVERRIDE'] == str(home)
         assert environment['FM_STATE_OVERRIDE'] == str(home/'state')
@@ -114,7 +117,12 @@ class Integration:
         assert body['approved'] is True
         # Model the live public-caption guard: no approval side effects on refusal.
         if 'secret' in body['safe_text']:
-            raise ValueError('unsafe private caption fixture')
+            from .checks import Refusal
+            raise Refusal('unsafe private caption fixture')
+        fields = dict(line.split('=',1) for line in
+                      (self.home/'state/pending-replies'/body['correlation']).read_text().splitlines())
+        if not fields.get('delivered_epoch') and fields.get('phase') != 'resolved':
+            raise Conflict('Milestone needs authoritative routed delivery evidence')
         self.j.db.execute('INSERT INTO approvals VALUES(?,?)',('attempt',json.dumps(body)))
         self.j.db.commit()
         if fixture.get('conflict'):
@@ -161,6 +169,7 @@ class Reply(unittest.TestCase):
         package = self.package / 'personal_discord'
         package.mkdir(parents=True)
         (package / '__init__.py').write_text('')
+        (package / 'checks.py').write_text('class Refusal(ValueError):\n    pass\n')
         (package / 'journal.py').write_text(JOURNAL)
         (package / 'integration.py').write_text(INTEGRATION)
         (package / 'parent.py').write_text('class Parent:\n    def __init__(self,journal,mapping):\n        self.j,self.mapping=journal,mapping\n')
@@ -440,19 +449,27 @@ class AcknowledgementTests(unittest.TestCase):
 
     def configure(self, *, enabled=True, words='I am checking the invoice totals.'):
         command = self.world/'cheap-wording.py'
-        command.write_text('import json, sys\nfrom pathlib import Path\n'
+        command.write_text('import json, os, pwd, sys\nfrom pathlib import Path\n'
+                           'assert not any(key.startswith("FM_") for key in os.environ)\n'
+                           'assert "ANTHROPIC_API_KEY" not in os.environ\n'
+                           'assert os.environ["HOME"] == pwd.getpwuid(os.getuid()).pw_dir\n'
+                           'assert os.environ["USER"] == os.environ["LOGNAME"] == pwd.getpwuid(os.getuid()).pw_name\n'
+                           'assert not list(Path.cwd().iterdir())\n'
+                           f'assert not Path.cwd().is_relative_to(Path({str(self.home)!r}))\n'
                            'data=json.load(sys.stdin)\n'
                            'assert data["verified_public_context"] == "Checking invoice totals against receipts."\n'
                            'assert "Maximum 400 UTF-8 bytes" in data["instruction"]\n'
+                           'assert "one sentence" in data["instruction"] and "No private paths" in data["instruction"]\n'
+                           'assert "links or mentions" in data["instruction"]\n'
                            f'Path({str(self.world/"wording-called")!r}).touch()\n'
                            f'print({words!r})\n')
         (self.home/'config/discord-acknowledgement.json').write_text(json.dumps(
             dict(enabled=enabled, wording_command=[sys.executable, '-I', str(command)])))
 
-    def invoke_ack(self, *, delay='well-over-30s', success=True, command=None, env=None):
+    def invoke_ack(self, *, delay='well-over-30s', success=True, command=None, env=None, timeout=15):
         result = subprocess.run([command or sys.executable, '-I', str(self.source/'bin/fm-discord-acknowledge.py'),
                                  self.ident, 'domain', delay, 'Checking invoice totals against receipts.'],
-                                capture_output=True, text=True, timeout=15,
+                                capture_output=True, text=True, timeout=timeout,
                                 env={**os.environ, 'FM_HOME':str(self.home), **(env or {})})
         self.assertEqual(result.returncode, 0 if success else 1, result.stderr)
         self.assertEqual(result.stdout, '')
@@ -461,13 +478,15 @@ class AcknowledgementTests(unittest.TestCase):
         else:
             self.assertNotIn(str(self.world), result.stderr)
             self.assertNotIn('unsafe private caption fixture', result.stderr)
+            self.assertNotIn('Traceback', result.stderr)
         return result
 
     def test_slow_sends_one_contextual_line_with_original_binding(self):
         self.fixture['request']['origin'].update(thread_id='123', message_id='456', extra={'preserve':True})
         self.update()
         self.configure()
-        self.invoke_ack()
+        self.invoke_ack(env={'TMPDIR':str(self.home/'state'), 'HOME':str(self.home),
+                             'FM_TEST_UNTRUSTED':'must-not-inherit', 'ANTHROPIC_API_KEY':'fixture-only'})
         rows = self.approvals()
         self.assertEqual([row[0] for row in rows], ['attempt', 'ack'])
         body = json.loads(rows[1][1])
@@ -507,15 +526,33 @@ class AcknowledgementTests(unittest.TestCase):
                 self.assertEqual(list((self.home/'state').rglob('*')), before)
 
     def test_overlong_and_multiline_wording_never_reach_approval(self):
-        for words in ('x'*401, '\u00e9'*201, '', 'Two\nlines', 'Two\u2028lines', 'Two\x01lines'):
+        for words in ('x'*401, '\u00e9'*201, '', 'Two\nlines', 'Two\u2028lines', 'Two\x01lines',
+                      'Two\x85lines', 'Two\u202elines', 'Two\u2067lines', '\u200b', '\u200b \u200b'):
             with self.subTest(words=repr(words)):
+                self.setUp()
                 self.configure(words=words)
                 self.invoke_ack(success=False)
                 self.assertEqual(self.approvals(), [])
 
     def test_unsafe_copy_uses_live_guard_without_approval_side_effect(self):
         self.configure(words='The secret invoice total is available.')
-        self.invoke_ack(success=False)
+        result = self.invoke_ack(success=False)
+        self.assertIn('public caption guard refused', result.stderr)
+        self.assertEqual(self.approvals(), [])
+
+    def test_missing_transport_api_is_safe_before_wording(self):
+        self.configure()
+        with (self.package/'personal_discord/integration.py').open('a') as stream:
+            stream.write('\ndel Integration.approve_acknowledgement\n')
+        result = subprocess.run([sys.executable, '-I', str(self.source/'bin/fm-discord-acknowledge.py'),
+                                 self.ident, 'domain', 'well-over-30s', 'Checking invoice totals against receipts.'],
+                                capture_output=True, text=True, timeout=15,
+                                env={**os.environ, 'FM_HOME':str(self.home)})
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, '')
+        self.assertEqual(result.stderr, 'Discord acknowledgement unavailable: enrolled release lacks contextual acknowledgement; keep the switch off.\n')
+        self.assertFalse((self.world/'wording-called').exists())
+        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
         self.assertEqual(self.approvals(), [])
 
     def test_pinned_reexec_keeps_acknowledgement_entrypoint(self):
@@ -545,6 +582,37 @@ class AcknowledgementTests(unittest.TestCase):
         self.assertEqual((self.world/'attempts').read_text(), 'x')
         self.assertEqual(self.approvals(), [])
 
+    def test_wording_timeout_kills_the_whole_process_group(self):
+        self.configure()
+        marker = self.world/'wording-child'
+        command = self.world/'cheap-wording.py'
+        command.write_text('from pathlib import Path\nimport subprocess, sys, time\n'
+                           'child=subprocess.Popen([sys.executable,"-c","import time; time.sleep(120)"])\n'
+                           f'Path({str(marker)!r}).write_text(str(child.pid))\n'
+                           'time.sleep(120)\n')
+        child = None
+        try:
+            result = self.invoke_ack(success=False, timeout=35)
+            self.assertIn('timed out; no line sent, do not retry', result.stderr)
+            child = int(marker.read_text())
+            # A killed orphan can briefly remain a zombie until init reaps it.
+            for _ in range(30):
+                state = subprocess.run(['ps', '-o', 'stat=', '-p', str(child)],
+                                       capture_output=True, text=True, timeout=5).stdout.strip()
+                if not state or state.startswith('Z'):
+                    break
+                time.sleep(0.1)
+            self.assertTrue(not state or state.startswith('Z'), 'wording child still running')
+            self.assertEqual(self.approvals(), [])
+        finally:
+            if child is None and marker.exists():
+                child = int(marker.read_text())
+            if child is not None:
+                try:
+                    os.kill(child, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
     def test_wrong_binding_refuses_before_wording(self):
         self.configure()
         self.binding['generation'] = 'old'
@@ -555,11 +623,20 @@ class AcknowledgementTests(unittest.TestCase):
 
     def test_does_not_require_a_finished_return_to_acknowledge(self):
         self.configure()
-        self.lifecycle_return(phase='awaiting_report')
+        self.lifecycle_return(phase='awaiting_report', delivered_epoch='1234567880')
         before = self.return_path.read_bytes()
         self.invoke_ack()
         self.assertEqual(self.return_path.read_bytes(), before)
         self.assertEqual(len(self.approvals()), 2)
+
+    def test_missing_delivery_evidence_skips_before_wording(self):
+        self.configure()
+        self.lifecycle_return(phase='delivery_unknown')
+        before = self.return_path.read_bytes()
+        self.invoke_ack()
+        self.assertEqual(self.return_path.read_bytes(), before)
+        self.assertFalse((self.world/'wording-called').exists())
+        self.assertEqual(self.approvals(), [])
 
 
 unittest.main(argv=['discord-reply'],verbosity=2)

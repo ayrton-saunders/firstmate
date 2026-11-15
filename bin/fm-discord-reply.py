@@ -63,7 +63,7 @@ def configuration(home, *, entrypoint=None):
     return config
 
 
-def resolved_return(home, binding):
+def correlated_return(home, binding):
     correlation = binding['correlation']
     require(isinstance(correlation, str) and re.fullmatch('[0-9a-f]{16}', correlation),
             'existing parent correlation required')
@@ -78,7 +78,12 @@ def resolved_return(home, binding):
             fields[key] = value
     require(fields.get('corr_id') == correlation and fields.get('task_id') == binding['work_id']
             and fields.get('parent_home') == str(home), 'return belongs to another route or home')
-    require(fields.get('phase') == 'resolved', 'authoritative correlated return is not resolved')
+    return fields
+
+
+def resolved_return(home, binding):
+    require(correlated_return(home, binding).get('phase') == 'resolved',
+            'authoritative correlated return is not resolved')
 
 
 def reply(args):

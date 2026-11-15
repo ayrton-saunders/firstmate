@@ -124,12 +124,29 @@ Coding, visual input preparation, continuation and public follow-up authority ar
 Do not enable its separate `config/discord-acknowledgement.json` switch until both Discord hosts run the release containing [the acknowledgement transport API](https://github.com/ayrton-saunders/firstmate-discord/pull/27).
 This change neither activates the switch nor installs or changes either host.
 
-After dispatch, the trusted parent judges whether the real answer is well over about 30 seconds away, based on the actual request and remaining work, not elapsed time alone.
+After the dispatch's delivery is confirmed (`fm-send` succeeded), the trusted parent judges whether the real answer is well over about 30 seconds away, based on the actual request and remaining work, not elapsed time alone.
+The adapter checks for authoritative `delivered_epoch` evidence or a resolved correlated return before spending a wording call; unconfirmed delivery sends no line.
 For imminent answers, skip the optional line entirely.
 Only for a clearly slow answer, invoke the adapter once with `well-over-30s` and one line of verified, public-safe facts about what is actually being checked.
 The configured wording command must use a cheap reasoning tier, not the parent's expensive reasoning tier; it receives only that context and the sentence-writing instruction, not custody records or raw worker output.
 Select the command's model explicitly in the local configuration when enabling the feature; the adapter is model/runtime-neutral and never chooses a more expensive fallback.
+The [command help](../bin/fm-discord-acknowledge.py) owns the exact sanitized environment and timeout contract.
+The model receives the normal OS-account HOME/USER/LOGNAME so its existing login can work, but no API keys or parent `FM_*` variables.
+It runs in an empty temporary directory outside the parent home, not a Firstmate project, with the fixed documented PATH; after 20 seconds the adapter kills its whole dedicated process group.
+Use a wrapper that `exec`s the explicitly selected model CLI without settings, hooks, tools, MCP or session persistence, never a backgrounded or detached model.
+For a reviewed Claude CLI installation, this is the wrapper shape (replace the executable path with the approved local one; do not run this example during fixture validation):
+
+```sh
+#!/bin/sh
+exec /absolute/path/to/claude --print --model claude-haiku-4-5 --effort low \
+  --setting-sources '' --tools '' --strict-mcp-config --no-session-persistence \
+  --disable-slash-commands --system-prompt 'Follow the acknowledgement instruction in the JSON input; output only its sentence.'
+```
+
+The API-capability check runs before wording and reports one plain diagnostic if the enrolled parent release is too old; keep the switch off rather than retrying.
 A useful sentence names the concrete subject being checked, without invented progress, promises or time estimates.
+Use one sentence of plain customer words, not repository/commit/pull-request terminology, internal identifiers, status labels, bracketed text, fractions, hexadecimal strings, private paths, links or mentions.
+These constraints guide context and model wording; the transport remains the authoritative public-caption validator.
 The live approval API validates public-caption safety without approval side effects on refusal; offline `validate-reply` does not support acknowledgement copy.
 
 A closed window (`published:false`) or a changed revision/generation (`Conflict`) means no line, carry on with the real answer, without retry, alert or a new decision.

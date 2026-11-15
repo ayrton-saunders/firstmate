@@ -2655,6 +2655,7 @@ The [dispatch command's help](../bin/fm-discord-dispatch.py) owns assignment of 
 
 The [approved-reply command's help](../bin/fm-discord-reply.py) owns the parent-facing final-answer interface, including return validation, gate-agent containment, replay and publication limits.
 [Reply regression coverage](../tests/fm-discord-reply.test.sh) uses isolated fake journals and a fake lifecycle owner, without reading live custody or contacting Discord.
+The [acknowledgement command's help](../bin/fm-discord-acknowledge.py) owns the off-by-default `config/discord-acknowledgement.json` switch and wording-command schema; [installation](discord-owner-reply-install.md#optional-contextual-acknowledgement-inactive-by-default) owns activation prerequisites.
 
 ## Relay (.env)
 
