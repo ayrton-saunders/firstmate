@@ -1,0 +1,29 @@
+SCENARIO 1: Real hook, concurrent synthetic local supervisory guards; no runtime or transport replacement
+pristine-valets own local steer: exit=0; stdout=''; stderr=''
+galagoa-new own local steer: exit=0; stdout=''; stderr=''
+Unbound existing global route remains usable: exit=0; stdout=''; stderr=''
+Global config byte digest unchanged: True
+SCENARIO 2: Adversarial local configuration and route guards
+Invalid selector traversal: exit=1; stdout=''; stderr='error: Invalid trusted domain binding'
+Missing domain cannot fall back to global: exit=1; stdout=''; stderr='error: Bound domain configuration required'
+Disabled domain cannot fall back to global: exit=1; stdout=''; stderr='error: Bound domain configuration must be enabled'
+Sibling writable egress rejected: exit=1; stdout=''; stderr='error: Integration writable path belongs to another domain'
+Malformed bound mapping rejected: exit=1; stdout=''; stderr='error: Malformed bound integration mapping'
+Foreign target galagoa-new-mate: exit=1; stdout=''; stderr='error: Route belongs to another domain; invoke under its own binding'
+Foreign target fm-galagoa-new-mate: exit=1; stdout=''; stderr='error: Route belongs to another domain; invoke under its own binding'
+Foreign target personal-galagoa: exit=1; stdout=''; stderr='error: Route belongs to another domain; invoke under its own binding'
+Parser native invocation rejected: exit=1; stdout=''; stderr='error: Mapped work must use ordinary inbox text, not a parser-native invocation'
+Typed permit cannot authorize unrelated target: exit=1; stdout=''; stderr='error: Discord permit cannot authorize an unmapped route'
+No package, journal, or transport installed; no runtime/journal directory created; original global config unchanged
+SCENARIO 3: Real domain-only inbox preserves durable replies and reports reconciliation
+fm-inbox.sh note --request-id domain-live-request --json synthetic domain question exit= 0 stdout= {"schema":"fm-inbox-note.v1","outcome":"created","id":"1794778565-EjDTJ2","request_id":"domain-live-request","saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.domain-live-jz2v68h2/state/inbox/1794778565-EjDTJ2.note"} stderr= 
+fm-inbox.sh reply --json 1794778565-EjDTJ2 synthetic durable domain reply exit= 0 stdout= {"schema":"fm-inbox-reply.v1","outcome":"created","id":"1794778565-EjDTJ2","path":"{run-worktree}/.domain-live-jz2v68h2/state/inbox/.replies/1794778565-EjDTJ2"} stderr= error: Reply outcome requires domain reconciliation
+warning: reply recorded; Discord final needs reconciliation, do not resend
+fm-inbox.sh receipts --all-replies exit= 0 stdout= {"schema":"fm-inbox-receipts.v1","home":"01M7GEFGXJFKM12ZE83X2SZ3RH/.domain-live-jz2v68h2","generated":"2026-11-15T21:36:06Z","pending":[{"id":"1794778565-EjDTJ2","at":"2026-11-15T21:36:05Z","source":"text","request_id":"domain-live-request","body":"synthetic domain question","acknowledged":false,"announced":true,"reply":{"id":"1794778565-EjDTJ2","at":"2026-11-15T21:36:06Z","body":"synthetic durable domain reply","cursor":"000000000001"}}],"handled":[],"replies":[{"id":"1794778565-EjDTJ2","at":"2026-11-15T21:36:06Z","body":"synthetic durable domain reply","cursor":"000000000001"}],"reply_cursor":"000000000001","omitted":[]} stderr= 
+fm-inbox.sh drain exit= 0 stdout= 1794778565-EjDTJ2
+    synthetic domain question
+
+Ack with: fm-inbox.sh drain --ack <id>... stderr= error: Bound domain configuration required
+warning: Discord readiness not renewed; saved requests remain unaccepted
+Durable reply readable after optional outcome refusal; missing bound readiness warns without losing note
+Disposable homes removed; all synchronous product processes completed

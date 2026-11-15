@@ -1,0 +1,5 @@
+Runtime: 3.14.10
+personal_discord available to isolated runtime: False
+No enrolled private release, disposable two-domain bot credentials, separate OS principals, or reviewed model-context fixture was supplied inside the worktree.
+The targeted suites replace personal_discord and transport/lifecycle boundaries, so their success does not establish live dispatch/return/egress or credential/model-context isolation.
+No operator data, credentials, shared services, or live fleet were used. Deployment qualification remains unexecuted; this is the previously recorded limitation, not a new finding.

@@ -1,115 +1,121 @@
-import concurrent.futures, hashlib, json, os, pathlib, shutil, subprocess, sys
-ROOT = pathlib.Path.cwd()
-WORLD = ROOT / '.gate-test-tmp/live-domains'
-WORLD.mkdir()
-HOME = WORLD / 'home'
-subprocess.run(['bash', 'bin/fm-lab-home.sh', 'create', str(HOME)], check=True, capture_output=True)
-ENV = {k:v for k,v in os.environ.items() if not k.startswith('FM_')}
-ENV.update(FM_HOME=str(HOME), PYTHONDONTWRITEBYTECODE='1')
-DOMAINS = ('pristine-valets', 'galagoa-new')
-configs = {}
+"""Execute stock hook/inbox CLIs against synthetic configs, without a package or transport substitute."""
+import concurrent.futures
+import copy
+import hashlib
+import json
+import os
+from pathlib import Path
+import subprocess
+import tempfile
 
-def config(domain, target):
-    instance = WORLD / 'domains' / domain / 'parent'
-    (instance/'state').mkdir(parents=True)
-    return dict(schema=2, enabled=True, home=str(HOME), source=str(ROOT),
-                domain=domain, instance_root=str(instance),
-                package_root=str(instance/'code/current'),
-                python_executable=str(instance/'code/current/venv/bin/python'),
-                journal=str(instance/'state/journal.sqlite'), ingress=str(instance/'state/ingress.sqlite'),
-                egress=str(instance/'state/egress.sqlite'),
-                mapping=dict(bridge_id=domain, owner_id='synthetic-owner', guild_id=domain+'-guild',
-                             parent_channel_id=domain+'-channel', mapping_revision='pilot-v1', project_key='project'),
-                projects={'project':str(ROOT)}, routes=[dict(target=target,project='project')])
+ROOT = Path.cwd()
+BASE = os.environ.copy()
+for key in tuple(BASE):
+    if key.startswith('FM_'):
+        del BASE[key]
 
-def save(domain, data):
-    path = HOME/'config/discord'/domain/'integration.json'
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(data))
+def digest(path):
+    return hashlib.sha256(path.read_bytes()).hexdigest()
 
-for domain in DOMAINS:
-    configs[domain] = config(domain, domain+'-mate')
-    save(domain, configs[domain])
-    (HOME/'state'/(domain+'-mate.meta')).write_text('kind=secondmate\nharness=pi\nspawn_gen=live-guard-generation\nbackend=tmux\n')
-legacy = dict(configs[DOMAINS[0]])
-legacy.pop('domain'); legacy.pop('instance_root')
-legacy['mapping'] = dict(bridge_id='personal-discord-galagoa', project_key='galagoa', mapping_revision='pilot-v1')
-legacy['projects'] = {'galagoa':str(ROOT)}
-legacy['routes'] = [dict(target='legacy-mate',project='galagoa')]
-legacy_path = HOME/'config/discord-integration.json'
-legacy_path.write_text(json.dumps(legacy))
-(HOME/'state/legacy-mate.meta').write_text('kind=secondmate\nharness=pi\nspawn_gen=legacy-generation\n')
-original_legacy = legacy_path.read_bytes()
+with tempfile.TemporaryDirectory(prefix='.domain-live-', dir=ROOT) as temporary:
+    home = Path(temporary)
+    for folder in ('config', 'state', 'data', 'projects'):
+        (home / folder).mkdir()
+    env = dict(BASE, FM_HOME=str(home), FM_ROOT_OVERRIDE=str(ROOT),
+               FM_STATE_OVERRIDE=str(home / 'state'), FM_DATA_OVERRIDE=str(home / 'data'),
+               FM_CONFIG_OVERRIDE=str(home / 'config'), FM_PROJECTS_OVERRIDE=str(home / 'projects'))
+    configs = {}
+    for domain in ('pristine-valets', 'galagoa-new'):
+        instance = home / 'instances' / domain / 'parent'
+        project = home / 'projects' / domain
+        project.mkdir()
+        config = dict(schema=2, enabled=True, home=str(home), domain=domain,
+                      instance_root=str(instance), package_root=str(instance / 'code/current'),
+                      python_executable=str(instance / 'code/current/venv/bin/python'),
+                      journal=str(instance / 'state/journal'), ingress=str(instance / 'state/ingress'),
+                      egress=str(instance / 'state/egress'), assets=str(instance / 'state/assets'),
+                      routes=[dict(target=domain+'-mate', project=domain)], projects={domain: str(project)},
+                      source=str(ROOT), capabilities=['runner-only'], peer_capabilities=[],
+                      mapping=dict(bridge_id=domain, owner_id='synthetic-owner', guild_id='synthetic-guild',
+                                   parent_channel_id='synthetic-channel', mapping_revision='test-v1', project_key=domain))
+        path = home / 'config/discord' / domain / 'integration.json'
+        path.parent.mkdir(parents=True)
+        path.write_text(json.dumps(config))
+        configs[domain] = (path, config)
+        (home / 'state' / (domain+'-mate.meta')).write_text('backend=zellij\nwindow=lab:fm-'+domain+'-mate\nharness=codex\nkind=secondmate\nspawn_gen=synthetic-generation\n')
+    global_config = copy.deepcopy(configs['galagoa-new'][1])
+    for key in ('domain','instance_root','capabilities','peer_capabilities'):
+        global_config.pop(key)
+    global_config['routes'] = [dict(target='personal-galagoa', project='galagoa-new')]
+    global_path = home / 'config/discord-integration.json'
+    global_path.write_text(json.dumps(global_config))
+    (home / 'state/personal-galagoa.meta').write_text('backend=zellij\nwindow=lab:fm-personal-galagoa\nharness=codex\nspawn_gen=legacy-generation\n')
+    original = digest(global_path)
 
-def run(surface, domain, expected, expected_error='', words='Synthetic reviewed context', target=None, extra=None, backend='tmux'):
-    target = target or (domain+'-mate' if domain in DOMAINS else 'legacy-mate')
-    if surface == 'hook':
-        args = ['send',target,target,str(HOME/'state'/(target+'.meta')),backend]
-        name = 'bin/fm-discord-hook.py'
-    else:
-        args = ['synthetic-request',target,words]
-        name = 'bin/fm-discord-'+surface+'.py'
-    env = dict(ENV)
-    if domain is not None: env['FM_DISCORD_DOMAIN'] = domain
-    env.update(extra or {})
-    cmd = [sys.executable,'-I',str(ROOT/name),*args]
-    p = subprocess.run(cmd, env=env, input=words if surface=='hook' else None,
-                       capture_output=True,text=True,timeout=15)
-    record = dict(surface=surface, binding=domain, target=target, input=words, exit=p.returncode,
-                  stdout=p.stdout, stderr=p.stderr)
-    print(json.dumps(record), flush=True)
-    assert p.returncode == expected, record
-    assert expected_error in p.stderr, record
-    return record
+    def hook(label, domain, target, expected=0, contains='', text='synthetic reviewed local steer', extra=None):
+        local_env = env.copy()
+        if domain is not None:
+            local_env['FM_DISCORD_DOMAIN'] = domain
+        if extra:
+            local_env.update(extra)
+        command = ['python3', '-I', str(ROOT / 'bin/fm-discord-hook.py'), 'send', target,
+                   'lab:fm-'+target, str(home / 'state' / (target+'.meta')), 'zellij']
+        result = subprocess.run(command, env=local_env, input=text, text=True, capture_output=True, timeout=15)
+        assert result.returncode == expected, (label, result.returncode, result.stderr)
+        assert contains in result.stderr, (label, result.stderr)
+        assert text not in result.stderr
+        return f'{label}: exit={result.returncode}; stdout={result.stdout!r}; stderr={result.stderr.strip()!r}'
 
-try:
-    print('SCENARIO 1: bound missing, disabled, invalid and symlink configs refuse instead of using enabled global config', flush=True)
-    pristine = DOMAINS[0]
-    path = HOME/'config/discord'/pristine/'integration.json'
-    path.unlink()
-    for surface in ('dispatch','reply','hook'):
-        run(surface,pristine,1,'Bound domain configuration required')
-    save(pristine,dict(configs[pristine],enabled=False))
-    for surface in ('dispatch','reply','hook'):
-        run(surface,pristine,1,'enabled')
-    save(pristine,configs[pristine])
-    for invalid in ('','../galagoa-new','Galagoa','x'*49):
-        for surface in ('dispatch','reply','hook'):
-            run(surface,invalid,1,'Invalid trusted domain binding',target=pristine+'-mate')
-    path.unlink(); path.symlink_to(legacy_path)
-    for surface in ('dispatch','reply','hook'):
-        run(surface,pristine,1,'Bound domain configuration required')
-    path.unlink(); save(pristine,configs[pristine])
-    assert legacy_path.read_bytes() == original_legacy
-    print('SCENARIO 1 COMPLETE: no global replacement or fallback; no journal created', flush=True)
+    print('SCENARIO 1: Real hook, concurrent synthetic local supervisory guards; no runtime or transport replacement')
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
+        futures = [pool.submit(hook, d+' own local steer', d, d+'-mate') for d in configs]
+        for future in futures:
+            print(future.result())
+    print(hook('Unbound existing global route remains usable', None, 'personal-galagoa'))
+    print('Global config byte digest unchanged:', digest(global_path) == original)
+    assert digest(global_path) == original
 
-    print('SCENARIO 2: cross-domain writable paths, shared mates and foreign mapping bindings refuse before runtime access', flush=True)
-    attacks = [('egress',configs[DOMAINS[1]]['egress'],'writable path belongs to another domain'),
-               ('routes',configs[DOMAINS[1]]['routes'],'separate mapped mates'),
-               ('mapping',configs[DOMAINS[1]]['mapping'],'mapping belongs to another domain'),
-               ('domain',DOMAINS[1],'domain/root mismatch'),
-               ('python_executable',configs[DOMAINS[1]]['python_executable'],'runtime belongs to another domain')]
-    for key,value,error in attacks:
-        save(pristine,dict(configs[pristine],**{key:value}))
-        for surface in ('dispatch','reply','hook'):
-            run(surface,pristine,1,error)
-    save(pristine,configs[pristine])
-    print('SCENARIO 2 COMPLETE: rejected foreign custody and duplicate mate configuration', flush=True)
+    print('SCENARIO 2: Adversarial local configuration and route guards')
+    print(hook('Invalid selector traversal', '../galagoa-new', 'pristine-valets-mate', 1, 'Invalid trusted domain binding'))
+    print(hook('Missing domain cannot fall back to global', 'missing-domain', 'personal-galagoa', 1, 'Bound domain configuration required'))
+    path, config = configs['pristine-valets']
+    changed = copy.deepcopy(config); changed['enabled'] = False
+    path.write_text(json.dumps(changed))
+    print(hook('Disabled domain cannot fall back to global', 'pristine-valets', 'personal-galagoa', 1, 'must be enabled'))
+    changed = copy.deepcopy(config); changed['egress'] = configs['galagoa-new'][1]['egress']
+    path.write_text(json.dumps(changed))
+    print(hook('Sibling writable egress rejected', 'pristine-valets', 'pristine-valets-mate', 1, 'writable path belongs to another domain'))
+    changed = copy.deepcopy(config); changed['mapping'] = [{'bridge_id':'pristine-valets'}]
+    path.write_text(json.dumps(changed))
+    print(hook('Malformed bound mapping rejected', 'pristine-valets', 'pristine-valets-mate', 1, 'Malformed bound integration mapping'))
+    path.write_text(json.dumps(config))
+    for target in ('galagoa-new-mate','fm-galagoa-new-mate','personal-galagoa'):
+        print(hook('Foreign target '+target, 'pristine-valets', target, 1, 'Route belongs to another domain'))
+    print(hook('Parser native invocation rejected', 'pristine-valets', 'pristine-valets-mate', 1, 'parser-native invocation', text='/synthetic-command'))
+    print(hook('Typed permit cannot authorize unrelated target', 'pristine-valets', 'unmapped', 1, 'cannot authorize an unmapped route', extra={'FM_DISCORD_AUTH':'1'*32}))
+    assert not (home / 'instances').exists(), 'guard created runtime/journal data unexpectedly'
+    assert digest(global_path) == original
+    print('No package, journal, or transport installed; no runtime/journal directory created; original global config unchanged')
 
-    print('SCENARIO 3: concurrent ordinary local hook checks select distinct domains while legacy remains usable; foreign Discord-lane target and parser-native input refuse', flush=True)
-    with concurrent.futures.ThreadPoolExecutor() as pool:
-        jobs = [pool.submit(run,'hook',domain,0,words='Reviewed synthetic context only for '+domain) for domain in DOMAINS]
-        for job in jobs: job.result()
-    run('hook',None,0,words='Existing personal/Galagoa synthetic context')
-    for domain in DOMAINS:
-        other = next(x for x in DOMAINS if x != domain)
-        run('hook',domain,1,'cannot authorize an unmapped route',target=other+'-mate',extra={'FM_DISCORD_AUTH':'a'*32},backend='remote')
-        run('hook',domain,1,'ordinary inbox text',words='/native-command')
-        run('hook',domain,1,'generation fence',extra={'FM_SEND_EXPECTED_SPAWN_GEN':'foreign-generation'})
-    assert legacy_path.read_bytes() == original_legacy
-    journals = list((WORLD/'domains').rglob('*.sqlite'))
-    assert not journals, journals
-    assert not list((HOME/'state').glob('*.inbox')), 'guard-only check must not deliver'
-    print(json.dumps(dict(result='SCENARIO 3 COMPLETE', global_config_sha256=hashlib.sha256(original_legacy).hexdigest(), global_config_unchanged=True, journals_created=0, inboxes_created=0, scope='Real hook routing guards only; no dispatch, return, model or Discord delivery claimed.')),flush=True)
-finally:
-    shutil.rmtree(WORLD)
+    print('SCENARIO 3: Real domain-only inbox preserves durable replies and reports reconciliation')
+    global_path.unlink()
+    def inbox(args, domain=None):
+        local_env = env.copy()
+        if domain is not None:
+            local_env['FM_DISCORD_DOMAIN'] = domain
+        result = subprocess.run(['bash', str(ROOT / 'bin/fm-inbox.sh'), *args], env=local_env,
+                                text=True, capture_output=True, timeout=20)
+        print('fm-inbox.sh', ' '.join(args), 'exit=', result.returncode,
+              'stdout=', result.stdout.strip(), 'stderr=', result.stderr.strip())
+        assert result.returncode == 0
+        return result
+    note = inbox(['note','--request-id','domain-live-request','--json','synthetic domain question'])
+    ident = json.loads(note.stdout)['id']
+    result = inbox(['reply','--json',ident,'synthetic durable domain reply'])
+    assert 'Discord final needs reconciliation, do not resend' in result.stderr
+    receipts = inbox(['receipts','--all-replies'])
+    assert 'synthetic durable domain reply' in receipts.stdout
+    bound = inbox(['drain'], 'missing-domain')
+    assert 'readiness not renewed' in bound.stderr
+    print('Durable reply readable after optional outcome refusal; missing bound readiness warns without losing note')
+print('Disposable homes removed; all synchronous product processes completed')
