@@ -9,7 +9,7 @@
 # path in bin/fm-afk-return.sh calls `archive` through bin/fm-afk-launch.sh stop).
 # Being away changes how the captain is informed and what happens at a
 # captain-owned decision point, never the authority set. Hold-for-return is the
-# only reach profile this release records: there is no phone channel, and the
+# default reach profile; optional private reach is owned by fm-away-notice.py, and the
 # entry announcement says so every time.
 #
 # AWAY OR QUIET. The same record also backs daemon-backed quiet mode, which a
@@ -50,7 +50,9 @@
 #   entered: <UTC ISO 8601>
 #   entered_epoch: <seconds>
 #   expected_return: <UTC ISO 8601> | -
-#   reach_channels: none
+#   reach_channels: none|discord-private
+#   reach_mapping_revision: <enrolled revision or ->
+#   reach_binding: <SHA256 of reviewed enrollment, empty when unavailable>
 #   reach_announced: <the one-sentence reach announcement>
 #   spend_max_concurrent_workers: <n>   without --spend, the ordinary worker
 #                                  records this home already holds at entry,
@@ -159,7 +161,6 @@ FM_AFK_CONTRACT_STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 FM_AFK_CONTRACT_VERSION=2
 # Older record versions this script still reads (never writes).
 FM_AFK_CONTRACT_READABLE_VERSIONS="1 2"
-FM_AFK_CONTRACT_REACH_ANNOUNCED='No phone channel is configured; anything that needs you waits for your return.'
 FM_AFK_CONTRACT_SPEND_DEFAULT=4
 FM_AFK_CONTRACT_QUIET_HOLDS_NOTHING='you are present, so nothing waits for your return: every action you ask for, a local landing or a merge included, proceeds now under ordinary attended authority, and quiet mode changes only which updates reach this conversation.'
 # Generous against the longest legitimate holder, a merge waiting on the forge,
@@ -298,13 +299,20 @@ fm_afk_contract_validate_iso() {  # <ts>
 # Render a whole record on stdout.
 # Inputs: WORDS (verbatim), EXPECTED_RETURN, SPEND.
 fm_afk_contract_render_record() {  # <entered-iso> <entered-epoch> <confirmed-iso> <confirmed-epoch>
-  local entered=$1 entered_epoch=$2 confirmed=$3 confirmed_epoch=$4
+  local entered=$1 entered_epoch=$2 confirmed=$3 confirmed_epoch=$4 reach_info
+  reach_info=$(printf 'none\n-\nReach unavailable; hold-for-return only.')
+  if [ "${FM_AFK_CONTRACT_ENTRY_MODE:-away}" != quiet ]; then
+    reach_info=$(FM_HOME="$FM_HOME" python3 -I "$FM_AFK_CONTRACT_DIR/fm-away-notice.py" reach 2>/dev/null) \
+      || reach_info=$(printf 'none\n-\nReach unavailable; hold-for-return only.')
+  fi
   printf 'version: %s\n' "$FM_AFK_CONTRACT_VERSION"
   printf 'entered: %s\n' "$entered"
   printf 'entered_epoch: %s\n' "$entered_epoch"
   printf 'expected_return: %s\n' "${EXPECTED_RETURN:--}"
-  printf 'reach_channels: none\n'
-  printf 'reach_announced: %s\n' "$FM_AFK_CONTRACT_REACH_ANNOUNCED"
+  printf 'reach_channels: %s\n' "$(printf '%s\n' "$reach_info" | head -n 1)"
+  printf 'reach_mapping_revision: %s\n' "$(printf '%s\n' "$reach_info" | awk 'NR==2')"
+  printf 'reach_binding: %s\n' "$(printf '%s\n' "$reach_info" | awk 'NR==4')"
+  printf 'reach_announced: %s\n' "$(printf '%s\n' "$reach_info" | awk 'NR==3')"
   printf 'spend_max_concurrent_workers: %s\n' "${SPEND:-$FM_AFK_CONTRACT_SPEND_DEFAULT}"
   printf 'confirmed: %s\n' "$confirmed"
   printf 'confirmed_epoch: %s\n' "$confirmed_epoch"
@@ -399,7 +407,7 @@ fm_afk_contract_validate() {  # <path>
   expected=$(fm_afk_contract_read_field "$path" expected_return)
   [ "$expected" = - ] || fm_afk_contract_validate_iso "$expected" || { fm_afk_contract_log "record $path has no valid expected_return"; return 1; }
   reach=$(fm_afk_contract_read_field "$path" reach_channels)
-  [ "$reach" = none ] || { fm_afk_contract_log "record $path has no valid reach_channels"; return 1; }
+  case "$reach" in none|discord-private) ;; *) fm_afk_contract_log "record $path has no valid reach_channels"; return 1 ;; esac
   announced=$(fm_afk_contract_read_field "$path" reach_announced)
   [ -n "$announced" ] || { fm_afk_contract_log "record $path has no reach announcement"; return 1; }
   spend=$(fm_afk_contract_read_field "$path" spend_max_concurrent_workers)
@@ -441,7 +449,11 @@ fm_afk_contract_render_readback() {  # <path>
     printf '  entered: %s\n' "$(fm_afk_contract_read_field "$path" entered)"
     printf '  expected return: %s\n' "$( [ "$expected" = - ] && printf 'not given' || printf '%s' "$expected")"
     printf '  spend cap: %s concurrent workers\n' "$spend"
-    printf '  reach: hold-for-return only. %s\n' "$(fm_afk_contract_read_field "$path" reach_announced)"
+    printf '  reach: %s\n' "$(fm_afk_contract_read_field "$path" reach_announced)"
+    if [ "$(fm_afk_contract_read_field "$path" reach_channels)" = discord-private ]; then
+      FM_HOME="$FM_HOME" python3 -I "$FM_AFK_CONTRACT_DIR/fm-away-notice.py" reach \
+        "$(fm_afk_contract_read_field "$path" reach_binding)" 2>/dev/null | awk 'NR==3 {print "  current reach: " $0}'
+    fi
   fi
   words=$(fm_afk_contract_read_words "$path"; rc=$?; printf x; exit "$rc") || return 1
   words=${words%x}
@@ -469,7 +481,7 @@ fm_afk_contract_render_announcement() {  # <path>
   else
     mandate_text='No away instructions were recorded; the away session acts on standing authority only, and anything that needs you waits for your return.'
   fi
-  printf 'Away posture recorded at %s: hold-for-return only. %s %s Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: %s. Spend cap: %s concurrent workers.\n' \
+  printf 'Away posture recorded at %s: %s %s Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: %s. Spend cap: %s concurrent workers.\n' \
     "$(fm_afk_contract_read_field "$path" confirmed)" \
     "$(fm_afk_contract_read_field "$path" reach_announced)" \
     "$mandate_text" \

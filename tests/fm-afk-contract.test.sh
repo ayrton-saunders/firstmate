@@ -73,7 +73,7 @@ test_readback_renders_words_verbatim_with_the_record_scalars() {
   assert_contains "$out" 'Away posture (recorded):' 'read-back title'
   assert_contains "$out" 'expected return: 2026-09-08T08:00Z' 'expected return rendered'
   assert_contains "$out" 'spend cap: 3 concurrent workers' 'spend cap rendered'
-  assert_contains "$out" 'reach: hold-for-return only. No phone channel is configured; anything that needs you waits for your return.' 'reach rendered'
+  assert_contains "$out" 'reach: Reach unavailable; hold-for-return only.' 'unconfigured reach rendered truthfully'
   assert_contains "$out" '  your words (verbatim):' 'words header'
   assert_contains "$out" '    drive the windows fix to green and merge it,' 'words line 1'
   assert_contains "$out" '      cut a prerelease; then re-run "nm-ci-windows"' 'words line 2 keeps its own indentation and quotes'
@@ -124,7 +124,7 @@ test_enter_writes_a_v2_record_in_one_step_and_announces_hold_for_return() {
   [ -f "$record" ] || fail "enter did not write the record"
   [ ! -e "$home/state/.afk-contract.proposed" ] || fail "enter staged a proposal instead of writing the record"
   assert_contains "$out" 'Away posture recorded at ' 'announcement opens with the recorded time'
-  assert_contains "$out" 'hold-for-return only. No phone channel is configured; anything that needs you waits for your return.' 'announcement says hold-for-return only, aloud'
+  assert_contains "$out" 'Reach unavailable; hold-for-return only.' 'announcement says reach unavailable, aloud'
   assert_contains "$out" 'Your away instructions are recorded verbatim; the away session will carry them out where it can, and anything it is unsure of, or that needs you, waits for your return.' 'announcement says the words will be carried out'
   assert_contains "$out" 'Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say.' 'announcement states the never-set'
   assert_contains "$out" 'Expected return: not given. Spend cap: 4 concurrent workers.' 'announcement carries the defaults'
@@ -204,7 +204,7 @@ test_same_turn_entry_pre_authorizes_nothing_on_the_never_set() {
   out=$(contract "$home" enter --words "$words" 2>&1) || fail "never-set entry failed: $out"
   [ "$(contract "$home" words)" = "$words" ] || fail "the never-set words were not recorded verbatim"
   keys=$(sed -n 's/^\([a-z_]*\):.*/\1/p' "$home/state/.afk-contract" | tr '\n' ' ')
-  [ "$keys" = 'version entered entered_epoch expected_return reach_channels reach_announced spend_max_concurrent_workers confirmed confirmed_epoch words ' ] \
+  [ "$keys" = 'version entered entered_epoch expected_return reach_channels reach_mapping_revision reach_binding reach_announced spend_max_concurrent_workers confirmed confirmed_epoch words ' ] \
     || fail "the record carries fields beyond its fixed schema: $keys"
   assert_contains "$out" 'Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say.' \
     'the same-turn announcement must restate the never-set'

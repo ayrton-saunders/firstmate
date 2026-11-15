@@ -16,7 +16,10 @@
 #
 # Usage:
 #   fm-branch-report.sh --task <id|fleet> --verdict routine|captain \
-#       --summary <text> [--silent true|false] [--wake <text>]
+#       --summary <text> [--silent true|false] [--wake <text>] \
+#       [--notice decision|pr-ready]
+# --notice is only the typed fm-away-notice.py reach exception; never raw text.
+# Every report also drains its retained queue; failure cannot undo the outcome.
 #
 # The verdict criteria are owned by bin/fm-branch-prompt.sh ("Verdict: routine
 # or captain"); --silent true is legal only for a routine outcome.
@@ -63,7 +66,7 @@ refuse() {
   exit 3
 }
 
-TASK='' VERDICT='' SUMMARY='' SILENT=false WAKE='' WAKE_SET=0
+TASK='' VERDICT='' SUMMARY='' SILENT=false WAKE='' WAKE_SET=0 NOTICE=''
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --task) TASK=${2:-}; shift 2 || usage ;;
@@ -71,6 +74,7 @@ while [ "$#" -gt 0 ]; do
     --summary) SUMMARY=${2:-}; shift 2 || usage ;;
     --silent) SILENT=${2:-}; shift 2 || usage ;;
     --wake) WAKE=${2:-}; WAKE_SET=1; shift 2 || usage ;;
+    --notice) NOTICE=${2:-}; shift 2 || usage ;;
     -h|--help) usage ;;
     *) usage ;;
   esac
@@ -80,6 +84,7 @@ TASK=$(printf '%s' "$TASK" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
 SUMMARY=$(printf '%s' "$SUMMARY" | sed 's/^[[:space:]]*//; s/[[:space:]]*$//')
 case "$VERDICT" in routine|captain) ;; *) VERDICT= ;; esac
 case "$SILENT" in true|false) ;; *) usage ;; esac
+case "$NOTICE" in ''|decision|pr-ready) ;; *) usage ;; esac
 if [ -z "$TASK" ] || [ -z "$SUMMARY" ] || [ -z "$VERDICT" ]; then
   echo "invalid report: --task, --verdict (routine|captain), and --summary are required" >&2
   exit 2
@@ -122,6 +127,11 @@ set -- append --task "$TASK" --verdict "$VERDICT" --summary "$SUMMARY" --silent 
 if ! SEQ=$("$SCRIPT_DIR/fm-branch-outcome.sh" "$@"); then
   echo "outcome store append failed (nothing recorded)" >&2
   exit 1
+fi
+set -- report "$SEQ" "$TASK"
+[ -z "$NOTICE" ] || set -- "$@" "$NOTICE"
+if [ -f "$FM_HOME/config/away-reach.json" ] || [ -f "$FM_HOME/state/away-notices.sqlite3" ]; then
+  FM_HOME="$FM_HOME" python3 -I "$SCRIPT_DIR/fm-away-notice.py" "$@" >/dev/null 2>&1 || true
 fi
 printf '%s\t%s\t%s\t%s\n' "$TURN" "$SEQ" "$VERDICT" "$TASK" >> "$RECEIPTS" || {
   echo "recorded seq $SEQ, but the host receipt could not be written; the host will hand this wake to MAIN" >&2

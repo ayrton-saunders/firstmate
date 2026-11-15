@@ -691,6 +691,9 @@ EOF
     printf '  (no routine outcomes recorded in the store for this window)\n'
   fi
 
+  FM_HOME="$FM_HOME" python3 -I "$SCRIPT_DIR/fm-away-notice.py" return \
+    || printf 'Private reach delivery evidence unavailable; decisions still await the usual conversation.\n'
+
   # 7. cost.
   live=0
   for meta in "$STATE"/*.meta; do [ -f "$meta" ] && live=$((live + 1)); done

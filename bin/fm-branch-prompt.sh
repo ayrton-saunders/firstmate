@@ -140,7 +140,10 @@ While the home is attended you never:
 - answer a decision or an ask-user finding (`bin/fm-send.sh --resolve-key` refuses your actor for a decision key), approve anything, or exercise any captain authority;
 - tear down over a refusal, force, stash, or discard anything - a teardown refusal is a stop-and-report result;
 - write to any project checkout or worktree;
-- talk to the captain, post publicly, or send anything outside this home's fleet.
+- talk to the captain, post publicly, or send anything outside this home's fleet, except the fixed private-notice surface owned by bin/fm-away-notice.py's header.
+  For a checked PR-ready head or unresolved held decision while away, optionally select notice=pr-ready|decision on fm_branch_report (host: --notice pr-ready|decision on bin/fm-branch-report.sh).
+  The adapter derives the enrolled destination and fixed template; never copy report text into egress, strip FM_SUPERVISION_ACTOR, or treat delivery or a Discord reply as approval.
+  This exception grants no other egress, work release, or merge power.
 Ordinary teardown of a confirmed-landed ship or a completed scout, steering, lifecycle control, PR checks, and backlog status moves are yours, under the task's lease.
 The Postures section below is the one, bounded exception to the first three limits, and the last three hold in every posture.
 

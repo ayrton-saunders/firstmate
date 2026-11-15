@@ -1228,6 +1228,9 @@ export default function (pi: ExtensionAPI) {
             "One or two sentences in captain outcome language; include the full https:// PR URL when a PR is involved",
         }),
         wake: Type.Optional(Type.String({ description: "The wake reason line this outcome answers" })),
+        notice: Type.Optional(Type.Union([Type.Literal("decision"), Type.Literal("pr-ready")], {
+          description: "Away-only fixed private notice approval; derives checked evidence and enrolled destination, never copies summary text",
+        })),
         silent: Type.Optional(Type.Boolean({
           description: "True only for an eligible routine no-change outcome; captain outcomes are never silent, and actions, state changes, or new results stay rendered",
         })),
@@ -1281,6 +1284,21 @@ export default function (pi: ExtensionAPI) {
           }
           durableReportRevision += 1;
           const seq = Number(appended.stdout);
+          const notice = (params as { notice?: unknown }).notice;
+          // Store first. Independent reach failures never prevent ordinary
+          // delivery/acknowledgement, and branch actor provenance is retained.
+          if (Number.isSafeInteger(seq) && seq > 0 &&
+              (existsSync(join(fmHome, "config", "away-reach.json")) || existsSync(join(fmHome, "state", "away-notices.sqlite3")))) {
+            const noticeArgs = [join(fmRoot, "bin", "fm-away-notice.py"), "report", String(seq), task];
+            if (notice === "decision" || notice === "pr-ready") noticeArgs.push(notice);
+            try {
+              await runCommandAsync("python3", ["-I", ...noticeArgs], {
+                cwd: fmRoot, env: { ...scriptEnv, FM_SUPERVISION_ACTOR: "branch" },
+              });
+            } catch {
+              // The adapter retains bounded fixed-code failures for return.
+            }
+          }
           if (!Number.isSafeInteger(seq) || seq < 1 || !(await reconcileUnreadOutcomes(toolGeneration))) {
             return {
               content: [{ type: "text", text: `recorded seq ${appended.stdout}, but visible delivery or cursor advancement failed` }],
