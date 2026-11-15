@@ -1,0 +1,6 @@
+ok - deliberately broken fm-herdr-session-lib.sh fails: legacy route defaults changed
+ok - deliberately broken fm-remote-readiness-lib.sh fails: ambiguous transport failure lost exit 255
+ok - deliberately broken fm-ff-lib.sh fails: exact-current output changed
+ok - deliberately broken fm-remote-job-reap-orphans.sh fails: legacy dry-run golden changed
+ok - deliberately broken fm-remote-job-lib.sh fails: legacy queue default projection changed
+ok - deliberately broken fm-teardown.sh fails: no-enrollment cleanup stopped invoking the orphan reaper

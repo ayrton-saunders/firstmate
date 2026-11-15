@@ -1,0 +1,35 @@
+Surface: real fm-on -> real entrypoint -> real worker -> real record export, synthetic local process transport. No Harbour access.
+Parsed route=personal source={run-worktree}/.test-disposable/live-routing/fork-source home={run-worktree}/.test-disposable/live-routing/personal-home session=fm-remote-personal
+Parsed route=fpl source={run-worktree}/.test-disposable/live-routing/firstmate-source home={run-worktree}/.test-disposable/live-routing/fpl-home session=fm-remote
+
+$ bin/fm-on.sh personal fm-record-export.sh sync
+Local process transport (not SSH): root={run-worktree}/.test-disposable/live-routing/fork-source home={run-worktree}/.test-disposable/live-routing/personal-home
+exit=0; persisted personal-export/live/data/backlog.md:
+# Disposable personal backlog
+
+- synthetic preserved work item
+
+$ bin/fm-on.sh fpl fm-record-export.sh sync
+Local process transport (not SSH): root={run-worktree}/.test-disposable/live-routing/firstmate-source home={run-worktree}/.test-disposable/live-routing/fpl-home
+exit=0; persisted fpl-export/live/data/backlog.md:
+# Disposable fpl backlog
+
+- synthetic preserved work item
+
+$ bin/fm-on.sh personal fm-record-export.sh sync
+Local process transport (not SSH): root={run-worktree}/.test-disposable/live-routing/fork-source home={run-worktree}/.test-disposable/live-routing/personal-home
+exit=0; persisted personal-export/live/data/backlog.md:
+# Disposable personal backlog
+
+- synthetic preserved work item
+
+$ bin/fm-on.sh synthetic-harbour fm-record-export.sh sync
+error: remote route 'synthetic-harbour' is ambiguous across 2 configured secondmates; use a secondmate id
+exit=1
+
+$ bin/fm-remote-entrypoint.sh 2 invalid-root invalid-home invalid-payload
+error: incompatible remote protocol: local=2 remote=1
+exit=64
+Protocol 2 rejected before payload decoding; no account or staging state created.
+
+Disposable queue worker stopped.

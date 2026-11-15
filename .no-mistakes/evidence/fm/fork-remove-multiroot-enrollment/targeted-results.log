@@ -1,0 +1,8 @@
+fm-remote-entrypoint exit=0
+fm-remote-legacy-golden exit=0
+fm-remote-root-characterization exit=0
+fm-remote-legacy-cleanup exit=0
+fm-remote-legacy-mutation exit=0
+fm-remote-root-inventory exit=0
+fm-on exit=0
+fm-remote-transport-lanes exit=0

@@ -1,0 +1,6 @@
+ok - every indexed entry has an explicit exclusion, boundary and evidence level
+ok - real interpreted entries retain all five caller sites and invocation forms
+ok - tracked non-executable interpreted modules retain exclusion mappings
+ok - missing real-data invocation mapping is rejected
+ok - real legacy ingress excludes known and unclassified command payloads from protocol 2 before state creation
+ok - deliberately enabled policy fails the Stage-1 exclusion audit

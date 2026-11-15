@@ -1,0 +1,1 @@
+ok - no-enrollment teardown still invokes orphan cleanup exactly once without a new installation
