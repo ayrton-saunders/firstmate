@@ -2638,10 +2638,10 @@ Leave the integration configuration absent for ordinary operation.
 The hook's [header and help](../bin/fm-discord-hook.py) own the exact configuration, enrolled release requirements, permit interface, and invocation mechanics; this is not a standalone bot setup path.
 The [owner install-and-test sheet](discord-owner-reply-install.md) coordinates both machines, owner approvals and the one-message round-trip proof.
 
-When enabled, ordinary local supervisory text can still reach explicitly mapped workers without consuming Discord permits; per-domain bot scoping does not restrict the primary's own coordination.
+For domain-bound coordination limits, see the [hook's configuration contract](../bin/fm-discord-hook.py).
 Discord-lane sends, remote mapped sends, and mapped project spawns still require parent-issued permits rather than treating transport input as authorization.
 Mapped endpoint aliases cannot bypass the guard through direct terminal text, and mapped work cannot use parser-native invocations.
-Unmapped sends and ordinary local supervisory sends (including to mapped workers) retain their ordinary routing behavior after configuration validation and endpoint identity checks, without loading the configured Discord interpreter or package.
+Within the selected routing boundary, unmapped sends without Discord authority and ordinary local supervisory sends (including to mapped workers) retain their ordinary routing behavior after configuration validation and endpoint identity checks, without loading the configured Discord interpreter or package or consuming Discord permits.
 See the [hook's configuration contract](../bin/fm-discord-hook.py) for source status fields and the [owner cutover protections](discord-owner-reply-install.md#3-owner-action-preserve-the-domain-protections) for retained domain checks.
 A proven absent unrelated mapped endpoint does not block routing; an indeterminate identity lookup refuses delivery rather than risking a mapped terminal bypass.
 Capacity deferral remains a no-launch outcome and does not consume dispatch authority.
