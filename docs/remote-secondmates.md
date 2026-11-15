@@ -8,8 +8,8 @@ The primary still owns routing and supervision, while the remote home owns its o
 Firstmate does not support placing an individual worker remotely or failing a remote route over to a local replacement.
 
 Per-lane named execution-root isolation is not supported: distinct homes and Herdr sessions do not pin independent Firstmate versions against account-wide transport repair, cleanup, or updates.
-Characterization, the inactive closure audit, and a fixture-only installed-bootstrap enrollment kernel are present; named enrollment and dispatch remain unavailable.
-The [`stage_map` in the audit policy](../tests/fixtures/remote-root-boundaries.json) owns the remaining stages, their planned test targets, and failure oracles.
+Characterization tests and the inactive closure audit remain; named enrollment and dispatch are unavailable.
+The [`stage_map` in the audit policy](../tests/fixtures/remote-root-boundaries.json) records unimplemented qualification criteria, test targets, and failure oracles, not a supported roadmap.
 
 ## Find a topic
 
