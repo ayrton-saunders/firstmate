@@ -1,0 +1,8 @@
+Dependency availability for real two-domain dispatch/return/egress qualification
+python3.14: ~/.local/bin/python3.14
+personal-discord-admin: not on PATH
+personal-discord: not on PATH
+CPython isolated personal_discord module: None
+
+No approved private-release source path, disposable enrollment, distinct bot tokens/OS principals or reviewed per-domain model contexts supplied. No host search, real-home access, credential mutation, bot enrollment, or production transport access attempted.
+The three targeted suites executed successfully; enabled fixtures use inert private-package replacements and are not live integration evidence.
