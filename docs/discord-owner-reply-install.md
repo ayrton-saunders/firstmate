@@ -11,7 +11,7 @@ Never substitute an old frozen helper with hardcoded historical pins or epochs.
 Confirm the exact bot, controlling owner, channel, mapped project, existing second mate and canonical parent home.
 Do not infer another domain's authority from matching source revisions.
 The [hook's configuration contract](../bin/fm-discord-hook.py) owns the source status fields.
-Install the complete approved source, including both commands and the lifecycle hook and owners.
+Install the complete approved source, including the parent commands and the lifecycle hook and owners.
 Keep the already approved private package and architecture-matching CPython 3.14 runtime unless a separate immutable-release upgrade is explicitly approved.
 No new token, key, user, mapping, ACL, project charter or launchd job is needed for these parent commands.
 Any such change needs a separate owner decision, not an installation repair.
@@ -135,7 +135,8 @@ The live approval API validates public-caption safety without approval side effe
 A closed window (`published:false`) or a changed revision/generation (`Conflict`) means no line, carry on with the real answer, without retry, alert or a new decision.
 The transport owns the one-line-per-request guarantee; the adapter adds no suppression machinery.
 A rare acknowledgement followed seconds later by the final is accepted.
-Publication is not delivery proof, and the acknowledgement retains ordinary transport delivery and ordering behavior.
+Publication is not delivery proof.
+The installed release's [contextual acknowledgement contract](https://github.com/ayrton-saunders/firstmate-discord/blob/main/deploy/PARENT-CONNECTION.md#contextual-acknowledgement) owns typing, delivery ordering and unresolved-post recovery.
 
 ## Local qualification and the excluded test
 
