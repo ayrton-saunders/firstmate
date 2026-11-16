@@ -830,7 +830,9 @@ finally:
     if guard is not None:
         try:
             os.kill(guard, signal.SIGCONT)
-            os.killpg(guard, signal.SIGTERM)
+            # Only the guard was stopped. On macOS, signaling its group after
+            # it exits can return EPERM for a zombie-only group.
+            os.kill(guard, signal.SIGTERM)
         except ProcessLookupError:
             pass
     if runner is not None and start is not None and start.poll() is None:
