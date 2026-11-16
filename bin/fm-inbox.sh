@@ -903,13 +903,14 @@ cmd_wait() {
         id=$1; shift ;;
     esac
   done
-  valid_note_id "$id" || die "invalid or missing note id"
+  valid_note_id "$id" && [ "$id" != . ] && [ "${#id}" -le 250 ] \
+    || die "invalid or missing note id"
   case "$timeout" in ''|*[!0-9]*) die "wait timeout must be an integer in 0..86400" ;; esac
   [ "${#timeout}" -le 5 ] && [ "$timeout" -le 86400 ] \
     || die "wait timeout must be an integer in 0..86400"
   need_python
   python3 - "$INBOX" "$id" "$timeout" "$json" <<'PY'
-import json, sys, time
+import errno, json, os, stat, sys, time
 from pathlib import Path
 
 inbox, note_id, timeout, machine = sys.argv[1:]
@@ -918,7 +919,16 @@ deadline = time.monotonic() + int(timeout)
 
 def reply_record():
     try:
-        text = (inbox / '.replies' / note_id).read_bytes().decode('utf-8', errors='replace')
+        # Nonblocking open prevents a damaged FIFO from defeating the deadline.
+        # Check the opened descriptor, not the path, to avoid a replacement race.
+        fd = os.open(inbox / '.replies' / note_id, os.O_RDONLY | os.O_NONBLOCK)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise ValueError('non-regular reply record')
+            with os.fdopen(fd, 'rb', closefd=False) as record:
+                text = record.read().decode('utf-8', errors='replace')
+        finally:
+            os.close(fd)
     except FileNotFoundError:
         return None
     headers, sep, body = text.partition('\n--\n')
@@ -958,8 +968,11 @@ try:
             if reply is not None:
                 print(reply['body'])
         sys.exit(code)
-except (OSError, ValueError) as exc:
-    sys.exit('fm-inbox: ' + str(exc))
+except OSError as exc:
+    sys.exit('fm-inbox: ' + note_id + ': record error ' +
+             errno.errorcode.get(exc.errno, 'IO_ERROR'))
+except ValueError as exc:
+    sys.exit('fm-inbox: ' + note_id + ': ' + str(exc))
 PY
 }
 

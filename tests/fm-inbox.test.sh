@@ -628,3 +628,63 @@ rc=$?
 set -e
 assert_equals "1" "$rc" "malformed reply fails rather than inventing an answer"
 pass "wait validates bounds and record integrity"
+
+# Corrupted non-regular records must not bypass the caller's deadline or leak paths.
+python3 - "$INBOX_BIN" "$(make_home wait-errors)" <<'PY'
+import json
+import os
+import signal
+import subprocess
+import sys
+from pathlib import Path
+
+script, root = sys.argv[1:]
+home = Path(root)
+env = dict(os.environ, FM_HOME=root, FM_STATE_OVERRIDE=str(home / 'state'),
+           FM_DATA_OVERRIDE=str(home / 'data'), FM_CONFIG_OVERRIDE=str(home / 'config'))
+
+def run(*args):
+    proc = subprocess.Popen([script, *args], env=env, stdout=subprocess.PIPE,
+                            stderr=subprocess.PIPE, text=True, start_new_session=True)
+    try:
+        stdout, stderr = proc.communicate(timeout=3)
+    except subprocess.TimeoutExpired:
+        os.killpg(proc.pid, signal.SIGKILL)
+        proc.communicate()
+        raise AssertionError('wait exceeded its independent cleanup bound')
+    return proc.returncode, stdout, stderr
+
+code, stdout, stderr = run('note', '--json', 'Test damaged reply records')
+assert code == 0, stderr
+note_id = json.loads(stdout)['id']
+replies = home / 'state' / 'inbox' / '.replies'
+replies.mkdir(exist_ok=True)
+record = replies / note_id
+for kind in ('fifo', 'directory'):
+    if kind == 'fifo':
+        os.mkfifo(record)
+    else:
+        record.mkdir()
+    try:
+        code, stdout, stderr = run('wait', note_id, '--timeout', '1', '--json')
+        assert code == 1, (kind, code, stdout, stderr)
+        assert note_id in stderr and 'non-regular reply record' in stderr, stderr
+        assert root not in stdout + stderr and str(replies) not in stdout + stderr
+    finally:
+        record.rmdir() if kind == 'directory' else record.unlink()
+
+for bogus in ('.', 'x' * 256):
+    code, stdout, stderr = run('wait', bogus, '--timeout', '0', '--json')
+    assert code == 1, (code, stdout, stderr)
+    assert root not in stdout + stderr and str(replies) not in stdout + stderr
+    assert 'invalid or missing note id' in stderr, stderr
+
+# A regular-file read error must also be path-free (ELOOP on a symlink loop).
+record.symlink_to(record.name)
+code, stdout, stderr = run('wait', note_id, '--timeout', '0', '--json')
+assert code == 1, (code, stdout, stderr)
+assert note_id in stderr and 'ELOOP' in stderr, stderr
+assert root not in stdout + stderr and str(replies) not in stdout + stderr
+record.unlink()
+PY
+pass "wait rejects non-regular records within bounds and keeps errors path-free"
