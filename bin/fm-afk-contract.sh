@@ -452,7 +452,7 @@ fm_afk_contract_render_readback() {  # <path>
     printf '  reach: %s\n' "$(fm_afk_contract_read_field "$path" reach_announced)"
     if [ "$(fm_afk_contract_read_field "$path" reach_channels)" = discord-private ]; then
       FM_HOME="$FM_HOME" python3 -I "$FM_AFK_CONTRACT_DIR/fm-away-notice.py" reach \
-        "$(fm_afk_contract_read_field "$path" reach_binding)" 2>/dev/null | awk 'NR==3 {print "  current reach: " $0}'
+        "$(fm_afk_contract_read_field "$path" reach_binding)" 2>/dev/null | awk 'NR==3 {print "  current reach: " $0; found=1} END {if (!found) print "  current reach: Reach unavailable; hold-for-return only."}'
     fi
   fi
   words=$(fm_afk_contract_read_words "$path"; rc=$?; printf x; exit "$rc") || return 1
@@ -635,6 +635,7 @@ fm_afk_contract_cmd_archive() {
   fi
   target=$(fm_afk_contract_archive_target "$record") || return 1
   mv "$record" "$target" || return 1
+  FM_HOME="$FM_HOME" python3 -I "$FM_AFK_CONTRACT_DIR/fm-away-notice.py" drain >/dev/null 2>&1 || true
   printf '%s\n' "$target"
 }
 

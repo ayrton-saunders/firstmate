@@ -26,6 +26,11 @@ CAPABILITY='private-notice-v1', available(config=...) -> True only after full-pa
 capability negotiation, approve(config=..., notice=...) -> exactly
 {notice_id: same ID, state: owed|delivered|stopped}. Approval is immutable/idempotent
 and reprojects existing custody/egress; only receipt closure means delivered.
+Authorized interface addition (slice-1 builder confirmation required):
+withdraw(config=..., notice=...) -> exactly {notice_id: same ID,
+state: stopped|delivered}. It atomically fences the immutable notice at parent
+owned egress, including an unknown approval or an old/revoked origin; it never
+retargets. Refusal or missing support leaves explicit local reconciliation due.
 Notice fields are exactly notice_id, identity, origin, template, project_alias,
 pr_url. Identity is mapping_revision+task+hold lifecycle, or mapping_revision+
 pr_url+head+ready state. No raw content field is accepted. Slice 1 renders:
@@ -37,10 +42,11 @@ All mentions and previews are disabled by slice 1. Never solicit Discord approva
 state/away-notices.sqlite3 owns independent immutable approvals, bounded failures
 (last 20, fixed codes only), and per-destination attempts. SQLite serializes drains.
 First approval immediately; one new approval/30s, ten/600s. Excess stays queued;
-current local hold/forge evidence is rechecked before approval. Existing approval
+current local hold/forge evidence is rechecked for every unsent notice.
+Uncertain approval recovery consumes new traffic allowance; confirmed approval
 reconciliation is not new traffic: transport owns retry-after/ambiguous POSTs.
-Changed/revoked enrollment stops unsent notices, never retargets; explicit disposal
-is operator work. Terminal rows retain dedupe across restarts. Nothing here changes
+Changed/revoked enrollment withdraws unsent notices, never retargets; failed
+disposal remains due for explicit reconciliation. Terminal rows retain dedupe across restarts. Nothing here changes
 outcome cursors, captain holds, work release, inbox notes or away posture.
 """
 import hashlib
@@ -115,15 +121,20 @@ def local_config(home):
 
 
 def transport(home):
-    guard = run(['bash', '-c', '. "$1"; fm_refuse_if_gate_agent', '_', str(ROOT / 'fm-gate-refuse-lib.sh')])
-    require(guard.returncode == 0)
     config, enrollment = local_config(home)
     # configuration re-execs THIS entrypoint into the pinned interpreter and
     # imports only the enrolled release. Actor provenance stays in the environment.
+    config, api = parent(home)
+    return config, enrollment, api
+
+
+def parent(home):
+    guard = run(['bash', '-c', '. "$1"; fm_refuse_if_gate_agent', '_', str(ROOT / 'fm-gate-refuse-lib.sh')])
+    require(guard.returncode == 0)
     config = REPLY['configuration'](home, entrypoint=Path(__file__).resolve())
     api = importlib.import_module('personal_discord.private_notice')
     require(api.CAPABILITY == 'private-notice-v1' and api.available(config=config) is True)
-    return config, enrollment, api
+    return config, api
 
 
 def away(home):
@@ -189,12 +200,19 @@ def database(home):
       CREATE TABLE IF NOT EXISTS notices(id TEXT PRIMARY KEY, task TEXT, kind TEXT,
         payload TEXT, destination TEXT, state TEXT, attempted INTEGER);
       CREATE TABLE IF NOT EXISTS failures(epoch INTEGER, code TEXT);
+      CREATE TABLE IF NOT EXISTS health(id TEXT PRIMARY KEY, code TEXT);
+      CREATE TABLE IF NOT EXISTS attempts(notice_id TEXT, epoch INTEGER, payload TEXT);
     ''')
+    if 'confirmed' not in {row[1] for row in db.execute('PRAGMA table_info(notices)')}:
+        db.execute('ALTER TABLE notices ADD COLUMN confirmed INTEGER NOT NULL DEFAULT 0')
+        db.execute('INSERT INTO attempts SELECT id,attempted,payload FROM notices WHERE attempted IS NOT NULL')
+        db.commit()
     os.chmod(path, 0o600)
     return db
 
 
-def failure(db, code):
+def failure(db, code, ident='drain'):
+    db.execute('INSERT OR REPLACE INTO health VALUES (?,?)', (ident, code))
     db.execute('INSERT INTO failures VALUES (?,?)', (int(time.time()), code))
     db.execute('DELETE FROM failures WHERE rowid NOT IN (SELECT rowid FROM failures ORDER BY rowid DESC LIMIT 20)')
 
@@ -214,56 +232,71 @@ def outcome(home, seq, task):
     require(row['task'] == task and row['verdict'] == 'captain' and not row.get('silent', False))
 
 
+def boundary(api, operation, config, payload):
+    def timed_out(_signum, _frame):
+        raise TimeoutError('private notice boundary timeout')
+    prior = signal.signal(signal.SIGALRM, timed_out)
+    signal.alarm(10)
+    try:
+        receipt = getattr(api, operation)(config=config, notice=payload)
+    finally:
+        signal.alarm(0)
+        signal.signal(signal.SIGALRM, prior)
+    states = ('stopped', 'delivered') if operation == 'withdraw' else ('owed', 'delivered', 'stopped')
+    require(isinstance(receipt, dict) and set(receipt) == {'notice_id', 'state'}
+            and receipt['notice_id'] == payload['notice_id'] and receipt['state'] in states)
+    return receipt['state']
+
+
 def drain(home, config, enrollment, api, db):
-    now = int(time.time())
     deadline = time.monotonic() + 40
-    # Enrollment snapshots include disclosure policy as well as destination.
     binding = canonical(enrollment)
-    for ident, task, kind, encoded, dest, state, attempted in db.execute(
-            "SELECT * FROM notices WHERE state IN ('queued','owed') ORDER BY rowid").fetchall():
+    for ident, task, kind, encoded, dest, state, confirmed in db.execute(
+            "SELECT id,task,kind,payload,destination,state,confirmed FROM notices WHERE state IN ('queued','owed','reconcile') ORDER BY rowid").fetchall():
         if time.monotonic() >= deadline:
             break
         payload = json.loads(encoded)
-        if dest != binding or not away(home):
-            db.execute("UPDATE notices SET state='stopped' WHERE id=?", (ident,))
-            failure(db, 'enrollment-or-posture-changed')
-            continue
-        if state == 'queued':
+        eligible = state != 'reconcile' and enrollment is not None and dest == binding and away(home)
+        if eligible:
             try:
                 current = evidence(home, task, kind, config, enrollment)
+                eligible = current is not None and payload_for(current, enrollment) == payload
             except Exception:
-                failure(db, 'current-evidence-unavailable')
-                continue
-            if current is None or payload_for(current, enrollment) != payload:
-                db.execute("UPDATE notices SET state='suppressed' WHERE id=?", (ident,))
-                continue
-            destination_fields = ('bridge_id', 'owner_id', 'guild_id', 'parent_channel_id')
-            attempts = [stamp for previous, stamp in db.execute(
-                'SELECT payload,attempted FROM notices WHERE attempted IS NOT NULL AND attempted>?', (now - 600,))
-                if all(json.loads(previous)['origin'][key] == enrollment['mapping'][key] for key in destination_fields)]
-            if attempts and (max(attempts) > now - 30 or len(attempts) >= 10):
-                continue
-            # Persist the immutable intent BEFORE the external boundary. A crash
-            # replays the same approval, never allocates a new transport identity.
-            db.execute("UPDATE notices SET state='owed', attempted=? WHERE id=?", (now, ident))
+                failure(db, 'current-evidence-unavailable', ident)
+                eligible = False
+        if not eligible:
+            db.execute("UPDATE notices SET state='reconcile' WHERE id=?", (ident,))
             db.commit()
             db.execute('BEGIN IMMEDIATE')
-        # This is a local journal boundary, not a network delivery call.
-        # Bound a malfunctioning mixed release without copying its diagnostics.
-        def timed_out(_signum, _frame):
-            raise TimeoutError('private notice boundary timeout')
-        prior = signal.signal(signal.SIGALRM, timed_out)
-        signal.alarm(10)
+            try:
+                require(api is not None)
+                result = boundary(api, 'withdraw', config, payload)
+                db.execute('UPDATE notices SET state=? WHERE id=?', (result, ident))
+                db.execute('DELETE FROM health WHERE id=?', (ident,))
+            except Exception:
+                failure(db, 'withdrawal-reconciliation-required', ident)
+            continue
+        if not confirmed:
+            now = int(time.time())
+            destination_fields = ('bridge_id', 'owner_id', 'guild_id', 'parent_channel_id')
+            attempts = [stamp for previous, stamp in db.execute(
+                'SELECT payload,epoch FROM attempts WHERE epoch>?', (now - 600,))
+                if all(json.loads(previous)['origin'][key] == payload['origin'][key] for key in destination_fields)]
+            if attempts and (max(attempts) > now - 30 or len(attempts) >= 10):
+                continue
+            db.execute("UPDATE notices SET state='owed', attempted=? WHERE id=?", (now, ident))
+            db.execute('INSERT INTO attempts VALUES (?,?,?)', (ident, now, encoded))
+            db.execute('DELETE FROM attempts WHERE epoch<=?', (now - 600,))
+            db.commit()
+            db.execute('BEGIN IMMEDIATE')
         try:
-            receipt = api.approve(config=config, notice=payload)
-        finally:
-            signal.alarm(0)
-            signal.signal(signal.SIGALRM, prior)
-        require(isinstance(receipt, dict) and set(receipt) == {'notice_id', 'state'}
-                and receipt['notice_id'] == ident and receipt['state'] in ('owed', 'delivered', 'stopped'))
-        db.execute('UPDATE notices SET state=? WHERE id=?', (receipt['state'], ident))
-        if receipt['state'] == 'stopped':
-            failure(db, 'transport-stopped')
+            result = boundary(api, 'approve', config, payload)
+            db.execute('UPDATE notices SET state=?, confirmed=1 WHERE id=?', (result, ident))
+            db.execute('DELETE FROM health WHERE id=?', (ident,))
+            if result == 'stopped':
+                failure(db, 'transport-stopped', ident)
+        except Exception:
+            failure(db, 'approval-unavailable', ident)
 
 
 def main(args):
@@ -279,13 +312,20 @@ def main(args):
             db = database(home)
             count = db.execute('SELECT count(*) FROM failures').fetchone()[0]
             pending = db.execute("SELECT count(*) FROM notices WHERE state != 'delivered'").fetchone()[0]
-            print(f'Private reach: {count} retained failure(s), {pending} notice(s) not confirmed delivered; decisions still await the usual conversation.')
+            unhealthy = db.execute('SELECT count(*) FROM health').fetchone()[0]
+            reconciliation = db.execute("SELECT count(*) FROM notices WHERE state='reconcile'").fetchone()[0]
+            print(f'Private reach: {count} retained failure(s), {unhealthy} current failure(s), {reconciliation} withdrawal(s) needing reconciliation, {pending} notice(s) not confirmed delivered; decisions still await the usual conversation.')
         return
     if args[0] == 'reach':
         try:
             config, enrollment, api = transport(home)
             require(len(args) == 1 or len(args) == 2 and args[1]
                     == hashlib.sha256(canonical(enrollment).encode()).hexdigest())
+            path = home / 'state/away-notices.sqlite3'
+            if path.exists():
+                with database(home) as db:
+                    require(db.execute('SELECT count(*) FROM health').fetchone()[0] == 0
+                            and db.execute("SELECT count(*) FROM notices WHERE state='reconcile' OR (state='owed' AND confirmed=0)").fetchone()[0] == 0)
             print('discord-private')
             print(enrollment['mapping']['mapping_revision'])
             print('Private Discord notifications configured, not proof of delivery; decisions still wait for return.')
@@ -293,39 +333,42 @@ def main(args):
         except Exception:
             print('none\n-\nReach unavailable; hold-for-return only.')
         return
-    if not away(home):
-        return
-    # Off means no journal, no package and no publication, even on an old record.
-    try:
-        local_config(home)
-    except Exception:
-        selected = run(['bash', str(ROOT / 'fm-afk-contract.sh'), 'field', 'reach_channels'])
-        if selected.stdout.strip() == 'discord-private':
-            with database(home) as db:
-                db.execute("UPDATE notices SET state='stopped' WHERE state='queued'")
-                failure(db, 'reach-configuration-unavailable')
+    active = away(home)
+    selected = run(['bash', str(ROOT / 'fm-afk-contract.sh'), 'field', 'reach_channels'])
+    if not (home / 'state/away-notices.sqlite3').exists() and (not active or selected.stdout.strip() != 'discord-private'):
         return
     db = database(home)
+    config = enrollment = api = None
+    db.execute('BEGIN IMMEDIATE')
     try:
-        config, enrollment, api = transport(home)
-        recorded = run(['bash', str(ROOT / 'fm-afk-contract.sh'), 'field', 'reach_binding'])
-        selected = run(['bash', str(ROOT / 'fm-afk-contract.sh'), 'field', 'reach_channels'])
-        if selected.stdout.strip() != 'discord-private' or recorded.stdout.strip() != hashlib.sha256(canonical(enrollment).encode()).hexdigest():
-            db.execute("UPDATE notices SET state='stopped' WHERE state='queued'")
+        try:
+            config, enrollment = local_config(home)
+            recorded = run(['bash', str(ROOT / 'fm-afk-contract.sh'), 'field', 'reach_binding'])
+            require(active and selected.stdout.strip() == 'discord-private'
+                    and recorded.stdout.strip() == hashlib.sha256(canonical(enrollment).encode()).hexdigest())
+        except Exception:
+            enrollment = None
+        try:
+            config, api = parent(home)
+        except Exception:
+            failure(db, 'reach-configuration-unavailable')
+        if enrollment is None and active and selected.stdout.strip() == 'discord-private':
             failure(db, 'recorded-reach-binding-unavailable')
-            db.commit()
-            return
-        db.execute('BEGIN IMMEDIATE')
+        elif api is not None:
+            db.execute("DELETE FROM health WHERE id='drain'")
         if args[0] == 'report':
             require(len(args) in (3, 4))
             seq, task = args[1:3]
-            if len(args) == 4:
-                outcome(home, seq, task)
-                current = evidence(home, task, args[3], config, enrollment)
-                if current is not None:
-                    payload = payload_for(current, enrollment)
-                    db.execute('INSERT OR IGNORE INTO notices VALUES (?,?,?,?,?,?,NULL)',
-                               (payload['notice_id'], task, args[3], canonical(payload), canonical(enrollment), 'queued'))
+            if len(args) == 4 and enrollment is not None and api is not None:
+                try:
+                    outcome(home, seq, task)
+                    current = evidence(home, task, args[3], config, enrollment)
+                    if current is not None:
+                        payload = payload_for(current, enrollment)
+                        db.execute('INSERT OR IGNORE INTO notices (id,task,kind,payload,destination,state) VALUES (?,?,?,?,?,?)',
+                                   (payload['notice_id'], task, args[3], canonical(payload), canonical(enrollment), 'queued'))
+                except Exception:
+                    failure(db, 'approval-or-evidence-unavailable')
         else:
             require(len(args) == 1)
         drain(home, config, enrollment, api, db)

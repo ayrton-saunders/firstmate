@@ -35,7 +35,19 @@ def approve(*, config, notice):
         f.write(json.dumps({'notice':notice,'actor':os.environ.get('FM_SUPERVISION_ACTOR')})+'\\n')
     if Path(config['journal']+'.fail').exists():
         raise ValueError('private error must never appear')
-    return {'notice_id':notice['notice_id'],'state':'delivered'}
+    state='owed' if Path(config['journal']+'.owed').exists() else 'delivered'
+    Path(config['journal']+'.'+notice['notice_id']).write_text(state)
+    return {'notice_id':notice['notice_id'],'state':state}
+def withdraw(*, config, notice):
+    if Path(config['journal']+'.withdraw-fail').exists():
+        raise ValueError('withdraw refused')
+    path=Path(config['journal']+'.withdrawals')
+    with path.open('a') as f:
+        f.write(json.dumps({'notice':notice,'actor':os.environ.get('FM_SUPERVISION_ACTOR')})+'\\n')
+    custody=Path(config['journal']+'.'+notice['notice_id'])
+    state='delivered' if custody.exists() and custody.read_text()=='delivered' else 'stopped'
+    custody.write_text(state)
+    return {'notice_id':notice['notice_id'],'state':state}
 '''
 
 def encoded(value):
@@ -80,7 +92,7 @@ head -n 1 "$file"
         self.selection.write_text(json.dumps(dict(reach='discord-private',domain='personal')))
         self.enroll()
         self.env = {k:v for k,v in os.environ.items() if not k.startswith('FM_')}
-        self.env.update(FM_HOME=str(self.home),FM_SUPERVISION_ACTOR='branch')
+        self.env.update(FM_HOME=str(self.home),FM_SUPERVISION_ACTOR='branch',FM_GATE_REFUSE_BYPASS='1')
         tools = self.world/'tools'
         tools.mkdir()
         forge = tools/'gh-axi'
@@ -122,6 +134,7 @@ head -n 1 "$file"
     def age(self):
         with sqlite3.connect(self.home/'state/away-notices.sqlite3') as db:
             db.execute('UPDATE notices SET attempted=? WHERE attempted IS NOT NULL',(int(time.time())-31,))
+            db.execute('UPDATE attempts SET epoch=?',(int(time.time())-31,))
 
     def test_off_and_unconfigured(self):
         self.selection.unlink()
@@ -204,6 +217,7 @@ head -n 1 "$file"
         with sqlite3.connect(self.home/'state/away-notices.sqlite3') as db:
             self.assertEqual(db.execute("SELECT count(*) FROM notices WHERE state='queued'").fetchone()[0],1)
             db.execute('UPDATE notices SET attempted=? WHERE attempted IS NOT NULL',(int(time.time())-601,))
+            db.execute('UPDATE attempts SET epoch=?',(int(time.time())-601,))
         self.call('drain')
         self.assertEqual(len(self.calls()),11)
 
@@ -244,15 +258,136 @@ head -n 1 "$file"
         flag.touch()
         self.report()
         for _ in range(22):
+            with sqlite3.connect(self.home/'state/away-notices.sqlite3') as db:
+                db.execute('UPDATE attempts SET epoch=?',(int(time.time())-601,))
             self.call('drain')
         self.assertEqual(len({row['notice']['notice_id'] for row in self.calls()}),1)
         self.assertIn('20 retained failure(s)', self.call('return').stdout)
         flag.unlink()
+        self.age()
         self.call('drain')
         self.call('drain')
         self.assertEqual(len(self.calls()),24)
         self.assertTrue((self.home/'state/task.hold').exists())
         self.assertFalse((self.home/'state/.branch-outcomes-processed').exists())
+
+    def pending(self):
+        Path(self.config['journal']+'.owed').touch()
+        self.hold()
+        self.report()
+        self.assertEqual(len(self.calls()),1)
+        return self.calls()[0]['notice']['notice_id']
+
+    def assert_withdrawn(self, ident):
+        self.call('drain')
+        self.assertEqual(Path(self.config['journal']+'.'+ident).read_text(),'stopped')
+        self.assertEqual(len(self.calls()),1)
+        withdrawals=[json.loads(line) for line in Path(self.config['journal']+'.withdrawals').read_text().splitlines()]
+        self.assertEqual(withdrawals[0]['notice']['notice_id'],ident)
+        self.assertEqual(withdrawals[0]['actor'],'branch')
+        self.assertEqual(withdrawals[0]['notice']['origin']['parent_channel_id'],'3')
+        self.assertTrue((self.home/'state/branch-outcomes.jsonl').exists())
+
+    def test_owed_resolved_hold_is_withdrawn(self):
+        ident=self.pending()
+        (self.home/'state/task.hold').unlink()
+        self.assert_withdrawn(ident)
+
+    def test_owed_new_lifecycle_is_withdrawn(self):
+        ident=self.pending()
+        self.hold(lifecycle='2026-11-15T02:00:00Z#1')
+        self.assert_withdrawn(ident)
+
+    def test_owed_changed_head_is_withdrawn(self):
+        Path(self.config['journal']+'.owed').touch()
+        self.hold()
+        (self.home/'state/task.meta').write_text(f'project={self.code}\npr=https://github.com/owner/repo/pull/1\npr_head={"a"*40}\n')
+        (self.home/'state/head').write_text('a'*40)
+        self.report('pr-ready')
+        ident=self.calls()[0]['notice']['notice_id']
+        (self.home/'state/head').write_text('b'*40)
+        self.assert_withdrawn(ident)
+
+    def test_owed_revoked_enrollment_is_withdrawn(self):
+        ident=self.pending()
+        self.enrollment['enabled']=False
+        self.enroll()
+        self.assert_withdrawn(ident)
+
+    def test_owed_changed_binding_is_withdrawn(self):
+        ident=self.pending()
+        self.mapping['parent_channel_id']='99'
+        self.enroll()
+        self.assert_withdrawn(ident)
+
+    def test_owed_return_is_withdrawn(self):
+        ident=self.pending()
+        subprocess.run(['bash',str(self.code/'bin/fm-afk-contract.sh'),'archive'],env=self.env,check=True,capture_output=True)
+        self.assertEqual(Path(self.config['journal']+'.'+ident).read_text(),'stopped')
+        self.assert_withdrawn(ident)
+
+    def test_withdraw_failure_stays_due_after_reenrollment(self):
+        ident=self.pending()
+        flag=Path(self.config['journal']+'.withdraw-fail')
+        flag.touch()
+        (self.home/'state/task.hold').unlink()
+        self.call('drain')
+        self.assertTrue(self.call('reach').stdout.startswith('none\n'))
+        self.assertIn('1 current failure',self.call('return').stdout)
+        with sqlite3.connect(self.home/'state/away-notices.sqlite3') as db:
+            self.assertEqual(db.execute('SELECT state FROM notices').fetchone()[0],'reconcile')
+        self.hold()
+        flag.unlink()
+        self.assert_withdrawn(ident)
+        self.assertTrue(self.call('reach').stdout.startswith('discord-private\n'))
+
+    def test_uncertain_approval_recovery_reserves_spacing(self):
+        self.hold()
+        flag=Path(self.config['journal']+'.fail')
+        flag.touch()
+        self.report()
+        self.age()
+        flag.unlink()
+        self.hold('other')
+        self.report(task='other')
+        self.assertEqual(len(self.calls()),2)
+        self.assertEqual(self.calls()[0]['notice']['notice_id'],self.calls()[1]['notice']['notice_id'])
+        self.call('drain')
+        self.assertEqual(len(self.calls()),2)
+        self.age()
+        self.call('drain')
+        self.assertEqual(len(self.calls()),3)
+        self.assertNotEqual(self.calls()[1]['notice']['notice_id'],self.calls()[2]['notice']['notice_id'])
+
+    def test_crash_before_approval_reserves_recovery_spacing(self):
+        self.pending()
+        ident=self.calls()[0]['notice']['notice_id']
+        Path(self.config['journal']+'.calls').unlink()
+        Path(self.config['journal']+'.'+ident).unlink()
+        with sqlite3.connect(self.home/'state/away-notices.sqlite3') as db:
+            db.execute('UPDATE notices SET confirmed=0')
+        self.age()
+        self.hold('other')
+        self.report(task='other')
+        self.assertEqual(len(self.calls()),1)
+        self.assertEqual(self.calls()[0]['notice']['notice_id'],ident)
+        self.age()
+        self.call('drain')
+        self.assertEqual(len({row['notice']['notice_id'] for row in self.calls()}),2)
+
+    def test_current_failure_readback_and_recovered_history(self):
+        self.hold()
+        flag=Path(self.config['journal']+'.fail')
+        flag.touch()
+        self.report(host=True)
+        self.assertTrue(self.call('reach').stdout.startswith('none\n'))
+        result=subprocess.run(['bash',str(self.code/'bin/fm-afk-contract.sh'),'readback'],env=self.env,check=True,capture_output=True,text=True)
+        self.assertIn('current reach: Reach unavailable',result.stdout)
+        flag.unlink()
+        self.age()
+        self.call('drain')
+        self.assertTrue(self.call('reach').stdout.startswith('discord-private\n'))
+        self.assertIn('1 retained failure(s), 0 current failure(s)',self.call('return').stdout)
 
     def test_alias_and_foreign_domain_refused(self):
         self.enrollment['projects']['project']['alias']='@everyone secret\n'
