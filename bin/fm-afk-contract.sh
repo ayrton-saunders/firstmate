@@ -52,7 +52,7 @@
 #   expected_return: <UTC ISO 8601> | -
 #   reach_channels: none|discord-private
 #   reach_mapping_revision: <enrolled revision or ->
-#   reach_binding: <SHA256 of reviewed enrollment, empty when unavailable>
+#   reach_binding: <SHA256 of reviewed target, - or empty when unavailable>
 #   reach_announced: <the one-sentence reach announcement>
 #   spend_max_concurrent_workers: <n>   without --spend, the ordinary worker
 #                                  records this home already holds at entry,

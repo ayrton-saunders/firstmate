@@ -4,9 +4,9 @@
 Usage: FM_HOME=/absolute/home python3 -I bin/fm-away-notice.py reach [BINDING]
        ... report SEQUENCE TASK [decision|pr-ready]
        ... drain|return
-Report runs after durable outcome append on Pi, host or legacy main. It persists
-a typed reference and recorded binding before configuration or evidence lookup. No kind means drain only. Existing
-supervision wakes drain this journal; this is not a scheduler or reasoning session.
+Report runs after durable outcome append on Pi, host or legacy main.
+No kind means drain only.
+Existing supervision wakes drain this journal; this is not a scheduler or reasoning session.
 
 Trusted config/away-reach.json selects {"reach":"discord-private","domain":"personal"}
 or {"reach":"none"}; absent selection is off. Away prose selects nothing.
@@ -37,17 +37,9 @@ usable after capability disablement/retirement. All receipts are exactly
 Withdrawal returning owed is unresolved, not disposal. Confirmed delivery survives
 withdrawal. These local facade calls never post to Discord; transport never approves.
 
-state/away-notices.sqlite3 owns one lifecycle: queued, uncertain, owed, delivered,
-withdrawn, reconcile. Each live row owns its current failure and original target;
-there is no health latch. Temporary evidence/configuration errors preserve it.
-Only proven invalidation starts withdrawal; failed withdrawal retries only disposal.
-Return withdraws every possibly approved unsent row with away-ended before printing.
-Each row runs in its own process and pinned runtime, retaining explicit caller-domain
-restrictions without inheriting another row's selected domain or imported facade.
-SQLite serializes drains and reserves every potentially new approval durably before
-calling out: one/30s, ten/600s per destination, including uncertain recovery.
-Historical failures are bounded to twenty fixed codes, never current health.
-Nothing here processes outcomes, resolves holds, releases work or clears inbox notes.
+state/away-notices.sqlite3 stores delivery bookkeeping independently of outcomes.
+The lifecycle, recovery, rate limits and read-back health contract are owned by
+../docs/away-notice/interface.md; this header owns invocation, enrollment and facade mechanics.
 """
 from contextlib import closing
 import hashlib
