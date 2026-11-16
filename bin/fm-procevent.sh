@@ -945,7 +945,7 @@ isolate_process() {  # <wait|detach> <command> [argv...]
   fi
   if [ "${FM_TEST_SEAM:-}" = 1 ] && [ -n "${FM_TEST_PROCEVENT_DETACH_STDERR:-}" ]; then
     perl -e "$program" "$mode" "$@" >/dev/null \
-      2> >(perl "$SCRIPT_DIR/fm-procevent-diagnostic-stderr.pl" \
+      2> >(exec perl "$SCRIPT_DIR/fm-procevent-diagnostic-stderr.pl" \
         "$FM_TEST_PROCEVENT_DETACH_STDERR" >/dev/null 2>/dev/null) &
   else
     perl -e "$program" "$mode" "$@" >/dev/null 2>&1 &

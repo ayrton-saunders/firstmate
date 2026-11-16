@@ -732,6 +732,119 @@ assert len(manifest.encode()) < 8192
 print("bounded stderr drained; valid fixture archive and manifest stayed within their byte budgets")
 PY
 pass "diagnostic stderr and fixture capture enforce fixed byte budgets and record truncation"
+
+# Exercise the real nested start -> owner-watchdog -> diagnostic-reader path.
+# Freeze only the private guard, keeping its stderr pipe open after the source
+# exits, so a reader in the source's group is a deterministic false liveness.
+new_home "$TMP_ROOT/diagnostic-groups-home"
+fm_test_track_procevent_home "$TMP_ROOT/diagnostic-groups-home" "$TMP_ROOT/diagnostic-groups-claims"
+python3 - "$ROOT" "$TMP_ROOT" <<'PY' || fail "nested diagnostic reader changed source group liveness"
+import os, pathlib, signal, subprocess, sys, time
+
+root, temporary = map(pathlib.Path, sys.argv[1:])
+home = temporary / "diagnostic-groups-home"
+claims = temporary / "diagnostic-groups-claims"
+log = temporary / "nested-stderr"
+guard_file = temporary / "nested-guard.pid"
+drained = temporary / "nested-guard.drained"
+marker, release = temporary / "nested-source.ready", temporary / "nested-source.release"
+hook, poll = temporary / "nested-startup.sh", temporary / "nested-poll.sh"
+noise = temporary / "nested-noise.sh"
+noise.write_text('''perl -e 'print STDERR "nested-noise" x 131072 or exit 99' || exit 99
+printf drained > "$NESTED_DRAINED"
+''')
+hook.write_text('''if [ "${0##*/}" = fm-procevent.sh ] && [ "${1:-}" = _owner-watchdog ]; then
+  printf '%s\\n' "$$" > "$NESTED_GUARD_PID"
+  printf 'nested guard stderr ready\\n' >&2
+  trap 'bash "$NESTED_NOISE_SCRIPT"' USR1
+fi
+''')
+poll.write_text('''printf ready > "$NESTED_SOURCE_READY"
+while [ ! -e "$NESTED_SOURCE_RELEASE" ]; do sleep 0.01; done
+exit 75
+''')
+env = dict(os.environ, FM_HOME=str(home), FM_PROCEVENT_CLAIM_ROOT=str(claims),
+           FM_TEST_SEAM="1", FM_TEST_PROCEVENT_DETACH_STDERR=str(log), BASH_ENV=str(hook),
+           NESTED_GUARD_PID=str(guard_file), NESTED_DRAINED=str(drained), NESTED_NOISE_SCRIPT=str(noise),
+           NESTED_SOURCE_READY=str(marker), NESTED_SOURCE_RELEASE=str(release))
+pe = str(root / "bin/fm-procevent.sh")
+source = "diagnostic-group-source"
+
+
+def wait_for(predicate):
+    for _ in range(400):
+        if predicate():
+            return
+        time.sleep(0.025)
+    raise AssertionError("nested diagnostic fixture did not reach its control boundary")
+
+
+def readers():
+    # Inspect only readers whose argv names this fixture's unique destination.
+    result = []
+    for row in subprocess.check_output(["ps", "-A", "-o", "pid=,pgid=,args="], text=True).splitlines():
+        fields = row.split(None, 2)
+        if len(fields) == 3 and str(log) in fields[2] and "fm-procevent-diagnostic-stderr.pl" in fields[2]:
+            result.append((int(fields[0]), int(fields[1])))
+    return result
+
+
+start = None
+runner = guard = None
+try:
+    subprocess.run([pe, "register", "lavish", source, "--", "bash", str(poll)],
+                   env=env, check=True, stdout=subprocess.DEVNULL)
+    start = subprocess.Popen([pe, "start", source], env=env, start_new_session=True,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    wait_for(lambda: marker.exists() and guard_file.exists())
+    runner = int((claims / (source + ".claim")).read_text().splitlines()[1])
+    guard = int(guard_file.read_text())
+    assert os.getpgid(guard) == guard and guard != runner
+    os.kill(guard, signal.SIGSTOP)
+    wait_for(lambda: log.exists() and b"nested guard stderr ready" in log.read_bytes())
+    release.touch()
+    output, error = start.communicate(timeout=10)
+    assert start.returncode == 0, (output, error)
+    assert b"no-result: diagnostic-group-source (exit 75)" in output, output
+    os.kill(guard, 0)  # The intentionally stopped guard must still be present.
+    active_readers = readers()
+    assert active_readers, "the guard did not retain its captured stderr reader"
+    try:
+        os.killpg(runner, 0)
+        runner_group_live = True
+    except ProcessLookupError:
+        runner_group_live = False
+    reader_in_runner_group = any(group == runner for _, group in active_readers)
+    print(f"nested group probe: runner_group_live={runner_group_live} "
+          f"reader_in_runner_group={reader_in_runner_group} guard_alive=True", flush=True)
+    assert not reader_in_runner_group, "diagnostic reader retained the source runner's group"
+    assert not runner_group_live, "an exited source's group remained alive only for diagnostics"
+    # Queue the noisy handler while stopped, then let the unchanged real guard
+    # finish its ordinary wait/check. The sink must keep draining after its cap.
+    os.kill(guard, signal.SIGUSR1)
+    os.kill(guard, signal.SIGCONT)
+    wait_for(drained.exists)
+    assert log.stat().st_size <= 262144
+    assert b"[stderr truncated: shared byte limit=262144]" in log.read_bytes()
+finally:
+    if guard is not None:
+        try:
+            os.kill(guard, signal.SIGCONT)
+            os.killpg(guard, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    if runner is not None and start is not None and start.poll() is None:
+        try:
+            os.killpg(runner, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    if start is not None and start.poll() is None:
+        start.terminate()
+        start.communicate(timeout=10)
+    subprocess.run([pe, "retire", source], env=env, stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL, timeout=10)
+PY
+pass "a nested diagnostic reader leaves the exited runner group empty while its guard lives and drains"
 fi
 
 # Freeze the real host and invocation group across each deadline. All cases

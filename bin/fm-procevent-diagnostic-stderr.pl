@@ -2,10 +2,17 @@
 # Test-only detached stderr sink. Usage: perl fm-procevent-diagnostic-stderr.pl <file>
 # Drain stdin to EOF, retaining at most 262144 bytes INCLUDING the truncation
 # marker in the shared file. flock keeps concurrent detached writers within
-# that same budget. An unavailable destination still drains without logging.
+# that same budget. The sink leads its own process group so a separately grouped
+# watchdog's pipe cannot keep the source runner's group alive. Group isolation
+# failure exits 125 before capture; an unavailable file still drains without logging.
 use strict;
 use warnings;
 use Fcntl qw(O_WRONLY O_APPEND O_CREAT O_NOFOLLOW O_NONBLOCK LOCK_EX LOCK_UN);
+
+unless (setpgrp(0, 0)) {
+  warn "cannot isolate diagnostic stderr process group: $!\n";
+  exit 125;
+}
 
 my $limit = 262144;
 my $marker = "\n[stderr truncated: shared byte limit=$limit]\n";
