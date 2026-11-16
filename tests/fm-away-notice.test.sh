@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Behavioral CLI qualification against disposable parents, never live Discord.
 set -eu
+# shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 TMP_ROOT=$(fm_test_tmproot fm-away-notice)
 PY314=$(command -v python3.14 || true)
