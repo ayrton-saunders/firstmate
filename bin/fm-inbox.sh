@@ -72,6 +72,8 @@
 # Its timeout defaults to 300 seconds (integer 0..86400); zero is a snapshot.
 # Outcomes and exit codes: answered=0, handled=2 (no reply), timeout=3,
 # unknown=4 (no such id); invalid arguments or unreadable records exit 1.
+# Non-regular reply records are refused without blocking on their contents.
+# Record errors identify the note and error, never private absolute paths.
 # JSON uses schema fm-inbox-wait.v1 with outcome, id, acknowledged
 # and reply (null or the receipts reply shape).
 # An answer wins over handled, even if recorded before acknowledgement.
