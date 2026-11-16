@@ -22,6 +22,63 @@ export FM_PROCEVENT_CLAIM_ROOT="$TMP_ROOT/claims"
 export LAVISH_AXI_STATE_DIR="$TMP_ROOT/lavish-state"
 mkdir -p "$LAVISH_AXI_STATE_DIR"
 
+# Recovered extension sources share both private directories. Force every
+# preparer past its absence check before any mkdir can win, so the losing
+# creators are exercised deterministically rather than by scheduler luck.
+(
+  . "$ROOT/bin/fm-pr-lib.sh"
+  . "$ROOT/bin/fm-procevent-lib.sh"
+  for boundary in reservation inbox; do
+    prepare="fm_procevent_capture_${boundary}_prepare"
+    state="$TMP_ROOT/concurrent-$boundary"
+    ready_dir="$TMP_ROOT/ready-$boundary"
+    mkdir -m 700 "$state" "$ready_dir"
+    state=$(cd -P "$state" && pwd -P)
+    if [ "$boundary" = inbox ]; then
+      expected=$(fm_procevent_inbox_dir "$state")
+    else
+      expected=$(fm_procevent_capture_reservation_dir "$state")
+    fi
+    pids=()
+    for caller in {1..16}; do
+      (
+        mkdir() {
+          touch "$ready_dir/$caller"
+          for ((attempt=0; attempt<600; attempt++)); do
+            ready_callers=("$ready_dir/"*)
+            [ "${#ready_callers[@]}" -eq 16 ] && break
+            sleep 0.1
+          done
+          [ "${#ready_callers[@]}" -eq 16 ] || return 1
+          command mkdir "$@"
+        }
+        "$prepare" "$state" > "$TMP_ROOT/$boundary-$caller.out"
+      ) &
+      pids+=("$!")
+    done
+    failed=0
+    for pid in "${pids[@]}"; do
+      wait "$pid" || failed=$((failed + 1))
+    done
+    [ "$failed" -eq 0 ] || fail "$boundary concurrent prepare failed for $failed callers"
+    fm_procevent_private_directory_valid "$expected" 1 || fail "$boundary directory is not private"
+    for caller in {1..16}; do
+      [ "$(< "$TMP_ROOT/$boundary-$caller.out")" = "$expected" ] \
+        || fail "$boundary caller returned a different directory"
+    done
+    rmdir "$expected"
+    ln -s "$state" "$expected"
+    if "$prepare" "$state"; then fail "$boundary prepare accepted a symlink"; fi
+    rm "$expected"
+    touch "$expected"
+    if "$prepare" "$state"; then fail "$boundary prepare accepted a file"; fi
+    rm "$expected"
+    mkdir -m 755 "$expected"
+    if "$prepare" "$state"; then fail "$boundary prepare accepted a non-private directory"; fi
+  done
+) || fail "concurrent private capture directory preparation"
+pass "concurrent capture preparers share validated private directories and refuse unsafe paths"
+
 # Lavish owns this persisted session contract. The fake CLI fixtures exercise
 # its published poll and synchronous reply command boundaries without starting a server.
 lavish_session() {  # <artifact> [session-url]
