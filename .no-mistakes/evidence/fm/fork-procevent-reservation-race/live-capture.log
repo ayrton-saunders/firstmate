@@ -1,0 +1,58 @@
+bound: org.firstmate.example.file-signal@1.0.0
+binding: ~/.no-mistakes/evidence/01M7JRB8435J5KB0GTBFH3EVVX/scratch/live-capture/home/config/extensions.d/org.firstmate.example.file-signal.json
+binding-digest: sha256:235cf0401bedb1fd3da604d48158a1fe3ffd285256c60cbe76e6e4a78c6d7a54
+package: ~/.no-mistakes/evidence/01M7JRB8435J5KB0GTBFH3EVVX/scratch/live-capture/home/data/extensions/packages/org.firstmate.example.file-signal/1.0.0/a670d3f1353bbfa659564b86f6af7783cd47d32ae9a04e7962b28aedf5bc0e76
+package-digest: sha256:a670d3f1353bbfa659564b86f6af7783cd47d32ae9a04e7962b28aedf5bc0e76
+verified: process-event-adapter/1 (file-signal)
+registered: live-first (file-signal from org.firstmate.example.file-signal@1.0.0)
+owner-token: sha256:a6adb4ca707acaaf62450f6c798a02256964d6f99151efb1e76bd4bec8f977fd
+retire: bin/fm-procevent.sh retire live-first --if-owner sha256:a6adb4ca707acaaf62450f6c798a02256964d6f99151efb1e76bd4bec8f977fd
+registered: live-second (file-signal from org.firstmate.example.file-signal@1.0.0)
+owner-token: sha256:ea9648b1c2431856087d576d9a682feccaef3fc0563ecf2a353386e60698eef2
+retire: bin/fm-procevent.sh retire live-second --if-owner sha256:ea9648b1c2431856087d576d9a682feccaef3fc0563ecf2a353386e60698eef2
+
+Before concurrent starts: capture directories absent
+
+Runner first output:
+not-autohandled: live-first (left for the handler; still unacknowledged)
+retired: live-first (adapter classified the captured result terminal)
+captured: ./live-first.1.result
+Captured evidence: first concurrent external result 
+file-signal
+handled: live-first 1
+
+Runner second output:
+not-autohandled: live-second (left for the handler; still unacknowledged)
+retired: live-second (adapter classified the captured result terminal)
+captured: ./live-second.1.result
+Captured evidence: second concurrent external result 
+file-signal
+handled: live-second 1
+procevent-capture-reservations: physical_directory=True mode=0700 uid=501
+procevent-inbox: physical_directory=True mode=0700 uid=501
+
+Unsafe procevent-capture-reservations symlink: start exit=1
+error: cannot retain the external capture reservation boundary
+Unsafe boundary unchanged; no captured result or outside write
+
+Unsafe procevent-capture-reservations file: start exit=1
+error: cannot retain the external capture reservation boundary
+Unsafe boundary unchanged; no captured result or outside write
+
+Unsafe procevent-capture-reservations mode755: start exit=1
+error: cannot retain the external capture reservation boundary
+Unsafe boundary unchanged; no captured result or outside write
+
+Unsafe procevent-inbox symlink: start exit=1
+error: cannot durably capture the extension result
+Unsafe boundary unchanged; no captured result or outside write
+
+Unsafe procevent-inbox file: start exit=1
+error: cannot durably capture the extension result
+Unsafe boundary unchanged; no captured result or outside write
+
+Unsafe procevent-inbox mode755: start exit=1
+error: cannot durably capture the extension result
+Unsafe boundary unchanged; no captured result or outside write
+
+Live capture and guard checks complete.

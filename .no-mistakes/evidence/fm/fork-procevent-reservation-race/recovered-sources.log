@@ -1,0 +1,10 @@
+FM_TEST_BEGIN 2026-11-16T18:08:53Z tests/fm-extension-binding.test.sh family=standalone expected_gate_skip=none
+ok - ownerless readiness recovers only dead exact-token groups and refuses unsafe or unproved ownership
+ok - reconcile durably announces cleanup uncertainty once and recovers both extension sources
+ok - attached start and live-owner recovery renew cleanup failure wakes with delivered failure headlines
+
+all extension-binding tests passed
+FM_TEST_END 2026-11-16T18:09:09Z tests/fm-extension-binding.test.sh exit=0 duration_ms=15869 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=15944
+FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=15869 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-extension-binding.test.sh duration_ms=15869
