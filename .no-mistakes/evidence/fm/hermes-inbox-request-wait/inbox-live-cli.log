@@ -1,0 +1,86 @@
+SCENARIO 1: synthetic outside request, deduplicated retry, bounded read-only timeout and retry
+$ bin/fm-inbox.sh note --request-id lab-request-001 --json Compute 6 times 7; return the final result.
+{"schema":"fm-inbox-note.v1","outcome":"created","id":"1794835559-Aubzox","request_id":"lab-request-001","saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.gate-test-tmp/manual-home/state/inbox/1794835559-Aubzox.note"}
+exit=0
+$ bin/fm-inbox.sh note --request-id lab-request-001 --json Compute 6 times 7; return the final result.
+{"schema":"fm-inbox-note.v1","outcome":"replay","id":"1794835559-Aubzox","request_id":"lab-request-001","saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.gate-test-tmp/manual-home/state/inbox/1794835559-Aubzox.note"}
+exit=0
+$ bin/fm-inbox.sh wait 1794835559-Aubzox --timeout 1 --json
+{"schema":"fm-inbox-wait.v1","outcome":"timeout","id":"1794835559-Aubzox","acknowledged":false,"reply":null}
+exit=3
+$ bin/fm-inbox.sh wait 1794835559-Aubzox --timeout 0 --json
+{"schema":"fm-inbox-wait.v1","outcome":"timeout","id":"1794835559-Aubzox","acknowledged":false,"reply":null}
+exit=3
+$ bin/fm-inbox.sh receipts --all-pending --all-handled --all-replies
+{"schema":"fm-inbox-receipts.v1","home":".gate-test-tmp/manual-home","generated":"2026-11-16T13:26:01Z","pending":[{"id":"1794835559-Aubzox","at":"2026-11-16T13:25:59Z","source":"text","request_id":"lab-request-001","body":"Compute 6 times 7; return the final result.","acknowledged":false,"announced":true,"reply":null}],"handled":[],"replies":[],"reply_cursor":"","omitted":[]}
+exit=0
+Observed bounded timeout after 1.072s; all durable state byte-identical; retry retains original note.
+SCENARIO 2: caller is already waiting when a local operator publishes a durable terminal reply
+$ bin/fm-inbox.sh reply 1794835559-Aubzox -
+replied 1794835559-Aubzox
+exit=0
+$ earlier running wait returns without another caller prompt
+{"schema":"fm-inbox-wait.v1","outcome":"answered","id":"1794835559-Aubzox","acknowledged":false,"reply":{"id":"1794835559-Aubzox","at":"2026-11-16T13:26:02Z","body":"Result: 42\nQuoted \"value\", slash \\ and unicode caf\u00e9\n","cursor":"000000000001"}}
+exit=0
+$ bin/fm-inbox.sh drain --ack 1794835559-Aubzox
+acked 1794835559-Aubzox
+exit=0
+$ bin/fm-inbox.sh wait 1794835559-Aubzox --timeout 0 --json
+{"schema":"fm-inbox-wait.v1","outcome":"answered","id":"1794835559-Aubzox","acknowledged":true,"reply":{"id":"1794835559-Aubzox","at":"2026-11-16T13:26:02Z","body":"Result: 42\nQuoted \"value\", slash \\ and unicode caf\u00e9\n","cursor":"000000000001"}}
+exit=0
+$ bin/fm-inbox.sh wait 1794835559-Aubzox --timeout 0
+answered 1794835559-Aubzox
+Result: 42
+Quoted "value", slash \ and unicode café
+
+exit=0
+$ bin/fm-inbox.sh receipts --all-pending --all-handled --all-replies
+{"schema":"fm-inbox-receipts.v1","home":".gate-test-tmp/manual-home","generated":"2026-11-16T13:26:02Z","pending":[],"handled":[{"id":"1794835559-Aubzox","at":"2026-11-16T13:25:59Z","source":"text","request_id":"lab-request-001","body":"Compute 6 times 7; return the final result.","acknowledged":true,"announced":true,"reply":{"id":"1794835559-Aubzox","at":"2026-11-16T13:26:02Z","body":"Result: 42\nQuoted \"value\", slash \\ and unicode caf\u00e9\n","cursor":"000000000001"}}],"replies":[{"id":"1794835559-Aubzox","at":"2026-11-16T13:26:02Z","body":"Result: 42\nQuoted \"value\", slash \\ and unicode caf\u00e9\n","cursor":"000000000001"}],"reply_cursor":"000000000001","omitted":[]}
+exit=0
+SCENARIO 3: no fabricated answer for bare acknowledgement, missing id, invalid input, or corrupt reply
+$ bin/fm-inbox.sh note --json Information only; no work requested.
+{"schema":"fm-inbox-note.v1","outcome":"created","id":"1794835562-E4Mx9d","request_id":null,"saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.gate-test-tmp/manual-home/state/inbox/1794835562-E4Mx9d.note"}
+exit=0
+$ bin/fm-inbox.sh drain --ack 1794835562-E4Mx9d
+acked 1794835562-E4Mx9d
+exit=0
+$ earlier running wait returns on bare acknowledgement
+{"schema":"fm-inbox-wait.v1","outcome":"handled","id":"1794835562-E4Mx9d","acknowledged":true,"reply":null}
+exit=2
+$ bin/fm-inbox.sh wait absent --timeout 0 --json
+{"schema":"fm-inbox-wait.v1","outcome":"unknown","id":"absent","acknowledged":false,"reply":null}
+exit=4
+$ bin/fm-inbox.sh wait 1794835559-Aubzox --timeout -1
+fm-inbox: wait timeout must be an integer in 0..86400
+exit=1
+$ bin/fm-inbox.sh wait 1794835559-Aubzox --timeout 1.5
+fm-inbox: wait timeout must be an integer in 0..86400
+exit=1
+$ bin/fm-inbox.sh wait 1794835559-Aubzox --timeout nope
+fm-inbox: wait timeout must be an integer in 0..86400
+exit=1
+$ bin/fm-inbox.sh wait 1794835559-Aubzox --timeout 86401
+fm-inbox: wait timeout must be an integer in 0..86400
+exit=1
+$ bin/fm-inbox.sh wait 1794835559-Aubzox --timeout 999999999999999999999999
+fm-inbox: wait timeout must be an integer in 0..86400
+exit=1
+$ bin/fm-inbox.sh wait
+fm-inbox: invalid or missing note id
+exit=1
+$ bin/fm-inbox.sh wait ../bad --json
+fm-inbox: invalid or missing note id
+exit=1
+$ bin/fm-inbox.sh wait x y
+fm-inbox: wait takes exactly one note id
+exit=1
+$ bin/fm-inbox.sh wait x --bogus
+fm-inbox: unknown option for wait: --bogus
+exit=1
+$ bin/fm-inbox.sh wait x --timeout
+fm-inbox: wait --timeout requires seconds
+exit=1
+$ bin/fm-inbox.sh wait 1794835562-E4Mx9d --timeout 0 --json
+fm-inbox: malformed reply record for 1794835562-E4Mx9d
+exit=1
+All three local CLI scenarios completed with expected output and exit statuses.
