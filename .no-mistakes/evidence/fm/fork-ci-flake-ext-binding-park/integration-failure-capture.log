@@ -1,0 +1,8 @@
+failed section: lifecycle-flow.souYd4vS
+section=lifecycle-flow
+exit=1
+Captured real detached stderr:
+mkdir: ~/.no-mistakes/evidence/01M7JPKTCSAQXY44JVAT5XXGCY/live-tmp/fm-extension-binding.7YwOhr/homes/orphan-ready/state/procevent-capture-reservations: File exists
+error: cannot retain the external capture reservation boundary
+orphan-second registration retained: True
+orphan-second handled absent: True

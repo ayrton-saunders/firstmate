@@ -1,0 +1,19 @@
+--- tests/fm-extension-binding.test.sh	2026-11-16 17:31:28
++++ .gate-scratch/tests/fm-extension-binding.test.sh	2026-11-16 17:34:47
+@@ -744,7 +744,7 @@
+ root, temporary = map(pathlib.Path, sys.argv[1:])
+ home = temporary / "diagnostic-groups-home"
+ claims = temporary / "diagnostic-groups-claims"
+-log = temporary / "nested-stderr"
++log = temporary / "detached-runners.stderr"
+ guard_file = temporary / "nested-guard.pid"
+ drained = temporary / "nested-guard.drained"
+ marker, release = temporary / "nested-source.ready", temporary / "nested-source.release"
+@@ -826,6 +826,7 @@
+     wait_for(drained.exists)
+     assert log.stat().st_size <= 262144
+     assert b"[stderr truncated: shared byte limit=262144]" in log.read_bytes()
++    raise AssertionError("deliberately forced scratch failure after real detached stderr drain")
+ finally:
+     if guard is not None:
+         try:

@@ -1,0 +1,50 @@
+forced-fixtures/diagnostics.4zA2GUTI: outcome='section=diagnostics\nexit=1\n'
+fixture.tar bytes=8386560; detached stderr bytes=262144; real guard message retained; stderr truncation marker retained
+archive_limit_bytes=8388608
+file_limit_bytes=262144
+manifest_limit_bytes=8192
+truncation=1
+truncated_files=30
+omitted_entries_at_least=1
+truncated: ./bounded-snapshot/fixture.tar
+truncated: ./budget-fixture/large-00
+truncated: ./budget-fixture/large-01
+truncated: ./budget-fixture/large-02
+truncated: ./budget-fixture/large-03
+truncated: ./budget-fixture/large-04
+truncated: ./budget-fixture/large-05
+truncated: ./budget-fixture/large-06
+truncated: ./budget-fixture/large-07
+truncated: ./budget-fixture/large-08
+truncated: ./budget-fixture/large-09
+truncated: ./budget-fixture/large-10
+truncated: ./budget-fixture/large-11
+truncated: ./budget-fixture/large-12
+truncated: ./budget-fixture/large-13
+truncated: ./budget-fixture/large-14
+
+forced-fixtures-confirmed/diagnostics.oGEavjYN: outcome='section=diagnostics\nexit=1\n'
+fixture.tar bytes=8386560; detached stderr bytes=262144; real guard message retained; stderr truncation marker retained
+archive_limit_bytes=8388608
+file_limit_bytes=262144
+manifest_limit_bytes=8192
+truncation=1
+truncated_files=30
+omitted_entries_at_least=1
+truncated: ./bounded-snapshot/fixture.tar
+truncated: ./budget-fixture/large-00
+truncated: ./budget-fixture/large-01
+truncated: ./budget-fixture/large-02
+truncated: ./budget-fixture/large-03
+truncated: ./budget-fixture/large-04
+truncated: ./budget-fixture/large-05
+truncated: ./budget-fixture/large-06
+truncated: ./budget-fixture/large-07
+truncated: ./budget-fixture/large-08
+truncated: ./budget-fixture/large-09
+truncated: ./budget-fixture/large-10
+truncated: ./budget-fixture/large-11
+truncated: ./budget-fixture/large-12
+truncated: ./budget-fixture/large-13
+truncated: ./budget-fixture/large-14
+

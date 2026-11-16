@@ -1,0 +1,6 @@
+archive_limit_bytes=8388608
+file_limit_bytes=262144
+manifest_limit_bytes=8192
+truncation=0
+truncated_files=0
+omitted_entries_at_least=0

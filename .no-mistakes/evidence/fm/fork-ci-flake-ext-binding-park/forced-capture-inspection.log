@@ -1,0 +1,13 @@
+Saved real detached guard stderr: 262144 bytes; ready message and truncation marker retained
+Archived synthetic fixture entries: 21
+Fixture archive: 563200 bytes (limit 8388608)
+section=diagnostics
+exit=1
+archive_limit_bytes=8388608
+file_limit_bytes=262144
+manifest_limit_bytes=8192
+truncation=1
+truncated_files=1
+omitted_entries_at_least=0
+truncated: ./bounded-snapshot/fixture.tar
+Snapshot completed without errors; deliberate failure exit preserved.
