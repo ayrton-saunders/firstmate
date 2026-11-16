@@ -1,0 +1,8 @@
+Retained detached stderr:
+not-autohandled: orphan-second (left for the handler; still unacknowledged)
+not-autohandled: orphan-first (left for the handler; still unacknowledged)
+
+Both private result files contain: external evidence: good
+Hidden fixture ownership marker retained; readiness symlink preserved as link.
+Failure exit=1 retained; original fixture directory removed after snapshot.
+Archive: ~/.no-mistakes/evidence/01M7J9573XDRNNG5HVCY9H0113/forced-failure/lifecycle-orphan-readiness.kWDPStR5/fixture.tar

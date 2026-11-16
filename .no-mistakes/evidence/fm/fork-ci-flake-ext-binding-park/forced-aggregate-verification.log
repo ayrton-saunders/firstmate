@@ -1,0 +1,11 @@
+Actual aggregate failure propagated through fm-test-run.sh as exit=1.
+Captured detached stderr:
+not-autohandled: orphan-first (left for the handler; still unacknowledged)
+not-autohandled: orphan-second (left for the handler; still unacknowledged)
+
+Private result retained: external evidence: good
+Hidden ownership marker and symlink retained; original fixture directory cleaned.
+Outcome: section=lifecycle-flow
+exit=1
+
+Archive: ~/.no-mistakes/evidence/01M7J9573XDRNNG5HVCY9H0113/forced-aggregate/lifecycle-flow.tNKz8isW/fixture.tar

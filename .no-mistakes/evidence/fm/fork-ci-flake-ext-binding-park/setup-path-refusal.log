@@ -1,0 +1,9 @@
+error[binding-failed]: error[path-unsafe]: package source must not be inside a Git project or task copy
+error[adapter-unbound]: no home-local extension binding enables adapter: ext-invocation-cleanup
+error: extension adapter verification failed: ext-invocation-cleanup
+error[adapter-unbound]: no home-local extension binding enables adapter: ext-invocation-cleanup
+error: extension adapter verification failed: ext-invocation-cleanup
+ok - ownerless readiness recovers only dead exact-token groups and refuses unsafe or unproved ownership
+not ok - unsafe residue did not preserve both sources (missing: 'uncertain=2')
+--- output ---
+reconciled: published=0 started=0 stopped=0 uncertain=0 failed=0

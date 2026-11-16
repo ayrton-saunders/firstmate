@@ -1,0 +1,14 @@
+{
+  "run_destination": "${{ runner.temp }}/fm-test/extension-binding",
+  "upload": {
+    "name": "Upload failed extension-binding fixtures and detached stderr",
+    "if": "failure()",
+    "uses": "actions/upload-artifact@v4",
+    "with": {
+      "name": "fm-extension-binding-diagnostic-${{ matrix.shard }}",
+      "path": "${{ runner.temp }}/fm-test/extension-binding",
+      "if-no-files-found": "ignore",
+      "retention-days": 7
+    }
+  }
+}

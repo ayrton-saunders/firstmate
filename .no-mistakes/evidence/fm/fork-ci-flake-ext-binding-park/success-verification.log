@@ -1,0 +1,3 @@
+Unmodified extension aggregate and process-event commands exited 0 with diagnostics enabled.
+No diagnostic directory created on success, including expected coordinator failure probes.
+Process-event damaged-registration case executed: without test seam no capture file; with seam stderr retained and reconcile stdout unchanged.
