@@ -1,0 +1,2 @@
+section=lifecycle-orphan-readiness
+exit=1

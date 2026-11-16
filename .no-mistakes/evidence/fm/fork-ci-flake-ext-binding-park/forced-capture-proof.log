@@ -1,0 +1,10 @@
+before: exit=1 stderr_bytes=3276951 archive_bytes=20200960 oversized_member_bytes=16777216 fixture_cleaned=True
+archive_limit_bytes=8388608
+file_limit_bytes=262144
+manifest_limit_bytes=8192
+truncation=1
+truncated_files=1
+omitted_entries_at_least=0
+truncated: ./oversized-fixture
+after: exit=1 stderr_bytes=262144 archive_bytes=624640 oversized_member_bytes=262144 fixture_cleaned=True
+PASS: same forced failure preserved; real detached stderr, private results, bounded readable archive, truncation metadata and cleanup verified; scratch copies removed on exit

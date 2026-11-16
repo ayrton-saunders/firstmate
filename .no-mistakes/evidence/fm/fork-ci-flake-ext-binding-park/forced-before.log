@@ -1,0 +1,8 @@
+FM_TEST_BEGIN 2026-11-16T16:16:50Z tests/fm-extension-binding.test.sh family=standalone expected_gate_skip=none
+PROOF_FIXTURE_ROOT=/private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/fm-extension-binding.G4XwWQ
+ok - ownerless readiness recovers only dead exact-token groups and refuses unsafe or unproved ownership
+not ok - recovered source orphan-first never handled its private result
+FM_TEST_END 2026-11-16T16:16:57Z tests/fm-extension-binding.test.sh exit=1 duration_ms=7413 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=1 skipped_gate=0 duration_ms=7477
+FM_TEST_SUMMARY_FAMILY family=standalone count=1 duration_ms=7413 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/fm-extension-binding.test.sh duration_ms=7413
