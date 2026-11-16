@@ -35,6 +35,42 @@ queueing half is `bin/fm-inbox.sh note`, the same surface the captain's own
 out-of-band capture already uses, rather than a second queue.
 `bin/fm-inbox.sh` remains the single owner of that queue, including request-id deduplication, receipts JSON, and the primary reply record.
 
+## Outside callers: submit and wait for completion
+
+An outside assistant can use the same inbox without a voice session or a model call.
+Set `FM_HOME` to the running Firstmate's operational home and use that installation's `bin/fm-inbox.sh` (over SSH if needed).
+The script's `--help` owns the flags, JSON schema and exit statuses, including the mandatory terminal-reply contract for work requests.
+
+```bash
+export FM_HOME=/absolute/path/to/firstmate-home
+inbox=/absolute/path/to/firstmate-code/bin/fm-inbox.sh
+submitted=$("$inbox" note --request-id external-request-123 --json "Please investigate the failing build and report the result")
+id=$(printf '%s' "$submitted" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+"$inbox" ready
+"$inbox" receipts --all-pending --all-handled --all-replies
+# A wait can legitimately exit nonzero; retain its JSON and inspect its outcome.
+if result=$("$inbox" wait "$id" --timeout 300 --json); then
+  printf '%s\n' "$result"
+else
+  rc=$?
+  printf 'wait exited %s: %s\n' "$rc" "$result"
+fi
+```
+
+Choose a unique request id per logical request and reuse it for retries, rather than submitting the work twice.
+An `announced` receipt means the notification was saved, not that Firstmate has read or finished the work.
+Receipts expose the recorded acknowledgement and reply; they do not claim an intermediate read receipt.
+The waiter returns the final reply even before acknowledgement, and distinguishes a bare handled note from an answer.
+Read the reply body as the actual result, which may be a refusal or failure rather than success.
+After a timeout, repeat the wait on the same id; the original work is neither cancelled nor requeued.
+The calling assistant should consume the wait result and report it without asking someone to prompt it to check again.
+
+Submission uses the existing durable notification path; it does not launch a stopped Firstmate or start a consumer on behalf of an outside caller.
+If no consumer is running yet, the saved request and notification remain for the resumed Firstmate to pick up.
+Use `ready` to inspect availability, and do not interpret a timeout or an unknown readiness verdict as completion.
+The pickup recovery guarantees and regression entry points are owned by [watcher continuity](watcher-continuity.md#durable-queue-and-turn-end-backstop).
+A private inbox reply does not grant approval to publish its words elsewhere.
+
 ## What it costs in time
 
 Measured on 2026-08-21 against the reviewed relay code, `amazon.nova-2-sonic-v1:0` in `eu-north-1`, on a spoken question that makes the agent read the records before it can answer, which is the slowest ordinary case.

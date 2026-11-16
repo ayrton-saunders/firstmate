@@ -26,6 +26,7 @@
 #   fm-inbox.sh reply [--json] <id> <text>... | reply [--json] <id> -
 #   fm-inbox.sh receipts [--after <cursor>] [--all-pending] [--all-handled] [--all-replies]
 #   fm-inbox.sh ready
+#   fm-inbox.sh wait <id> [--timeout <seconds>] [--json]
 #   fm-inbox.sh say  [<file.wav>]       (default: audio on stdin)
 #   fm-inbox.sh status
 #   fm-inbox.sh ask  <question>...
@@ -67,6 +68,21 @@
 # Each reply is stamped with a durable per-home sequence, so the receipts cursor
 # is a strict total order and two replies recorded in the same second are both
 # readable. One reply per note: a second one is refused.
+# `wait` polls durable records only, without waking or changing the note.
+# Its timeout defaults to 300 seconds (integer 0..86400); zero is a snapshot.
+# Outcomes and exit codes: answered=0, handled=2 (no reply), timeout=3,
+# unknown=4 (no such id); invalid arguments or unreadable records exit 1.
+# Non-regular reply records are refused without blocking on their contents.
+# Record errors identify the note and error, never private absolute paths.
+# JSON uses schema fm-inbox-wait.v1 with outcome, id, acknowledged
+# and reply (null or the receipts reply shape).
+# An answer wins over handled, even if recorded before acknowledgement.
+# Timeout is not cancellation; callers may repeat the wait using the same id.
+# Work requests MUST receive a final durable `reply` before `drain --ack`.
+# Do not use the single reply slot for an interim acceptance message.
+# Keep unfinished work pending, including delegated work; record its final
+# result, refusal or failure, not just a chat answer or a dispatch notice.
+# Bare acknowledgement is terminal only for notes needing no answer or work.
 # `ready` is the read-only primary-readiness projection (lock, wake-consumer
 # health, away posture, observation time). It never acquires the session lock
 # and never infers liveness from a lock file, a session, or a pane.
@@ -86,18 +102,18 @@
 # An absent profile means the call uses whatever credentials are already in the
 # environment, which is also what FM_INBOX_PROFILE= (empty) forces.
 #
-# `note`, `announce`, `reply`, `receipts`, `ready`, `status`, `list` and `drain`
-# need NO configuration at all, because they make no model call. The voice
-# handover depends on `note`, so it keeps working in a home that has configured
-# nothing. `--json` / `receipts` / `ready` require python3, which a firstmate
+# `note`, `announce`, `reply`, `receipts`, `ready`, `wait`, `status`, `list`
+# and `drain` need NO configuration at all, because they make no model call.
+# The voice handover depends on `note`, so it keeps working in a home that has configured
+# nothing. `--json` / `receipts` / `ready` / `wait` require python3, which a firstmate
 # home already uses for other tools.
 #
 # Environment:
 #   FM_HOME              operational home whose state/ and data/ are used.
 #
 # PRIVACY: `say` sends your audio and `ask` sends your question to Bedrock.
-# `note`, `announce`, `reply`, `receipts`, `ready`, `status`, `list` and `drain`
-# make no network call at all.
+# `note`, `announce`, `reply`, `receipts`, `ready`, `wait`, `status`, `list`
+# and `drain` make no network call at all.
 #
 # `note` is also the queueing half of the spoken interface: when the voice agent
 # in bin/fm-voice-relay.py hands real work over to firstmate, it runs this
@@ -163,7 +179,7 @@ ASK_MODEL="${FM_INBOX_ASK_MODEL:-}"
 PROFILE="${FM_INBOX_PROFILE-$(read_setting inbox-profile)}"
 
 # Resolved only by the subcommands that make a model call, so note, announce,
-# reply, receipts, ready, status, list and drain keep working in a home that
+# reply, receipts, ready, wait, status, list and drain keep working in a home that
 # has configured nothing.
 need_region() {
   [ -n "$REGION" ] || REGION=$(require_setting inbox-region FM_INBOX_REGION "AWS region")
@@ -874,6 +890,94 @@ sys.stdout.write("\n")
 PY
 }
 
+cmd_wait() {
+  local id="" timeout=300 json=0
+  while [ "$#" -gt 0 ]; do
+    case "$1" in
+      --json) json=1; shift ;;
+      --timeout)
+        [ "$#" -ge 2 ] || die "wait --timeout requires seconds"
+        timeout=$2; shift 2 ;;
+      -h|--help) die "usage: fm-inbox.sh wait <id> [--timeout <seconds>] [--json]" ;;
+      --*) die "unknown option for wait: $1" ;;
+      *)
+        [ -z "$id" ] || die "wait takes exactly one note id"
+        id=$1; shift ;;
+    esac
+  done
+  valid_note_id "$id" && [ "$id" != . ] && [ "${#id}" -le 250 ] \
+    || die "invalid or missing note id"
+  case "$timeout" in ''|*[!0-9]*) die "wait timeout must be an integer in 0..86400" ;; esac
+  [ "${#timeout}" -le 5 ] && [ "$timeout" -le 86400 ] \
+    || die "wait timeout must be an integer in 0..86400"
+  need_python
+  python3 - "$INBOX" "$id" "$timeout" "$json" <<'PY'
+import errno, json, os, stat, sys, time
+from pathlib import Path
+
+inbox, note_id, timeout, machine = sys.argv[1:]
+inbox = Path(inbox)
+deadline = time.monotonic() + int(timeout)
+
+def reply_record():
+    try:
+        # Nonblocking open prevents a damaged FIFO from defeating the deadline.
+        # Check the opened descriptor, not the path, to avoid a replacement race.
+        fd = os.open(inbox / '.replies' / note_id, os.O_RDONLY | os.O_NONBLOCK)
+        try:
+            if not stat.S_ISREG(os.fstat(fd).st_mode):
+                raise ValueError('non-regular reply record')
+            with os.fdopen(fd, 'rb', closefd=False) as record:
+                text = record.read().decode('utf-8', errors='replace')
+        finally:
+            os.close(fd)
+    except FileNotFoundError:
+        return None
+    headers, sep, body = text.partition('\n--\n')
+    meta = dict(line.split('=', 1) for line in headers.splitlines() if '=' in line)
+    seq = meta.get('seq', '')
+    if not sep or not (seq.isascii() and seq.isdigit()):
+        raise ValueError('malformed reply record for ' + note_id)
+    return {'id': note_id, 'at': meta.get('at'),
+            'body': body[:-1] if body.endswith('\n') else body,
+            'cursor': '%012d' % int(seq)}
+
+try:
+    while True:
+        # Pending first, then handled: an atomic acknowledgement rename cannot
+        # make an existing note appear unknown between these two observations.
+        pending = (inbox / (note_id + '.note')).is_file()
+        acknowledged = (inbox / 'handled' / (note_id + '.note')).is_file()
+        reply = reply_record()
+        if not pending and not acknowledged:
+            outcome, code = 'unknown', 4
+        elif reply is not None:
+            outcome, code = 'answered', 0
+        elif acknowledged:
+            outcome, code = 'handled', 2
+        elif time.monotonic() >= deadline:
+            outcome, code = 'timeout', 3
+        else:
+            time.sleep(min(0.2, max(0, deadline - time.monotonic())))
+            continue
+        result = {'schema': 'fm-inbox-wait.v1', 'outcome': outcome,
+                  'id': note_id,
+                  'acknowledged': acknowledged, 'reply': reply}
+        if machine == '1':
+            print(json.dumps(result, separators=(',', ':')))
+        else:
+            print(outcome + ' ' + note_id)
+            if reply is not None:
+                print(reply['body'])
+        sys.exit(code)
+except OSError as exc:
+    sys.exit('fm-inbox: ' + note_id + ': record error ' +
+             errno.errorcode.get(exc.errno, 'IO_ERROR'))
+except ValueError as exc:
+    sys.exit('fm-inbox: ' + note_id + ': ' + str(exc))
+PY
+}
+
 cmd_ready() {
   [ "$#" -eq 0 ] || die "usage: fm-inbox.sh ready"
   need_python
@@ -1166,7 +1270,8 @@ cmd_drain() {
     return 0
   fi
   cmd_list
-  printf '\nAck with: fm-inbox.sh drain --ack <id>...\n'
+  printf '\nWork requests: keep pending until finished; record the final outcome with fm-inbox.sh reply <id> - BEFORE drain --ack. See fm-inbox.sh --help for the reply contract.\n'
+  printf 'Ack with: fm-inbox.sh drain --ack <id>...\n'
 }
 
 # ---------------------------------------------------------------- dispatch
@@ -1177,6 +1282,7 @@ case "${1:-}" in
   reply)    shift; cmd_reply "$@" ;;
   receipts) shift; cmd_receipts "$@" ;;
   ready)    shift; cmd_ready "$@" ;;
+  wait)     shift; cmd_wait "$@" ;;
   say)      shift; cmd_say "$@" ;;
   status)   shift; cmd_status ;;
   ask)      shift; cmd_ask "$@" ;;
