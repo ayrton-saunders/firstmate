@@ -117,9 +117,28 @@ head -n 1 "$file"
         forge = tools / 'gh-axi'
         forge.write_text('''#!/bin/bash
 [ ! -f "$FM_HOME/state/forge-error" ] || exit 2
-[ "$1" = api ] || exit 0
 head=$(head -n 1 "$FM_HOME/state/head")
-printf '{"url":"https://github.com/owner/repo/pull/1","state":"open","isDraft":false,"headRefOid":"%s"}\n' "$head"
+mode=success
+[ ! -f "$FM_HOME/state/checks-mode" ] || mode=$(head -n 1 "$FM_HOME/state/checks-mode")
+if [ "$1" = api ]; then
+  printf '{"url":"https://github.com/owner/repo/pull/1","state":"open","isDraft":false,"headRefOid":"%s"}\n' "$head"
+elif [ "$2" = view ]; then
+  [ "$mode" != view-error ] || { printf 'forge unavailable\n' >&2; exit 1; }
+  checks='[{"name":"ci","status":"COMPLETED","conclusion":"SUCCESS"}]'
+  case "$mode" in
+    none) checks='[]' ;;
+    failing) checks='[{"name":"ci","status":"COMPLETED","conclusion":"FAILURE"}]' ;;
+    pending) checks='[{"name":"ci","status":"IN_PROGRESS","conclusion":""}]' ;;
+  esac
+  printf '{"headRefOid":"%s","statusCheckRollup":%s}\n' "$head" "$checks"
+else
+  case "$mode" in
+    none) printf 'no checks reported\n' >&2; exit 1 ;;
+    failing) exit 1 ;;
+    pending) exit 8 ;;
+    checks-error) printf 'forge unavailable\n' >&2; exit 1 ;;
+  esac
+fi
 ''')
         forge.chmod(0o755)
         self.env['PATH'] = str(tools) + os.pathsep + self.env['PATH']
@@ -245,6 +264,51 @@ printf '{"url":"https://github.com/owner/repo/pull/1","state":"open","isDraft":f
 
 
 class Notices(Fixture):
+    def test_no_ci_pr_is_ready_at_recorded_head(self):
+        """Repository readiness contract: no CI is not a failed check."""
+        self.ready()
+        (self.home / 'state/checks-mode').write_text('none')
+        self.report('pr-ready', host=True)
+        self.assertEqual(self.rows()[0]['state'], 'owed')
+        self.assertIsNone(self.rows()[0]['error'])
+        self.assertEqual(len(self.calls('approve')), 1)
+        self.assertEqual(self.calls('approve')[0]['body']['template_id'], 'pr-ready')
+
+    def test_failing_and_pending_checks_do_not_qualify(self):
+        self.ready()
+        mode = self.home / 'state/checks-mode'
+        mode.write_text('failing')
+        self.report('pr-ready')
+        self.assertEqual(self.rows()[0]['state'], 'queued')
+        mode.write_text('pending')
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'queued')
+        self.assertEqual(self.calls('approve'), [])
+        mode.write_text('success')
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'owed')
+        self.assertEqual(len(self.calls('approve')), 1)
+
+    def test_forge_errors_cannot_be_mistaken_for_no_ci(self):
+        """A successful empty rollup, not exit 1, is the no-CI oracle."""
+        self.ready()
+        mode = self.home / 'state/checks-mode'
+        mode.write_text('view-error')
+        self.report('pr-ready')
+        self.assertEqual(self.rows()[0]['state'], 'queued')
+        self.assertIsNotNone(self.rows()[0]['error'])
+        mode.write_text('checks-error')
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'queued')
+        self.assertIsNotNone(self.rows()[0]['error'])
+        self.assertEqual(self.calls('approve'), [])
+        self.unavailable()
+        mode.write_text('none')
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'owed')
+        self.assertIsNone(self.rows()[0]['error'])
+        self.assertFalse((self.home / 'state/.branch-outcomes-processed').exists())
+
     def test_intake_survives_enrollment_lookup_failure(self):
         self.assert_intake_recovers(self.home / 'config/discord/personal/away-notices.json', host=True)
         self.assertEqual(len(self.calls('approve')), 1)
@@ -650,6 +714,15 @@ class Notices(Fixture):
 @unittest.skipUnless(REAL_SOURCE, 'set FM_NOTICE_REAL_SOURCE to the reviewed slice-1 checkout')
 class RealFacade(Fixture):
     real = True
+
+    def test_real_no_ci_pr_creates_one_notice(self):
+        self.ready()
+        (self.home / 'state/checks-mode').write_text('none')
+        self.report('pr-ready')
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'owed')
+        self.assertEqual(len(self.events()), 1)
+        self.assertEqual(self.events()[0]['template_id'], 'pr-ready')
 
     def test_real_intake_recovers_from_configuration_failure(self):
         self.assert_intake_recovers(self.home / 'config/discord/personal/away-notices.json', host=True)

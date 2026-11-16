@@ -65,6 +65,9 @@ and is retried on ordinary supervision drains, without requiring a new report or
 waking main. Duplicate reports coalesce on the checked hold lifecycle
 or PR URL/head/ready identity plus mapping ID, not on outcome sequence. Terminal
 identities remain for dedupe; changed heads/holds require fresh checks.
+PR readiness follows the repository's no-CI semantics (`bin/fm-dod-lib.sh`): a
+successful empty check rollup at the recorded head is ready without CI; otherwise
+checks must pass. Pending/failing checks and forge-query errors never count as ready.
 
 Every drain rechecks live unsent rows. Temporary hold, forge or configuration-read
 errors leave their state unchanged with a current failure; they do not prove

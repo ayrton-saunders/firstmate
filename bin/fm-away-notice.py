@@ -223,7 +223,11 @@ def evidence(home, row, original):
     identity = {'pr_url': url, 'head': pr['headRefOid'], 'ready': True}
     if previous is not None and identity != previous:
         raise Invalidated('superseded')
-    require(run(['gh-axi', 'pr', 'checks', url]).returncode == 0)
+    result = run(['gh-axi', 'pr', 'view', url, '--json', 'headRefOid,statusCheckRollup'])
+    require(result.returncode == 0)
+    checks = json.loads(result.stdout)
+    require(checks['headRefOid'] == pr['headRefOid'] and isinstance(checks['statusCheckRollup'], list))
+    require(not checks['statusCheckRollup'] or run(['gh-axi', 'pr', 'checks', url]).returncode == 0)
     if project.get('sensitive', True):
         return identity, {'template_id': 'sensitive-decision'}
     return identity, {'template_id': 'pr-ready', 'project_alias': project['alias'], 'pr_url': url}
