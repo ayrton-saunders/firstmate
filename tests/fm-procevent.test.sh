@@ -2524,7 +2524,8 @@ pass "a 64-char source id keeps the launch-failed key within the watcher's marke
 # --- reconcile reports only launches it actually confirmed -------------------
 # The reported incident. A review board the captain had answered sat collecting
 # nothing while `reconcile` reported a start on every run: `detach_runner` is
-# fire-and-forget with the child's stderr discarded, so a runner that died
+# fire-and-forget with the child's stderr normally discarded (the test-only
+# capture seam is documented in bin/fm-procevent.sh), so a runner that died
 # before it could claim was counted exactly like one that is listening. A
 # surface that presents as armed while being a dead drop is worse than one that
 # visibly fails, because the answers look recorded.
