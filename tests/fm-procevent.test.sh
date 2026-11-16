@@ -42,6 +42,7 @@ mkdir -p "$LAVISH_AXI_STATE_DIR"
     pids=()
     for caller in {1..16}; do
       (
+        # shellcheck disable=SC2329 # Invoked indirectly by the selected preparer.
         mkdir() {
           touch "$ready_dir/$caller"
           for ((attempt=0; attempt<600; attempt++)); do
