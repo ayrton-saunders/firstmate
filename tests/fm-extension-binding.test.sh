@@ -5,8 +5,9 @@
 # The suite drives only public commands, package executables, and the durable
 # records those commands publish. It never asserts implementation-source bytes.
 # FM_TEST_EXTENSION_BINDING_DIAGNOSTIC_DIR retains each failed section's fixture
-# as an archive before cleanup, including detached runner stderr. Expected
-# coordinator failure probes do not produce diagnostic archives.
+# as a byte-bounded archive before cleanup, including detached runner stderr.
+# tests/extension-binding-diagnostics.py owns the archive/file budgets and its
+# truncation manifest. Expected coordinator failure probes produce no archives.
 set -u
 
 # The aggregate runner reaps stale fixtures before launching its isolated
@@ -21,7 +22,7 @@ fi
 
 extension_segment=${FM_EXTENSION_BINDING_SEGMENT:-all}
 case "$extension_segment" in
-  all|coordinator|deadlines|early-bind|early-validation|early-handshake|early-integrity|matrix|matrix-runtime|lifecycle-flow|lifecycle-host-errors|lifecycle-order|lifecycle-lock|lifecycle-runner|lifecycle-state|lifecycle-invocation-cleanup|lifecycle-orphan-readiness|remote-envelope|remote-activation|remote-lifecycle|remote-retirement|example|coordinator-fail|coordinator-wait|coordinator-stubborn|coordinator-pass|coordinator-late-pass|coordinator-scheduler-block|coordinator-scheduler-late) ;;
+  all|coordinator|diagnostics|deadlines|early-bind|early-validation|early-handshake|early-integrity|matrix|matrix-runtime|lifecycle-flow|lifecycle-host-errors|lifecycle-order|lifecycle-lock|lifecycle-runner|lifecycle-state|lifecycle-invocation-cleanup|lifecycle-orphan-readiness|remote-envelope|remote-activation|remote-lifecycle|remote-retirement|example|coordinator-fail|coordinator-wait|coordinator-stubborn|coordinator-pass|coordinator-late-pass|coordinator-scheduler-block|coordinator-scheduler-late) ;;
   *) printf 'unknown extension-binding segment: %s\n' "$extension_segment" >&2; exit 64 ;;
 esac
 
@@ -85,7 +86,8 @@ extension_test_cleanup() {  # <exit-status>
           printf 'section=%s\nexit=%s\n' "$extension_segment" "$1" > "$diagnostic/outcome.txt"
           # Archive rather than traverse fixture symlinks during artifact upload.
           # Keep the original failure even if a still-writing fixture changes.
-          tar -cf "$diagnostic/fixture.tar" -C "$TMP_ROOT" . 2> "$diagnostic/snapshot.stderr" \
+          python3 "$ROOT/tests/extension-binding-diagnostics.py" "$TMP_ROOT" "$diagnostic" \
+            2> "$diagnostic/snapshot.stderr" \
             || printf 'warning: extension fixture snapshot incomplete: %s\n' "$diagnostic" >&2
         else
           printf 'warning: could not create extension fixture diagnostic directory\n' >&2
@@ -603,7 +605,7 @@ if [ "$extension_segment" = all ] || [ "$extension_segment" = coordinator ]; the
     (
       trap - EXIT HUP INT
       trap 'terminate_section_lanes; exit 143' TERM
-      run_extension_section_lanes lifecycle-flow lifecycle-order remote-lifecycle example deadlines
+      run_extension_section_lanes lifecycle-flow lifecycle-order remote-lifecycle example deadlines diagnostics
     ) &
     section_coordinator_pid=$!
   fi
@@ -679,6 +681,57 @@ if [ "$extension_segment" = all ] || [ "$extension_segment" = coordinator ]; the
   pass "independent extension conformance sections complete through isolated public homes"
   printf '\nall extension-binding tests passed\n'
   exit 0
+fi
+
+# The executable diagnostic sinks bound both noisy writers and large fixtures.
+if section_enabled diagnostics; then
+python3 - "$ROOT" "$TMP_ROOT" <<'PY' || fail "diagnostic byte budgets were not enforced"
+import concurrent.futures, pathlib, subprocess, sys, tarfile
+
+root, temporary = map(pathlib.Path, sys.argv[1:])
+fixture = temporary / "budget-fixture"
+fixture.mkdir()
+log = fixture / "detached-runners.stderr"
+sink = ["perl", str(root / "bin/fm-procevent-diagnostic-stderr.pl"), str(log)]
+writers = [subprocess.Popen(sink, stdin=subprocess.PIPE) for _ in range(2)]
+def write_noise(writer):
+    writer.stdin.write(b"diagnostic noise\n" * 65536)
+    writer.stdin.close()  # A premature sink exit would break the writer's pipe.
+    return writer.wait(timeout=10)
+with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+    assert list(executor.map(write_noise, writers)) == [0, 0]
+assert log.stat().st_size <= 262144
+assert b"[stderr truncated: shared byte limit=262144]" in log.read_bytes()
+
+# Sparse inputs exercise both the per-file and total archive budgets cheaply.
+for index in range(40):
+    with (fixture / f"large-{index:02d}").open("wb") as stream:
+        stream.truncate(16 * 1024 * 1024)
+(fixture / "a-outside-link").symlink_to(temporary / "not-copied")
+destination = temporary / "bounded-snapshot"
+destination.mkdir()
+subprocess.run([sys.executable, str(root / "tests/extension-binding-diagnostics.py"),
+                str(fixture), str(destination)], check=True)
+archive_path = destination / "fixture.tar"
+assert archive_path.stat().st_size <= 8388608
+with tarfile.open(archive_path) as archive:
+    members = archive.getmembers()
+    assert members and all(item.size <= 262144 for item in members if item.isfile())
+    assert archive.getmember("./a-outside-link").issym()
+    assert archive.extractfile("./detached-runners.stderr").read() == log.read_bytes()
+    for item in members:
+        if item.isfile():
+            assert len(archive.extractfile(item).read()) == item.size
+manifest = (destination / "truncation.txt").read_text()
+assert "archive_limit_bytes=8388608\n" in manifest
+assert "file_limit_bytes=262144\n" in manifest
+assert "truncation=1\n" in manifest
+assert "truncated_files=0\n" not in manifest
+assert "omitted_entries_at_least=0\n" not in manifest
+assert len(manifest.encode()) < 8192
+print("bounded stderr drained; valid fixture archive and manifest stayed within their byte budgets")
+PY
+pass "diagnostic stderr and fixture capture enforce fixed byte budgets and record truncation"
 fi
 
 # Freeze the real host and invocation group across each deadline. All cases
@@ -2460,7 +2513,7 @@ fm_write_meta "$H_REMOTE/state/parent-route/ios.meta" \
   "backend=herdr" "endpoint_task_id=ios" "window=fm-remote:p1" \
   "herdr_session=fm-remote" "herdr_workspace_id=w1" "herdr_tab_id=t1" "herdr_pane_id=p1"
 for remote_file in \
-  fm-extension.mjs fm-extension-deadline.mjs fm-extension-launch-barrier.mjs fm-extension.sh fm-procevent.sh fm-procevent-lib.sh fm-procevent-extension-capture.pl fm-procevent-lavish.sh \
+  fm-extension.mjs fm-extension-deadline.mjs fm-extension-launch-barrier.mjs fm-extension.sh fm-procevent.sh fm-procevent-lib.sh fm-procevent-extension-capture.pl fm-procevent-diagnostic-stderr.pl fm-procevent-lavish.sh \
   fm-pr-lib.sh fm-role-lib.sh fm-wake-lib.sh fm-path-lib.sh fm-remote-entrypoint.sh fm-remote-job-lib.sh \
   fm-remote-job-worker.sh fm-remote-endpoint-lib.sh fm-herdr-session-lib.sh fm-backend.sh; do
   cp "$ROOT/bin/$remote_file" "$REMOTE_ROOT/bin/$remote_file"

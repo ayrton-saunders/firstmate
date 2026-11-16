@@ -2554,6 +2554,24 @@ assert_contains "$(cat "$uf_diagnostic")" "registration argv is unreadable: unst
   "detached startup diagnostics lost the runner's refusal"
 assert_not_contains "$uf_out" "registration argv is unreadable" \
   "detached stderr leaked into reconcile stdout"
+# Flood only the detached runner's startup stderr, not the source command (whose
+# stderr the built-in adapter intentionally discards). This exercises the real
+# redirect and proves the diagnostic sink drains excess data without SIGPIPE.
+uf_startup="$TMP_ROOT/diagnostic-startup.sh"
+cat > "$uf_startup" <<'SH'
+if [ "${0##*/}" = fm-procevent.sh ] && [ "${1:-}" = _start ]; then
+  perl -e 'print STDERR "diagnostic-noise" x 65536 or exit 99' || exit 99
+fi
+SH
+uf_noisy_rc=0
+uf_noisy_out=$(BASH_ENV="$uf_startup" FM_TEST_PROCEVENT_DETACH_STDERR="$uf_diagnostic" \
+  FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=2 pe "$HUF" reconcile) || uf_noisy_rc=$?
+[ "$uf_noisy_rc" -ne 0 ] || fail "noisy damaged registration unexpectedly succeeded"
+[ "$(wc -c < "$uf_diagnostic" | tr -d '[:space:]')" -le 262144 ] \
+  || fail "detached runner stderr exceeded its shared 256 KiB budget"
+assert_contains "$(tail -c 128 "$uf_diagnostic")" "[stderr truncated: shared byte limit=262144]" \
+  "detached runner stderr did not record truncation"
+assert_contains "$uf_noisy_out" "failed=1" "noisy failure lost its original reconcile result"
 assert_contains "$uf_out" "started=0" \
   "reconcile counted a runner that never started as a start: $uf_out"
 assert_contains "$uf_out" "failed=1" \

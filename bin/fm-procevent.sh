@@ -21,7 +21,8 @@
 #   fm-procevent.sh list
 #
 # Test diagnostics: FM_TEST_SEAM=1 and FM_TEST_PROCEVENT_DETACH_STDERR=<file>
-# append detached process stderr to that file instead of discarding it.
+# drain detached stderr through fm-procevent-diagnostic-stderr.pl into a shared
+# 256 KiB file (including its truncation marker) instead of discarding it.
 #
 # register   Record a built-in source: its adapter, its canonical id, and the
 #            exact argv to execute. argv is stored one argument per line and
@@ -943,7 +944,9 @@ isolate_process() {  # <wait|detach> <command> [argv...]
     return $?
   fi
   if [ "${FM_TEST_SEAM:-}" = 1 ] && [ -n "${FM_TEST_PROCEVENT_DETACH_STDERR:-}" ]; then
-    perl -e "$program" "$mode" "$@" >/dev/null 2>>"$FM_TEST_PROCEVENT_DETACH_STDERR" &
+    perl -e "$program" "$mode" "$@" >/dev/null \
+      2> >(perl "$SCRIPT_DIR/fm-procevent-diagnostic-stderr.pl" \
+        "$FM_TEST_PROCEVENT_DETACH_STDERR" >/dev/null 2>/dev/null) &
   else
     perl -e "$program" "$mode" "$@" >/dev/null 2>&1 &
   fi
