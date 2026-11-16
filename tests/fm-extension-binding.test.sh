@@ -4,6 +4,9 @@
 #
 # The suite drives only public commands, package executables, and the durable
 # records those commands publish. It never asserts implementation-source bytes.
+# FM_TEST_EXTENSION_BINDING_DIAGNOSTIC_DIR retains each failed section's fixture
+# as an archive before cleanup, including detached runner stderr. Expected
+# coordinator failure probes do not produce diagnostic archives.
 set -u
 
 # The aggregate runner reaps stale fixtures before launching its isolated
@@ -26,6 +29,10 @@ HOST="$ROOT/bin/fm-extension.mjs"
 PROCEVENT="$ROOT/bin/fm-procevent.sh"
 TMP_ROOT_RAW=$(fm_test_tmproot fm-extension-binding)
 TMP_ROOT=$(cd "$TMP_ROOT_RAW" && pwd -P)
+if [ -n "${FM_TEST_EXTENSION_BINDING_DIAGNOSTIC_DIR:-}" ]; then
+  export FM_TEST_PROCEVENT_DETACH_STDERR="$TMP_ROOT/detached-runners.stderr"
+fi
+extension_cleanup_started=0
 first_bind_pid=
 second_bind_pid=
 handshake_orphan_pid=
@@ -63,7 +70,29 @@ order_register_pid=
 order_reconcile_pid=
 order_release=
 section_coordinator_pid=
-extension_test_cleanup() {
+extension_test_cleanup() {  # <exit-status>
+  [ "$extension_cleanup_started" -eq 0 ] || return 0
+  extension_cleanup_started=1
+  # Snapshot before releasing fixtures or sweeping claims: those operations
+  # remove the very invocation, capture, and ownership evidence CI needs.
+  if [ "$1" -ne 0 ] && [ -n "${FM_TEST_EXTENSION_BINDING_DIAGNOSTIC_DIR:-}" ]; then
+    case "$extension_segment" in
+      coordinator-*) ;; # These children deliberately fail to test the coordinator.
+      *)
+        local diagnostic
+        if mkdir -p "$FM_TEST_EXTENSION_BINDING_DIAGNOSTIC_DIR" \
+          && diagnostic=$(mktemp -d "$FM_TEST_EXTENSION_BINDING_DIAGNOSTIC_DIR/$extension_segment.XXXXXXXX"); then
+          printf 'section=%s\nexit=%s\n' "$extension_segment" "$1" > "$diagnostic/outcome.txt"
+          # Archive rather than traverse fixture symlinks during artifact upload.
+          # Keep the original failure even if a still-writing fixture changes.
+          tar -cf "$diagnostic/fixture.tar" -C "$TMP_ROOT" . 2> "$diagnostic/snapshot.stderr" \
+            || printf 'warning: extension fixture snapshot incomplete: %s\n' "$diagnostic" >&2
+        else
+          printf 'warning: could not create extension fixture diagnostic directory\n' >&2
+        fi
+        ;;
+    esac
+  fi
   [ -z "$concurrent_release" ] || touch "$concurrent_release" 2>/dev/null || true
   [ -z "$race_release" ] || touch "$race_release" 2>/dev/null || true
   [ -z "$process_race_release" ] || touch "$process_race_release" 2>/dev/null || true
@@ -126,9 +155,9 @@ extension_test_cleanup() {
   chmod -R u+w "$TMP_ROOT_RAW" 2>/dev/null || true
   fm_test_cleanup
 }
-trap extension_test_cleanup EXIT
-trap 'extension_test_cleanup; exit 130' INT
-trap 'extension_test_cleanup; exit 143' TERM
+trap 'extension_test_cleanup "$?"' EXIT
+trap 'extension_test_cleanup 130; exit 130' INT
+trap 'extension_test_cleanup 143; exit 143' TERM
 export FM_PROCEVENT_CLAIM_ROOT="$TMP_ROOT/claims"
 PACKAGES="$TMP_ROOT/packages"
 HOMES="$TMP_ROOT/homes"

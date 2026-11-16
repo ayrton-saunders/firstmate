@@ -2542,8 +2542,18 @@ if ! awk '/^argv:$/ { print; exit } { print }' "$UF_SOURCE" > "$UF_SOURCE.tmp"; 
 fi
 mv "$UF_SOURCE.tmp" "$UF_SOURCE" || fail "could not damage the unstartable registration"
 chmod 0600 "$UF_SOURCE"
+uf_diagnostic="$TMP_ROOT/detached-runner.stderr"
+# The diagnostic destination is inert outside the explicit test seam.
+FM_TEST_SEAM=0 FM_TEST_PROCEVENT_DETACH_STDERR="$uf_diagnostic" \
+  FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=2 pe "$HUF" reconcile >/dev/null 2>&1 || true
+[ ! -e "$uf_diagnostic" ] || fail "detached stderr diagnostics ran without the test seam"
 uf_rc=0
-uf_out=$(FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=2 pe "$HUF" reconcile) || uf_rc=$?
+uf_out=$(FM_TEST_PROCEVENT_DETACH_STDERR="$uf_diagnostic" \
+  FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=2 pe "$HUF" reconcile) || uf_rc=$?
+assert_contains "$(cat "$uf_diagnostic")" "registration argv is unreadable: unstartable-src" \
+  "detached startup diagnostics lost the runner's refusal"
+assert_not_contains "$uf_out" "registration argv is unreadable" \
+  "detached stderr leaked into reconcile stdout"
 assert_contains "$uf_out" "started=0" \
   "reconcile counted a runner that never started as a start: $uf_out"
 assert_contains "$uf_out" "failed=1" \

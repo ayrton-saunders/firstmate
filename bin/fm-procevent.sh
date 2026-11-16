@@ -20,6 +20,9 @@
 #   fm-procevent.sh extension-process-event <process-event-arguments...>
 #   fm-procevent.sh list
 #
+# Test diagnostics: FM_TEST_SEAM=1 and FM_TEST_PROCEVENT_DETACH_STDERR=<file>
+# append detached process stderr to that file instead of discarding it.
+#
 # register   Record a built-in source: its adapter, its canonical id, and the
 #            exact argv to execute. argv is stored one argument per line and
 #            executed directly, so there is no shell surface and no argument
@@ -939,7 +942,11 @@ isolate_process() {  # <wait|detach> <command> [argv...]
     perl -e "$program" "$mode" "$@"
     return $?
   fi
-  perl -e "$program" "$mode" "$@" >/dev/null 2>&1 &
+  if [ "${FM_TEST_SEAM:-}" = 1 ] && [ -n "${FM_TEST_PROCEVENT_DETACH_STDERR:-}" ]; then
+    perl -e "$program" "$mode" "$@" >/dev/null 2>>"$FM_TEST_PROCEVENT_DETACH_STDERR" &
+  else
+    perl -e "$program" "$mode" "$@" >/dev/null 2>&1 &
+  fi
 }
 
 isolate_runner() {  # <wait|detach> <source-id>
