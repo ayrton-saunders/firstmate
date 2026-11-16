@@ -115,36 +115,11 @@ head -n 1 "$file"
         tools = self.world / 'tools'
         tools.mkdir()
         forge = tools / 'gh-axi'
-        forge.write_text('''#!/bin/bash
-[ ! -f "$FM_HOME/state/forge-error" ] || exit 2
-head=$(head -n 1 "$FM_HOME/state/head")
-mode=success
-[ ! -f "$FM_HOME/state/checks-mode" ] || mode=$(head -n 1 "$FM_HOME/state/checks-mode")
-if [ "$1" = api ]; then
-  printf '{"url":"https://github.com/owner/repo/pull/1","state":"open","isDraft":false,"headRefOid":"%s"}\n' "$head"
-elif [ "$2" = view ]; then
-  [ "$mode" != view-error ] || { printf 'forge unavailable\n' >&2; exit 1; }
-  [ ! -f "$FM_HOME/state/checks-head" ] || head=$(head -n 1 "$FM_HOME/state/checks-head")
-  checks='[{"name":"ci","status":"COMPLETED","conclusion":"SUCCESS"}]'
-  case "$mode" in
-    none) checks='[]' ;;
-    failing) checks='[{"name":"ci","status":"COMPLETED","conclusion":"FAILURE"}]' ;;
-    pending) checks='[{"name":"ci","status":"IN_PROGRESS","conclusion":""}]' ;;
-    context-failing) checks='[{"context":"ci","state":"FAILURE"}]' ;;
-    context-pending) checks='[{"context":"ci","state":"PENDING"}]' ;;
-    context-error) checks='[{"context":"ci","state":"ERROR"}]' ;;
-    context-expected) checks='[{"context":"ci","state":"EXPECTED"}]' ;;
-  esac
-  printf '{"headRefOid":"%s","statusCheckRollup":%s}\n' "$head" "$checks"
-else
-  case "$mode" in
-    none) printf 'no checks reported\n' >&2; exit 1 ;;
-    failing|context-failing|context-error) exit 1 ;;
-    pending|context-pending|context-expected) exit 8 ;;
-    checks-error) printf 'forge unavailable\n' >&2; exit 1 ;;
-  esac
-fi
-''')
+        captures = SOURCE / 'tests/fixtures/away-notice-gh-axi'
+        for path in captures.iterdir():
+            if path.suffix in ('.toon', '.tsv'):
+                shutil.copyfile(path, tools / path.name)
+        forge.write_text('#!' + sys.executable + '\n' + (captures / 'forge.py').read_text())
         forge.chmod(0o755)
         self.env['PATH'] = str(tools) + os.pathsep + self.env['PATH']
         if self.real:
@@ -269,6 +244,65 @@ fi
 
 
 class Notices(Fixture):
+    def test_gh_axi_invocation_and_captured_output_contract(self):
+        """Executable wire contract, captured from gh-axi 0.1.47, not gh JSON."""
+        self.ready()
+        tools = self.world / 'tools'
+        expected = [
+            ['api', '/repos/owner/repo/pulls/1', '--jq', '[.html_url,.state,(.draft|tostring),.head.sha]|@tsv'],
+            ['pr', 'view', '1', '-R', 'owner/repo', '--fields', 'headRefOid,statusCheckRollup'],
+            ['pr', 'checks', '1', '-R', 'owner/repo'],
+        ]
+        for args, name in zip(expected, ('identity.tsv', 'view.toon', 'checks.toon')):
+            result = subprocess.run([str(tools / 'gh-axi'), *args], env=self.env,
+                                    text=True, capture_output=True, check=True)
+            capture = (tools / name).read_text().replace(
+                'https://github.com/ayrton-saunders/firstmate/pull/54', 'https://github.com/owner/repo/pull/1'
+            ).replace('388558d8a93350c079c1691f845b4d43078ee547', 'a' * 40)
+            self.assertEqual(result.stdout, capture)
+        (self.home / 'state/forge-calls').unlink()
+        # Use the pinned interpreter directly for the exact request sequence;
+        # host reports separately exercise safe pinned-runtime re-execution.
+        self.report('pr-ready')
+        self.assertEqual(self.rows()[0]['state'], 'owed')
+        self.assertEqual(len(self.calls('approve')), 1)
+        calls = [json.loads(line) for line in (self.home / 'state/forge-calls').read_text().splitlines()]
+        self.assertEqual(calls, expected)
+
+    def test_toon_quoted_numeric_head_still_qualifies(self):
+        self.ready(head='1' * 40)
+        self.report('pr-ready')
+        self.assertEqual(self.rows()[0]['state'], 'owed')
+        self.assertEqual(len(self.calls('approve')), 1)
+
+    def test_forge_double_rejects_unsupported_or_unscoped_invocations(self):
+        self.ready()
+        forge = self.world / 'tools/gh-axi'
+        for args in (
+            ['pr', 'view', 'https://github.com/owner/repo/pull/1', '--json', 'headRefOid,statusCheckRollup'],
+            ['pr', 'view', 'https://github.com/owner/repo/pull/1', '--fields', 'headRefOid,statusCheckRollup'],
+            ['pr', 'view', '1', '-R', 'owner/repo', '--json', 'headRefOid,statusCheckRollup'],
+            ['pr', 'checks', 'https://github.com/owner/repo/pull/1'],
+            ['pr', 'checks', '1'],
+        ):
+            result = subprocess.run([str(forge), *args], env=self.env, text=True, capture_output=True)
+            self.assertEqual(result.returncode, 2)
+        result = subprocess.run([str(forge), 'api', '/repos/owner/repo/pulls/1', '--jq',
+                                 '{url:.html_url,state:.state,isDraft:.draft,headRefOid:.head.sha}|tojson'],
+                                env=self.env, text=True, capture_output=True, check=True)
+        self.assertIn('headRefOid:', result.stdout)
+        with self.assertRaises(json.JSONDecodeError):
+            json.loads(result.stdout)
+
+    def test_unrecognized_forge_output_keeps_the_notice_and_failure_health(self):
+        self.ready()
+        self.report('pr-ready')
+        (self.world / 'tools/view.toon').write_text('unsupported output\n')
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'owed')
+        self.assertIsNotNone(self.rows()[0]['error'])
+        self.assertEqual(self.calls('withdraw'), [])
+
     def assert_readiness_withdrawn(self, mode, uncertain=False):
         """Choice A: positively lost readiness disposes the unsent obligation."""
         self.hold()
@@ -292,6 +326,9 @@ class Notices(Fixture):
 
     def test_pending_ci_withdraws_owed_notice_at_same_head(self):
         self.assert_readiness_withdrawn('pending')
+
+    def test_mixed_failed_and_pending_checks_withdraws_owed_notice(self):
+        self.assert_readiness_withdrawn('mixed')
 
     def test_failed_status_context_withdraws_owed_notice(self):
         self.assert_readiness_withdrawn('context-failing')

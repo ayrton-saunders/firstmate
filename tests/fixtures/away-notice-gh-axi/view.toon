@@ -1,0 +1,30 @@
+pull_request:
+  headRefOid: 388558d8a93350c079c1691f845b4d43078ee547
+  statusCheckRollup[27]{__typename,completedAt,conclusion,detailsUrl,name,startedAt,status,workflowName}:
+    CheckRun,"2026-11-16T18:59:38Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492553",Lint partition 1,"2026-11-16T18:49:14Z",COMPLETED,CI
+    CheckRun,"2026-11-16T18:49:23Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824104/job/133529493639",PR must be raised via no-mistakes,"2026-11-16T18:49:14Z",COMPLETED,Require no-mistakes
+    CheckRun,"2026-11-16T18:59:10Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492434",Lint partition 2,"2026-11-16T18:49:15Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:01:55Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492518",Lint partition 3,"2026-11-16T18:49:15Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:03:59Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492915",Lint partition 4,"2026-11-16T18:49:14Z",COMPLETED,CI
+    CheckRun,"2026-11-16T18:49:41Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492396",Test coverage guard,"2026-11-16T18:49:15Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:07:34Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492324",Behavior portable parallel 1,"2026-11-16T18:49:14Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:13:32Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492457",Behavior portable parallel 2,"2026-11-16T18:49:14Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:15:18Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492868",Behavior portable serial 1,"2026-11-16T18:49:14Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:10:44Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492605",Behavior portable serial 2,"2026-11-16T18:49:14Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:09:34Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529493064",Behavior portable serial 3,"2026-11-16T18:49:15Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:10:26Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492687",Behavior portable serial 4,"2026-11-16T18:49:14Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:16:06Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492943",Behavior portable serial 5,"2026-11-16T18:49:14Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:06:07Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492583",Behavior portable serial 6,"2026-11-16T18:49:14Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:13:33Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492894",Behavior portable serial 7,"2026-11-16T18:49:14Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:10:23Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492802",Behavior portable serial 8,"2026-11-16T18:49:15Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:18:14Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529493024",Behavior portable serial 9,"2026-11-16T18:49:14Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:08:25Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492848",Behavior portable serial 10,"2026-11-16T18:49:14Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:12:31Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492646",Behavior portable serial 11,"2026-11-16T18:49:15Z",COMPLETED,CI
+    CheckRun,"2026-11-16T18:58:01Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492531",Behavior tests (Herdr),"2026-11-16T18:49:14Z",COMPLETED,CI
+    CheckRun,"2026-11-16T18:50:12Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492363",Behavior tests (herdr-core),"2026-11-16T18:49:15Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:03:24Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529492249",Stock macOS Bash snapshot compatibility,"2026-11-16T18:54:15Z",COMPLETED,CI
+    CheckRun,"2026-11-16T18:49:28Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133529491823",Repo invariants,"2026-11-16T18:49:15Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:04:05Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133538510910",Lint 1,"2026-11-16T19:04:01Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:04:05Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133538511139",Lint 2,"2026-11-16T19:04:01Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:18:26Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133547301312",Behavior timing aggregate,"2026-11-16T19:18:17Z",COMPLETED,CI
+    CheckRun,"2026-11-16T19:18:23Z",SUCCESS,"https://github.com/ayrton-saunders/firstmate/actions/runs/43932824193/job/133547301006",Full suite,"2026-11-16T19:18:17Z",COMPLETED,CI

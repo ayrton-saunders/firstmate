@@ -204,33 +204,50 @@ def evidence(home, row, original):
     require(re.fullmatch('[0-9a-f]{40,64}', fields.get('pr_head', '')))
     if previous is not None and (url != previous['pr_url'] or fields['pr_head'] != previous['head']):
         raise Invalidated('superseded')
-    result = run(['gh-axi', 'api', '/repos/' + project['repository'] + '/pulls/' + url.rsplit('/', 1)[1],
-                  '--jq', '{url:.html_url,state:.state,isDraft:.draft,headRefOid:.head.sha}|tojson'])
-    require(result.returncode == 0)
-    pr = json.loads(result.stdout)
+    number, repository = url.rsplit('/', 1)[1], project['repository']
+    result = run(['gh-axi', 'api', '/repos/' + repository + '/pulls/' + number,
+                  '--jq', '[.html_url,.state,(.draft|tostring),.head.sha]|@tsv'])
+    require(result.returncode == 0 and len(result.stdout.splitlines()) == 1)
+    values = result.stdout.splitlines()[0].split('\t')
+    require(len(values) == 4)
+    pr = dict(zip(('url', 'state', 'isDraft', 'headRefOid'), values))
     require(pr['url'] == url and re.fullmatch('[0-9a-f]{40,64}', pr['headRefOid'])
-            and pr['state'] in ('open', 'closed') and type(pr['isDraft']) is bool)
-    if pr['state'] != 'open' or pr['isDraft'] or fields['pr_head'] != pr['headRefOid']:
+            and pr['state'] in ('open', 'closed') and pr['isDraft'] in ('true', 'false'))
+    if pr['state'] != 'open' or pr['isDraft'] == 'true' or fields['pr_head'] != pr['headRefOid']:
         raise Invalidated('superseded')
     identity = {'pr_url': url, 'head': pr['headRefOid'], 'ready': True}
     if previous is not None and identity != previous:
         raise Invalidated('superseded')
-    result = run(['gh-axi', 'pr', 'view', url, '--json', 'headRefOid,statusCheckRollup'])
-    require(result.returncode == 0)
-    checks = json.loads(result.stdout)
-    require(re.fullmatch('[0-9a-f]{40,64}', checks['headRefOid']))
-    if checks['headRefOid'] != pr['headRefOid']:
+    result = run(['gh-axi', 'pr', 'view', number, '-R', repository, '--fields', 'headRefOid,statusCheckRollup'])
+    require(result.returncode == 0 and result.stdout.startswith('pull_request:\n'))
+    # --fields is TOON, not gh's JSON dialect. Only consume the selected head
+    # and array length; `pr checks` owns normalization of check/context states.
+    heads = re.findall(r'^  headRefOid: ("?)([0-9a-f]{40,64})\1$', result.stdout, re.MULTILINE)
+    counts = re.findall(r'^  statusCheckRollup\[([0-9]+)\](?:\{[A-Za-z0-9_,]+\})?:$', result.stdout, re.MULTILINE)
+    require(len(heads) == len(counts) == 1)
+    if heads[0][1] != pr['headRefOid']:
         raise Invalidated('superseded')
-    require(isinstance(checks['statusCheckRollup'], list))
-    not_ready = any(check.get('state') in ('ERROR', 'EXPECTED', 'FAILURE', 'PENDING')
-                    or check.get('status') in ('IN_PROGRESS', 'PENDING', 'QUEUED', 'REQUESTED', 'WAITING')
-                    or check.get('status') == 'COMPLETED' and check.get('conclusion') in
-                    ('ACTION_REQUIRED', 'CANCELLED', 'FAILURE', 'STALE', 'STARTUP_FAILURE', 'TIMED_OUT')
-                    for check in checks['statusCheckRollup'])
+    not_ready = False
+    if int(counts[0]):
+        result = run(['gh-axi', 'pr', 'checks', number, '-R', repository])
+        require(result.returncode in (0, 1, 8))
+        lines = result.stdout.splitlines()
+        tables = [(index, re.fullmatch(r'checks\[([0-9]+)\]\{name,conclusion\}:', line))
+                  for index, line in enumerate(lines) if line.startswith('checks[')]
+        require(len(tables) == 1 and tables[0][1] is not None)
+        index, table = tables[0]
+        count = int(table[1])
+        rows = lines[index + 1:index + 1 + count]
+        require(count > 0 and len(rows) == count and all(line.startswith('  ') and ',' in line for line in rows))
+        states = [line.rsplit(',', 1)[1] for line in rows]
+        require(all(state in ('pass', 'fail', 'pending') for state in states))
+        not_ready = 'fail' in states or 'pending' in states
+        # Exit 1 also covers genuine query errors. Only structured failing or
+        # pending evidence invalidates; an error without that table is temporary.
+        require(result.returncode == (1 if 'fail' in states else 8 if 'pending' in states else 0))
     if not_ready and row['state'] != 'queued':
         raise Invalidated('superseded')
     require(not not_ready)
-    require(not checks['statusCheckRollup'] or run(['gh-axi', 'pr', 'checks', url]).returncode == 0)
     if project.get('sensitive', True):
         return identity, {'template_id': 'sensitive-decision'}
     return identity, {'template_id': 'pr-ready', 'project_alias': project['alias'], 'pr_url': url}

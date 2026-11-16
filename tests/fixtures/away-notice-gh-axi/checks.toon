@@ -1,0 +1,32 @@
+summary: "27 passed, 0 failed, 27 total"
+checks[27]{name,conclusion}:
+  Lint partition 1,pass
+  PR must be raised via no-mistakes,pass
+  Lint partition 2,pass
+  Lint partition 3,pass
+  Lint partition 4,pass
+  Test coverage guard,pass
+  Behavior portable parallel 1,pass
+  Behavior portable parallel 2,pass
+  Behavior portable serial 1,pass
+  Behavior portable serial 2,pass
+  Behavior portable serial 3,pass
+  Behavior portable serial 4,pass
+  Behavior portable serial 5,pass
+  Behavior portable serial 6,pass
+  Behavior portable serial 7,pass
+  Behavior portable serial 8,pass
+  Behavior portable serial 9,pass
+  Behavior portable serial 10,pass
+  Behavior portable serial 11,pass
+  Behavior tests (Herdr),pass
+  Behavior tests (herdr-core),pass
+  Stock macOS Bash snapshot compatibility,pass
+  Repo invariants,pass
+  Lint 1,pass
+  Lint 2,pass
+  Behavior timing aggregate,pass
+  Full suite,pass
+help[2]:
+  Run `gh-axi pr view 54 -R ayrton-saunders/firstmate` to see PR details
+  Run `gh-axi pr merge 54 -R ayrton-saunders/firstmate` to merge when ready
