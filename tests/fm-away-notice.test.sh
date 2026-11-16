@@ -152,7 +152,7 @@ head -n 1 "$file"
         self.hold()
         self.report()
         self.assertEqual(self.calls(),[])
-        self.assertIn('1 retained failure',self.call('return').stdout)
+        self.assertIn('2 retained failure',self.call('return').stdout)
         Path(self.config['journal']+'.unsupported').unlink()
         record=self.home/'state/.afk-contract'
         record.write_text(record.read_text().replace('reach_channels: discord-private','reach_channels: none').replace('reach_binding:', 'old_binding:'))
@@ -388,6 +388,50 @@ head -n 1 "$file"
         self.call('drain')
         self.assertTrue(self.call('reach').stdout.startswith('discord-private\n'))
         self.assertIn('1 retained failure(s), 0 current failure(s)',self.call('return').stdout)
+
+    def test_failed_report_health_requires_corresponding_recovery(self):
+        """Reach contract: unrelated success cannot recover failed PR evidence."""
+        self.hold()
+        (self.home/'state/task.meta').write_text(f'project={self.code}\npr=https://github.com/owner/repo/pull/1\npr_head={"a"*40}\n')
+        self.report('pr-ready')
+        self.report('pr-ready')
+        self.assertEqual(self.calls(),[])
+        self.assertIn('2 current failure(s)',self.call('return').stdout)
+        self.call('drain')
+        self.hold('other')
+        self.report(task='other')
+        self.assertEqual(len(self.calls()),1)
+        self.assertTrue(self.call('reach').stdout.startswith('none\n'))
+        result=subprocess.run(['bash',str(self.code/'bin/fm-afk-contract.sh'),'readback'],env=self.env,check=True,capture_output=True,text=True)
+        self.assertIn('current reach: Reach unavailable',result.stdout)
+        (self.home/'state/head').write_text('a'*40)
+        self.call('report','1','task','pr-ready')
+        self.assertIn('1 current failure(s)',self.call('return').stdout)
+        self.assertTrue(self.call('reach').stdout.startswith('none\n'))
+        self.call('report','2','task','pr-ready')
+        self.assertIn('2 retained failure(s), 0 current failure(s)',self.call('return').stdout)
+        self.assertTrue(self.call('reach').stdout.startswith('discord-private\n'))
+        self.age()
+        self.call('drain')
+        self.assertEqual(len(self.calls()),2)
+        self.assertEqual(self.calls()[1]['notice']['template'],'pr-ready')
+        self.assertFalse((self.home/'state/.branch-outcomes-processed').exists())
+        self.assertTrue((self.home/'state/task.hold').exists())
+
+    def test_capability_recovery_does_not_recover_skipped_report(self):
+        """Reach contract: capability success is not report recovery."""
+        self.hold()
+        flag=Path(self.config['journal']+'.unsupported')
+        flag.touch()
+        self.report()
+        flag.unlink()
+        self.call('drain')
+        self.assertIn('1 current failure(s)',self.call('return').stdout)
+        self.assertTrue(self.call('reach').stdout.startswith('none\n'))
+        self.assertEqual(self.calls(),[])
+        self.call('report','1','task','decision')
+        self.assertEqual(len(self.calls()),1)
+        self.assertTrue(self.call('reach').stdout.startswith('discord-private\n'))
 
     def test_alias_and_foreign_domain_refused(self):
         self.enrollment['projects']['project']['alias']='@everyone secret\n'

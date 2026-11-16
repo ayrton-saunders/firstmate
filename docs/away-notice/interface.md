@@ -24,6 +24,12 @@ and requests withdrawal conservatively. Failed or unsupported withdrawal retains
 a durable reconciliation obligation, retried only as withdrawal, never approval.
 Reach reads unavailable while reconciliation or an unrecovered failure remains;
 return summaries retain bounded historical failures separately from current health.
+Report validation/evidence failures belong to the exact typed report invocation
+(outcome sequence, task and kind). Replay that invocation to recover it; an
+unrelated drain, another report or restored parent capability cannot clear it.
+A successful evidence recheck can also establish that the report is no longer
+useful without creating a notice. Configuration and binding failures recover
+only through their respective successful checks.
 
 Uncertain approval attempts reserve durable destination traffic allowance before
 crossing the parent boundary, including recovery after failure or a crash. Only a

@@ -211,7 +211,7 @@ def database(home):
     return db
 
 
-def failure(db, code, ident='drain'):
+def failure(db, code, ident):
     db.execute('INSERT OR REPLACE INTO health VALUES (?,?)', (ident, code))
     db.execute('INSERT INTO failures VALUES (?,?)', (int(time.time()), code))
     db.execute('DELETE FROM failures WHERE rowid NOT IN (SELECT rowid FROM failures ORDER BY rowid DESC LIMIT 20)')
@@ -338,6 +338,7 @@ def main(args):
     if not (home / 'state/away-notices.sqlite3').exists() and (not active or selected.stdout.strip() != 'discord-private'):
         return
     db = database(home)
+    operation = 'operation:' + canonical(args)
     config = enrollment = api = None
     db.execute('BEGIN IMMEDIATE')
     try:
@@ -346,36 +347,40 @@ def main(args):
             recorded = run(['bash', str(ROOT / 'fm-afk-contract.sh'), 'field', 'reach_binding'])
             require(active and selected.stdout.strip() == 'discord-private'
                     and recorded.stdout.strip() == hashlib.sha256(canonical(enrollment).encode()).hexdigest())
+            db.execute("DELETE FROM health WHERE id='binding'")
         except Exception:
             enrollment = None
         try:
             config, api = parent(home)
+            db.execute("DELETE FROM health WHERE id='configuration'")
         except Exception:
-            failure(db, 'reach-configuration-unavailable')
+            failure(db, 'reach-configuration-unavailable', 'configuration')
         if enrollment is None and active and selected.stdout.strip() == 'discord-private':
-            failure(db, 'recorded-reach-binding-unavailable')
-        elif api is not None:
-            db.execute("DELETE FROM health WHERE id='drain'")
+            failure(db, 'recorded-reach-binding-unavailable', 'binding')
         if args[0] == 'report':
             require(len(args) in (3, 4))
             seq, task = args[1:3]
-            if len(args) == 4 and enrollment is not None and api is not None:
+            if len(args) == 4:
                 try:
+                    require(enrollment is not None and api is not None)
                     outcome(home, seq, task)
                     current = evidence(home, task, args[3], config, enrollment)
                     if current is not None:
                         payload = payload_for(current, enrollment)
                         db.execute('INSERT OR IGNORE INTO notices (id,task,kind,payload,destination,state) VALUES (?,?,?,?,?,?)',
                                    (payload['notice_id'], task, args[3], canonical(payload), canonical(enrollment), 'queued'))
+                    db.execute('DELETE FROM health WHERE id=?', (operation,))
                 except Exception:
-                    failure(db, 'approval-or-evidence-unavailable')
+                    failure(db, 'approval-or-evidence-unavailable', operation)
         else:
             require(len(args) == 1)
         drain(home, config, enrollment, api, db)
+        if args[0] == 'drain' or len(args) == 3:
+            db.execute('DELETE FROM health WHERE id=?', (operation,))
         db.commit()
     except Exception:
         # Never copy exception messages, subprocess stderr or private payloads.
-        failure(db, 'approval-or-evidence-unavailable')
+        failure(db, 'approval-or-evidence-unavailable', operation)
         db.commit()
     finally:
         db.close()
