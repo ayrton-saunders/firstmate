@@ -1,0 +1,107 @@
+SCENARIO 1: Submit once, wait concurrently, record durable final reply, then acknowledge and retry.
+$ fm-inbox.sh note --request-id local-outside-1 --json Calculate six times seven and report the final result.
+exit=0; elapsed=0.167s
+{"schema":"fm-inbox-note.v1","outcome":"created","id":"1794844597-whipSS","request_id":"local-outside-1","saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.test-local-tmp/private-inbox-285v560b/state/inbox/1794844597-whipSS.note"}
+$ fm-inbox.sh note --request-id local-outside-1 --json Calculate six times seven and report the final result.
+exit=0; elapsed=0.044s
+{"schema":"fm-inbox-note.v1","outcome":"replay","id":"1794844597-whipSS","request_id":"local-outside-1","saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.test-local-tmp/private-inbox-285v560b/state/inbox/1794844597-whipSS.note"}
+$ fm-inbox.sh reply 1794844597-whipSS Result: 42
+Quoted "value"; unicode café; slash \.
+exit=0; elapsed=0.089s
+replied 1794844597-whipSS
+$ fm-inbox.sh wait <id> --timeout 5 --json [already running when reply recorded]
+exit=0
+{"schema":"fm-inbox-wait.v1","outcome":"answered","id":"1794844597-whipSS","acknowledged":false,"reply":{"id":"1794844597-whipSS","at":"2026-11-16T15:56:38Z","body":"Result: 42\nQuoted \"value\"; unicode caf\u00e9; slash \\.","cursor":"000000000001"}}
+$ fm-inbox.sh drain --ack 1794844597-whipSS
+exit=0; elapsed=0.018s
+acked 1794844597-whipSS
+$ fm-inbox.sh wait 1794844597-whipSS --timeout 0 --json
+exit=0; elapsed=0.035s
+{"schema":"fm-inbox-wait.v1","outcome":"answered","id":"1794844597-whipSS","acknowledged":true,"reply":{"id":"1794844597-whipSS","at":"2026-11-16T15:56:38Z","body":"Result: 42\nQuoted \"value\"; unicode caf\u00e9; slash \\.","cursor":"000000000001"}}
+$ fm-inbox.sh wait 1794844597-whipSS --timeout 0
+exit=0; elapsed=0.037s
+answered 1794844597-whipSS
+Result: 42
+Quoted "value"; unicode café; slash \.
+Observed: final answer persisted; no extra caller prompt or wait-generated notification. Local manual consumer only, not autonomous primary pickup.
+
+SCENARIO 2: Pending deadline, repeatable snapshot, bare handled and unknown outcomes remain distinct.
+$ fm-inbox.sh note --request-id local-pending --json Unfinished synthetic request
+exit=0; elapsed=0.170s
+{"schema":"fm-inbox-note.v1","outcome":"created","id":"1794844598-XwGIiK","request_id":"local-pending","saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.test-local-tmp/private-inbox-285v560b/state/inbox/1794844598-XwGIiK.note"}
+$ fm-inbox.sh wait 1794844598-XwGIiK --timeout 1 --json
+exit=3; elapsed=1.113s
+{"schema":"fm-inbox-wait.v1","outcome":"timeout","id":"1794844598-XwGIiK","acknowledged":false,"reply":null}
+$ fm-inbox.sh wait 1794844598-XwGIiK --timeout 0 --json
+exit=3; elapsed=0.049s
+{"schema":"fm-inbox-wait.v1","outcome":"timeout","id":"1794844598-XwGIiK","acknowledged":false,"reply":null}
+$ fm-inbox.sh drain --ack 1794844598-XwGIiK
+exit=0; elapsed=0.017s
+acked 1794844598-XwGIiK
+$ fm-inbox.sh wait 1794844598-XwGIiK --timeout 0 --json
+exit=2; elapsed=0.034s
+{"schema":"fm-inbox-wait.v1","outcome":"handled","id":"1794844598-XwGIiK","acknowledged":true,"reply":null}
+$ fm-inbox.sh wait absent-local-id --timeout 0 --json
+exit=4; elapsed=0.036s
+{"schema":"fm-inbox-wait.v1","outcome":"unknown","id":"absent-local-id","acknowledged":false,"reply":null}
+$ fm-inbox.sh wait 1794844598-XwGIiK --timeout -1
+exit=1; elapsed=0.013s
+fm-inbox: wait timeout must be an integer in 0..86400
+$ fm-inbox.sh wait 1794844598-XwGIiK --timeout 1.5
+exit=1; elapsed=0.013s
+fm-inbox: wait timeout must be an integer in 0..86400
+$ fm-inbox.sh wait 1794844598-XwGIiK --timeout 86401
+exit=1; elapsed=0.013s
+fm-inbox: wait timeout must be an integer in 0..86400
+$ fm-inbox.sh wait 1794844598-XwGIiK --timeout 999999999999999999
+exit=1; elapsed=0.013s
+fm-inbox: wait timeout must be an integer in 0..86400
+Observed: no cancellation or fabricated answer; deadline and documented exit codes hold.
+
+SCENARIO 3: Non-regular reply records cannot block wait, including FIFO with no writer.
+$ fm-inbox.sh note --request-id local-damaged --json Damaged record synthetic request
+exit=0; elapsed=0.159s
+{"schema":"fm-inbox-note.v1","outcome":"created","id":"1794844600-iQUdZI","request_id":"local-damaged","saved":true,"announced":true,"acknowledged":false,"path":"{run-worktree}/.test-local-tmp/private-inbox-285v560b/state/inbox/1794844600-iQUdZI.note"}
+record type: fifo
+$ fm-inbox.sh wait 1794844600-iQUdZI --timeout 1 --json
+exit=1; elapsed=0.035s
+fm-inbox: 1794844600-iQUdZI: non-regular reply record
+record type: directory
+$ fm-inbox.sh wait 1794844600-iQUdZI --timeout 1 --json
+exit=1; elapsed=0.035s
+fm-inbox: 1794844600-iQUdZI: non-regular reply record
+record type: symlink-to-fifo
+$ fm-inbox.sh wait 1794844600-iQUdZI --timeout 1 --json
+exit=1; elapsed=0.033s
+fm-inbox: 1794844600-iQUdZI: non-regular reply record
+record type: socket
+$ fm-inbox.sh wait 1794844600-iQUdZI --timeout 1 --json
+exit=1; elapsed=0.032s
+fm-inbox: 1794844600-iQUdZI: record error EOPNOTSUPP
+Observed: immediate plain error without a writer, directory read, or blocking socket operation.
+
+SCENARIO 4: Damaged regular records, filesystem errors and invalid IDs expose no private paths.
+damage: malformed
+$ fm-inbox.sh wait 1794844600-iQUdZI --timeout 0 --json
+exit=1; elapsed=0.033s
+fm-inbox: 1794844600-iQUdZI: malformed reply record for 1794844600-iQUdZI
+damage: symlink-loop
+$ fm-inbox.sh wait 1794844600-iQUdZI --timeout 0 --json
+exit=1; elapsed=0.032s
+fm-inbox: 1794844600-iQUdZI: record error ELOOP
+damage: replies-parent-is-file
+$ fm-inbox.sh wait 1794844600-iQUdZI --timeout 0 --json
+exit=1; elapsed=0.032s
+fm-inbox: 1794844600-iQUdZI: record error ENOTDIR
+$ fm-inbox.sh wait . --timeout 0 --json
+exit=1; elapsed=0.012s
+fm-inbox: invalid or missing note id
+$ fm-inbox.sh wait ../private --timeout 0 --json
+exit=1; elapsed=0.013s
+fm-inbox: invalid or missing note id
+$ fm-inbox.sh wait xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx --timeout 0 --json
+exit=1; elapsed=0.012s
+fm-inbox: invalid or missing note id
+Observed: note-scoped diagnostics/stable errno, no absolute home/state paths.
+
+Disposable home removed; every CLI child awaited.
