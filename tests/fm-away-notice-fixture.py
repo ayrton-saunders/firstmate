@@ -29,6 +29,8 @@ CAPABILITY='private-notice-v1'
 def available(*,config):
     return config.get('enabled') is True and all(config.get(k,{}).get('private_notices') is True for k in ('capabilities','peer_capabilities')) and any(not m.get('retired') and m.get('private_notices',{}).get('owner_only') is True for m in [config['mapping']])
 def record(config,op,body):
+    assert config['domain']==Path(__file__).parents[4].name
+    assert os.environ.get('FM_DISCORD_DOMAIN')==config['domain']
     with Path(config['journal']+'.calls').open('a') as stream:
         stream.write(json.dumps({'op':op,'body':body,'actor':os.environ.get('FM_SUPERVISION_ACTOR')})+'\\n')
 def custody(config,notice_id):
@@ -138,9 +140,10 @@ printf '{"url":"https://github.com/owner/repo/pull/1","state":"open","isDraft":f
         return subprocess.run(['bash', str(self.code / 'bin/fm-afk-contract.sh'), *args], env=self.env,
                               text=True, capture_output=True, check=True)
 
-    def runtime_call(self, program):
+    def runtime_call(self, program, config=None):
+        config = self.config if config is None else config
         bootstrap = 'import sys,json\nsys.dont_write_bytecode=True\nsys.path.insert(0,sys.argv[1])\nconfig=json.loads(sys.argv[2])\n'
-        return subprocess.run([sys.executable, '-I', '-c', bootstrap + program, str(self.runtime), json.dumps(self.config)],
+        return subprocess.run([sys.executable, '-I', '-c', bootstrap + program, config['package_root'], json.dumps(config)],
                               env=self.env, capture_output=True, text=True, check=True)
 
     def hold(self, task='task', lifecycle='2026-11-15T01:00:00Z#0'):
@@ -171,8 +174,9 @@ printf '{"url":"https://github.com/owner/repo/pull/1","state":"open","isDraft":f
         with closing(sqlite3.connect(self.home / 'state/away-notices.sqlite3')) as db, db:
             db.execute('UPDATE attempts SET epoch=?', (int(time.time()) - seconds,))
 
-    def calls(self, operation=None):
-        path = Path(self.config['journal'] + '.calls')
+    def calls(self, operation=None, config=None):
+        config = self.config if config is None else config
+        path = Path(config['journal'] + '.calls')
         values = [json.loads(line) for line in path.read_text().splitlines()] if path.exists() else []
         return [row for row in values if operation is None or row['op'] == operation]
 
@@ -181,12 +185,132 @@ printf '{"url":"https://github.com/owner/repo/pull/1","state":"open","isDraft":f
         path.touch()
         return path
 
+    def install_domain(self, domain):
+        instance = self.world / 'domains' / domain / 'parent'
+        runtime = instance / 'code/current'
+        (runtime / 'venv/bin').mkdir(parents=True)
+        (runtime / 'venv/bin/python').symlink_to(Path(sys.executable).resolve())
+        if self.real:
+            shutil.copytree(REAL_SOURCE / 'personal_discord', runtime / 'personal_discord')
+        else:
+            package = runtime / 'personal_discord'
+            package.mkdir()
+            (package / '__init__.py').write_text('')
+            (package / 'private_notice.py').write_text(API)
+            (package / 'mappings.py').write_text(MAPPINGS)
+        (instance / 'state').mkdir()
+        config = json.loads(json.dumps(self.config))
+        config.update(domain=domain, instance_root=str(instance), package_root=str(runtime),
+                      python_executable=str(runtime / 'venv/bin/python'))
+        for key in ('journal', 'ingress', 'egress'):
+            config[key] = str(instance / 'state' / key)
+        config['mapping'].update(bridge_id=domain, parent_channel_id='4')
+        config['routes'][0]['target'] = domain + '-mate'
+        enrollment = json.loads(json.dumps(self.enrollment))
+        enrollment['mapping'].update(bridge_id=domain, parent_channel_id='4')
+        base = self.home / 'config/discord' / domain
+        base.mkdir()
+        (base / 'integration.json').write_text(json.dumps(config))
+        (base / 'away-notices.json').write_text(json.dumps(enrollment))
+        if self.real:
+            self.runtime_call('from personal_discord.journal import Journal\nfor key in ("journal","ingress","egress"):\n j=Journal(config[key],create=True); j.close()', config=config)
+        return config
+
+    def switch_domain(self, domain):
+        self.selection.write_text(json.dumps(dict(reach='discord-private', domain=domain)))
+        (self.home / 'state/.afk-contract').unlink()
+        self.contract('enter', '--spend', '1')
+
+    def assert_intake_recovers(self, path, host=False):
+        self.hold()
+        content = path.read_text()
+        binding = self.contract('field', 'reach_binding').stdout.strip()
+        path.write_text('{')
+        self.report(host=host)
+        self.assertEqual(len(self.rows()), 1)
+        self.assertEqual(self.rows()[0]['state'], 'queued')
+        self.assertEqual(json.loads(self.rows()[0]['target']), {'binding': binding})
+        self.assertIsNotNone(self.rows()[0]['error'])
+        self.assertFalse((self.home / 'state/.branch-outcomes-processed').exists())
+        path.write_text(content)
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'owed')
+        self.assertIsNone(self.rows()[0]['error'])
+        self.assertTrue((self.home / 'state/task.hold').exists())
+        self.assertIn('1 retained failure(s)', self.call('return').stdout)
+
     def unavailable(self):
         self.assertIn('Reach unavailable', self.call('reach').stdout)
         self.assertIn('current reach: Reach unavailable', self.contract('readback').stdout)
 
 
 class Notices(Fixture):
+    def test_intake_survives_enrollment_lookup_failure(self):
+        self.assert_intake_recovers(self.home / 'config/discord/personal/away-notices.json', host=True)
+        self.assertEqual(len(self.calls('approve')), 1)
+
+    def test_intake_survives_selection_lookup_failure(self):
+        self.assert_intake_recovers(self.selection)
+        self.assertEqual(len(self.calls('approve')), 1)
+
+    def test_deferred_intent_cannot_adopt_replacement_binding(self):
+        self.hold()
+        path = self.home / 'config/discord/personal/away-notices.json'
+        path.write_text('{')
+        self.report()
+        self.mapping['parent_channel_id'] = '99'
+        self.config['mapping']['parent_channel_id'] = '99'
+        self.enroll()
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'withdrawn')
+        self.assertIsNone(self.rows()[0]['proposal'])
+        self.assertEqual(self.calls(), [])
+        self.assertIn('1 retained failure(s)', self.call('return').stdout)
+
+    def test_domain_replacement_withdraws_using_original_runtime(self):
+        self.hold()
+        self.report()
+        replacement = self.install_domain('private')
+        self.switch_domain('private')
+        self.hold('other')
+        self.report(task='other')
+        self.assertEqual([row['state'] for row in self.rows()], ['withdrawn', 'owed'])
+        self.assertEqual(self.calls('withdraw')[0]['body']['reason'], 'enrollment-revoked')
+        self.assertEqual(len(self.calls('approve', config=replacement)), 1)
+        self.assertEqual(self.calls('approve', config=replacement)[0]['actor'], 'branch')
+
+    def test_mixed_domain_return_visits_every_original_runtime(self):
+        self.hold()
+        self.report()
+        flag = self.flag('withdraw-fail')
+        replacement = self.install_domain('private')
+        self.switch_domain('private')
+        self.hold('other')
+        self.report(task='other')
+        self.assertEqual([row['state'] for row in self.rows()], ['reconcile', 'owed'])
+        flag.unlink()
+        self.assertIn('0 withdrawal(s) needing reconciliation', self.call('return').stdout)
+        self.assertEqual([row['state'] for row in self.rows()], ['withdrawn', 'withdrawn'])
+        self.assertEqual(self.calls('withdraw')[-1]['body']['reason'], 'away-ended')
+        self.assertEqual(self.calls('withdraw', config=replacement)[0]['body']['reason'], 'away-ended')
+        self.assertEqual(len(self.calls('approve')), 1)
+        self.assertEqual(len(self.calls('approve', config=replacement)), 1)
+
+    def test_explicit_caller_domain_remains_a_constraint(self):
+        self.hold()
+        self.report()
+        replacement = self.install_domain('private')
+        self.switch_domain('private')
+        self.env['FM_DISCORD_DOMAIN'] = 'personal'
+        self.hold('other')
+        self.report(task='other')
+        self.assertEqual(self.rows()[1]['state'], 'queued')
+        self.assertIsNotNone(self.rows()[1]['error'])
+        self.assertEqual(self.calls(config=replacement), [])
+        self.env.pop('FM_DISCORD_DOMAIN')
+        self.call('drain')
+        self.assertEqual(self.rows()[1]['state'], 'owed')
+
     def test_off_and_quiet(self):
         self.selection.unlink()
         self.contract('archive')
@@ -526,6 +650,32 @@ class Notices(Fixture):
 @unittest.skipUnless(REAL_SOURCE, 'set FM_NOTICE_REAL_SOURCE to the reviewed slice-1 checkout')
 class RealFacade(Fixture):
     real = True
+
+    def test_real_intake_recovers_from_configuration_failure(self):
+        self.assert_intake_recovers(self.home / 'config/discord/personal/away-notices.json', host=True)
+        self.assertEqual(len(self.events()), 1)
+
+    def test_real_mixed_domain_withdrawal_and_return(self):
+        self.hold()
+        self.report()
+        replacement = self.install_domain('private')
+        self.config['enabled'] = False
+        self.enroll()
+        self.switch_domain('private')
+        self.hold('other')
+        self.report(task='other')
+        self.assertEqual([row['state'] for row in self.rows()], ['reconcile', 'owed'])
+        self.config['enabled'] = True
+        self.enroll()
+        self.assertIn('0 withdrawal(s) needing reconciliation', self.call('return').stdout)
+        self.assertEqual([row['state'] for row in self.rows()], ['withdrawn', 'withdrawn'])
+        for config, domain in ((self.config, 'personal'), (replacement, 'private')):
+            with closing(sqlite3.connect(config['journal'])) as db, db:
+                event = json.loads(db.execute('SELECT body FROM events').fetchone()[0])
+                self.assertEqual(event['origin']['bridge_id'], domain)
+                self.assertEqual(db.execute('SELECT count(*) FROM events').fetchone()[0], 1)
+                withdrawal = json.loads(db.execute("SELECT body FROM records WHERE family='notice-withdrawal'").fetchone()[0])
+                self.assertEqual(withdrawal['reason'], 'away-ended')
 
     def events(self):
         with closing(sqlite3.connect(self.config['journal'])) as db, db:

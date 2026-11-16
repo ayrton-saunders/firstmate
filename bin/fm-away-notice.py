@@ -5,7 +5,7 @@ Usage: FM_HOME=/absolute/home python3 -I bin/fm-away-notice.py reach [BINDING]
        ... report SEQUENCE TASK [decision|pr-ready]
        ... drain|return
 Report runs after durable outcome append on Pi, host or legacy main. It persists
-only a typed reference before evidence lookup. No kind means drain only. Existing
+a typed reference and recorded binding before configuration or evidence lookup. No kind means drain only. Existing
 supervision wakes drain this journal; this is not a scheduler or reasoning session.
 
 Trusted config/away-reach.json selects {"reach":"discord-private","domain":"personal"}
@@ -42,6 +42,8 @@ withdrawn, reconcile. Each live row owns its current failure and original target
 there is no health latch. Temporary evidence/configuration errors preserve it.
 Only proven invalidation starts withdrawal; failed withdrawal retries only disposal.
 Return withdraws every possibly approved unsent row with away-ended before printing.
+Each row runs in its own process and pinned runtime, retaining explicit caller-domain
+restrictions without inheriting another row's selected domain or imported facade.
 SQLite serializes drains and reserves every potentially new approval durably before
 calling out: one/30s, ten/600s per destination, including uncertain recovery.
 Historical failures are bounded to twenty fixed codes, never current health.
@@ -295,68 +297,83 @@ def withdraw(home, db, row, original, reason):
         failure(db, row, 'withdrawal-reconciliation-required')
 
 
+def drain_row(home, db, row, returning):
+    original = json.loads(row['target'])
+    reason = 'away-ended' if returning or not away(home) else row['reason']
+    if reason:
+        withdraw(home, db, row, original, reason)
+        return
+    try:
+        domain = selection(home)
+        if domain is False or 'domain' in original and domain is not None and domain != original['domain']:
+            raise Invalidated('enrollment-revoked')
+        require(domain is not None)
+        current = target(home, domain)
+        binding = original.get('binding', digest(original))
+        if digest(current) != binding:
+            raise Invalidated('enrollment-revoked')
+        if field(home, 'reach_channels') != 'discord-private' or field(home, 'reach_binding') != binding:
+            raise Invalidated('enrollment-revoked')
+        original = current
+        db.execute('UPDATE notices SET target=? WHERE id=?', (canonical(original), row['id']))
+        if row['state'] == 'queued':
+            outcome(home, row)
+        identity, template = evidence(home, row, original)
+        config, api, mapping_id = parent(home, original)
+        if row['state'] in ('owed', 'reconcile'):
+            result = boundary(api, 'state', config, row['notice_id'], notice_id=row['notice_id'], mapping_id=mapping_id)
+        else:
+            require(api.available(config=config) is True)
+            ident = digest({'mapping_id': mapping_id, 'identity': identity})
+            proposal = {'notice_id': ident, 'mapping_id': mapping_id, 'approved': True, **template}
+            if row['proposal']:
+                require(json.loads(row['proposal']) == proposal)
+            else:
+                old = db.execute('SELECT id FROM notices WHERE notice_id=?', (ident,)).fetchone()
+                if old and old['id'] != row['id']:
+                    settle(db, row, 'withdrawn')
+                    return
+                db.execute('UPDATE notices SET identity=?,proposal=?,notice_id=?,error=NULL WHERE id=?',
+                           (canonical(identity), canonical(proposal), ident, row['id']))
+            now = int(time.time())
+            destination = canonical({key: original['mapping'][key] for key in
+                                     ('bridge_id', 'owner_id', 'guild_id', 'parent_channel_id')})
+            stamps = [value[0] for value in db.execute('SELECT epoch FROM attempts WHERE destination=? AND epoch>?',
+                                                     (destination, now - 600))]
+            if stamps and (max(stamps) > now - 30 or len(stamps) >= 10):
+                if row['state'] == 'queued':
+                    db.execute('UPDATE notices SET error=NULL WHERE id=?', (row['id'],))
+                return
+            db.execute("UPDATE notices SET state='uncertain' WHERE id=?", (row['id'],))
+            db.execute('INSERT INTO attempts VALUES (?,?)', (destination, now))
+            db.execute('DELETE FROM attempts WHERE epoch<=?', (now - 600,))
+            db.commit()
+            db.execute('BEGIN IMMEDIATE')
+            result = boundary(api, 'approve', config, ident, notice=proposal)
+        if result == 'stopped':
+            db.execute("UPDATE notices SET state='reconcile',reason=NULL WHERE id=?", (row['id'],))
+            failure(db, row, 'transport-stopped')
+        else:
+            settle(db, row, result)
+    except Invalidated as error:
+        withdraw(home, db, row, original, str(error))
+    except Exception:
+        failure(db, row, 'evidence-or-parent-unavailable')
+
+
 def drain(home, db, returning=False):
+    db.commit()
     rows = db.execute('SELECT * FROM notices WHERE state IN ' + LIVE + ' ORDER BY rowid').fetchall()
     for row in rows:
-        original = json.loads(row['target'])
-        reason = 'away-ended' if returning or not away(home) else row['reason']
-        if reason:
-            withdraw(home, db, row, original, reason)
-            continue
         try:
-            domain = selection(home)
-            if domain is False or domain is not None and domain != original['domain']:
-                raise Invalidated('enrollment-revoked')
-            require(domain is not None)
-            current = target(home, domain)
-            if current != original:
-                raise Invalidated('enrollment-revoked')
-            if field(home, 'reach_channels') != 'discord-private' or field(home, 'reach_binding') != digest(original):
-                raise Invalidated('enrollment-revoked')
-            if row['state'] == 'queued':
-                outcome(home, row)
-            identity, template = evidence(home, row, original)
-            config, api, mapping_id = parent(home, original)
-            if row['state'] in ('owed', 'reconcile'):
-                result = boundary(api, 'state', config, row['notice_id'], notice_id=row['notice_id'], mapping_id=mapping_id)
-            else:
-                require(api.available(config=config) is True)
-                ident = digest({'mapping_id': mapping_id, 'identity': identity})
-                proposal = {'notice_id': ident, 'mapping_id': mapping_id, 'approved': True, **template}
-                if row['proposal']:
-                    require(json.loads(row['proposal']) == proposal)
-                else:
-                    old = db.execute('SELECT id FROM notices WHERE notice_id=?', (ident,)).fetchone()
-                    if old and old['id'] != row['id']:
-                        settle(db, row, 'withdrawn')
-                        continue
-                    db.execute('UPDATE notices SET identity=?,proposal=?,notice_id=?,error=NULL WHERE id=?',
-                               (canonical(identity), canonical(proposal), ident, row['id']))
-                now = int(time.time())
-                destination = canonical({key: original['mapping'][key] for key in
-                                         ('bridge_id', 'owner_id', 'guild_id', 'parent_channel_id')})
-                stamps = [value[0] for value in db.execute('SELECT epoch FROM attempts WHERE destination=? AND epoch>?',
-                                                         (destination, now - 600))]
-                if stamps and (max(stamps) > now - 30 or len(stamps) >= 10):
-                    if row['state'] == 'queued':
-                        db.execute('UPDATE notices SET error=NULL WHERE id=?', (row['id'],))
-                    continue
-                db.execute("UPDATE notices SET state='uncertain' WHERE id=?", (row['id'],))
-                db.execute('INSERT INTO attempts VALUES (?,?)', (destination, now))
-                db.execute('DELETE FROM attempts WHERE epoch<=?', (now - 600,))
-                db.commit()
-                db.execute('BEGIN IMMEDIATE')
-                result = boundary(api, 'approve', config, ident, notice=proposal)
-            if result == 'stopped':
-                db.execute("UPDATE notices SET state='reconcile',reason=NULL WHERE id=?", (row['id'],))
-                failure(db, row, 'transport-stopped')
-            else:
-                settle(db, row, result)
-        except Invalidated as error:
-            withdraw(home, db, row, original, str(error))
+            result = subprocess.run([sys.executable, '-I', str(Path(__file__).resolve()),
+                                     '_row', row['id'], 'return' if returning else 'drain'],
+                                    capture_output=True, text=True, timeout=90)
+            require(result.returncode == 0)
         except Exception:
-            failure(db, row, 'evidence-or-parent-unavailable')
-    db.commit()
+            db.execute('BEGIN IMMEDIATE')
+            failure(db, row, 'row-runtime-unavailable')
+            db.commit()
 
 
 def reach(home, expected=None):
@@ -391,6 +408,15 @@ def main(args):
         return
     require('FM_HOME' in os.environ and Path(os.environ['FM_HOME']).is_absolute())
     home = Path(os.environ['FM_HOME']).resolve(strict=True)
+    if args and args[0] == '_row':
+        require(len(args) == 3 and re.fullmatch('[0-9a-f]{64}', args[1]) and args[2] in ('drain', 'return'))
+        with closing(database(home)) as db:
+            db.execute('BEGIN IMMEDIATE')
+            row = db.execute('SELECT * FROM notices WHERE id=? AND state IN ' + LIVE, (args[1],)).fetchone()
+            if row:
+                drain_row(home, db, row, args[2] == 'return')
+            db.commit()
+        return
     require(args and args[0] in ('reach', 'report', 'drain', 'return'))
     if args[0] == 'reach':
         require(len(args) in (1, 2))
@@ -398,28 +424,23 @@ def main(args):
         return
     require(args[0] == 'report' and len(args) in (3, 4) or args[0] != 'report' and len(args) == 1)
     path = home / 'state/away-notices.sqlite3'
-    original = None
+    binding = None
     if args[0] == 'report' and len(args) == 4:
         seq, task, kind = args[1:]
         require(re.fullmatch('[1-9][0-9]*', seq) and re.fullmatch('[A-Za-z0-9._-]{1,96}', task)
                 and task != 'fleet' and kind in ('decision', 'pr-ready'))
         if away(home) and field(home, 'reach_channels') == 'discord-private':
-            try:
-                domain = selection(home)
-                require(domain)
-                original = target(home, domain)
-                require(field(home, 'reach_binding') == digest(original))
-            except Exception:
-                original = None
-    if not path.exists() and original is None:
+            binding = field(home, 'reach_binding')
+    if not path.exists() and binding is None:
         return
     db = database(home)
     try:
         db.execute('BEGIN IMMEDIATE')
-        if original is not None:
-            ident = digest({'seq': seq, 'task': task, 'kind': kind, 'target': original})
+        if binding is not None:
+            recorded = {'binding': binding}
+            ident = digest({'seq': seq, 'task': task, 'kind': kind, 'target': recorded})
             db.execute('INSERT OR IGNORE INTO notices(id,seq,task,kind,target,state) VALUES (?,?,?,?,?,?)',
-                       (ident, seq, task, kind, canonical(original), 'queued'))
+                       (ident, seq, task, kind, canonical(recorded), 'queued'))
             db.commit()
             db.execute('BEGIN IMMEDIATE')
         drain(home, db, returning=args[0] == 'return')

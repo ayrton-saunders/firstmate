@@ -56,9 +56,13 @@ identity/proposal once checked, state, current fixed failure reason and withdraw
 reason. The six states are `queued`, `uncertain` (approval may have committed),
 `owed`, `delivered`, `withdrawn`, and `reconcile` (needs reconciliation).
 
-Report intent is committed **before evidence lookup**. Failed evidence therefore
-remains queued and is retried on ordinary supervision drains, without requiring a
-new report or waking main. Duplicate reports coalesce on the checked hold lifecycle
+Report intent and the away record's binding hash are committed **before
+configuration or evidence lookup**. A configuration failure leaves that queued
+reference and a bounded failure record. Deferred lookup may materialize the
+reviewed target only when its hash matches the original recorded binding; it
+cannot adopt a replacement destination. Failed lookup therefore remains queued
+and is retried on ordinary supervision drains, without requiring a new report or
+waking main. Duplicate reports coalesce on the checked hold lifecycle
 or PR URL/head/ready identity plus mapping ID, not on outcome sequence. Terminal
 identities remain for dedupe; changed heads/holds require fresh checks.
 
@@ -77,7 +81,13 @@ no row-count/deadline truncation. A delivered receipt preserves delivery evidenc
 No transition processes an outcome, resolves a hold, releases work, clears an inbox
 note or implies human acknowledgement.
 
-SQLite serializes drains. A durable reservation precedes every potentially new
+Each row is processed in a separate invocation of the same adapter entrypoint,
+which re-execs into that row's pinned interpreter before loading its facade.
+A mixed-domain drain or return cannot retain a previous row's domain, interpreter,
+or imported modules. An explicitly supplied caller `FM_DISCORD_DOMAIN` remains a
+constraint: foreign-domain operations stay pending rather than stripping that
+selector to gain authority. SQLite serializes row transitions across invocations.
+A durable reservation precedes every potentially new
 approval, including uncertain replay: at least 30 seconds apart and at most ten
 within 600 seconds for the same destination. Confirmed owed rows use `state`, not
 approval replay. Excess remains queued and is rechecked, not reminded periodically.
@@ -129,9 +139,12 @@ transport is invoked. Portable cases additionally exercise lost receipts, crash
 recovery, parallel drains, both rate limits, temporary evidence/config errors,
 revocation/re-entry, failed withdrawal after archive, and independent bookkeeping.
 
-Focused verification result: **24 tests passed**, including both real-facade
-cases above. This is offline contract evidence, not channel privacy qualification
-or live delivery evidence.
+Regression coverage also includes report-time malformed enrollment/selection,
+binding replacement before deferred lookup, mixed-domain replacement and return,
+per-domain runtime isolation, and explicit caller-domain refusal. Real-facade
+cases exercise configuration-failure recovery and mixed-domain withdrawal against
+separate isolated journals. This is offline contract evidence, not channel privacy
+qualification or live delivery evidence.
 
 Pi's report-tool-to-CLI sequence/actor contract remains covered by
 `tests/fm-pi-branch-extension.test.sh`; this rewrite keeps that invocation unchanged.
