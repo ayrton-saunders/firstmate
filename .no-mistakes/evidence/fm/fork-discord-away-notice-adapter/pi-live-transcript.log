@@ -1,0 +1,8 @@
+Extension load errors: []
+Branch offer accepted: true
+Local provider request 1 tools: read,bash,fm_branch_report
+Local provider request 2 tools: read,bash,fm_branch_report
+Real Pi branch settled. Provider request count: 2
+Durable outcomes: [{"seq":1,"epoch":1794852483,"task":"task","wake":"","verdict":"captain","summary":"synthetic secret @everyone must stay local","silent":false,"statusEndpoint":0,"statusIdent":"-"}]
+Real parent events: [{"at":"2026-11-16T18:08:05Z","id":"notice.7474edefda5cbc6089a98fa7455bcef85243ba6d50ebeb75913ada484ec74cac","kind":"private-notice","notice_id":"37f6dd25e9926d5e0e3165e67467bf2a4ff2b0e6a7104bdd71b66a8e26f3ae9c","origin":{"bridge_id":"personal","guild_id":"2","mapping_revision":"r1","owner_id":"1","parent_channel_id":"3","project_key":"project","thread_id":"3"},"pr_url":null,"project_alias":"Personal","template_id":"decision-waiting","text":"A decision is waiting for the Personal work. Please review it in our usual conversation."}]
+Pi report-tool -> durable outcome -> real adapter -> real parent obligation: confirmed (not delivered).

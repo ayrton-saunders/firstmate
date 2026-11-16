@@ -1,0 +1,25 @@
+test_live_config_durability_and_domain_return (__main__.Live.test_live_config_durability_and_domain_return) ... ok
+
+----------------------------------------------------------------------
+Ran 1 test in 6.877s
+
+OK
+recorded seq 1 [captain]; it waits in the outcome store for MAIN
+
+discord-private
+-
+Reach unavailable; hold-for-return only.
+-
+
+Private reach: 2 retained failure(s), 0 current failure(s), 0 withdrawal(s) needing reconciliation, 0 pending notice(s), 2 withdrawn, 0 confirmed delivered; decisions still await the usual conversation.
+
+Original domain disposition: personal owner-disposed
+Original domain disposition: private owner-disposed
+
+### Malformed enrollment recovery, explicit domain constraint, replacement and archived return
+Away record archived; no current away posture.
+Fork journal: [{"error": null, "kind": "decision", "notice_id": "058225306c9c59fce273014dfd381aa35cda178bac8224df8b3f4a06e9cf56d6", "reason": "enrollment-revoked", "state": "withdrawn", "task": "task"}, {"error": null, "kind": "decision", "notice_id": "a8523d1a902db43ccfe84508ca91f60fae3f69dc1aadfe09155b6a412a8a5759", "reason": "away-ended", "state": "withdrawn", "task": "other"}]
+Parent events: [{"at": "2026-11-16T18:04:14Z", "id": "notice.a7c34451467cdc393abeadd1bf7122174e1cbc48fd462dd337bc87ffb5a6cba4", "kind": "private-notice", "notice_id": "058225306c9c59fce273014dfd381aa35cda178bac8224df8b3f4a06e9cf56d6", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": null, "project_alias": "Personal", "template_id": "decision-waiting", "text": "A decision is waiting for the Personal work. Please review it in our usual conversation."}]
+Parent obligations: [["notice.a7c34451467cdc393abeadd1bf7122174e1cbc48fd462dd337bc87ffb5a6cba4", "owner-disposed"]]
+Outcome count: 2
+Outcomes processed: False
