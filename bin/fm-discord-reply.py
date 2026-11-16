@@ -3,23 +3,23 @@
 
 Usage: FM_HOME=/absolute/parent-home python3 -I bin/fm-discord-reply.py REQUEST ROUTE 'Approved answer.'
 
+Trusted local domain binding follows fm-discord-hook.py --help, never message input.
 Only the trusted parent invokes this command after reviewing the actual return.
 REQUEST is the captured request identifier; ROUTE is a configured mapped target.
 The words are an explicitly approved, single-line customer answer, not raw worker
 output. Generation, correlation, scope and the stable final event identifier are
 derived from existing custody and work records, never supplied by the caller.
 No readiness renewal, dispatch, synthetic return, credential read or network call
-is performed. Publication uses the pinned private release's approval API and its
+is performed. Publication uses the enrolled private release's approval API and its
 local egress projection; transport delivery is separate and is not claimed here.
 Successful publication is silent. An identical repeat repairs the same event;
 changed words cannot replace an already approved final. After any error, inspect
 the existing approval before retrying; never invent another event identifier.
 The shared gate-agent guard runs before configuration or journal access; its
 existing disposable-lab exception remains owned by fm-gate-refuse-lib.sh.
-The enabled home configuration, source pins, package hashes and CPython 3.14
-runtime must then pass the existing parent guard before any journal is opened.
-Pre-flight: bin/fm-discord-verify-pins.py --help
-Pin transition and snapshot limits: docs/discord-owner-reply-pins.md
+The enabled home configuration, enrolled release and CPython 3.14 runtime must
+then pass the existing parent guard before any journal is opened.
+Installation and retained domain protections: docs/discord-owner-reply-install.md
 """
 import importlib
 import json
@@ -32,6 +32,9 @@ import subprocess
 import sys
 
 
+HOOK = runpy.run_path(str(Path(__file__).resolve().with_name('fm-discord-hook.py')))
+
+
 class Refusal(ValueError):
     """Public-safe diagnostic selected locally, never private exception text."""
 
@@ -41,28 +44,29 @@ def require(condition, message):
         raise Refusal(message)
 
 
-def configuration(home):
+def configuration(home, *, entrypoint=None):
     # Reuse the owning guard, without changing its lifecycle hash or executing
     # its main. Select the pinned interpreter here so its re-exec cannot switch
     # this command into the hook's CLI with unrelated arguments.
-    hook = runpy.run_path(str(Path(__file__).resolve().with_name('fm-discord-hook.py')))
-    path = home / 'config/discord-integration.json'
+    path = HOOK['configuration_path'](home)
     require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 65536,
             'enabled regular parent configuration required')
-    config = json.loads(path.read_text(), object_pairs_hook=hook['unique'])
+    config = json.loads(path.read_text(), object_pairs_hook=HOOK['unique'])
     require(isinstance(config, dict) and config.get('enabled') is True,
             'enabled parent configuration required')
+    if 'FM_DISCORD_DOMAIN' in os.environ:
+        config = HOOK['load'](home, routing_only=True)
     interpreter = Path(config['python_executable'])
     require(interpreter.is_absolute() and interpreter.is_file(), 'pinned parent interpreter required')
     if Path(sys.executable).resolve() != interpreter.resolve():
-        os.execv(str(interpreter), [str(interpreter), '-I', str(Path(__file__).resolve()), *sys.argv[1:]])
-    config = hook['load'](home)
+        os.execv(str(interpreter), [str(interpreter), '-I', str(entrypoint or Path(__file__).resolve()), *sys.argv[1:]])
+    config = HOOK['load'](home)
     require(config is not None and {'mapping', 'ingress', 'egress'} <= set(config),
             'pinned parent publication mapping required')
     return config
 
 
-def resolved_return(home, binding):
+def correlated_return(home, binding):
     correlation = binding['correlation']
     require(isinstance(correlation, str) and re.fullmatch('[0-9a-f]{16}', correlation),
             'existing parent correlation required')
@@ -77,7 +81,12 @@ def resolved_return(home, binding):
             fields[key] = value
     require(fields.get('corr_id') == correlation and fields.get('task_id') == binding['work_id']
             and fields.get('parent_home') == str(home), 'return belongs to another route or home')
-    require(fields.get('phase') == 'resolved', 'authoritative correlated return is not resolved')
+    return fields
+
+
+def resolved_return(home, binding):
+    require(correlated_return(home, binding).get('phase') == 'resolved',
+            'authoritative correlated return is not resolved')
 
 
 def reply(args):
@@ -106,7 +115,8 @@ def reply(args):
     journal = journal_type(config['journal'])
     try:
         require(not journal.fenced and not journal.delivery_fenced, 'parent intake or delivery remains fenced')
-        request = journal.record('request', ident)
+        request = HOOK['checked_record'](journal, 'request', ident)
+        HOOK['checked_origin'](config, request)
         revision, state = journal.state('request', ident)
         binding = journal.work_binding(ident)
         require(request['origin']['project_key'] == routes[0]['project'] and binding['work_id'] == target,
@@ -129,6 +139,8 @@ def reply(args):
         for key in ('NO_MISTAKES_GATE', 'FM_SUPERVISION_ACTOR', 'PI_CODING_AGENT'):
             if key in os.environ:
                 environment[key] = os.environ[key]
+        if 'FM_DISCORD_DOMAIN' in os.environ:
+            environment['FM_DISCORD_DOMAIN'] = os.environ['FM_DISCORD_DOMAIN']
         egress = journal_type(config['egress'])
         try:
             integration = integration_type(parent_type(journal, config['mapping']), config['ingress'], egress,
@@ -150,11 +162,12 @@ if __name__ == '__main__':
         sys.exit(0)
     try:
         reply(sys.argv[1:])
-    except Refusal as error:
+    except (Refusal, HOOK['HookCheck']) as error:
         print('error: Discord reply refused: ' + str(error), file=sys.stderr)
         sys.exit(1)
     except (ValueError, KeyError, TypeError, ImportError, OSError, RuntimeError, sqlite3.Error,
-            subprocess.SubprocessError):
-        print('error: Discord reply refused: verify pinned configuration and existing approval; '
+            subprocess.SubprocessError) as error:
+        print('error: Discord reply refused: ' + HOOK['failure_check'](error) + ' check failed; '
+              'verify pinned configuration and existing approval; '
               'reconcile before retry', file=sys.stderr)
         sys.exit(1)

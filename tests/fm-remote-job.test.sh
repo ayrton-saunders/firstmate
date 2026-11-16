@@ -55,7 +55,8 @@ cleanup_remote_job_fixture() {
 trap cleanup_remote_job_fixture EXIT
 
 cp "$ROOT/bin/fm-remote-job-lib.sh" "$ROOT/bin/fm-remote-job-worker.sh" \
-  "$ROOT/bin/fm-remote-delta-read.sh" "$REMOTE_ROOT/bin/"
+  "$ROOT/bin/fm-remote-delta-read.sh" "$ROOT/bin/fm-remote-endpoint-lib.sh" \
+  "$ROOT/bin/fm-herdr-session-lib.sh" "$ROOT/bin/fm-backend.sh" "$REMOTE_ROOT/bin/"
 printf 'fixture\n' > "$REMOTE_ROOT/AGENTS.md"
 cat > "$REMOTE_ROOT/bin/fm-probe-job.sh" <<'SH'
 #!/bin/bash
@@ -506,7 +507,12 @@ if command -v shasum >/dev/null 2>&1; then
 else
   EMPTY_SHA=$(: | sha256sum | awk '{print $1}')
 fi
-mkdir -p "$REMOTE_HOME/state"
+mkdir -p "$REMOTE_HOME/state/parent-route"
+printf 'job-mate\n' > "$REMOTE_HOME/.fm-secondmate-home"
+fm_write_meta "$REMOTE_HOME/state/parent-route/job-mate.meta" \
+  "kind=secondmate" "home=$REMOTE_HOME" "worktree=$REMOTE_HOME" "project=-" \
+  "backend=herdr" "endpoint_task_id=job-mate" "window=fm-remote:p1" \
+  "herdr_session=fm-remote" "herdr_workspace_id=w1" "herdr_tab_id=t1" "herdr_pane_id=p1"
 REPLY_LOG_REL=state/parent-replies.status
 PREEMPT_SIDE_EFFECT="$TMP_ROOT/preempt-side-effect"
 FM_REMOTE_JOB_QUEUE_TIMEOUT=60

@@ -50,10 +50,7 @@ fm_remote_handoff_teardown() {
 }
 trap fm_remote_handoff_teardown EXIT
 printf 'fixture\n' > "$REMOTE_ROOT/AGENTS.md"
-cp "$ROOT/bin/fm-remote-entrypoint.sh" "$ROOT/bin/fm-remote-job-lib.sh" \
-  "$ROOT/bin/fm-remote-job-worker.sh" "$ROOT/bin/fm-remote-file.sh" \
-  "$ROOT/bin/fm-backlog-receive.sh" "$ROOT/bin/fm-tasks-axi-lib.sh" \
-  "$ROOT/bin/fm-wake-lib.sh" "$ROOT/bin/fm-path-lib.sh" "$REMOTE_ROOT/bin/"
+cp "$ROOT/bin/"*.sh "$REMOTE_ROOT/bin/"
 ln -s "$(command -v tasks-axi)" "$REMOTE_ROOT/bin/tasks-axi"
 ln -s "$(command -v node)" "$REMOTE_ROOT/bin/node"
 chmod +x "$REMOTE_ROOT/bin"/*.sh
@@ -64,6 +61,20 @@ git -C "$REMOTE_ROOT" add AGENTS.md bin
 git -C "$REMOTE_ROOT" commit -qm 'tracked remote fixture'
 printf 'fixture\n' > "$REMOTE/AGENTS.md"
 printf 'ios\n' > "$REMOTE/.fm-secondmate-home"
+mkdir -p "$REMOTE/state/parent-route"
+cat > "$REMOTE/state/parent-route/ios.meta" <<EOF
+backend=herdr
+kind=secondmate
+home=$REMOTE
+endpoint_task_id=ios
+project=firstmate
+worktree=$REMOTE
+window=fm-remote:w1:p1
+herdr_session=fm-remote
+herdr_workspace_id=w1
+herdr_tab_id=w1:t1
+herdr_pane_id=w1:p1
+EOF
 cat > "$PARENT/data/secondmates.md" <<EOF
 - ios - iOS delivery (host: remote-mac; root: $REMOTE_ROOT; home: $REMOTE; scope: iOS work; projects: alpha; added 2026-08-02)
 EOF
@@ -73,6 +84,8 @@ endpoint_task_id=ios
 harness=claude
 kind=secondmate
 mode=secondmate
+home=$REMOTE
+worktree=$REMOTE
 remote_host=remote-mac
 remote_root=$REMOTE_ROOT
 remote_backend=herdr
@@ -98,7 +111,11 @@ shift 2
 [ "$host" = remote-mac ] || exit 91
 [ "$entry" = fm-remote-entrypoint.sh ] || exit 92
 argv_b64=$4
-command_name=$(perl -MMIME::Base64=decode_base64 -e '$d=decode_base64($ARGV[0]); ($c)=split(/\0/, $d); print $c' "$argv_b64")
+command_name=$(perl -MMIME::Base64=decode_base64 -e '
+  my @args=split(/\0/, decode_base64($ARGV[0]));
+  splice @args, 1, 2 while (($args[1] // "") =~ /^(--herdr-session|--expected-backend|--expected-target|--route-id)$/);
+  print $args[0] eq "fm-remote-secondmate-control.sh" && $args[1] eq "file" ? "fm-remote-file.sh" : $args[0];
+' "$argv_b64")
 case "${FM_FAKE_SSH_MODE:-normal}:$command_name" in
   *:fm-remote-secondmate-control.sh)
     printf '%s\n' "$command_name" >> "$FM_FAKE_REMOTE_WAKE_LOG"

@@ -62,7 +62,7 @@ cleanup() {
     worker_pid=$(cat "$TMP_ROOT/remote-jobs/worker.pid")
     kill "$worker_pid" 2>/dev/null || true
   fi
-  rm -rf -- "$TMP_ROOT"
+  fm_test_remove_tree "$TMP_ROOT"
 }
 trap cleanup EXIT
 
@@ -165,6 +165,7 @@ argv_b64=$4
 command_fields=$(perl -MMIME::Base64=decode_base64 -e '
   my $data=decode_base64($ARGV[0]);
   my @args=split(/\0/, $data);
+  splice @args, 1, 2 while (($args[1] // "") =~ /^(--herdr-session|--expected-backend|--expected-target|--route-id)$/);
   print join("\t", map { defined $_ ? $_ : "" } @args[0..2]);
 ' "$argv_b64")
 IFS=$'\t' read -r command_name _command_action command_rel <<EOF
@@ -318,12 +319,28 @@ PUBLICATION_OUT=$(FM_TEST_PUBLICATION_TARGET="$LOCAL_META" \
   remote_env "$ROOT/bin/fm-spawn.sh" ios --secondmate 2>&1) || PUBLICATION_RC=$?
 [ "$PUBLICATION_RC" -ne 0 ] \
   || fail "remote secondmate publication accepted a target resolving outside its home"
-assert_contains "$PUBLICATION_OUT" "task record could not be published" \
+assert_contains "$PUBLICATION_OUT" "preserving endpoint and parent records" \
   "remote secondmate publication did not report its record-boundary refusal"
 cmp -s "$FOREIGN_META" <(printf 'foreign sentinel\n') \
   || fail "remote secondmate publication wrote through the foreign target"
 [ -L "$LOCAL_META" ] \
   || fail "remote secondmate publication replaced the refused target boundary"
 pass "remote secondmate publication refuses targets outside its home"
+
+# Invalid seed names and duplicated options are refused before even creating
+# the primary state directory, not merely before reaching fake SSH.
+for bad_session in '' default '.hidden' 'bad/name' "$(printf '%065d' 0)"; do
+  if FM_HOME="$TMP_ROOT/invalid-session-primary" FM_ROOT_OVERRIDE="$ROOT" \
+    "$ROOT/bin/fm-remote-home-seed.sh" --herdr-session "$bad_session" rejected remote-mac /code /home --no-projects >/dev/null 2>&1; then
+    fail "invalid seed session accepted: $bad_session"
+  fi
+  assert_absent "$TMP_ROOT/invalid-session-primary" "invalid seed session created operational state"
+done
+if FM_HOME="$TMP_ROOT/invalid-session-primary" FM_ROOT_OVERRIDE="$ROOT" \
+  "$ROOT/bin/fm-remote-home-seed.sh" --herdr-session fm-one --herdr-session fm-two rejected remote-mac /code /home --no-projects >/dev/null 2>&1; then
+  fail "duplicate seed session option accepted"
+fi
+assert_absent "$TMP_ROOT/invalid-session-primary" "duplicate seed option created state"
+pass "seed validates names and option cardinality before mutation"
 
 echo "ALL TESTS PASSED"

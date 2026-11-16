@@ -2175,4 +2175,35 @@ test_escalated_undelivered_correlation_stays_retryable
 test_same_kind_escalation_reopens_after_operator_close
 test_summary_keeps_accents_and_caps_by_character
 
+test_remote_binding_mismatch_escalates_without_replay() {
+  local home state corr rec scenario status count
+  for scenario in missing changed; do
+    home=$(setup_parent "binding-$scenario")
+    state="$home/state"
+    printf '%s\n' remote_host=remote-mac remote_target=fm-remote:pane-a > "$state/hibit.meta"
+    corr=$(fm_pending_reply_create "$home" "$state" hibit "report progress")
+    fm_pending_reply_mark_delivered "$state" "$corr"
+    rec=$(fm_pending_reply_path "$state" "$corr")
+    if [ "$scenario" = missing ]; then
+      fm_pending_reply_set "$rec" remote_binding ''
+    else
+      printf '%s\n' remote_host=remote-mac remote_target=fm-remote:pane-b > "$state/hibit.meta"
+    fi
+    fm_pending_reply_tick "$state"
+    [ "$(phase_of "$state" "$corr")" = escalated ] || fail "$scenario binding was silently abandoned"
+    [ -z "$(fm_pending_reply_get "$rec" recovery_attempted_epoch)" ] || fail "$scenario binding attempted replay"
+    status=$(fm_pending_reply_get "$rec" parent_status)
+    assert_grep pending-reply-binding-unverified "$status" "unproved binding did not request explicit reconciliation"
+    count=$(wc -l < "$status")
+    fm_pending_reply_tick "$state"
+    [ "$(wc -l < "$status")" -eq "$count" ] || fail "binding escalation repeated"
+    printf 'done [corr=%s]: report arrived\n' "$corr" >> "$status"
+    fm_pending_reply_tick "$state"
+    [ "$(phase_of "$state" "$corr")" = resolved ] || fail "binding refusal prevented correlated resolution"
+    [ -n "$(fm_pending_reply_get "$rec" escalation_closed_epoch)" ] || fail "resolved binding escalation remained open"
+  done
+  pass "unproved remote reply bindings escalate once without replay and still resolve"
+}
+test_remote_binding_mismatch_escalates_without_replay
+
 printf 'ok - all pending-reply tests passed\n'

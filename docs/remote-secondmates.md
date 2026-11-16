@@ -7,6 +7,10 @@ Remote second mates place a whole persistent Firstmate home on another SSH-reach
 The primary still owns routing and supervision, while the remote home owns its own projects, backlog, and workers.
 Firstmate does not support placing an individual worker remotely or failing a remote route over to a local replacement.
 
+Per-lane named execution-root isolation is not supported: distinct homes and Herdr sessions do not pin independent Firstmate versions against account-wide transport repair, cleanup, or updates.
+Characterization tests and the inactive closure audit remain; named enrollment and dispatch are unavailable.
+The [`stage_map` in the audit policy](../tests/fixtures/remote-root-boundaries.json) records unimplemented qualification criteria, test targets, and failure oracles, not a supported roadmap.
+
 ## Find a topic
 
 | Task | Start here |
@@ -14,6 +18,7 @@ Firstmate does not support placing an individual worker remotely or failing a re
 | Prepare the primary and the remote host | [Prerequisites](#prerequisites) and [non-interactive tool contract](#non-interactive-tool-contract) |
 | Check whether a host is ready, or repair it | [Readiness, repair, and the human steps](#readiness-repair-and-the-human-steps) |
 | Create the route and the remote home | [Provision a route](#provision-a-route) |
+| Change a live route's Herdr session | [Explicit session migration](#explicit-session-migration) |
 | Launch, recover, message, and read a remote second mate | [Normal operation](#normal-operation) |
 | Move queued work to the remote home | [Backlog handoff](#backlog-handoff) |
 | Push configuration, relaunch, update, or retire | [Sync, update, and retirement](#sync-update-and-retirement) |
@@ -25,7 +30,9 @@ The remote second-mate agent runs on one of two session-provider backends, selec
 [Launch selection and placement](#launch-or-recover) define the backend contract.
 Provisioning checks any available supported backend; launch checks the selected one.
 
-- `fm-remote` is reserved for remote fleet work and must not be used for personal work.
+- The route's persisted Herdr session is reserved for its fleet work; legacy routes select `fm-remote`.
+  Independent primaries sharing one macOS account use distinct session names and distinct remote homes.
+  This separates session contents, not account-level security: saved machine profiles remain visible client-wide.
 - The user's interactive Herdr session remains `default` and is not a remote-secondmate prerequisite.
 - Herdr's remote-session server belongs to the host's own GUI login session rather than to the SSH connection.
   As a result, the agent's endpoint survives every disconnection the primary's supervision depends on.
@@ -257,7 +264,7 @@ The script's own header owns the full line protocol.
 
 ### Repair with --fix
 
-`--fix` repairs only the automatable gaps and is safe to rerun:
+`--fix` repairs only the automatable gaps; observe the Herdr concurrency restriction below before rerunning it:
 
 ```sh
 bin/fm-on.sh <secondmate-id|ssh-alias> fm-remote-doctor.sh --fix
@@ -266,12 +273,25 @@ bin/fm-on.sh <secondmate-id|ssh-alias> fm-remote-doctor.sh --fix
 Over the plain SSH doctor bootstrap, it writes and reloads the applicable Firstmate-owned launch agents on macOS:
 
 - `dev.firstmate.remote-job`.
-- `dev.firstmate.herdr.fm-remote`.
+- The selected session's `dev.firstmate.herdr.<session>` agent, with a same-label plist under `~/Library/LaunchAgents/` and log under `~/Library/Logs/`.
+  Legacy routes retain their existing paths byte-for-byte; case-folded label or path collisions refuse before repair writes anything.
 
 Both are scoped with `LimitLoadToSessionType=Aqua` and bootstrapped in `gui/<uid>`.
 The Herdr agent applies only to the herdr backend; a rex-verified host needs only the remote-job worker there.
-Under `--backend rex --fix`, it also starts the account's persistent rex server when none answers.
-It never stops or restarts an answering server, because a stop ends every process in that server's sessions, including unrelated work and sibling agents, and a restore brings back only shells.
+A persisted route session is authoritative, including custom names and the legacy no-option `fm-remote` contract.
+Only a root without an assigned session receives the root-derived default allocation; it never overrides a route or migrates an endpoint.
+The doctor records the owning code root for each selected service.
+A session claimed by a different root is refused with a collision error naming the session and both roots, never silently redirected, renamed, or adopted.
+[`bin/fm-remote-herdr-identity-lib.sh`](../bin/fm-remote-herdr-identity-lib.sh) owns allocation and service-ownership checks; the route and endpoint validators retain their persisted identity contract.
+A legacy service without an owner record is adopted only when its existing launch-agent guard proves the current root owns it; otherwise the doctor leaves it alone and reports the ownership gap.
+An operator's `--fix` refuses to rewrite, reload, or restart a Herdr service owned by another code root, one whose owner cannot be proven, or one whose pane list shows live panes or cannot be read; it reports the service and its owner instead.
+Readiness runs its unattended repair as `--fix --automatic`, which never stops, boots out, replaces, reloads, or takes over a running Herdr server or a loaded Herdr launch agent, because launchd can restart that server and a mate can create a pane in it at any moment.
+It can record ownership, install and bootstrap an unloaded agent for a stopped server, or start a stopped server through an already matching loaded agent; destructive Herdr repairs remain operator actions.
+A reload never force-restarts the freshly bootstrapped server.
+The operator's explicit `--fix` keeps a residual risk that automatic readiness does not: its empty-pane proof is taken before it boots out, reloads, or authorizes the guard to take the session over, and nothing stops a mate from creating a pane in that window, so a pane created concurrently during its repair is closed.
+Run an explicit `fm-remote-doctor.sh --fix` only when no mate is being launched, relaunched, or recovered on that account.
+Under `--backend rex --fix`, the doctor starts the account's persistent Rex server only when none answers.
+It never stops or restarts an answering Rex server, because a stop ends every process in that server's sessions, including unrelated work and sibling agents, and a restore brings back only shells.
 An answering exit-empty server is reported as a human gap: at a time when nothing runs there, an operator runs `rex server stop` and then `rex server start` on that account, and rex stays not ready until then.
 Because Rex starts a missing server as exit-empty, nothing else Firstmate runs for a remote second mate starts one: while no server answers, the remote endpoint state reads `unreadable`, and recovery waits for this repair to start the persistent server.
 
@@ -291,18 +311,11 @@ Every claude pane under such a server falls back to a stale plaintext credential
 ### How the guard converges on one server
 
 Herdr's own SSH remote attach starts a server born in another session when it finds none.
-At boot, that server wins the `fm-remote` socket, because sshd accepts connections before the login session exists.
-The guard is what makes the launch agent converge.
-It acts on whichever server owns the `fm-remote` socket:
-
-| Socket owner | Guard action |
-| --- | --- |
-| Nothing | Execs the server in the foreground under launchd. |
-| An Aqua-born server | Exits 0. |
-| Any other (foreign) server | Stops the foreign server and takes the session over, closing its panes so the parent firstmate relaunches its mates into the Aqua-born server. |
-
-`KeepAlive={SuccessfulExit=false}` lets that exit 0 rest instead of respawning against a held socket.
-The guard's header owns the decision table, and [`bin/fm-remote-herdr-owner-lib.sh`](../bin/fm-remote-herdr-owner-lib.sh) owns the birth markers it reads.
+At boot, that server can win the selected session's socket, because sshd accepts connections before the login session exists.
+The [guard's header](../bin/fm-remote-herdr-guard.sh) owns the startup decision table and one-shot operator authorization mechanism; the [repair safety rules above](#repair-with---fix) explain when takeover is allowed and its concurrency risk.
+Unproven or contradictory process ownership refuses takeover and requires explicit recovery.
+`KeepAlive={SuccessfulExit=false}` lets a successful guard exit rest instead of respawning against a held socket.
+[`bin/fm-remote-herdr-owner-lib.sh`](../bin/fm-remote-herdr-owner-lib.sh) owns the birth markers it reads.
 
 ### Other repairs and limits
 
@@ -310,13 +323,14 @@ The guard's header owns the decision table, and [`bin/fm-remote-herdr-owner-lib.
 
 - It starts the same workers directly on Linux.
 - It recreates the `~/.local/bin/fm-remote-entrypoint.sh` symlink when it is absent.
+  An existing link to another Firstmate checkout's entrypoint is accepted as is, because every call names its code root, so a second code root on the account never repoints the first one's link.
 - It creates only Firstmate-owned required-tool wrappers that it can prove resolve to a version-manager target.
   It stops after one harness satisfies the at-least-one requirement, which is the harness line of the [required remote tools](#required-remote-tools).
 
 Its limits:
 
 - It never installs packages or overwrites a non-Firstmate file at a reserved wrapper path.
-- The dedicated Herdr launch agent owns only the remote-secondmate `fm-remote` server.
+- The dedicated Herdr launch agent owns only the selected remote session's server.
   It does not inspect, rewrite, start, stop, or require the user's interactive `default` session or its `dev.firstmate.herdr` launch agent.
 - It re-derives every check from the host afterwards, so what it prints is the state after the repair rather than the intent of one.
 
@@ -346,13 +360,18 @@ A file at `~/.local/bin/fm-remote-entrypoint.sh` that is not Firstmate's own sym
 2. Then run:
 
 ```sh
-bin/fm-remote-home-seed.sh <id> <ssh-alias> <remote-root> <remote-home> {<project>[=<origin-url>]...|--no-projects}
+bin/fm-remote-home-seed.sh [--herdr-session NAME] <id> <ssh-alias> <remote-root> <remote-home> {<project>[=<origin-url>]...|--no-projects}
 ```
 
 | Argument | Meaning |
 | --- | --- |
 | `<remote-root>` | The remote Firstmate code clone that supplies tracked scripts. |
 | `<remote-home>` | A separate absolute path for the persistent secondmate home that must not overlap the code root. |
+
+The optional seed session is validated before SSH or mutation and persisted before readiness runs.
+Omission or explicit `fm-remote` writes the legacy record shape.
+The [route schema](../.agents/skills/secondmate-provisioning/SKILL.md#routing-table) owns naming, validation, and upgrade order; use [explicit session migration](#explicit-session-migration) rather than editing the session beneath a live endpoint.
+The shared SSH job worker remains account-owned and session-neutral.
 
 ### Project origins
 
@@ -388,7 +407,7 @@ So each of these projects is refused rather than provisioned:
 
 The seed takes these steps:
 
-1. It records `host:`, `root:`, and `home:` in `data/secondmates.md`.
+1. It records the remote binding in `data/secondmates.md` using the [route schema](../.agents/skills/secondmate-provisioning/SKILL.md#routing-table).
 2. It gates the host on readiness.
 3. It sends a bounded manifest.
 4. It lets the remote host clone its own Firstmate home and project origins.
@@ -399,13 +418,8 @@ Launch records are created only when the secondmate is launched.
 
 ### The seed's readiness gate
 
-The seed gates readiness in these steps:
-
-1. The seed runs a read-only check.
-2. When that check reports a gap, it runs `--fix`.
-3. It then runs a second read-only check, whose verdict decides.
-
-So the operator never has to run the repair by hand, and a repair is never trusted on its own word.
+The seed uses [`bin/fm-remote-readiness-lib.sh`](../bin/fm-remote-readiness-lib.sh)'s check, automatic repair, and read-only recheck gate.
+The [repair safety rules](#repair-with---fix) distinguish unattended repairs from gaps requiring an operator; older doctors that cannot accept safe automatic repair are left not ready rather than retried with unrestricted `--fix`.
 When a host stays red, the seed prints the doctor's remaining gaps and their operator steps, restores the registry, and creates nothing on the remote host.
 
 ### Failure and rollback
@@ -428,6 +442,46 @@ Local secondmates keep the existing route form and need no migration.
 A fleet may contain local and remote routes together.
 Use `bin/fm-home-seed.sh validate` to validate either form.
 
+## Explicit session migration
+
+`bin/fm-remote-session-migrate.sh` is the supported explicit operation for changing an existing remote Herdr route's session.
+Obtain approval for the exact live route separately from delivering this command.
+It never runs automatically during seed, readiness repair, launch, or recovery.
+Run it from the owning primary with an explicit `FM_HOME`, route ID, and target name:
+
+```sh
+FM_HOME=/absolute/primary bin/fm-remote-session-migrate.sh fpl fm-remote-personal
+```
+
+The operation proceeds in this order:
+
+1. Resolve one registered remote route and its agreeing parent and remote endpoint records, validate the explicit target with the existing naming grammar, and refuse a registered or existing session-name collision.
+2. Require positive recorded idle evidence for the source mate, or proof that its agent has already stopped; busy, unresponsive, and unknown activity require quiescing the mate and re-running without force.
+3. Record the source session, target, and endpoint snapshots durably, then create and verify the destination through the ordinary session-birth owner.
+4. Gracefully exit only the idle source mate through the plain exit adapter and prove it absent, preserving its terminal; no relaunch journal is written and no second agent starts while absence is unproven.
+5. Prepare an agent-less destination terminal, publish the route and both endpoint records as one logical binding, then launch the mate there and verify that its normal remote route answers.
+
+The original session and server are left alone, including any sibling fleet sharing them; retiring that session is a separate decision.
+The mate home, configuration, instructions, records, projects, custody, and pins are not relocated.
+The execution code root is unchanged; this command accepts no root-move option.
+Execution-root relocation requires a follow-up: transport validates the configured root against the parent binding and executes commands from that checkout, so a safe root repoint needs coordinated root validation and binding publication beyond this session-only operation.
+Root-only and combined session/root relocation, including reversal to a previous root, are not supported here.
+
+Refusals state the reason: invalid or reserved name, duplicate route/name, disagreeing endpoint, failed session birth, unconfirmed source exit, or a destination mate that does not answer.
+A failure before publication keeps the route on its old session and reports that fact.
+Each replaced record is atomic; an interrupted cross-host publication is unavailable to ordinary route access until the same command completes its saved snapshots, rather than exposing a usable mixed binding.
+Re-run the exact original command after resolving the reported problem, without editing the registry or endpoint records.
+A completed migration retains its previous binding; explicitly repoint back with:
+
+```sh
+FM_HOME=/absolute/primary bin/fm-remote-session-migrate.sh fpl --reverse
+```
+
+Reversal requires the same idle/absence proof and reuses the preserved source terminal in the retained previous session.
+Only its endpoint identity is restored; the mate's current launch profile and trace carrier are preserved rather than rolled back to the earlier snapshot.
+It is not a fast-forward, history rewrite, forced stop, or manual record edit.
+The [command header](../bin/fm-remote-session-migrate.sh) owns invocation and intent-storage mechanics.
+
 ## Normal operation
 
 ### Launch or recover
@@ -446,17 +500,24 @@ The primary then takes these steps:
 4. It asks the remote host to launch on that backend.
 
 A new route defaults to Herdr; pass `--backend rex` to select Rex.
-Without an explicit backend, a later launch or liveness recovery preserves the parent's recorded `remote_backend`; legacy records without that field use Herdr.
+Without an explicit backend, a later launch or liveness recovery preserves the parent's recorded `remote_backend`.
+A pre-Rex parent record may omit `remote_backend` only when its explicit Herdr session and session-qualified target exactly prove the requested complete route/home binding, with no contradictory explicit backend or duplicate identity field.
+That proof makes the parent record readable without filling any field; the remote endpoint itself still requires its native explicit backend, session, and target evidence.
 An existing endpoint on a different backend is refused rather than migrated.
 Placement is per backend:
 
-- Herdr: all remote secondmates on one host share `fm-remote` and retain separate `2ndmate-<id>` workspaces inside it.
+- Herdr: the route selects its persisted session and retains a separate `2ndmate-<id>` workspace inside it.
 - Rex: each remote secondmate home gets its own `2ndmate-<id>-<hash>` session on the host's persistent personal rex server, the same placement rule a local secondmate home uses.
 
 ### Refused and unsupported launches
 
 - An explicit request for any backend other than herdr or rex is refused rather than honored, and the remote host refuses one too.
-- An existing remote endpoint recorded outside its backend's contract - a Herdr session other than `fm-remote`, or a Rex route whose recorded server is not a local `unix://` endpoint - is classified as unverified and left untouched.
+- The complete primary/route/host/code-root/home/session binding must agree with the parent record before transport and publication.
+  Remote endpoint validation requires the home marker, exactly one `kind=secondmate`, and endpoint `home` and `worktree` matching the selected remote home, alongside the backend's explicit identity evidence.
+  Custom-session requests carry the requested route ID and, when parent metadata exists, its expected backend and target to the route-aware execution boundary.
+  Legacy requests preserve their existing wire arguments: control commands carry the route ID positionally, while doctor and direct file/inheritance commands derive it from the selected home's marker and do not receive the parent's expected backend or target.
+  Missing required endpoint evidence or a detected disagreement refuses with all records preserved: no adoption, fallback, automatic move, deletion, or forced retirement.
+- An existing remote endpoint recorded outside its backend's contract - a Herdr session other than the persisted route session, or a Rex route whose recorded server is not a local `unix://` endpoint - is classified as unverified and left untouched.
   Launch, liveness recovery, control, and retirement refuse it until an operator explicitly migrates it, instead of attempting a live cutover.
 - A launch after a host has drifted out of readiness fails with the doctor's own gap text instead of leaving a half-created endpoint.
 - Raw launch commands are not accepted for remote secondmates.
@@ -476,12 +537,12 @@ The watcher's liveness tick applies the identical rule during ordinary supervisi
 ### Inventory reconcile for markerless routes
 
 A persistent remote route's parent metadata intentionally has no local spawn-generation marker.
-It identifies the route by its recorded host instead.
+It identifies the route by its complete recorded remote binding instead.
 The Bearings inventory-reconcile hook therefore handles these markerless routes as follows:
 
 - It accepts them.
-- It revalidates the sampled host at delivery.
-- It refuses a route that changed hosts.
+- It revalidates the sampled binding at delivery.
+- It refuses a route whose host, code root, home, session, or endpoint identity changed.
 
 [`fm-secondmate-reconcile.sh`](../bin/fm-secondmate-reconcile.sh) owns the exact cooldown, identity, and reporting contract.
 
@@ -513,6 +574,7 @@ Either outcome preserves this ordinary reply-bearing request's pending-reply exp
 If delivery remains unconfirmed, only the exact `FM_PENDING_REPLY_EXISTING_CORR=<id>` resend command printed by `fm-send` is safe to run later.
 That command preserves the request body and lets the remote enqueue deduplicate onto the same record.
 A plain rerun mints a different correlation and is not idempotent.
+Resend eligibility also depends on the [pending-reply binding guard](../bin/fm-pending-reply-lib.sh); an old correlation cannot be reused against a changed or unproved remote binding.
 When deduplication finds that the worker already moved the matching record into `handled/`, the resend exits successfully without ringing the doorbell again.
 
 ### Swallowed doorbells
@@ -660,6 +722,11 @@ Locked startup convergence and `bin/fm-config-push.sh` transfer only the declare
 The receiver accepts only the items its own remote Firstmate code root declares, so a remote secondmate must run code at least as new as its primary before the primary pushes newly declared inherited material it actually has: an older receiver refuses a present `config/t3code-instances`, and the remaining items of that push are skipped.
 When the primary does not have a newly declared item, the older receiver's refusal of its `absent` record counts as `unchanged` and the push continues, so a home that never configures `config/t3code-instances` converges as before.
 That item still costs one extra `absent` call on every inheritance push to a remote secondmate, on every home, including one that never selects `config/backend=t3code`: the remote job worker runs one home's commands one after another, and the lifecycle test legs that push inheritance measure about 5-12% slower; an older remote code root tolerates the call as above.
+Lost or restored sender counters recover automatically before inherited material is sent, without relaxing the receiver's rejection of delayed older writes or same-generation conflicting payloads.
+Malformed or unreadable generation state stops the push before inherited payloads change.
+Counter recovery requires a receiver that supports the generation query, so synchronize an older receiver's code before relying on recovery.
+The [`fm-remote-inherit-push.sh`](../bin/fm-remote-inherit-push.sh) header owns generation negotiation, transaction locking, and the compatibility fallback that keeps ordinary pushes to older receivers working.
+The synthetic transport regression is [`fm-remote-inherit-generation.test.sh`](../tests/fm-remote-inherit-generation.test.sh).
 The [`secondmate-provisioning` skill](../.agents/skills/secondmate-provisioning/SKILL.md#charter-and-seed) owns the placement-specific re-read contract, including changed transfers, unchanged retries, and partial or unknown completion.
 
 ### Relaunch a live remote second mate
@@ -679,6 +746,7 @@ Move a live remote second mate onto a newly pinned harness, model, or effort wit
 Session start and every remote launch converge the persistent remote home on the primary's own default-branch commit rather than on the Firstmate copy that host keeps.
 The [`secondmate-provisioning` skill](../.agents/skills/secondmate-provisioning/SKILL.md) owns the guarded convergence contract, including the distinct `/updatefirstmate` behavior, and [`bin/fm-remote-secondmate-control.sh`](../bin/fm-remote-secondmate-control.sh) owns the commit-import mechanics.
 Neither session start nor launch moves the host's own Firstmate copy.
+Updates visit every registered remote home even when several share one host or code root; each home gets its own result and restart verification.
 An unsafe or unavailable target is reported and left untouched.
 A completed sync reports which watched instruction paths its advance changed.
 The primary needs that fact because it cannot diff a checkout it cannot read.
@@ -699,7 +767,8 @@ It refuses while any of these holds:
 - The primary has an unfinished backlog outbox.
 - A routed reply remains unresolved.
 
-Herdr retirement closes only the retiring secondmate's panes or `2ndmate-<id>` workspace in `fm-remote`, never the shared session or a sibling's workspace or panes.
+Herdr retirement closes only the retiring secondmate's panes or `2ndmate-<id>` workspace in its recorded session, never the shared session or a sibling's workspace or panes.
+Naming does not couple session lifecycle to the primary's process or network connection.
 Rex retirement follows the [recorded-block and empty-session cleanup contract](rex-backend.md#cleanup-and-the-absence-proof), never stopping the shared server.
 SSH exit 255 preserves both the route and local records because completion is unknown.
 `--force` remains the explicit discard path and requires the same captain authority as local secondmate discard.
@@ -740,6 +809,7 @@ bin/fm-test-run.sh tests/fm-remote-job-launchagent.test.sh
 bin/fm-test-run.sh tests/fm-remote-transport-lanes.test.sh
 bin/fm-test-run.sh tests/fm-remote-doctor.test.sh
 bin/fm-test-run.sh tests/fm-remote-herdr-guard.test.sh
+bin/fm-test-run.sh tests/fm-remote-herdr-identity.test.sh
 bin/fm-test-run.sh tests/fm-project-origin.test.sh
 bin/fm-test-run.sh tests/fm-secondmate-sync.test.sh
 bin/fm-test-run.sh tests/fm-remote-reply.test.sh
@@ -748,6 +818,15 @@ bin/fm-test-run.sh tests/fm-remote-secondmate-lifecycle-e2e.test.sh
 bin/fm-test-run.sh tests/fm-remote-secondmate-omp.test.sh
 bin/fm-test-run.sh tests/fm-remote-secondmate-trace-context.test.sh
 ```
+
+### Execution-root characterization and closure audit
+
+[`remote-root-inventory.py`](../tests/remote-root-inventory.py) generates the inactive source index from tracked runtime entries and the [audit policy](../tests/fixtures/remote-root-boundaries.json); do not maintain a prose copy of its generated findings or stage map.
+Its header owns invocation and evidence limits.
+[`fm-remote-root-inventory.test.sh`](../tests/fm-remote-root-inventory.test.sh) checks index/exclusion mechanics, interpreted-module invocation mappings, and the current ingress's protocol-2 refusal, not named runtime admission.
+The no-enrollment fixtures are [`fm-remote-legacy-golden.test.sh`](../tests/fm-remote-legacy-golden.test.sh), [`fm-remote-legacy-cleanup.test.sh`](../tests/fm-remote-legacy-cleanup.test.sh), and [`fm-remote-root-characterization.test.sh`](../tests/fm-remote-root-characterization.test.sh); their headers own baseline selection and sandboxing.
+[`fm-remote-legacy-mutation.test.sh`](../tests/fm-remote-legacy-mutation.test.sh) verifies that deliberately broken implementations fail those frozen observations.
+The candidate runner and descendant processes constrain a future command shape; they do not qualify an installed launcher, a real adapter, or mixed-account cleanup.
 
 ### What the portable tests cannot prove
 

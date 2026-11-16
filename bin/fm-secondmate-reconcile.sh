@@ -91,6 +91,8 @@ STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
 
 # shellcheck source=bin/fm-wake-lib.sh
 . "$SCRIPT_DIR/fm-wake-lib.sh"
+# shellcheck source=bin/fm-secondmate-registry-lib.sh
+. "$SCRIPT_DIR/fm-secondmate-registry-lib.sh"
 
 # One nudge per home per four hours.
 FM_RECONCILE_COOLDOWN_SECONDS=${FM_RECONCILE_COOLDOWN_SECONDS:-14400}
@@ -162,16 +164,17 @@ meta_remote_host() {
 
 # revalidate_identity <meta> <sampled_spawn_gen> <sampled_host>
 # Confirms the row's sampled identity still matches the mate's current
-# metadata. When a spawn generation was sampled, that generation alone is the
-# identity, exactly as before. When none was sampled - the only legitimate
-# case is a persistent remote secondmate, whose parent metadata never carries
-# one - the sampled host substitutes, and the metadata must still carry no
-# spawn_gen of its own or the row's assumed identity model no longer holds.
+# metadata. Local rows use their sampled spawn generation. Persistent remote
+# rows instead require the exact sampled parent binding, including session,
+# alongside the host and the absence of a local spawn generation.
 # Sets REVALIDATE_REASON to "no-identity" (nothing here can be safely
 # identified; report failed) or "stale" (identified, but changed; report
 # stale) on any non-zero return.
 revalidate_identity() {  # <meta> <sampled_spawn_gen> <sampled_host>
   local meta=$1 sampled_gen=$2 sampled_host=$3 cur_gen='' cur_host=''
+  if [ -n "$sampled_host" ] && { [ -z "$sampled_binding" ] || [ "$(secondmate_registry_parent_binding "$meta")" != "$sampled_binding" ]; }; then
+    REVALIDATE_REASON=stale; return 1
+  fi
   if [ -f "$meta" ] && [ ! -L "$meta" ]; then
     cur_gen=$(meta_spawn_gen "$meta")
     cur_host=$(meta_remote_host "$meta")
@@ -446,22 +449,23 @@ cmd_notify() {
   rows=$(printf '%s' "$snapshot" | jq -r --arg sep "$row_sep" '
     (if .schema == "fm-bearings.v1" then
        (.secondmate_reconcile // [])[]
-       | {id, spawn_gen:(.spawn_gen // ""), host:(.host // ""), kind:(.kind // ""), ids:(.ids // [])}
+       | {id, spawn_gen:(.spawn_gen // ""), host:(.host // ""), session:(.session // ""), binding:(.remote_binding // ""), kind:(.kind // ""), ids:(.ids // [])}
      else
        (.secondmate_current.records // [])[]
        | select(.reconcile_inventory != null)
-       | {id, spawn_gen:(.spawn_gen // ""), host:(.host // ""), kind:(.reconcile_inventory.kind // ""), ids:(.reconcile_inventory.ids // [])}
+       | {id, spawn_gen:(.spawn_gen // ""), host:(.host // ""), session:(.session // ""), binding:(.remote_binding // ""), kind:(.reconcile_inventory.kind // ""), ids:(.reconcile_inventory.ids // [])}
      end)
     | select((.id | type) == "string" and (.id | test("^[A-Za-z0-9._-]+$")))
     | select((.spawn_gen | type) == "string" and (.spawn_gen | test("^[A-Za-z0-9._-]*$")))
     | select((.host | type) == "string" and (.host | test("[[:cntrl:]]") | not))
     | .kind as $kind
     | select(["orphan_in_flight","unowned_current","terminal_in_flight"] | index($kind))
-    | [.id, .spawn_gen, .host, $kind]
+    | select((.session | test("^[A-Za-z0-9._-]*$")) and (.binding | test("^[A-Za-z0-9+/=]*$")))
+    | [.id, .spawn_gen, .host, $kind, .session, .binding]
     | join($sep)')
 
-  local id sampled_spawn_gen sampled_host expected_remote_host kind path last age now delivered_at reconcile_lock control_lock meta meta_lock did send_rc
-  while IFS=$'\037' read -r id sampled_spawn_gen sampled_host kind; do
+  local id sampled_spawn_gen sampled_host expected_remote_host kind path last age now delivered_at reconcile_lock control_lock meta meta_lock did send_rc sampled_session sampled_binding
+  while IFS=$'\037' read -r id sampled_spawn_gen sampled_host kind sampled_session sampled_binding; do
     [ -n "${id:-}" ] || continue
     path=$(nudge_path "$id")
     reconcile_lock="$STATE/.$id.reconcile.lock"
@@ -524,6 +528,7 @@ cmd_notify() {
     send_rc=0
     FM_TASK_INBOX_LOCK_WAIT_SECS=0 FM_SEND_EXPECTED_SPAWN_GEN="$sampled_spawn_gen" \
       FM_SEND_EXPECTED_REMOTE_HOST="$expected_remote_host" \
+      FM_SEND_EXPECTED_REMOTE_SESSION="$sampled_session" FM_REMOTE_EXPECTED_PARENT_BINDING="$sampled_binding" \
       "$SCRIPT_DIR/fm-send.sh" "$id" --fire-and-forget "$did" \
       "$(reconcile_text)" >/dev/null 2>&1 || send_rc=$?
     # exit 3 is "typed but unconfirmed": the mate may already hold the ask, so

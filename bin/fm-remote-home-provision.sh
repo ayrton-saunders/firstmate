@@ -23,6 +23,10 @@ set -eu
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
+# shellcheck source=bin/fm-remote-endpoint-lib.sh
+. "$SCRIPT_DIR/fm-remote-endpoint-lib.sh"
+fm_remote_endpoint_command_options "$@" || exit 2
+shift "$FM_REMOTE_COMMAND_OPTION_COUNT"
 FM_HOME=${FM_HOME:?FM_HOME is required}
 MAX_MANIFEST_BYTES=1048576
 
@@ -116,6 +120,7 @@ if [ -n "$PARENT_HOST_B64" ]; then
 fi
 ID=$(cat "$TMP/id")
 safe_id "$ID" || die "manifest carries an unsafe secondmate id"
+[ -z "$FM_REMOTE_ROUTE_ID" ] || [ "$FM_REMOTE_ROUTE_ID" = "$ID" ] || die "manifest disagrees with the requested route id"
 case "$COUNT" in ''|*[!0-9]*) die "manifest project count is invalid" ;; esac
 [ -s "$TMP/charter" ] || die "manifest charter is empty"
 [ -z "$(LC_ALL=C tr -cd '\000' < "$TMP/charter")" ] || die "manifest charter contains NUL bytes"
@@ -160,6 +165,10 @@ if [ -e "$FM_HOME" ] || [ -L "$FM_HOME" ]; then
         || die "remote home has unsafe operational directory: $operational_dir"
     fi
   done
+  if [ -e "$FM_HOME/.fm-secondmate-home" ] || [ -L "$FM_HOME/.fm-secondmate-home" ]; then
+    [ "$(<"$FM_HOME/.fm-secondmate-home")" = "$ID" ] || die "existing remote home belongs to another secondmate"
+    fm_remote_endpoint_guard "$FM_REMOTE_COMMAND_SESSION" provision || exit 1
+  fi
   mkdir -p "$TMP/before/data"
   for rel in data/charter.md data/projects.md .fm-secondmate-home .fm-secondmate-parent; do
     existing="$FM_HOME/$rel"

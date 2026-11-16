@@ -39,6 +39,11 @@
 # retry are distinguishable. The binding is recorded before announcement, so a
 # crash between save and wake still replays the original note. Without
 # --request-id the historical one-note-per-call behaviour is unchanged.
+# A trusted local FM_DISCORD_DOMAIN on `note` is slug-validated and recorded as
+# discord_domain=<slug> before the body delimiter. `reply` uses that stored
+# binding for the outcome hook, not message text or its ambient environment.
+# Unmarked notes keep global-only outcome handling; only failed bound outcomes
+# require domain reconciliation. Existing saved notes are never relabeled.
 # `announce` repairs the wake for an already-saved note without creating another.
 # A note already acknowledged (in handled/) gets no wake from `announce` or a
 # request-id replay; both report it as acknowledged and exit 0.
@@ -484,7 +489,11 @@ queue_note() {
 }
 
 cmd_note() {
-  local body json=0 request_id=""
+  local body json=0 request_id="" extra=""
+  if [ "${FM_DISCORD_DOMAIN+x}" = x ]; then
+    [[ "$FM_DISCORD_DOMAIN" =~ ^[a-z][a-z0-9-]{0,47}$ ]] || die "invalid trusted Discord domain binding"
+    extra="discord_domain=$FM_DISCORD_DOMAIN"
+  fi
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --json) json=1; shift ;;
@@ -509,7 +518,7 @@ cmd_note() {
   else
     body="$*"
   fi
-  queue_note text "$body" "" "$request_id" "$json"
+  queue_note text "$body" "$extra" "$request_id" "$json"
 }
 
 cmd_announce() {
@@ -602,7 +611,8 @@ next_reply_seq() {
 }
 
 cmd_reply() {
-  local json=0 id body path staging seq reply_digest
+  local json=0 id body path staging seq reply_digest domain_header domain run_outcome=0
+  local -a outcome_env=(env -u FM_DISCORD_DOMAIN "FM_HOME=$FM_HOME")
   if [ "${1:-}" = "--json" ]; then
     json=1
     shift
@@ -647,10 +657,24 @@ cmd_reply() {
   } >"$staging"
   mv "$staging" "$REPLIES/$id"
   fm_lock_release "$REPLY_SEQ_LOCK"
+  # The trusted capture header owns the outcome binding; never infer it from
+  # the reply session, the note body or the mere existence of domain configs.
+  domain_header=$(awk '/^--$/ { exit } /^discord_domain=/ { print }' "$path")
+  if [ -n "$domain_header" ]; then
+    domain=${domain_header#discord_domain=}
+    if [[ "$domain" =~ ^[a-z][a-z0-9-]{0,47}$ ]]; then
+      outcome_env=(env "FM_HOME=$FM_HOME" "FM_DISCORD_DOMAIN=$domain")
+      run_outcome=1
+    else
+      echo 'warning: reply recorded; invalid stored Discord domain binding needs reconciliation, do not resend' >&2
+    fi
+  elif [ -e "$FM_HOME/config/discord-integration.json" ]; then
+    run_outcome=1
+  fi
   # Record only the private reply digest; the parent approves any public final.
-  if [ -e "$FM_HOME/config/discord-integration.json" ]; then
+  if [ "$run_outcome" -eq 1 ]; then
     reply_digest=$(shasum -a 256 "$REPLIES/$id" | awk '{print $1}')
-    if ! printf '%s' "$reply_digest" | FM_HOME="$FM_HOME" python3 -I "$SELF_DIR/fm-discord-hook.py" outcome "$id"; then
+    if ! printf '%s' "$reply_digest" | "${outcome_env[@]}" python3 -I "$SELF_DIR/fm-discord-hook.py" outcome "$id"; then
       echo 'warning: reply recorded; Discord final needs reconciliation, do not resend' >&2
     fi
   fi
@@ -1210,7 +1234,7 @@ cmd_list() {
 }
 
 cmd_drain() {
-  if [ -e "$FM_HOME/config/discord-integration.json" ]; then
+  if [ "${FM_DISCORD_DOMAIN+x}" = x ] || [ -e "$FM_HOME/config/discord-integration.json" ]; then
     if ! FM_HOME="$FM_HOME" python3 -I "$SELF_DIR/fm-discord-hook.py" ready; then
       echo 'warning: Discord readiness not renewed; saved requests remain unaccepted' >&2
     fi

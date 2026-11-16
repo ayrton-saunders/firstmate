@@ -382,10 +382,6 @@
       "audience": "operator-current"
     },
     {
-      "path": "docs/discord-owner-reply-pins.md",
-      "audience": "operator-current"
-    },
-    {
       "path": "docs/extension-bindings.md",
       "audience": "maintainer-architecture"
     },
@@ -419,6 +415,10 @@
     },
     {
       "path": "docs/fm-test-portable-shards.md",
+      "audience": "maintainer-verification"
+    },
+    {
+      "path": "docs/ci-pull-request-jobs.md",
       "audience": "maintainer-verification"
     },
     {
@@ -675,6 +675,10 @@
     },
     {
       "path": ".agents/skills/away-quiet-supervision/SKILL.md",
+      "audience": "agent-runtime"
+    },
+    {
+      "path": ".agents/skills/lavish-url/SKILL.md",
       "audience": "agent-runtime"
     },
     {

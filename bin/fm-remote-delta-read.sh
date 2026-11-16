@@ -28,6 +28,11 @@
 set -eu
 
 FM_HOME=${FM_HOME:?FM_HOME is required}
+# shellcheck source=bin/fm-remote-endpoint-lib.sh
+. "$(dirname "${BASH_SOURCE[0]}")/fm-remote-endpoint-lib.sh"
+fm_remote_endpoint_command_options "$@" || exit 2
+shift "$FM_REMOTE_COMMAND_OPTION_COUNT"
+fm_remote_endpoint_guard "$FM_REMOTE_COMMAND_SESSION" || exit 1
 MAX_BYTES=${FM_REMOTE_DELTA_MAX_BYTES:-65536}
 POLL_SECONDS=${FM_REMOTE_DELTA_POLL_SECONDS:-0.5}
 

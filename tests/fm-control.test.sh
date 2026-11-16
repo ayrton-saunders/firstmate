@@ -1087,6 +1087,31 @@ test_idle_agent_is_not_interrupted() {
   pass "fm-control exit: an idle agent goes straight to its exit command"
 }
 
+test_idle_only_exit_refuses_busy_and_unknown() {
+  local dir out rc gen state
+  for state in busy unknown idle; do
+    dir=$(new_case "idle-only-$state")
+    add_task "$dir" t1 claude
+    alive_as "$dir" claude
+    if [ "$state" != unknown ]; then
+      gen=$("$ROOT/bin/fm-busy-event.sh" arm "$dir/home/state" t1 --state "$state" --source fm-spawn --event seed)
+      printf 'busy_gen=%s\n' "$gen" >> "$dir/home/state/t1.meta"
+    fi
+    out=$(run_control "$dir" t1 exit --idle-only); rc=$?
+    if [ "$state" = idle ]; then
+      expect_code 0 "$rc" "idle-only exit should stop an evidenced idle agent: $out"
+      [ "$(literals "$dir")" = /exit ] || fail "idle-only exit omitted the exit command"
+    else
+      expect_code 1 "$rc" "idle-only exit accepted $state: $out"
+      assert_contains "$out" 'quiesce it and re-run' 'idle-only refusal must explain recovery'
+      [ -z "$(literals "$dir")" ] || fail "idle-only refusal typed into a $state agent"
+    fi
+    [ -z "$(keys_sent "$dir")" ] || fail "idle-only exit interrupted an agent"
+    assert_absent "$dir/home/state/t1.control-relaunch" 'plain exit wrote a relaunch journal'
+  done
+  pass 'fm-control idle-only exit refuses busy/unknown without input and exits evidenced idle without a journal'
+}
+
 test_exit_drops_meta_busy_gen_with_the_sidecar() {
   local dir out rc gen changed
   dir=$(new_case codex-retire)
@@ -1359,6 +1384,7 @@ test_interrupt_refuses_when_no_agent_runs
 test_ambiguous_endpoint_refuses
 test_busy_agent_is_interrupted_before_the_exit_command
 test_idle_agent_is_not_interrupted
+test_idle_only_exit_refuses_busy_and_unknown
 test_exit_drops_meta_busy_gen_with_the_sidecar
 test_exit_refuses_an_open_background_picker
 test_exit_refuses_the_confirming_enter

@@ -6,8 +6,9 @@
 # The command does not acquire the session lock, drain wakes, arm watchers,
 # mutate backlog state, or write reports. Its default ledger collector may
 # atomically refresh parent-side cached copies of remote home summaries under
-# state/secondmate-summary-cache; those observational cache writes are its only
-# fleet-state mutation.
+# state/secondmate-summary-cache. The delegated crew-state read may also accept
+# and persist local-only readiness under fm-dod-lib.sh's contract; the snapshot
+# itself makes no other fleet-state mutation.
 #
 # Top-level fields:
 #   schema: stable schema id.
@@ -50,7 +51,9 @@
 #     by id. A record removed before capture is omitted. If a captured task's
 #     generation changes while observations run, its selected metadata remains
 #     but mutable current-state, status, report, and endpoint evidence is discarded
-#     rather than attributed to the replacement generation.
+#     rather than attributed to the replacement generation. A local_done_head
+#     newly accepted by crew-state is adopted only when the rest of the live
+#     metadata still matches the captured record, before the generation check.
 #     Local current_state is parsed from bin/fm-crew-state.sh <id> and preserves
 #     state, source, detail, and raw line separately. Remote secondmate rows use
 #     an explicit unknown value because their endpoint liveness belongs to
@@ -64,6 +67,17 @@
 #     fm-classify-lib.sh's authoritative status_open_decisions fold and reconciled
 #     against current_state; hints.pending_decision and hints.blocked_event are
 #     booleans derived from that set.
+#     pr carries url, source, and head. For a done or failed ship, a valid PR
+#     identity reconciled by crew-state's run-step overrides a different or
+#     absent metadata PR with source "run-step" and head null; a matching
+#     metadata PR retains source "meta" and its recorded head. Otherwise the
+#     captured metadata or supported-forge status URL supplies the identity,
+#     and head is retained only when that identity matches metadata.
+#     delivery is null except on a done or failed ship, where it is
+#     {landing,via}: via is "local-only" or "pr", and landing is
+#     task_delivery_landing's landed|closed|unlanded|unknown verdict from local
+#     records only (merge-poll retirement receipt, crew-state PR disposition, or
+#     the local-only done head against the project's local default branch).
 #     endpoint.exists is the cheap local backend endpoint-presence read.
 #     endpoint.agent_alive is populated for local secondmates only, where it is
 #     useful return-channel supervision data; remote secondmates use "unknown"
@@ -85,13 +99,21 @@
 #     observed status file's mtime instead: freshness is how fresh this snapshot's
 #     own observation is, never when a worker emitted the event.
 #     Each structured-home record carries active_children, decisions_open, holds,
-#     queued, landed, endpoints, counts, and omitted. provenance.summary_source
+#     queued, landed, retained_unlanded, endpoints, counts, and omitted.
+#     retained_unlanded contains {id,state,via} rows under the inventory rule
+#     described by --help, bounded by FM_SNAPSHOT_SECONDMATE_CHILDREN; counts
+#     records its full size and omitted discloses any truncated rows. Older
+#     summaries without this field project null.
+#     provenance.summary_source
 #     distinguishes "local-ledger", "remote-ledger", and "remote-ledger-cache";
 #     freshness is "cached" only for the cache source, and observed_at/age_seconds
 #     come from the selected summary's generation. Every successfully sampled home also carries
 #     reconcile_inventory independently of projection trust.
 #     Actionable captain holds appear in decisions_open; every captain hold remains
 #     in the bounded queued inventory with its structured classification metadata.
+#     Generated captain-hold rows in decisions_open and queued carry the full
+#     question for presentation; their overview summary, reason, title, and
+#     hold_reason fields stay bounded.
 #     Before that queued bound is applied, non-captain-actionable rows are selected
 #     ahead of captain-actionable rows so separately projected live decisions cannot
 #     crowd Charted-Next-eligible work out of the summary. Each group is ordered by
@@ -125,6 +147,8 @@ cleanup_json_files() {
 }
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=bin/fm-secondmate-registry-lib.sh
+. "$SCRIPT_DIR/fm-secondmate-registry-lib.sh"
 FM_ROOT="${FM_ROOT_OVERRIDE:-$(cd "$SCRIPT_DIR/.." && pwd)}"
 FM_HOME="${FM_HOME:-${FM_ROOT_OVERRIDE:-$FM_ROOT}}"
 STATE="${FM_STATE_OVERRIDE:-$FM_HOME/state}"
@@ -229,6 +253,14 @@ esac
 . "$SCRIPT_DIR/fm-merge-authority-lib.sh"
 # shellcheck source=bin/fm-hold-reason-lib.sh
 . "$SCRIPT_DIR/fm-hold-reason-lib.sh"
+# fm_dod_local_done_head and, through fm-pr-lib.sh, the merge-poll retirement
+# receipt check: the local landing evidence read by task_delivery_landing.
+# shellcheck source=bin/fm-dod-lib.sh
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/fm-dod-lib.sh"
+# shellcheck source=bin/fm-tangle-lib.sh
+# shellcheck disable=SC1091
+. "$SCRIPT_DIR/fm-tangle-lib.sh"  # fm_default_branch
 
 usage() {
   cat <<'EOF'
@@ -248,6 +280,12 @@ aggregation, includes generated_epoch for freshness arithmetic, and marks
 inventory contradictions or unavailable child state invalid.
 kind=secondmate meta records are not child inventory for unowned_current or
 terminal_in_flight; they never have backlog rows.
+A done or failed ship whose in-flight row and metadata are retained because its
+delivery has not landed - its worker copy is present and its delivery landing
+reads unlanded (a recorded PR with no merge receipt and no merged or closed
+disposition, or a local-only done head absent from the local default branch) -
+is listed in retained_unlanded and is not terminal_in_flight. Landed, closed,
+unknown, PR-less, and worker-copy-less terminal children stay terminal_in_flight.
 Its invalidity object names the normalized failure kind and affected ids.
 Actionable tasks-axi captain holds appear as decisions_open and stay visible in
 queued with hold_reason, hold_kind, hold_until,
@@ -377,8 +415,15 @@ status_event_json() {  # <observed-status-log> [<contract-path>]
 }
 
 first_pr_url_in_file() {  # <file>
+  local url
   [ -f "$1" ] || return 1
-  grep -Eo 'https?://[^[:space:])"]+/pull/[0-9]+' "$1" 2>/dev/null | head -1
+  while IFS= read -r url; do
+    if fm_pr_url_parse "$url"; then
+      printf '%s\n' "$url"
+      return 0
+    fi
+  done < <(grep -Eo 'https://[^[:space:]<>)"]+' "$1" 2>/dev/null)
+  return 1
 }
 
 # Isolate this read-only projection from the fleet collector's shell state.
@@ -631,7 +676,7 @@ snapshot_task_generation_is_current() {  # <captured-meta> <id>
 
 prefetch_task_observations() {  # <meta> <id>
   local meta=$1 id=$2 remote_host current_file endpoint_file current_pid='' current_rc=0
-  local status_log status_capture report_path report_capture
+  local status_log status_capture report_path report_capture accepted_meta
   local kind backend target endpoint_exists=null agent_alive=not_checked generation_current=1
   remote_host=$(meta_value "$meta" remote_host)
   current_file="$SNAPSHOT_TASK_DIR/$id.json"
@@ -674,6 +719,15 @@ prefetch_task_observations() {  # <meta> <id>
   fi
 
   [ -z "$current_pid" ] || wait "$current_pid" || current_rc=1
+  if [ "$(meta_value "$meta" mode)" = local-only ] && ! grep -q '^local_done_head=' "$meta"; then
+    accepted_meta="$SNAPSHOT_TASK_DIR/$id.accepted-meta"
+    if cp -- "$STATE/$id.meta" "$accepted_meta" 2>/dev/null \
+      && fm_dod_local_done_head "$accepted_meta" >/dev/null 2>&1 \
+      && [ "$(grep -v '^local_done_head=' "$accepted_meta")" = "$(<"$meta")" ]; then
+      mv -- "$accepted_meta" "$meta" || current_rc=1
+    fi
+    rm -f -- "$accepted_meta"
+  fi
   # All mutable observations must belong to the metadata generation captured in
   # the manifest. If teardown/relaunch raced any read, discard the whole sample.
   if ! snapshot_task_generation_is_current "$meta" "$id"; then
@@ -741,12 +795,55 @@ prefetch_task_current_states() {
   fi
 }
 
+# Landing evidence for a terminal ship's delivery, read only from records this
+# home already holds (no forge call of its own). Prints one word, or nothing
+# when the task is not a done or failed ship:
+#   landed   - the merge poller's retirement receipt matches the recorded PR,
+#              crew state reports the PR merged, or a local-only done head is
+#              already contained in the project's local default branch
+#   closed   - crew state reports the PR closed without merging
+#   unlanded - a recorded PR with none of the above, or a local-only done head
+#              that exists in the project but its local default branch lacks
+#   unknown  - no delivery identity, or a local-only read that cannot answer
+# The home-summary classifier owns what each value means for inventory validity.
+task_delivery_landing() {  # <id> <kind> <mode> <state> <detail> <pr> <captured-meta>
+  local id=$1 kind=$2 mode=$3 state=$4 detail=$5 pr=$6 meta=$7 head project default rc
+  [ "$kind" = ship ] || return 0
+  case "$state" in done|failed) ;; *) return 0 ;; esac
+  if [ "$mode" = local-only ]; then
+    head=$(fm_dod_local_done_head "$meta" 2>/dev/null) || { printf 'unknown'; return 0; }
+    project=$(meta_value "$meta" project)
+    case "$project" in /*) ;; *) printf 'unknown'; return 0 ;; esac
+    default=$(fm_default_branch "$project" 2>/dev/null) || { printf 'unknown'; return 0; }
+    git -C "$project" cat-file -e "$head^{commit}" 2>/dev/null || { printf 'unknown'; return 0; }
+    rc=0
+    git -C "$project" merge-base --is-ancestor "$head" "refs/heads/$default" 2>/dev/null || rc=$?
+    case "$rc" in
+      0) printf 'landed' ;;
+      1) printf 'unlanded' ;;
+      *) printf 'unknown' ;;
+    esac
+    return 0
+  fi
+  [ -n "$pr" ] || { printf 'unknown'; return 0; }
+  if fm_pr_poll_retirement_receipt_valid "$STATE" "$id" 2>/dev/null \
+    && [ "$FM_PR_RETIRE_URL" = "$pr" ]; then
+    printf 'landed'
+    return 0
+  fi
+  case "$detail" in
+    *"run passed: PR merged"*|*"checks green: PR merged"*) printf 'landed' ;;
+    *"run passed: PR closed"*|*"checks green: PR closed"*) printf 'closed' ;;
+    *) printf 'unlanded' ;;
+  esac
+}
+
 task_json_lines() {
   local meta original_meta id kind harness mode yolo project worktree home projects spawn_gen backend target status_log report_path
-  local remote_host remote_root current_file endpoint_file observation_line index=0
-  local pr pr_source event_json current_json endpoint_exists agent_alive meta_json status_json report_json worktree_json home_json
+  local remote_host remote_root remote_session remote_binding current_file endpoint_file observation_line index=0
+  local pr pr_source pr_head reconciled_pr event_json current_json endpoint_exists agent_alive meta_json status_json report_json worktree_json home_json
   local last_event_raw current_state current_source pending_decision blocked_event report_present=0 pr_from_status
-  local open_decisions_tsv open_decisions_json
+  local open_decisions_tsv open_decisions_json current_detail delivery_landing
 
   while [ "$index" -lt "$SNAPSHOT_TASK_META_COUNT" ]; do
     meta=${SNAPSHOT_TASK_METAS[index]}
@@ -766,7 +863,11 @@ task_json_lines() {
     branch=$(meta_value "$meta" branch)
     remote_host=$(meta_value "$meta" remote_host)
     remote_root=$(meta_value "$meta" remote_root)
+    remote_session=
+    remote_binding=
     if [ -n "$remote_host" ]; then
+      remote_session=$(meta_value "$meta" remote_herdr_session)
+      remote_binding=$(secondmate_registry_parent_binding "$meta")
       backend=$(meta_value "$meta" remote_backend)
       [ -n "$backend" ] || backend=unknown
       target=$(meta_value "$meta" remote_target)
@@ -797,6 +898,25 @@ task_json_lines() {
     read -r current_state current_source < <(
       printf '%s' "$current_json" | jq -r '[.state // "", .source // ""] | @tsv'
     )
+    pr_head=
+    if [ "$pr" = "$(meta_value "$meta" pr)" ]; then
+      pr_head=$(meta_value "$meta" pr_head)
+    fi
+    delivery_landing=
+    if [ "$kind" = ship ] && { [ "$current_state" = "done" ] || [ "$current_state" = failed ]; }; then
+      current_detail=$(printf '%s' "$current_json" | jq -r '.detail // ""')
+      if [ "$current_source" = run-step ]; then
+        reconciled_pr=${current_detail##*" · pr="}
+        if [ "$reconciled_pr" != "$current_detail" ] && fm_pr_url_parse "$reconciled_pr" \
+          && [ "$reconciled_pr" != "$(meta_value "$meta" pr)" ]; then
+          pr_head=
+          pr=$reconciled_pr
+          pr_source="run-step"
+        fi
+      fi
+      delivery_landing=$(task_delivery_landing "$id" "$kind" "$mode" "$current_state" \
+        "$current_detail" "$pr" "$meta")
+    fi
 
     # Durable keyed open-decision set: fold the WHOLE status stream
     # (fm-classify-lib.sh's status_open_decisions) so a later unrelated event can
@@ -870,9 +990,12 @@ task_json_lines() {
       --arg target "$target" \
       --arg remote_host "$remote_host" \
       --arg remote_root "$remote_root" \
+      --arg remote_session "$remote_session" \
+      --arg remote_binding "$remote_binding" \
       --arg pr "$pr" \
       --arg pr_source "$pr_source" \
-      --arg pr_head "$(meta_value "$meta" pr_head)" \
+      --arg pr_head "$pr_head" \
+      --arg delivery_landing "$delivery_landing" \
       --arg agent_alive "$agent_alive" \
       --arg observed_at "$SNAPSHOT_NOW" \
       --arg last_event_raw "$last_event_raw" \
@@ -897,7 +1020,7 @@ task_json_lines() {
         project:($project // ""),
         spawn_gen:($spawn_gen | if . == "" then null else . end),
         backend:$backend,
-        remote:(if $remote_host == "" then null else {host:$remote_host,root:$remote_root} end),
+        remote:(if $remote_host == "" then null else {host:$remote_host,root:$remote_root,session:$remote_session,binding:$remote_binding} end),
         paths:{
           meta:$meta_path,
           status_log:$status_log,
@@ -913,6 +1036,9 @@ task_json_lines() {
                   else "unknown" end),
           observed_at:$observed_at,freshness:"fresh"},
         pr:{url:($pr | if . == "" then null else . end),source:$pr_source,head:($pr_head | if . == "" then null else . end)},
+        delivery:(if $delivery_landing == "" then null
+                  else {landing:$delivery_landing,
+                        via:(if $mode == "local-only" then "local-only" else "pr" end)} end),
         hints:{
           pending_decision:$pending_decision,
           blocked_event:$blocked_event,
@@ -1007,6 +1133,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
          | select(.captain_actionable == true)
          | {id,key:.id,verb:"captain-hold",summary:(.title | trunc(160)),
             reason:(.hold_reason | trunc(160)),
+             question:(.title + ": " + .hold_reason),
             hold_until:(.hold_until // null),
             hold_bucket:(.hold_bucket // null),
             hold_age_days:(.hold_age_days // null),source:"backlog"} ]) as $captain_holds_all
@@ -1030,7 +1157,11 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
          | $tasks[]
          | select(.kind != "secondmate")
          | select(.id == $work.id and (.current_state.state == "done" or .current_state.state == "failed"))
-         | {id,state:.current_state.state} ]) as $terminal_in_flight
+         | {id,state:.current_state.state,
+            retained:((.delivery.landing // null) == "unlanded" and (.paths.worktree.present == true)),
+            via:(.delivery.via // null)} ]) as $terminal_matched
+    | ([ $terminal_matched[] | select(.retained) | {id,state,via} ]) as $retained_unlanded
+    | ([ $terminal_matched[] | select(.retained | not) | {id,state} ]) as $terminal_in_flight
     | ([if $backlog.present != true then
           {kind:"missing_backlog",ids:[],reason:"missing structured backlog"}
         else empty end,
@@ -1114,6 +1245,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
         decisions_open:$decisions_all[:$decisions_n],
         holds:$holds_all[:$queued_n],
         queued:([$queued_all[] | {id:(.id | trunc(120)),title:(.title | trunc(120)),
+          question:(if .hold_kind == "captain" then (.title + ": " + .hold_reason) else null end),
           blocked_by:((.blocked_by // null) | if . == null then null else trunc(120) end),
           blocked_by_ids:((.blocked_by_ids // []) | map(trunc(120))),
           unresolved_blocker_ids:((.unresolved_blocker_ids // []) | map(trunc(120))),
@@ -1131,6 +1263,7 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
              + (map(select(.captain_actionable == true)) | newest_filed_first))
           | .[:$queued_n]),
         landed:(if $landed_n == 0 then $landed_all else $landed_all[:$landed_n] end),
+        retained_unlanded:$retained_unlanded[:$child_n],
         endpoints:([$tasks[] | {id,state:.current_state.state,source:.current_state.source,
           endpoint:(.endpoint + {target:((.endpoint.target // null) | if . == null then null else trunc(240) end)})}][:$child_n]),
         counts:{
@@ -1139,12 +1272,14 @@ secondmate_home_summary_json() {  # <backlog-json-file> <tasks-json-file>
           holds:($holds_all | length),
           queued:($queued_all | length),
           landed:($landed_all | length),
+          retained_unlanded:($retained_unlanded | length),
           endpoints:($tasks | length)
         },
         omitted:[
           (if ($active_all | length) > $child_n then {surface:"active_children",count:(($active_all | length) - $child_n)} else empty end),
           (if ($decisions_all | length) > $decisions_n then {surface:"decisions_open",count:(($decisions_all | length) - $decisions_n)} else empty end),
           (if ($queued_all | length) > $queued_n then {surface:"queued",count:(($queued_all | length) - $queued_n)} else empty end),
+          (if ($retained_unlanded | length) > $child_n then {surface:"retained_unlanded",count:(($retained_unlanded | length) - $child_n)} else empty end),
           (if ($tasks | length) > $child_n then {surface:"endpoints",count:(($tasks | length) - $child_n)} else empty end),
           (if $landed_n > 0 and ($landed_all | length) > $landed_n then {surface:"landed",count:(($landed_all | length) - $landed_n)} else empty end)
         ]
@@ -1220,7 +1355,22 @@ registry_secondmates_json() {
     else
       lines_in_window=0
     fi
-    records=$(printf "%s\n" "$window" | jq -Rn "$parse_filter") || exit 3
+    . "$9/fm-secondmate-registry-lib.sh"
+    records=$(
+      while IFS= read -r line || [ -n "$line" ]; do
+        [[ "$line" == "- "* ]] || continue
+        if secondmate_registry_parse_line "$line"; then
+          printf '%s\0' "$SECONDMATE_REGISTRY_ID" "$SECONDMATE_REGISTRY_HOME" \
+            "$SECONDMATE_REGISTRY_HOST" "$SECONDMATE_REGISTRY_ROOT" "$SECONDMATE_REGISTRY_SESSION" "$SECONDMATE_REGISTRY_REMOTE" ''
+        else
+          id=${line#- }; id=${id%% *}
+          printf '%s\0' "$id" '' '' '' '' 0 'malformed secondmate registry entry'
+        fi
+      done <<< "$window" | jq -Rs '
+        split("\u0000") | . as $fields | [range(0; length-1; 7) as $i | $fields[$i:($i+7)]
+          | {id:.[0],home:.[1],host:.[2],root:.[3],session:.[4],remote:(.[5]=="1"),registered:true,registry_error:(.[6] | if .=="" then null else . end)}]'
+    ) || exit 3
+    records=$(printf "%s\n" "$records" | jq "$parse_filter") || exit 3
     records_in_window=$(printf "%s" "$records" | jq "length") || exit 3
     records_truncated=false
     if [ "$records_in_window" -gt "$max_records" ]; then records_truncated=true; fi
@@ -1235,18 +1385,7 @@ registry_secondmates_json() {
 BASH
   )
   parse_filter=$(cat <<'JQ'
-      [ inputs
-        | select(startswith("- "))
-        | (capture("^- (?<id>[^[:space:]]+)")?) as $id
-        | select($id != null)
-        | ([capture("^.*\\(host:[[:space:]]*(?<host>[^;)]*);[[:space:]]*root:[[:space:]]*(?<root>[^;)]*);[[:space:]]*home:[[:space:]]*(?<home>[^;)]*);[[:space:]]*scope:[[:space:]]*.*;[[:space:]]*projects:[[:space:]]*[^;)]*;[[:space:]]*added[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}\\)[[:space:]]*$")?][0] // null) as $remote
-        | ([capture("^.*\\(home:[[:space:]]*(?<home>[^;)]*);[[:space:]]*scope:[[:space:]]*.*;[[:space:]]*projects:[[:space:]]*[^;)]*;[[:space:]]*added[[:space:]]+[0-9]{4}-[0-9]{2}-[0-9]{2}\\)[[:space:]]*$")?][0] // null) as $local
-        | ($local // $remote) as $route
-        | (($local == null) and ($remote != null)) as $is_remote
-        | {id:$id.id,home:($route.home // null),host:(if $is_remote then $remote.host else null end),root:(if $is_remote then $remote.root else null end),
-           remote:$is_remote,registered:true,
-           registry_error:(if $route == null or ($route.home | length) == 0 then "registry entry has no home" else null end)} ]
-      | group_by(.id)
+      group_by(.id)
       | map(if length > 1 then .[0] + {registry_error:"duplicate secondmate id in registry"} else .[0] end)
 JQ
   )
@@ -1266,7 +1405,7 @@ JQ
   out=$(fm_run_timed "$FM_SNAPSHOT_REGISTRY_TIMEOUT" bash -c "$script" \
     fm-secondmate-registry "$reg" "$FM_SNAPSHOT_REGISTRY_LINES" \
     "$FM_SNAPSHOT_REGISTRY_BYTES" "$FM_SNAPSHOT_REGISTRY_RECORDS" "$reg" "$SNAPSHOT_NOW" \
-    "$parse_filter" "$output_filter" 2>/dev/null)
+    "$parse_filter" "$output_filter" "$SCRIPT_DIR" 2>/dev/null)
   rc=$?
   if [ "$rc" -eq 0 ] && printf '%s' "$out" | jq -e '
     .available == true and (.records | type) == "array"
@@ -1718,7 +1857,7 @@ parent_evidence_reconciliation_json() {  # <summary-json-file> <activities-json>
 
 secondmate_current_json() {  # <parent-tasks-json-file> <output-file>
   local tasks_file=$1 output_file=$2 registry_file union_file records_file rows total_registered total shown truncated
-  local row id home host remote registered registry_error task sampled_spawn_gen status_file status_observation_file event_raw event_note event_age observed_epoch observed_age
+  local row id home host remote registered registry_error task sampled_spawn_gen status_file status_observation_file event_raw event_note event_age observed_epoch observed_age route_root route_session
   local activity_scan activities decisions reconciliation provenance freshness reason summary_file summary_sampled summary_valid summary_invalidity state terminal terminal_contradiction contradiction
   local summary_source summary_age summary_observed summary_freshness cache_path collection_status collection_slot summary_index=0
   local seen_homes=''
@@ -1782,6 +1921,13 @@ secondmate_current_json() {  # <parent-tasks-json-file> <output-file>
     fi
 
     reason=$registry_error
+    if [ "$remote" = true ] && [ "$(printf '%s' "$task" | jq -r '.id // ""')" != "" ]; then
+      route_root=$(printf '%s' "$row" | jq -r '.root // ""')
+      route_session=$(printf '%s' "$row" | jq -r '.session // ""')
+      if ! secondmate_registry_parent_matches "$SNAPSHOT_TASK_DIR/$id.meta" "$id" "$host" "$route_root" "$home" "$route_session"; then
+        reason="remote registry and parent endpoint identity disagree"
+      fi
+    fi
     summary_index=$((summary_index + 1))
     summary_file="$SNAPSHOT_COLLECT_DIR/selected-summary-$summary_index.json"
     printf '{}\n' > "$summary_file" || return 1
@@ -1890,7 +2036,8 @@ secondmate_current_json() {  # <parent-tasks-json-file> <output-file>
          active_children:$summary.active_children,
          decisions_open:$summary.decisions_open,holds:$summary.holds,queued:$summary.queued,
          contributions:($summary.contributions // null),
-         landed:$summary.landed,endpoints:$summary.endpoints,counts:$summary.counts,omitted:$summary.omitted,
+         landed:$summary.landed,retained_unlanded:($summary.retained_unlanded // null),
+         endpoints:$summary.endpoints,counts:$summary.counts,omitted:$summary.omitted,
          parent_event:{raw:$event_raw,note:$event_note,age_seconds:$event_age,open_activities:$activities,open_decisions:$decisions,activity_scan:$activity_scan,reconciliation:$reconciliation},
          terminal_evidence:$terminal,contradiction:$contradiction}' >> "$records_file" || return 1
     else
@@ -1935,7 +2082,8 @@ EOF
     --argjson total "$total" \
     --argjson shown "$shown" \
     --argjson truncated "$truncated" \
-    '{registry:$registry[0],records:.,total_registered:$total_registered,total:$total,shown:$shown,truncated:$truncated}' \
+    --slurpfile tasks "$tasks_file" \
+    '{registry:$registry[0],records:map(. as $r | ([$registry[0].records[]? | select(.id == $r.id)][0] // {}) as $route | . + {session:$route.session,remote_binding:([$tasks[0][]? | select(.id == $r.id) | .remote.binding][0] // "")}),total_registered:$total_registered,total:$total,shown:$shown,truncated:$truncated}' \
     "$records_file" > "$output_file"
 }
 

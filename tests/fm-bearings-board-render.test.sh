@@ -94,12 +94,12 @@ require_listener_reached_poll() {  # <home>
 
 # Build the board from <underway-json> plus <charted-json> and return what the
 # renderer produced.
-render_board() {  # <home> <underway-json> <charted-json> [charted_more] [charted_warning_more]
+render_board() {  # <home> <underway-json> <charted-json> [charted_more] [charted_warning_more] [calls-json]
   local home=$1 underway=$2 charted=$3 more=${4:-0} warning_more=${5:-0} data="$1/payload.json"
   jq -n --argjson underway "$underway" --argjson charted "$charted" \
-    --argjson more "$more" --argjson warning_more "$warning_more" '{
+    --argjson more "$more" --argjson warning_more "$warning_more" --argjson calls "${6:-[]}" '{
     schema:"fm-bearings-board.v1", home:"render-home", generated:"2026-08-26T00:00Z",
-    prs_live:false, captains_call:[], underway:$underway, landed:[],
+    prs_live:false, captains_call:$calls, underway:$underway, landed:[],
     charted:$charted, charted_more:$more, charted_warning_more:$warning_more}' > "$data"
   PATH="$home/fakebin:$PATH" FM_HOME="$home" \
     FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
@@ -266,6 +266,94 @@ test_charted_rows_without_a_filed_date_follow_the_dated_rows_in_payload_order() 
   pass "charted rows with no filed date follow the dated rows in payload order"
 }
 
+test_full_snapshot_question_reaches_the_rendered_decision() {
+  local home a b reason snapshot calls out
+  home=$(make_home full-decision-question)
+  a='A: retain the existing workflow through the complete staged verification and preserve all current integrations until each dependency has reported its result.'
+  b='B: defer the independent migration until the remaining review has finished, keeping the full fallback route and the final café / 東京 approval.'
+  reason="Which route should proceed? $a $b"
+  cat > "$home/data/backlog.md" <<EOF
+## In flight
+
+## Queued
+- [ ] scope-call - Choose rollout scope (repo: sample) (kind: captain) (hold: $reason) (hold-kind: captain)
+
+## Done
+EOF
+  snapshot=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" "$ROOT/bin/fm-bearings-snapshot.sh" --json) \
+    || fail "the decision snapshot failed"
+  # Composition consumes the complete recorded question directly. Options are
+  # authored explicitly here, never inferred by parsing the stored prose.
+  calls=$(printf '%s' "$snapshot" | jq '[.decisions_open[] | {
+    key:.key,type:"decision",repo:"sample",title:"Rollout scope",decide:.question,
+    options:[{value:"a",label:"Retain the workflow"},{value:"b",label:"Defer the migration"}]}]')
+  out=$(render_board "$home" '[]' '[]' 0 0 "$calls")
+  printf '%s' "$out" | jq -e --arg question "Choose rollout scope: $reason" --arg a "$a" --arg b "$b" '
+    .error == "" and (.captains_call | length) == 1
+      and (.captains_call[0] | contains($question) and contains($a) and contains($b))
+  ' >/dev/null || fail "the rendered call lost its full question or final option: $out"
+  pass "the complete snapshot question and options reach rendered decision text"
+}
+
+# The original incident payload: every decision card offered no option and only
+# freeform input, so the built board showed nothing but the injected Reconcile.
+freeform_only_decisions() {
+  jq -n '[range(1; 7) as $i | {
+    key:("held-call-\($i)"), type:"decision", repo:"sample",
+    title:("Held call \($i)"), decide:"Which way?", options:[], allow_freeform:true}]'
+}
+
+test_a_decision_needs_an_authored_choice_and_its_counterfactual_renders() {
+  local home data out rc calls
+  home=$(make_home authored-choice)
+  data="$home/payload.json"
+  jq -n --argjson calls "$(freeform_only_decisions)" '{
+    schema:"fm-bearings-board.v1", home:"render-home", generated:"2026-10-01T00:00Z",
+    prs_live:false, captains_call:$calls, underway:[], landed:[], charted:[]}' > "$data"
+  out=$(PATH="$home/fakebin:$PATH" FM_HOME="$home" \
+    FM_STATE_OVERRIDE="$home/state" FM_DATA_OVERRIDE="$home/data" \
+    FM_PROCEVENT_CLAIM_ROOT="$home/procevent-claims" \
+    LAVISH_AXI_STATE_DIR="$home/lavish-state" \
+    "$BOARD" build "$data" 2>&1)
+  rc=$?
+  [ "$rc" -ne 0 ] || fail "a board of freeform-only decision cards was accepted"
+  assert_contains "$out" "an authored choice is required" "the refusal did not ask for an authored choice: $out"
+  assert_contains "$out" "held-call-1" "the refusal did not name the first card: $out"
+  assert_contains "$out" "held-call-6" "the refusal did not name the last card: $out"
+  assert_absent "$home/.lavish/bearings-board.html" "a refused payload still produced a board"
+
+  # The counterfactual: the same cards with authored options build and render
+  # those options, with the build's Reconcile alongside rather than alone.
+  calls=$(freeform_only_decisions | jq '[.[] | .options = [
+    {value:"proceed",label:"Proceed as planned"},{value:"hold",label:"Hold for now"}]]')
+  out=$(render_board "$home" '[]' '[]' 0 0 "$calls")
+  printf '%s' "$out" | jq -e '
+    .error == "" and (.captains_call | length) == 6
+      and ([.captains_call[]
+        | contains("Proceed as planned") and contains("Hold for now") and contains("Reconcile")]
+        | all)
+  ' >/dev/null || fail "the counterfactual did not render its authored options: $out"
+  pass "a freeform-only decision refuses by name and its authored counterfactual renders"
+}
+
+test_a_credential_card_may_stay_freeform_only() {
+  local home out
+  home=$(make_home credential-freeform)
+  out=$(render_board "$home" '[]' '[]' 0 0 '[
+    {"key":"credential.sample-login","type":"credential","repo":"sample",
+     "title":"Sign in to the sample registry","options":[],"allow_freeform":true}
+  ]')
+  printf '%s' "$out" | jq -e '
+    .error == "" and (.captains_call | length) == 1
+      and (.captains_call[0] | contains("Sign in to the sample registry")
+        and (contains("Reconcile") | not))
+  ' >/dev/null || fail "a freeform-only credential card did not render: $out"
+  pass "a credential card still renders with freeform input and no options"
+}
+
+test_full_snapshot_question_reaches_the_rendered_decision
+test_a_decision_needs_an_authored_choice_and_its_counterfactual_renders
+test_a_credential_card_may_stay_freeform_only
 test_an_underway_row_leads_with_the_task_name_and_keeps_its_run_status
 test_an_underway_identifier_label_is_not_replaced_by_run_status
 test_charted_next_reads_newest_filed_first

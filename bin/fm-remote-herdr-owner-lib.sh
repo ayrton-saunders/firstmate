@@ -47,8 +47,11 @@
 #                does not prove an Aqua birth
 #   fm_remote_herdr_birth_is_aqua <birth>
 #     Succeeds only for launchd and worker. `unknown` is deliberately not
-#     Aqua: a server that cannot prove its birth is treated like a foreign one,
-#     because leaving it in place silently reproduces the keychain failure.
+#     Aqua: unproven birth requires explicit recovery, never automatic takeover.
+#     An optional session argument also binds launchd evidence to its label.
+
+# shellcheck source=bin/fm-herdr-session-lib.sh
+. "$(CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/fm-herdr-session-lib.sh"
 
 fm_remote_herdr_socket_owner() { # <socket-path>
   local socket=$1 real pid='' line candidates='' candidate cmd
@@ -112,6 +115,11 @@ fm_remote_herdr_gui_job_proves_owner() { # <uid> <label> <pid>
   '; then
     return 0
   fi
+  # An explicit different pid contradicts ownership; domain exclusivity is
+  # evidence only when launchd does not report a pid at all.
+  if printf '%s\n' "$job" | awk '$1 == "pid" && $2 == "=" && $3 ~ /^[0-9]+$/ { found=1 } END { exit found ? 0 : 1 }'; then
+    return 1
+  fi
   ! launchctl print "user/$uid/$label" >/dev/null 2>&1
 }
 
@@ -122,15 +130,29 @@ fm_remote_herdr_gui_job_is_exclusive() { # <uid> <label>
 }
 
 fm_remote_herdr_owner_birth() { # <pid>
-  local pid=$1 env uid xpc_line label
+  local pid=$1 session=${2:-} env uid xpc_line label expected_label
+  if [ -n "$session" ]; then
+    expected_label=$(fm_remote_herdr_session_label "$session") || { printf 'unknown\n'; return 0; }
+  fi
   env=$(fm_remote_herdr_process_env "$pid") || { printf 'unknown\n'; return 0; }
+  xpc_line=$(printf '%s\n' "$env" | grep -E '^XPC_SERVICE_NAME=' | head -1 || true)
+  label=${xpc_line#XPC_SERVICE_NAME=}
+  if [ -n "$session" ]; then
+    case "$label" in
+      dev.firstmate.herdr|dev.firstmate.herdr.*)
+        [ "$label" = "$expected_label" ] || { printf 'unknown\n'; return 0; }
+        ;;
+    esac
+  fi
   if printf '%s\n' "$env" | grep -q -E '^SSH_(CONNECTION|CLIENT|TTY)='; then
     printf 'ssh\n'
     return 0
   fi
   uid=$(id -u 2>/dev/null) || uid=
-  xpc_line=$(printf '%s\n' "$env" | grep -E '^XPC_SERVICE_NAME=' | head -1 || true)
-  label=${xpc_line#XPC_SERVICE_NAME=}
+  if [ -n "$session" ] && [ -n "$xpc_line" ] && [ "$label" != "$expected_label" ] && [ "$label" != dev.firstmate.remote-job ] && [ "$label" != 0 ]; then
+    printf 'unknown\n'
+    return 0
+  fi
   if [ -n "$uid" ] && [ -n "$xpc_line" ] \
     && fm_remote_herdr_gui_job_proves_owner "$uid" "$label" "$pid"; then
     printf 'launchd\n'

@@ -69,8 +69,12 @@
 # Captain's Call item explicitly carries `repo`; the composer fills it from the
 # snapshot and task records wherever known, and uses null or an empty string
 # only as the deliberate genuinely-no-repo marker. In that exceptional case
-# the template may display the routing id. Anything else refuses before the
-# existing board is touched.
+# the template may display the routing id. Every decision card must also carry
+# at least one authored option: the build-injected reconcile choice never counts
+# as one, and a decision card with only freeform input refuses by name. Merge
+# and credential cards keep the general rule - at least one option or explicit
+# freeform input - so a credential card may stay freeform-only. Anything else
+# refuses before the existing board is touched.
 #
 # Every Underway row likewise carries a non-empty `name`: the durable task name
 # when known, otherwise its durable identifier.
@@ -202,6 +206,18 @@ validate_payload() {  # <data.json>
     and ([.landed[] | landed_item] | all)
     and ([.charted[] | charted_item] | all)
   ' "$1" >/dev/null
+}
+
+# Name every decision card that offers no authored choice. Reconcile is the
+# build's own choice and is reserved by validate_payload, so it never counts.
+unauthored_decision_cards() {  # <data.json>
+  jq -r '
+    [.captains_call[]
+      | select(.type == "decision")
+      | select([.options[] | select(.value != "reconcile")] | length == 0)
+      | .key]
+    | join(", ")
+  ' "$1"
 }
 
 # --- Lavish session liveness -------------------------------------------------
@@ -358,12 +374,16 @@ await_source_owner() {  # <source-id>
 }
 
 command_build() {
-  local data=${1-} board json tmp sid extracted effective owner version pre_reopen_owner
+  local data=${1-} board json tmp sid extracted effective owner version pre_reopen_owner unauthored
   [ "$#" -eq 1 ] || { usage >&2; exit 2; }
   command -v jq >/dev/null 2>&1 || fail "jq is required"
   [ -f "$data" ] || fail "board data does not exist: $data"
   jq empty "$data" 2>/dev/null || fail "board data is not valid JSON: $data"
   validate_payload "$data" || fail "board data does not satisfy $BOARD_SCHEMA: $data"
+  unauthored=$(unauthored_decision_cards "$data") \
+    || fail "cannot check the decision cards for authored choices: $data"
+  [ -z "$unauthored" ] \
+    || fail "an authored choice is required on every decision card; none is offered by: $unauthored (Reconcile is added by build and does not count)"
   [ -f "$TEMPLATE" ] && [ ! -L "$TEMPLATE" ] || fail "board template is missing: $TEMPLATE"
   [ "$(grep -cxF "$PLACEHOLDER" "$TEMPLATE")" -eq 1 ] \
     || fail "board template does not carry exactly one data slot: $TEMPLATE"

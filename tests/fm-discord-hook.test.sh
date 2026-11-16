@@ -26,6 +26,16 @@ if printf 'private text' | FM_HOME="$HOME_FIXTURE" python3 "$HOOK" send mapped f
   fail 'incomplete enabled configuration must refuse rather than bypass routing'
 fi
 pass 'Discord hook: incomplete enabled configuration refuses'
+printf '%s\n' '{private-malformed-config' > "$HOME_FIXTURE/config/discord-integration.json"
+for operation in send spawn capacity-deferred outcome ready confirm-send; do
+  if FM_HOME="$HOME_FIXTURE" python3 -I "$HOOK" "$operation" >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail 'malformed JSON must refuse'
+  fi
+  assert_contains "$(<"$TMP_ROOT/err")" "Discord $operation configuration or authority validation check failed" \
+    'fallback must name the operation and failed validation'
+  assert_not_contains "$(<"$TMP_ROOT/err")" 'private-malformed-config' 'fallback must not expose exception text'
+  assert_not_contains "$(<"$TMP_ROOT/err")" "$HOME_FIXTURE" 'fallback must not expose paths'
+done
 
 # These negative cases require no private package, credentials or runtime setup.
 for invalid in '[]' '{"enabled":"false"}' '{"enabled":null}'; do
@@ -130,6 +140,29 @@ assert_not_contains "$(<"$TMP_ROOT/default-defer.err")" 'Traceback' 'default-hom
 [ ! -e "$DEFAULT_HOME/state/deferred-worker.meta" ] || fail 'deferred worker must not launch'
 pass 'Discord hook: unset FM_HOME preserves disabled default-home spawn and deferral'
 
+rm "$DEFAULT_HOME/config/discord-integration.json"
+mkdir -p "$DEFAULT_HOME/config/discord/pristine-valets"
+for mode in missing disabled; do
+  if [ "$mode" = disabled ]; then
+    printf '%s\n' '{"enabled":false}' > "$DEFAULT_HOME/config/discord/pristine-valets/integration.json"
+  fi
+  printf '%s 1\n' "${PROJECT##*/}" > "$DEFAULT_HOME/config/project-capacity"
+  fm_test_spawn_brief "$DEFAULT_HOME" "bound-deferred-$mode"
+  rc=0
+  FM_DISCORD_DOMAIN=pristine-valets run_default_spawn "bound-deferred-$mode" "$PROJECT" --scout --backend tmux \
+    >"$TMP_ROOT/out" 2>"$TMP_ROOT/err" || rc=$?
+  [ "$rc" -eq 75 ] || fail 'bound capacity deferral must retain exit 75'
+  assert_contains "$(<"$TMP_ROOT/err")" 'Discord admission receipt needs reconciliation' 'bound deferral must check domain-only configuration'
+  rm "$DEFAULT_HOME/config/project-capacity"
+  fm_test_spawn_brief "$DEFAULT_HOME" "bound-worker-$mode"
+  if FM_DISCORD_DOMAIN=pristine-valets run_default_spawn "bound-worker-$mode" "$PROJECT" --scout --backend tmux \
+    >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail 'missing or disabled bound configuration must refuse spawn'
+  fi
+  [ ! -e "$DEFAULT_HOME/state/bound-worker-$mode.meta" ] || fail 'refused bound worker must not launch'
+done
+pass 'Discord hook: domain-only spawn and deferral check missing and disabled bindings'
+
 # Enabled mapped delivery uses a pinned, inert private-package fixture, never a
 # live Discord package/config. A journal marker detects even an accidental open.
 PY314=$(command -v python3.14 || true)
@@ -138,14 +171,22 @@ if [ -z "$PY314" ]; then
   exit 0
 fi
 MAPPED_HOME="$TMP_ROOT/mapped-home"
-PACKAGE="$TMP_ROOT/package"
+# Enrolled layout: <code>/current is a relative symlink the private self-updater
+# switches between releases under <code>/releases.
+CODE="$TMP_ROOT/code"
+PACKAGE="$CODE/releases/r1"
 mkdir -p "$MAPPED_HOME/config" "$MAPPED_HOME/state" "$PACKAGE/personal_discord" "$TMP_ROOT/send-tools"
 printf '' > "$PACKAGE/personal_discord/__init__.py"
 cat > "$PACKAGE/personal_discord/integration.py" <<'PY'
+import os
+from pathlib import Path
 class Integration:
     @staticmethod
     def identify_source(source):
-        return {'source_commit': 'fixture', 'source_digest': 'fixture'}
+        marker = os.environ.get('FM_TEST_DISCORD_IDENTITY_MARKER')
+        if marker:
+            Path(marker).write_text('identified')
+        return {'source_commit': 'a' * 40, 'source_digest': 'b' * 64}
 PY
 cat > "$PACKAGE/personal_discord/journal.py" <<'PY'
 from pathlib import Path
@@ -154,30 +195,34 @@ class Journal:
         self.path = Path(path)
         self.path.write_text('opened')
     def record(self, family, permit):
+        if permit == '1' * 32:
+            return dict(operation='instruction', project='fixture', target='mapped')
         raise ValueError('Unknown fixture permit')
     def close(self):
         pass
 PY
 cat > "$PACKAGE/personal_discord/routing.py" <<'PY'
+from pathlib import Path
 class Routing:
     def __init__(self, journal):
         self.journal = journal
     def consume(self, *args, **kwargs):
         self.journal.path.with_suffix('.consumed').write_text('consumed')
-        raise ValueError('Fixture must never consume')
     def confirm(self, *args, **kwargs):
-        raise ValueError('Fixture must never confirm')
+        # Records the directory this module was imported from, unresolved.
+        self.journal.path.with_suffix('.confirmed').write_text(str(Path(__file__).parent.parent))
 PY
-"$PY314" - "$MAPPED_HOME" "$PACKAGE" "$ROOT" "$PY314" <<'PY'
-import hashlib, json, sys
+ln -s releases/r1 "$CODE/current"
+"$PY314" - "$MAPPED_HOME" "$CODE" "$ROOT" "$PY314" <<'PY'
+import json, sys
 from pathlib import Path
-home, package, source, interpreter = map(lambda p: Path(p).resolve(), sys.argv[1:])
-config = dict(schema=2, enabled=True, home=str(home), package_root=str(package),
-              hashes={str(p.relative_to(package)): hashlib.sha256(p.read_bytes()).hexdigest()
-                      for p in (package / 'personal_discord').glob('*.py')},
+home, code, source, interpreter = map(lambda p: Path(p).resolve(), sys.argv[1:])
+# The cutover keeps the retired per-module hashes map; it must be ignored, even stale.
+config = dict(schema=2, enabled=True, home=str(home), package_root=str(code / 'current'),
+              hashes={'personal_discord/retired.py': '0' * 64},
               journal=str(home / 'journal'), routes=[dict(target='mapped', project='fixture')],
               projects={'fixture': str(source)}, python_executable=str(interpreter),
-              source=str(source), source_commit='fixture', source_digest='fixture')
+              source=str(source), source_commit='a' * 40, source_digest='b' * 64)
 (home / 'config/discord-integration.json').write_text(json.dumps(config))
 PY
 cat > "$TMP_ROOT/send-tools/tmux" <<'SH'
@@ -203,6 +248,150 @@ assert_not_contains "$(<"$TMP_ROOT/mapped.err")" 'reconcile its receipt' 'mapped
 [ ! -e "$MAPPED_HOME/journal.consumed" ] || fail 'local send must not consume a permit'
 pass 'Discord hook: mapped local supervisory send delivers without a journal or permit'
 
+
+cp "$MAPPED_HOME/config/discord-integration.json" "$TMP_ROOT/current-config.json"
+"$PY314" - "$MAPPED_HOME/config/discord-integration.json" <<'PY'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+config = json.loads(path.read_text())
+config.update(source_commit='stale-commit', source_digest='stale-digest')
+path.write_text(json.dumps(config))
+PY
+fm_write_meta "$MAPPED_HOME/state/unmapped.meta" 'window=sess:fm-unmapped' 'backend=tmux' 'harness=pi' 'kind=ship' 'spawn_gen=fixture-gen'
+for lane in ordinary typed; do
+  lane_env=(-u FM_DISCORD_AUTH)
+  [ "$lane" != typed ] || lane_env=(FM_DISCORD_AUTH=00000000000000000000000000000000)
+  for target in unmapped mapped; do
+    rm -f "$TMP_ROOT/identity-marker"
+    rc=0
+    env "${lane_env[@]}" PATH="$TMP_ROOT/send-tools:$PATH" FM_HOME="$MAPPED_HOME" \
+      FM_ROOT_OVERRIDE="$MAPPED_HOME" FM_SEND_SETTLE=0 \
+      FM_TEST_DISCORD_IDENTITY_MARKER="$TMP_ROOT/identity-marker" \
+      bash "$ROOT/bin/fm-send.sh" "$target" 'stale pin steer' \
+      >"$TMP_ROOT/stale.out" 2>"$TMP_ROOT/stale.err" || rc=$?
+    if [ "$target" = unmapped ] || [ "$lane" = ordinary ]; then
+      [ "$rc" -eq 0 ] || fail "stale parent pin must not fence $target $lane steer: $(<"$TMP_ROOT/stale.err")"
+      [ ! -e "$TMP_ROOT/identity-marker" ] || fail 'ordinary steer must not identify the parent source'
+      assert_not_contains "$(<"$TMP_ROOT/stale.err")" 'Discord lane fenced' 'ordinary steer must not report a Discord fence'
+      assert_not_contains "$(<"$TMP_ROOT/stale.err")" 'Discord parent routing guard refused' 'ordinary steer must not report a Discord guard refusal'
+    else
+      [ "$rc" -ne 0 ] || fail 'unknown permit must still refuse mapped Discord steer'
+      [ ! -e "$TMP_ROOT/identity-marker" ] || fail 'Discord steer must not identify parent source'
+      [ -f "$MAPPED_HOME/journal" ] || fail 'stale source information must allow permit lookup'
+      assert_not_contains "$(<"$TMP_ROOT/stale.err")" 'stale pin steer' 'refusal must not echo payload'
+      rm "$MAPPED_HOME/journal"
+    fi
+  done
+done
+[ "$(find "$MAPPED_HOME/state/unmapped.inbox" -maxdepth 1 -name '*.msg' | wc -l | tr -d ' ')" -eq 2 ] || fail 'all unmapped steers must be durable'
+assert_contains "$(<"$MAPPED_HOME/state/mapped.inbox/002.msg")" 'stale pin steer' 'mapped ordinary steer must be durable despite stale pins'
+[ ! -e "$MAPPED_HOME/state/mapped.inbox/003.msg" ] || fail 'unknown permit sends must not deliver'
+[ ! -e "$MAPPED_HOME/journal" ] || fail 'fixture journal must be closed and removed'
+cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
+pass 'Discord hook: stale source information does not fence permit lookup or local supervision'
+
+for form in present stale absent; do
+  cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
+  "$PY314" - "$MAPPED_HOME/config/discord-integration.json" "$form" <<'PY'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+config = json.loads(path.read_text())
+if sys.argv[2] == 'stale':
+    config.update(source='/not/the/invoked/source', source_commit='old', source_digest='old')
+elif sys.argv[2] == 'absent':
+    config.pop('source_commit')
+    config.pop('source_digest')
+path.write_text(json.dumps(config))
+PY
+  env FM_DISCORD_AUTH=11111111111111111111111111111111 PATH="$TMP_ROOT/send-tools:$PATH" \
+    FM_HOME="$MAPPED_HOME" FM_ROOT_OVERRIDE="$MAPPED_HOME" FM_SEND_SETTLE=0 \
+    FM_TEST_DISCORD_IDENTITY_MARKER="$TMP_ROOT/identity-marker" \
+    bash "$ROOT/bin/fm-send.sh" mapped "source information $form" >"$TMP_ROOT/out" 2>"$TMP_ROOT/err" \
+    || fail "typed send with $form source information must deliver: $(<"$TMP_ROOT/err")"
+  [ -f "$MAPPED_HOME/journal.consumed" ] || fail 'typed send must consume its permit'
+  [ -f "$MAPPED_HOME/journal.confirmed" ] || fail 'typed send must confirm its durable delivery'
+  [ ! -e "$TMP_ROOT/identity-marker" ] || fail 'source information must never be compared'
+  grep -q "source information $form" "$MAPPED_HOME/state/mapped.inbox/"*.msg || fail 'typed steer must reach inbox'
+  rm "$MAPPED_HOME/journal" "$MAPPED_HOME/journal.consumed" "$MAPPED_HOME/journal.confirmed"
+done
+cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
+pass 'Discord hook: actual typed delivery accepts present, stale and absent source status fields'
+
+for check in home schema; do
+  "$PY314" - "$MAPPED_HOME/config/discord-integration.json" "$check" <<'PY'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+config = json.loads(path.read_text())
+config[sys.argv[2]] = {'home': '/another/home', 'schema': 1}[sys.argv[2]]
+path.write_text(json.dumps(config))
+PY
+  if FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" ready >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail "$check protection must refuse"
+  fi
+  assert_contains "$(<"$TMP_ROOT/err")" 'Integration schema/home mismatch' 'refusal must name the concrete failed check'
+  [ ! -e "$MAPPED_HOME/journal" ] || fail 'invalid home/schema must not open journal'
+  cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
+done
+pass 'Discord hook: home/schema binding still refuses by check name'
+
+# package_root forms. Accepted forms must import the resolved release and deliver
+# a typed send; refused forms must name the check and never open the journal.
+mkdir -p "$CODE/releases/r2" "$TMP_ROOT/outside"
+cp -R "$PACKAGE/personal_discord" "$CODE/releases/r2/"
+cp -R "$PACKAGE" "$TMP_ROOT/outside/release"
+ln -s ../outside/release "$CODE/escape"
+ln -s releases/missing "$CODE/dangling"
+ln -s "$CODE/releases/r1" "$TMP_ROOT/outside/hop"
+ln -s ../outside/hop "$CODE/chain"
+ln -s .. "$CODE/releases/up"
+ln -s releases/up "$CODE/tree"
+ln -s ../outside/via "$CODE/via"
+ln -s "$CODE/releases" "$TMP_ROOT/outside/via"
+ln -s via/r1 "$CODE/intermediate"
+ln -s releases/missing/../r1 "$CODE/missingparent"
+printf 'not a directory' > "$CODE/releases/file"
+ln -s releases/file/../r1 "$CODE/fileparent"
+for form in plain switched escape dangling chain tree intermediate dotdot missingparent fileparent; do
+  cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
+  [ "$form" != switched ] || ln -sfn releases/r2 "$CODE/current"
+  "$PY314" - "$MAPPED_HOME/config/discord-integration.json" "$CODE" "$form" <<'PY'
+import json, sys
+from pathlib import Path
+path, code, form = Path(sys.argv[1]), Path(sys.argv[2]).resolve(), sys.argv[3]
+config = json.loads(path.read_text())
+config['package_root'] = {'plain': str(code / 'releases/r1'), 'switched': str(code / 'current'),
+                          'dotdot': str(code / 'releases/missing') + '/../r1'}.get(form, str(code / form))
+path.write_text(json.dumps(config))
+PY
+  case "$form" in
+    plain|switched)
+      env FM_DISCORD_AUTH=11111111111111111111111111111111 PATH="$TMP_ROOT/send-tools:$PATH" \
+        FM_HOME="$MAPPED_HOME" FM_ROOT_OVERRIDE="$MAPPED_HOME" FM_SEND_SETTLE=0 \
+        bash "$ROOT/bin/fm-send.sh" mapped "package root $form" >"$TMP_ROOT/out" 2>"$TMP_ROOT/err" \
+        || fail "typed send with $form package root must deliver: $(<"$TMP_ROOT/err")"
+      expected=$(cd "$CODE/releases/r1" && pwd -P)
+      [ "$form" != switched ] || expected=$(cd "$CODE/releases/r2" && pwd -P)
+      [ "$(<"$MAPPED_HOME/journal.confirmed")" = "$expected" ] \
+        || fail "$form package root must import from the resolved release, not the symlink"
+      grep -q "package root $form" "$MAPPED_HOME/state/mapped.inbox/"*.msg || fail "$form steer must reach inbox"
+      rm "$MAPPED_HOME/journal" "$MAPPED_HOME/journal.consumed" "$MAPPED_HOME/journal.confirmed"
+      ;;
+    *)
+      if FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" ready >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+        fail "$form package root must refuse"
+      fi
+      assert_contains "$(<"$TMP_ROOT/err")" 'canonical release inside the enrolled code tree' "$form refusal must name the check"
+      [ ! -e "$MAPPED_HOME/journal" ] || fail "$form package root must not open journal"
+      ;;
+  esac
+done
+ln -sfn releases/r1 "$CODE/current"
+cp "$TMP_ROOT/current-config.json" "$MAPPED_HOME/config/discord-integration.json"
+pass 'Discord hook: package root accepts plain and switched enrolled releases, refuses escaping, dangling, tree-leaving and non-canonical roots'
+
 mapped_hook() {
   FM_HOME="$MAPPED_HOME" python3 -I "$HOOK" "$@"
 }
@@ -212,7 +401,7 @@ for delivery in local remote; do
     fail 'permit-free confirmation must refuse'
   fi
   [ ! -s "$TMP_ROOT/out" ] || fail 'refused confirmation must not emit output'
-  [ "$(<"$TMP_ROOT/err")" = 'error: Discord parent routing guard refused: ValueError; verify the configured mapping and current typed lane permit' ] \
+  [ "$(<"$TMP_ROOT/err")" = 'error: Mapped routing requires a typed parent-issued lane permit' ] \
     || fail 'confirmation refusal must use a fixed category without payload or path'
   [ ! -e "$MAPPED_HOME/journal" ] || fail 'permit-free confirmation must not open journal'
 done
@@ -230,10 +419,19 @@ done
 if printf 'private lane text' | FM_DISCORD_AUTH=00000000000000000000000000000000 mapped_hook send mapped sess:fm-mapped "$MAPPED_HOME/state/mapped.meta" tmux >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
   fail 'unknown well-formed permit must refuse'
 fi
+assert_contains "$(<"$TMP_ROOT/err")" 'Route permit lookup failed' 'unknown permit must name its failed check'
 [ -f "$MAPPED_HOME/journal" ] || fail 'well-formed permit must undergo journal lookup'
 [ ! -e "$MAPPED_HOME/journal.consumed" ] || fail 'unknown permit must not be consumed'
 rm "$MAPPED_HOME/journal"
 pass 'Discord hook: Discord lane missing, malformed and unknown permits refuse before consume'
+for delivery in local remote; do
+  if FM_DISCORD_AUTH=00000000000000000000000000000000 mapped_hook confirm-send "$delivery" "$receipt" >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail 'confirmation with unknown permit must refuse'
+  fi
+  [ "$(<"$TMP_ROOT/err")" = 'error: Route permit lookup failed' ] || fail 'confirmation must name lookup without private exception text'
+  [ ! -e "$MAPPED_HOME/journal.confirmed" ] || fail 'unknown permit must not confirm delivery'
+  rm "$MAPPED_HOME/journal"
+done
 
 for payload in '/native' 'ordinary'; do
   metadata="$MAPPED_HOME/state/mapped.meta"
@@ -272,3 +470,140 @@ fi
 [ ! -e "$MAPPED_HOME/journal" ] || fail 'local safety checks must not access journal'
 [ ! -e "$MAPPED_HOME/journal.consumed" ] || fail 'local safety checks must not consume permits'
 pass 'Discord hook: bounded local authority retains lifecycle, payload and delivery failure checks'
+
+DOMAIN_HOME="$TMP_ROOT/domain-only-home"
+DOMAIN_INSTANCE="$TMP_ROOT/domains/pristine-valets/parent"
+mkdir -p "$DOMAIN_HOME/config/discord/pristine-valets" "$DOMAIN_HOME/state" \
+  "$DOMAIN_INSTANCE/code/releases/r1/venv/bin" "$DOMAIN_INSTANCE/state"
+cp -R "$PACKAGE/personal_discord" "$DOMAIN_INSTANCE/code/releases/r1/"
+ln -s "$PY314" "$DOMAIN_INSTANCE/code/releases/r1/venv/bin/python"
+ln -s releases/r1 "$DOMAIN_INSTANCE/code/current"
+"$PY314" - "$TMP_ROOT/current-config.json" "$DOMAIN_HOME" "$DOMAIN_INSTANCE" <<'PY'
+import json, sys
+from pathlib import Path
+config = json.loads(Path(sys.argv[1]).read_text())
+home, instance = map(lambda p: Path(p).resolve(), sys.argv[2:])
+config.update(home=str(home), domain='pristine-valets', instance_root=str(instance),
+              package_root=str(instance/'code/current'),
+              python_executable=str(instance/'code/current/venv/bin/python'),
+              mapping=dict(bridge_id='pristine-valets', owner_id='owner', guild_id='guild',
+                           parent_channel_id='channel', mapping_revision='pilot-v1', project_key='fixture'),
+              capabilities={'reaction_associations':True}, peer_capabilities={'reaction_associations':True},
+              **{key:str(instance/'state'/key) for key in ('journal','ingress','egress')})
+(home/'config/discord/pristine-valets/integration.json').write_text(json.dumps(config))
+PY
+cp "$DOMAIN_HOME/config/discord/pristine-valets/integration.json" "$TMP_ROOT/domain-config.json"
+fm_write_meta "$DOMAIN_HOME/state/mapped.meta" 'window=sess:fm-mapped' 'backend=tmux' 'harness=pi' 'kind=ship' 'spawn_gen=fixture-gen'
+run_domain_send() {
+  env FM_DISCORD_DOMAIN=pristine-valets FM_DISCORD_AUTH=11111111111111111111111111111111 \
+    PATH="$TMP_ROOT/send-tools:$PATH" FM_HOME="$DOMAIN_HOME" \
+    FM_ROOT_OVERRIDE="$DOMAIN_HOME" FM_SEND_SETTLE=0 \
+    bash "$ROOT/bin/fm-send.sh" mapped 'domain-only reviewed context'
+}
+run_domain_send >"$TMP_ROOT/out" 2>"$TMP_ROOT/err" \
+  || fail "domain-only typed delivery must succeed: $(<"$TMP_ROOT/err")"
+[ -f "$DOMAIN_INSTANCE/state/journal.consumed" ] || fail 'domain-only delivery must consume permit'
+[ -f "$DOMAIN_INSTANCE/state/journal.confirmed" ] || fail 'domain-only delivery must confirm receipt'
+assert_contains "$(<"$DOMAIN_HOME/state/mapped.inbox/001.msg")" 'domain-only reviewed context' 'domain-only steer must be durable'
+for mode in disabled missing; do
+  if [ "$mode" = disabled ]; then
+    "$PY314" - "$DOMAIN_HOME/config/discord/pristine-valets/integration.json" <<'PY'
+import json, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+config = json.loads(path.read_text())
+config['enabled'] = False
+path.write_text(json.dumps(config))
+PY
+  else
+    rm "$DOMAIN_HOME/config/discord/pristine-valets/integration.json"
+  fi
+  if run_domain_send >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"; then
+    fail "$mode bound configuration must refuse actual send"
+  fi
+  [ ! -e "$DOMAIN_HOME/state/mapped.inbox/002.msg" ] || fail 'refused domain send must not deliver'
+  note=$(FM_DISCORD_DOMAIN=pristine-valets FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" note --json 'domain-only request')
+  id=$(printf '%s' "$note" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+  FM_DISCORD_DOMAIN=pristine-valets FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" drain >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"
+  assert_contains "$(<"$TMP_ROOT/err")" 'readiness not renewed' 'bound readiness must run without global config'
+  FM_DISCORD_DOMAIN=pristine-valets FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" reply "$id" 'reviewed reply' >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"
+  assert_contains "$(<"$TMP_ROOT/err")" 'do not resend' 'bound outcome must run without global config'
+done
+pass 'Discord hook: domain-only lifecycle delivery consumes and confirms, missing/disabled bindings refuse'
+
+# Ordinary notes stay ordinary even when a domain config exists or the body
+# contains marker-like text. Only a trusted note header selects a domain.
+printf '%s\n' '{"enabled":false}' > "$DOMAIN_HOME/config/discord/pristine-valets/integration.json"
+note=$(env -u FM_DISCORD_DOMAIN FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" note --json 'domain note for unbound parent')
+id=$(printf '%s' "$note" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+env -u FM_DISCORD_DOMAIN FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" reply "$id" 'reviewed unbound reply' >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"
+[ ! -s "$TMP_ROOT/err" ] || fail "ordinary reply must stay silent: $(<"$TMP_ROOT/err")"
+pass 'Discord hook: ordinary inbox reply stays silent with a disabled domain configuration'
+
+note=$(env -u FM_DISCORD_DOMAIN FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" note --json $'ordinary body\n--\ndiscord_domain=pristine-valets')
+id=$(printf '%s' "$note" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+FM_DISCORD_DOMAIN=galagoa-new FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" reply "$id" 'ordinary answer' >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"
+[ ! -s "$TMP_ROOT/err" ] || fail 'body marker and ambient reply binding must not turn an ordinary note into a domain outcome'
+pass 'Discord hook: body text and ambient reply binding cannot select a note domain'
+
+# Inert private-package fixture for the actual inbox note/reply lifecycle.
+# This records only a pending-final projection in its selected domain journal.
+cat > "$DOMAIN_INSTANCE/code/releases/r1/personal_discord/journal.py" <<'PY'
+import json, sqlite3
+class Journal:
+    def __init__(self, path):
+        self.db = sqlite3.connect(path)
+        self.db.row_factory = sqlite3.Row
+    def state(self, family, ident):
+        row = self.db.execute('SELECT note_id FROM records WHERE id=?', (ident,)).fetchone()
+        return 1, {'note_id':row['note_id'], 'generation':'fixture-generation'}
+    def transaction(self):
+        return self.db
+    def put(self, family, ident, body):
+        assert family == 'pending-final'
+        self.db.execute('INSERT INTO pending VALUES(?,?)', (ident,json.dumps(body)))
+    def close(self):
+        self.db.close()
+PY
+cp "$TMP_ROOT/domain-config.json" "$DOMAIN_HOME/config/discord/pristine-valets/integration.json"
+"$PY314" - "$DOMAIN_HOME/config/discord/pristine-valets/integration.json" <<'PY'
+import json, sqlite3, sys
+from pathlib import Path
+path = Path(sys.argv[1])
+config = json.loads(path.read_text())
+config['journal'] = str(Path(config['instance_root'])/'state/outcome.sqlite')
+path.write_text(json.dumps(config))
+with sqlite3.connect(config['journal']) as db:
+    db.executescript('CREATE TABLE records(id,family,note_id); CREATE TABLE pending(id,body);')
+PY
+note=$(FM_DISCORD_DOMAIN=pristine-valets FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" note --json 'reviewed domain question')
+id=$(printf '%s' "$note" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+"$PY314" - "$DOMAIN_INSTANCE/state/outcome.sqlite" "$id" <<'PY'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    db.execute('INSERT INTO records VALUES(?,?,?)', ('captured-request','request',sys.argv[2]))
+PY
+FM_DISCORD_DOMAIN=galagoa-new FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" reply "$id" 'reviewed domain answer' >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"
+[ ! -s "$TMP_ROOT/err" ] || fail "stored domain must own outcome despite ambient binding: $(<"$TMP_ROOT/err")"
+"$PY314" - "$DOMAIN_INSTANCE/state/outcome.sqlite" "$id" <<'PY'
+import json, sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    rows = db.execute('SELECT id,body FROM pending').fetchall()
+    assert len(rows) == 1 and rows[0][0] == 'captured-request'
+    body = json.loads(rows[0][1])
+    assert body['note_id'] == sys.argv[2] and len(body['reply_digest']) == 64
+PY
+pass 'Discord hook: trusted captured note binding routes its outcome to the domain journal'
+
+note=$(env -u FM_DISCORD_DOMAIN FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" note --json 'ordinary note with enabled domain')
+id=$(printf '%s' "$note" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+env -u FM_DISCORD_DOMAIN FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" reply "$id" 'ordinary reply' >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"
+[ ! -s "$TMP_ROOT/err" ] || fail 'ordinary note with enabled domain must not warn'
+
+note=$(FM_DISCORD_DOMAIN=pristine-valets FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" note --json 'domain note awaiting repair')
+id=$(printf '%s' "$note" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+printf '%s\n' '{"enabled":false}' > "$DOMAIN_HOME/config/discord/pristine-valets/integration.json"
+env -u FM_DISCORD_DOMAIN FM_HOME="$DOMAIN_HOME" bash "$ROOT/bin/fm-inbox.sh" reply "$id" 'durable domain reply' >"$TMP_ROOT/out" 2>"$TMP_ROOT/err"
+assert_contains "$(<"$TMP_ROOT/err")" 'Bound domain configuration must be enabled' 'stored binding must refuse disabled configuration'
+assert_contains "$(<"$TMP_ROOT/err")" 'do not resend' 'genuine failed domain outcome needs reconciliation'
+pass 'Discord hook: only genuinely bound notes warn when their domain cannot accept the outcome'

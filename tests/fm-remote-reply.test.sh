@@ -34,6 +34,12 @@ trap cleanup EXIT
 cat > "$PARENT/data/secondmates.md" <<EOF
 - ios - iOS delivery (host: remote-mac; root: $ROOT; home: $REMOTE; scope: iOS work; projects: alpha; added 2026-08-02)
 EOF
+mkdir -p "$REMOTE/state/parent-route"
+printf 'ios\n' > "$REMOTE/.fm-secondmate-home"
+fm_write_meta "$REMOTE/state/parent-route/ios.meta" \
+  "kind=secondmate" "home=$REMOTE" "worktree=$REMOTE" "project=-" \
+  "backend=herdr" "endpoint_task_id=ios" "window=fm-remote:p1" \
+  "herdr_session=fm-remote" "herdr_workspace_id=w1" "herdr_tab_id=t1" "herdr_pane_id=p1"
 printf '# Detailed remote answer\n\nThe build is green.\n' > "$REMOTE/data/reply/report.md"
 printf '# Mentioned but never offered\n' > "$REMOTE/data/reply/prose-only.md"
 : > "$REMOTE/state/parent-replies.status"

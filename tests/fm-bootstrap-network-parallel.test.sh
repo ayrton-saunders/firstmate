@@ -59,6 +59,10 @@ argv_b64=${4:-}
 cmd=$(python3 -c 'import sys, base64
 raw = base64.b64decode(sys.argv[1])
 parts = [p.decode() for p in raw.split(b"\0") if p]
+while len(parts) > 1 and parts[1] in ("--herdr-session", "--expected-backend", "--expected-target", "--route-id"):
+    del parts[1:3]
+if len(parts) > 2 and parts[0] == "fm-remote-secondmate-control.sh" and parts[1] in ("file", "inherit"):
+    parts = ["fm-remote-" + parts[1] + ".sh"] + parts[3:]
 print(parts[0] if parts else "")
 print(parts[1] if len(parts) > 1 else "")
 print(parts[2] if len(parts) > 2 else "")
@@ -126,6 +130,7 @@ case "$command_name" in
     ;;
   fm-remote-inherit.sh)
     case "$subcommand" in
+      generation) printf '0\n' ;;
       put) printf 'unchanged: %s\n' "$item_rel" ;;
     esac
     exit 0
@@ -217,11 +222,11 @@ SH
   write_remote_registry_line "$home/data/secondmates.md" charlie host-charlie "$charlie_root" "$charlie_home"
 
   fm_write_secondmate_meta "$home/state/alpha.meta" "$alpha_home"
-  printf 'remote_host=host-alpha\n' >> "$home/state/alpha.meta"
+  printf 'remote_host=host-alpha\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:p1\n' "$alpha_root" >> "$home/state/alpha.meta"
   fm_write_secondmate_meta "$home/state/bravo.meta" "$bravo_home"
-  printf 'remote_host=host-bravo\n' >> "$home/state/bravo.meta"
+  printf 'remote_host=host-bravo\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:p1\n' "$bravo_root" >> "$home/state/bravo.meta"
   fm_write_secondmate_meta "$home/state/charlie.meta" "$charlie_home"
-  printf 'remote_host=host-charlie\n' >> "$home/state/charlie.meta"
+  printf 'remote_host=host-charlie\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:p1\n' "$charlie_root" >> "$home/state/charlie.meta"
 
   fm_git_init_commit "$home/projects/alpha"
   fm_git_add_origin "$home/projects/alpha" "$dir/alpha.origin.git"
@@ -353,7 +358,7 @@ test_remote_inheritance_failure_names_its_own_error_not_an_unchanged_item() {
   : > "$home/data/secondmates.md"
   write_remote_registry_line "$home/data/secondmates.md" sm host-sm "$sm_root" "$sm_home"
   fm_write_secondmate_meta "$home/state/sm.meta" "$sm_home"
-  printf 'remote_host=host-sm\n' >> "$home/state/sm.meta"
+  printf 'remote_host=host-sm\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:p1\n' "$sm_root" >> "$home/state/sm.meta"
 
   fm_git_init_commit "$home/projects/alpha"
   fm_git_add_origin "$home/projects/alpha" "$dir/alpha.origin.git"
@@ -425,6 +430,10 @@ shift 2 || true
 argv_b64=${4:-}
 cmd=$(python3 -c 'import sys, base64
 parts = [p.decode() for p in base64.b64decode(sys.argv[1]).split(b"\0") if p]
+while len(parts) > 1 and parts[1] in ("--herdr-session", "--expected-backend", "--expected-target", "--route-id"):
+    del parts[1:3]
+if len(parts) > 2 and parts[0] == "fm-remote-secondmate-control.sh" and parts[1] in ("file", "inherit"):
+    parts = ["fm-remote-" + parts[1] + ".sh"] + parts[3:]
 print("\n".join((parts + ["", "", ""])[:3]))' "$argv_b64")
 command_name=$(printf '%s\n' "$cmd" | sed -n '1p')
 subcommand=$(printf '%s\n' "$cmd" | sed -n '2p')
@@ -456,6 +465,12 @@ case "$command_name:$subcommand" in
     ;;
   fm-remote-secondmate-control.sh:state) printf 'END %s\n' "$host" >> "$log"; printf 'alive\n'; exit 0 ;;
   fm-remote-secondmate-control.sh:route) printf 'END %s\n' "$host" >> "$log"; printf 'backend=herdr\n'; exit 0 ;;
+  fm-remote-inherit.sh:generation)
+    sleep "${FM_FAKE_QUERY_SLEEP:-0}"
+    printf 'END %s %s %s\n' "$host" "$command_name" "$subcommand" >> "$log"
+    printf '0\n'
+    exit 0
+    ;;
   fm-remote-inherit.sh:*)
     if [ "$item_rel" = "${FM_FAKE_ITEM_UNKNOWN:-none}" ]; then
       sleep 0.2
@@ -509,7 +524,7 @@ convergence_fixture() {
     mkdir -p "$dir/remote/$id/root" "$dir/remote/$id/home"
     write_remote_registry_line "$CF_HOME/data/secondmates.md" "$id" "$host" "$dir/remote/$id/root" "$dir/remote/$id/home"
     fm_write_secondmate_meta "$CF_HOME/state/$id.meta" "$dir/remote/$id/home"
-    printf 'remote_host=%s\n' "$host" >> "$CF_HOME/state/$id.meta"
+    printf 'remote_host=%s\nremote_root=%s\nremote_backend=herdr\nremote_herdr_session=fm-remote\nremote_target=fm-remote:p1\n' "$host" "$dir/remote/$id/root" >> "$CF_HOME/state/$id.meta"
   done
 }
 
@@ -833,7 +848,7 @@ exec '$REAL_MKTEMP' "\$@"
 SH
       chmod +x "$CF_FAKEBIN/mktemp"
     else
-      started='fm-remote-inherit.sh'
+      started='^START host-sm fm-remote-inherit[.]sh (put|absent) '
     fi
     set -m
     PATH="$CF_FAKEBIN:$BASE_PATH" \
@@ -842,17 +857,21 @@ SH
       FM_FAKE_SSH_LOG="$CF_LOG" FM_INHERITABLE_CONFIG='item-a item-b' \
       FM_FAKE_TREEHOUSE_LEASE_HELP=1 FM_SEND_SETTLE=0 \
       FM_BOOTSTRAP_VERBOSE_FACTS=1 \
-      FM_FAKE_SYNC_HANG_HOST=host-sm FM_FAKE_ITEM_SLEEP=120 \
+      FM_FAKE_SYNC_HANG_HOST=host-sm FM_FAKE_ITEM_SLEEP=120 FM_FAKE_QUERY_SLEEP=2 \
       "$ROOT/bin/$script" >/dev/null 2>&1 &
     pid=$!
     set +m
     waited=0
-    while ! grep -q "$started" "$CF_LOG" && [ "$waited" -lt 200 ]; do
+    while ! grep -Eq "$started" "$CF_LOG" && [ "$waited" -lt 200 ]; do
       sleep 0.05
       waited=$((waited + 1))
     done
-    grep -q "$started" "$CF_LOG" \
+    grep -Eq "$started" "$CF_LOG" \
       || fail "$script never started a remote mutation"$'\n'"$(cat "$CF_LOG")"
+    if [ "$script" = fm-config-push.sh ]; then
+      grep -Eq '^START host-sm fm-remote-inherit[.]sh (put|absent) ' "$CF_LOG" \
+        || fail "config-push kill was triggered by the query before any payload write"$'\n'"$(cat "$CF_LOG")"
+    fi
     kill -TERM -- "-$pid" 2>/dev/null || kill -TERM "$pid" 2>/dev/null || true
     sleep 1
     kill -KILL -- "-$pid" 2>/dev/null || true

@@ -3,16 +3,15 @@
 This sheet is for the existing private Discord domain on the parent Mac and Harbour, not the shared Relay or a new bot installation.
 Every numbered installation step below needs owner action or explicit owner approval for the existing trusted parent to act.
 The local development run must not execute those installation steps: no live journal, service, credential, launchd job or running parent may be changed by that run.
-The [pin reference](discord-owner-reply-pins.md) owns identity calculation, offline snapshot requirements and verifier limits.
 The installed private release owns privileged installation, journal recovery and credential procedures; its reviewed deployment handoff must accompany this sheet.
 Never substitute an old frozen helper with hardcoded historical pins or epochs.
 
 ## 1. Owner action: approve and freeze the domain
 
 Confirm the exact bot, controlling owner, channel, mapped project, existing second mate and canonical parent home.
-Do not infer another domain's authority from matching source pins.
-Approve the final committed Firstmate revision, not an intermediate development commit: even a documentation commit changes `source_commit`.
-Install the complete approved source, including both commands, the verifier and the unchanged lifecycle hook and owners.
+Do not infer another domain's authority from matching source revisions.
+The [hook's configuration contract](../bin/fm-discord-hook.py) owns the source status fields.
+Install the complete approved source, including the parent commands and the lifecycle hook and owners.
 Keep the already approved private package and architecture-matching CPython 3.14 runtime unless a separate immutable-release upgrade is explicitly approved.
 No new token, key, user, mapping, ACL, project charter or launchd job is needed for these parent commands.
 Any such change needs a separate owner decision, not an installation repair.
@@ -22,26 +21,36 @@ On the parent Mac, set these to reviewed canonical absolute paths, without print
 ```sh
 SOURCE=/absolute/installed/firstmate-source
 PARENT_HOME=/absolute/existing/parent-home
-PARENT_CONFIG="$PARENT_HOME/config/discord-integration.json"
 REVIEW=/absolute/private/owner-review-directory
-TRANSPORT_COPY="$REVIEW/transport.json"
 PY_PARENT=/absolute/approved/private-runtime/venv/bin/python
 ADMIN=/absolute/approved/private-release/bin/personal-discord-admin
 ```
 
-`TRANSPORT_COPY` must be an owner-transferred copy of Harbour's intended installed manifest, not an example or an unrelated domain's manifest.
 Read the command interfaces without opening journals:
 
 ```sh
 python3 -I "$SOURCE/bin/fm-discord-dispatch.py" --help
 python3 -I "$SOURCE/bin/fm-discord-reply.py" --help
-python3 -I "$SOURCE/bin/fm-discord-verify-pins.py" --help
 ```
+
+## Trusted local domain binding
+
+The [hook configuration contract](../bin/fm-discord-hook.py) owns trusted local `FM_DISCORD_DOMAIN` selection, global compatibility, runner-compatible paths, captured-note outcome binding and cross-domain routing refusals.
+Never derive that binding or `FM_HOME` from Discord input, and never replace the existing global configuration to enroll another domain.
+Fresh enrollment and runner environment propagation belong to the separate firstmate-discord installation work, not these commands.
+
+Each enabled domain needs separately reviewed bot/endpoint credential principals and reviewed model context for its distinct mapped mate.
+If a captured domain note cannot reach its own journal, the existing durable-reply reconciliation warning preserves the reply without resending it.
+The local parent publishes only into the selected domain's egress; the separately enrolled transport must consume only that egress using its own bot principal.
+The commands forward the supplied reviewed question; they do not select or sanitize the trusted parent's model context.
+Lifecycle correlations retain the existing home-local store with distinct mate ownership rather than gaining OS isolation from domain-local journal paths.
+The separate firstmate-discord fresh-enrollment work must provision and qualify per-bot credential principals (separate tokens and OS accounts) and OS/model isolation before any client exposure.
+Never feed another domain's conversation, reports or memory into a mate's reviewed context; these command fixtures do not prove deployment isolation or live bot delivery.
 
 ## 2. Owner action: pause and preserve
 
 Pause only this domain's Discord parent CLI/hook invocations, not the parent reasoning session or unrelated work.
-Use the private release's reviewed procedure to fence intake and delivery and quiesce endpoint writers before replacing pins.
+Use the private release's reviewed procedure to fence intake and delivery and quiesce endpoint writers before the cutover.
 Preserve custody, pending sends, unknown delivery attempts, owed finals and coherent owner-created backups.
 Do not delete SQLite sidecars, recreate journals, relaunch accepted work or fabricate a restore epoch.
 
@@ -57,37 +66,15 @@ Confirm the label and plist against the existing approved installation before ru
 Stop on failure or an unexpectedly absent job; do not substitute another service label or kill unrelated processes.
 The endpoint remains governed by its separately reviewed pause and resume procedure; stopping transport alone does not prove all journal writers are quiescent.
 
-## 3. Owner action: re-pin both sides as one paused cutover
+## 3. Owner action: preserve the domain protections
 
-Use the existing reviewed re-pin helper and deployment handoff to derive the identity once from the final installed canonical parent source and home.
-Review one paired change set before applying either side:
-
-| Location | Required change |
-| --- | --- |
-| Parent Mac, `config/discord-integration.json` | Replace `source_commit` and `source_digest` with the installed source identity. |
-| Harbour, installed transport manifest | Replace `parent_identity.source_commit` and `parent_identity.source_digest` with the same identity; verify `parent_identity.home_identity` against this domain's canonical parent home. |
-
-Keep the domain's home, mapping, journal paths, private module hashes and interpreter pins unchanged unless separately approved.
-Apply both reviewed replacements while the domain remains fenced and stopped, using each file's owning principal and preserving its protected ownership and permissions.
-This is one coordinated cutover, not a cross-host atomic filesystem transaction.
-If either replacement fails, leave the domain paused with backups intact; never restart with only the parent pin updated.
-The exact helper path, reviewed before/after file hashes and invocation belong to the private owner handoff, not a historical command copied into this public repository.
-Do not guess an undocumented helper interface or rerun a helper whose old-value checks refuse.
-
-Transfer a fresh configuration-only copy of the installed Harbour manifest to `TRANSPORT_COPY`, then run this mandatory pre-flight on the parent Mac:
-
-```sh
-python3 -I "$SOURCE/bin/fm-discord-verify-pins.py" --parent-config "$PARENT_CONFIG" --transport-manifest "$TRANSPORT_COPY"
-```
-
-Require exit zero and exactly:
-
-```text
-Discord source/config/manifest pins agree; journal epoch and fences not checked.
-```
-
-This check opens no journals and does not establish readiness, package integrity, remembered epoch agreement or service health.
-Stop on any mismatch; agreement is not permission to skip reconciliation or unfencing.
+Keep the domain's canonical home binding, mapping revision and its digest, restore epoch and mention-only admission unchanged.
+The hook enforces the configuration schema and home match; the private release owns mapping revision/digest, epoch and mention admission enforcement.
+Do not change that release, its transport manifest or its journals through this repository's development work.
+Keep the journal paths and interpreter requirements unchanged unless separately approved.
+The [hook's configuration contract](../bin/fm-discord-hook.py) owns the enrolled package root rule and treatment of legacy release hashes.
+No paired Firstmate commit/digest replacement or source-pin verifier is required.
+If installation fails, leave the domain paused with backups intact and follow the private owner handoff.
 
 ## 4. Owner action: reconcile, then explicitly unfence
 
@@ -95,23 +82,9 @@ Using the private release's reviewed recovery procedure under the actual owning 
 Read the actual current parent restore epoch; never copy an epoch from this sheet, reset it to remove a warning or overwrite unknown delivery history.
 Review all outstanding obligations and unknown sends before explicitly clearing intake and delivery fences on the relevant parent and transport journals.
 Do not blindly clear other role journals or enable another domain.
-The verifier is read-only and cannot perform reconciliation or unfencing for you.
-
 Have each owner create coherent standalone offline backups through the reviewed journal backup procedure after reconciliation and unfencing.
-Transfer both to the parent Mac's private review directory and run:
-
-```sh
-python3 -I "$SOURCE/bin/fm-discord-verify-pins.py" --parent-config "$PARENT_CONFIG" --transport-manifest "$TRANSPORT_COPY" --parent-journal-snapshot "$REVIEW/parent.sqlite" --transport-journal-snapshot "$REVIEW/transport.sqlite"
-```
-
-Require exit zero and exactly:
-
-```text
-Discord source/config/manifest/remote-epoch pins agree; parent and transport intake/delivery fences are clear (offline snapshots only).
-```
-
-Do not pass live journals, raw copies of SQLite main files, or snapshots with WAL, SHM or rollback-journal sidecars.
-This proves the supplied snapshots only; the owner must establish their coherent provenance and recency.
+A raw SQLite main-file copy is not a coherent backup when sidecars contain committed state.
+Use the private release's reviewed diagnostics to establish epoch agreement and cleared intake/delivery fences.
 Stop on any remaining fence or observation mismatch instead of weakening a check.
 
 ## 5. Owner action: resume the endpoint and restart only transport
@@ -159,6 +132,39 @@ An identical approved reply can repair the same final event; changed words canno
 Expired intake readiness blocks dispatch, but does not erase an already-owed final.
 Coding, visual input preparation, continuation and public follow-up authority are outside this read-only question-and-answer path.
 
+## Optional contextual acknowledgement (inactive by default)
+
+`bin/fm-discord-acknowledge.py --help` owns the opt-in configuration, cheap reasoning command contract and invocation syntax.
+Do not enable its separate `config/discord-acknowledgement.json` switch until both Discord hosts run the release containing [the acknowledgement transport API](https://github.com/ayrton-saunders/firstmate-discord/pull/27).
+Installing the parent adapter neither activates the switch nor upgrades either host.
+
+After the dispatch's delivery is confirmed (`fm-send` succeeded), the trusted parent judges whether the real answer is well over about 30 seconds away, based on the actual request and remaining work, not elapsed time alone.
+The [command help](../bin/fm-discord-acknowledge.py) owns the authoritative delivery-evidence check before wording.
+For imminent answers, skip the optional line entirely.
+Only for a clearly slow answer, invoke the adapter once with `well-over-30s` and one line of verified, public-safe facts about what is actually being checked.
+Select the command's cheap reasoning model explicitly in the local configuration when enabling the feature; the adapter is model/runtime-neutral and never chooses a more expensive fallback.
+Follow the [command help's isolation contract](../bin/fm-discord-acknowledge.py) for the wrapper, sanitized environment and process-group timeout.
+For a reviewed Claude CLI installation, this is the wrapper shape (replace the executable path with the approved local one; do not run this example during fixture validation):
+
+```sh
+#!/bin/sh
+exec /absolute/path/to/claude --print --model claude-haiku-4-5 --effort low \
+  --setting-sources '' --tools '' --strict-mcp-config --no-session-persistence \
+  --disable-slash-commands --system-prompt 'Follow the acknowledgement instruction in the JSON input; output only its sentence.'
+```
+
+The API-capability check runs before wording and reports one plain diagnostic if the enrolled parent release is too old; keep the switch off rather than retrying.
+A useful sentence names the concrete subject being checked, without invented progress, promises or time estimates.
+Use one sentence of plain customer words, not repository/commit/pull-request terminology, internal identifiers, status labels, bracketed text, fractions, hexadecimal strings, private paths, links or mentions.
+These constraints guide context and model wording; the transport remains the authoritative public-caption validator.
+The live approval API validates public-caption safety without approval side effects on refusal; offline `validate-reply` does not support acknowledgement copy.
+
+A closed window (`published:false`) or a changed revision/generation (`Conflict`) means no line, carry on with the real answer, without retry, alert or a new decision.
+The transport owns the one-line-per-request guarantee; the adapter adds no suppression machinery.
+A rare acknowledgement followed seconds later by the final is accepted.
+Publication is not delivery proof.
+The installed release's [contextual acknowledgement contract](https://github.com/ayrton-saunders/firstmate-discord/blob/main/deploy/PARENT-CONNECTION.md#contextual-acknowledgement) owns typing, delivery ordering and unresolved-post recovery.
+
 ## Local qualification and the excluded test
 
 These are development checks, not owner authorization to run the installation steps.
@@ -169,12 +175,14 @@ Check the individual output as well as the runner summary and require the enable
 The scoped executable tests are:
 
 ```sh
-FM_LIVE=0 bash bin/fm-test-run.sh --jobs 1 tests/fm-discord-dispatch.test.sh tests/fm-discord-reply.test.sh tests/fm-discord-verify-pins.test.sh tests/fm-discord-hook.test.sh
+FM_LIVE=0 bash bin/fm-test-run.sh --jobs 1 tests/fm-discord-dispatch.test.sh tests/fm-discord-reply.test.sh tests/fm-discord-hook.test.sh
 ```
 
-The dispatch suite covers exact payloads and automatic bindings, expired readiness, inadmissible lanes, existing intents, mismatched pins, domain isolation and missing delivery receipts.
-The reply suite covers authoritative returns, generation/scope/route mismatches, non-active lanes, fences, mismatched pins, incomplete publication and duplicate-safe approval.
-The verifier suite covers both agreement modes and refusal without modifying fixture files.
+The dispatch suite covers exact payloads and automatic bindings, expired readiness, inadmissible lanes, existing intents, escaping package root refusal, domain isolation and missing delivery receipts.
+The reply suite covers authoritative returns, generation/scope/route mismatches, non-active lanes, fences, escaping package root refusal, incomplete publication and duplicate-safe approval.
+It also exercises the optional acknowledgement command with a fake cheap wording command and integration: slow versus imminent answers, inactive configuration, complete original origin/current bindings, silent closed-window and Conflict outcomes, and unsafe or oversized wording refusal.
+The hook suite covers source status fields present, stale or absent, optional legacy hashes, enrolled release switching, invalid package root refusal, retained home/schema protections, and domain-only lifecycle activation, including permit consumption/confirmation and missing/disabled binding checks.
+The dispatch and reply suites also exercise simultaneous domain bindings, unchanged global routing, same-project foreign origins in both directions, separate mate returns and egress, and missing or invalid local bindings through the executable commands and hook.
 Successful fixture verification is not a claim that the live installation is aligned or unfenced.
 
 Exclude exactly `tests/fm-supervision-host.test.sh` from the broad suite for this environment.
@@ -195,4 +203,4 @@ FM_LIVE=0 bash bin/fm-test-run.sh --jobs 1 --per-script-timeout-secs 1500 --json
 Keep the exact `FM_TEST_SUMMARY` line, individual failures and capability-skip reasons with the private qualification evidence.
 A timeout on another script is a bounded incomplete result, not an automatic new exclusion.
 Do not declare broad qualification complete until every other completable script passes and all skips are accounted for.
-The scoped checks and fixture pin agreement can pass independently of that still-required broad qualification and the separately owner-run live round trip.
+The scoped checks can pass independently of that still-required broad qualification and the separately owner-run live round trip.

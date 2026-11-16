@@ -511,6 +511,8 @@ setup_remote_home() {  # <name> -> echoes home dir with remote meta + registry
     "kind=secondmate" \
     "mode=secondmate" \
     "yolo=off" \
+    "home=/remote/home" \
+    "worktree=/remote/home" \
     "remote_host=remote-mac" \
     "remote_root=/remote/root" \
     "remote_backend=herdr" \

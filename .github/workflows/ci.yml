@@ -54,8 +54,33 @@ concurrency:
 # "Not run for label - " name prefix instead. The condition is repeated per job
 # for the same reason as the fork opt-out; CONTRIBUTING.md documents the label.
 jobs:
+  # Preserve the existing required Lint 1/2 contexts. Both verdicts require
+  # every execution partition, so adding runners cannot turn required roots
+  # into optional checks on repositories that require only those old names.
   lint:
     name: ${{ (github.event.action == 'labeled' && github.event.label.name != 'full-ci') && 'Not run for label - ' || '' }}Lint ${{ matrix.partition }}
+    runs-on: ubuntu-24.04
+    needs: [lint-partitions]
+    if: ${{ always() && !(github.event_name == 'push' && vars.FM_CI_SKIP_PUSH == '1') && !(github.event.action == 'labeled' && github.event.label.name != 'full-ci') && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER' || github.event.pull_request.author_association == 'COLLABORATOR' || contains(github.event.pull_request.labels.*.name, 'full-ci')) }}
+    # Normal tier retained for the existing required contexts.
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        partition: [1, 2]
+    steps:
+      - name: Require every canonical lint partition
+        env:
+          FM_LINT_RESULT: ${{ needs.lint-partitions.result }}
+        run: |
+          set -eu
+          [ "$FM_LINT_RESULT" = success ] || {
+            echo "::error::Canonical lint partitions did not all pass: $FM_LINT_RESULT"
+            exit 1
+          }
+
+  lint-partitions:
+    name: ${{ (github.event.action == 'labeled' && github.event.label.name != 'full-ci') && 'Not run for label - ' || '' }}Lint partition ${{ matrix.partition }}
     runs-on: ubuntu-24.04
     if: ${{ !(github.event_name == 'push' && vars.FM_CI_SKIP_PUSH == '1') && !(github.event.action == 'labeled' && github.event.label.name != 'full-ci') && (github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository || github.event.pull_request.author_association == 'OWNER' || github.event.pull_request.author_association == 'MEMBER' || github.event.pull_request.author_association == 'COLLABORATOR' || contains(github.event.pull_request.labels.*.name, 'full-ci')) }}
     # Normal tier (see the timeout policy above).
@@ -63,7 +88,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        partition: [1, 2]
+        partition: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@v6
       - name: Install pinned ShellCheck

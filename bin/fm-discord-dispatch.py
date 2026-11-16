@@ -3,6 +3,7 @@
 
 Usage: FM_HOME=/absolute/parent-home python3 -I bin/fm-discord-dispatch.py REQUEST ROUTE 'Question'
 
+Trusted local domain binding follows fm-discord-hook.py --help, never message input.
 Only the trusted parent invokes this after reviewing the captured request and
 its exact scope. This surface reserves read-only question/decision work, not
 coding approval, continuation, maintenance or public follow-up authority.
@@ -18,8 +19,7 @@ Leading parser/option prefixes, control markers and oversized words are refused
 rather than reinterpreted. Payload bytes, including trailing newlines, are kept.
 The configured private release and CPython 3.14 runtime must pass the existing
 parent guard before journal access. No new source pin scheme is introduced.
-Pre-flight: bin/fm-discord-verify-pins.py --help
-Pin transition and snapshot limits: docs/discord-owner-reply-pins.md
+Installation and retained domain protections: docs/discord-owner-reply-install.md
 """
 import importlib
 import json
@@ -33,6 +33,9 @@ import subprocess
 import sys
 
 
+HOOK = runpy.run_path(str(Path(__file__).resolve().with_name('fm-discord-hook.py')))
+
+
 class Refusal(ValueError):
     """Public-safe local diagnostic, never private exception text."""
 
@@ -43,20 +46,21 @@ def require(condition, message):
 
 
 def configuration(home):
-    hook = runpy.run_path(str(Path(__file__).resolve().with_name('fm-discord-hook.py')))
-    path = home / 'config/discord-integration.json'
+    path = HOOK['configuration_path'](home)
     require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 65536,
             'enabled regular parent configuration required')
-    config = json.loads(path.read_text(), object_pairs_hook=hook['unique'])
+    config = json.loads(path.read_text(), object_pairs_hook=HOOK['unique'])
     require(isinstance(config, dict) and config.get('enabled') is True,
             'enabled parent configuration required')
+    if 'FM_DISCORD_DOMAIN' in os.environ:
+        config = HOOK['load'](home, routing_only=True)
     interpreter = Path(config['python_executable'])
     require(interpreter.is_absolute() and interpreter.is_file(), 'pinned parent interpreter required')
     if Path(sys.executable).resolve() != interpreter.resolve():
         os.execv(str(interpreter), [str(interpreter), '-I', str(Path(__file__).resolve()), *sys.argv[1:]])
-    config = hook['load'](home)
+    config = HOOK['load'](home)
     require(config is not None and 'mapping' in config, 'pinned parent mapping required')
-    return config, hook['meta_value']
+    return config, HOOK['meta_value']
 
 
 def dispatch(args):
@@ -100,6 +104,8 @@ def dispatch(args):
     for key in ('NO_MISTAKES_GATE', 'FM_SUPERVISION_ACTOR', 'PI_CODING_AGENT'):
         if key in os.environ:
             environment[key] = os.environ[key]
+    if 'FM_DISCORD_DOMAIN' in os.environ:
+        environment['FM_DISCORD_DOMAIN'] = os.environ['FM_DISCORD_DOMAIN']
     journal_type = importlib.import_module('personal_discord.journal').Journal
     parent_type = importlib.import_module('personal_discord.parent').Parent
     routing_type = importlib.import_module('personal_discord.routing').Routing
@@ -108,7 +114,8 @@ def dispatch(args):
     try:
         require(not journal.fenced and not journal.delivery_fenced, 'parent intake or delivery remains fenced')
         parent = parent_type(journal, config['mapping'])
-        request = journal.record('request', ident)
+        request = HOOK['checked_record'](journal, 'request', ident)
+        HOOK['checked_origin'](config, request)
         _, state = journal.state('request', ident)
         require(request['origin']['project_key'] == project, 'request belongs to another mapped project')
         require(not journal.db.execute('SELECT 1 FROM intents WHERE request=?', (ident,)).fetchone(),
@@ -153,11 +160,12 @@ if __name__ == '__main__':
         sys.exit(0)
     try:
         dispatch(sys.argv[1:])
-    except Refusal as error:
+    except (Refusal, HOOK['HookCheck']) as error:
         print('error: Discord dispatch refused: ' + str(error), file=sys.stderr)
         sys.exit(1)
     except (ValueError, KeyError, TypeError, ImportError, OSError, RuntimeError, sqlite3.Error,
-            subprocess.SubprocessError):
-        print('error: Discord dispatch refused: verify pinned configuration, readiness and exact scope; '
+            subprocess.SubprocessError) as error:
+        print('error: Discord dispatch refused: ' + HOOK['failure_check'](error) + ' check failed; '
+              'verify pinned configuration, readiness and exact scope; '
               'reconcile existing intent and correlation before retry', file=sys.stderr)
         sys.exit(1)

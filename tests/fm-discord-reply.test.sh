@@ -11,8 +11,8 @@ if [ -z "$PY314" ]; then
 fi
 fm_git_init_commit "$TMP_ROOT/source"
 mkdir -p "$TMP_ROOT/source/bin"
-cp "$ROOT/bin/fm-discord-reply.py" "$ROOT/bin/fm-discord-hook.py" \
-  "$ROOT/bin/fm-discord-verify-pins.py" "$ROOT/bin/fm-gate-refuse-lib.sh" "$TMP_ROOT/source/bin/"
+cp "$ROOT/bin/fm-discord-reply.py" "$ROOT/bin/fm-discord-acknowledge.py" "$ROOT/bin/fm-discord-hook.py" \
+  "$ROOT/bin/fm-gate-refuse-lib.sh" "$TMP_ROOT/source/bin/"
 for name in fm-inbox.sh fm-send.sh fm-spawn.sh; do
   printf 'inert fixture for %s\n' "$name" > "$TMP_ROOT/source/bin/$name"
 done
@@ -23,7 +23,9 @@ import json
 import os
 from pathlib import Path
 import shutil
+import signal
 import sqlite3
+import time
 import subprocess
 import sys
 import unittest
@@ -50,6 +52,9 @@ from pathlib import Path
 
 def digest(value):
     return hashlib.sha256(json.dumps(value,sort_keys=True,separators=(',', ':'),ensure_ascii=False).encode()).hexdigest()
+
+class Conflict(ValueError):
+    pass
 
 class Journal:
     def __init__(self, path):
@@ -91,7 +96,11 @@ class Integration:
                     source_digest=digest(files))
     def __init__(self, parent, ingress, egress, *, source, home, environment):
         self.j = parent.j
-        assert parent.mapping == {'fixture':True}
+        self.home = home
+        assert parent.mapping == self.j.fixture().get('mapping',{'fixture':True})
+        assert environment.get('FM_DISCORD_DOMAIN') == os.environ.get('FM_DISCORD_DOMAIN')
+        self.mapping = parent.mapping
+        self.egress = egress
         assert environment['FM_HOME'] == environment['FM_ROOT_OVERRIDE'] == str(home)
         assert environment['FM_STATE_OVERRIDE'] == str(home/'state')
         assert environment['FM_DATA_OVERRIDE'] == str(home/'data')
@@ -100,6 +109,32 @@ class Integration:
         assert environment['HOME'] == str(home)
         for key in ('NO_MISTAKES_GATE', 'FM_SUPERVISION_ACTOR', 'PI_CODING_AGENT'):
             assert environment.get(key) == os.environ.get(key)
+    def approve_acknowledgement(self, ident, **body):
+        from .journal import Conflict
+        fixture = self.j.fixture()
+        assert ident == fixture['id']
+        assert body['origin'] == fixture['request']['origin']
+        assert body['revision'] == 7 and type(body['revision']) is int
+        assert body['generation'] == fixture['binding']['generation']
+        assert body['correlation'] == fixture['binding']['correlation']
+        assert body['approved'] is True
+        # Model the live public-caption guard: no approval side effects on refusal.
+        if 'secret' in body['safe_text']:
+            from .checks import Refusal
+            raise Refusal('unsafe private caption fixture')
+        fields = dict(line.split('=',1) for line in
+                      (self.home/'state/pending-replies'/body['correlation']).read_text().splitlines())
+        if not fields.get('delivered_epoch') and fields.get('phase') != 'resolved':
+            raise Conflict('Milestone needs authoritative routed delivery evidence')
+        self.j.db.execute('INSERT INTO approvals VALUES(?,?)',('attempt',json.dumps(body)))
+        self.j.db.commit()
+        if fixture.get('conflict'):
+            raise Conflict('private exception must never escape')
+        if fixture.get('unpublished'):
+            return {'event':'ack','published':False}
+        self.j.db.execute('INSERT INTO approvals VALUES(?,?)',('ack',json.dumps(body)))
+        self.j.db.commit()
+        return {'event':'ack','published':True}
     def approve_update(self, ident, **body):
         fixture = self.j.fixture()
         binding = fixture['binding']
@@ -116,6 +151,10 @@ class Integration:
             raise ValueError('immutable approved final')
         self.j.db.execute('INSERT OR IGNORE INTO approvals VALUES(?,?)',(event_id,encoded))
         self.j.db.commit()
+        if 'mapping' in fixture:
+            self.egress.db.execute('CREATE TABLE IF NOT EXISTS sent(bot,text)')
+            self.egress.db.execute('INSERT INTO sent VALUES(?,?)', (json.dumps(self.mapping,sort_keys=True),body['safe_text']))
+            self.egress.db.commit()
         return {'event':event_id,'published':not fixture.get('unpublished',False)}
 '''
 
@@ -137,6 +176,7 @@ class Reply(unittest.TestCase):
         package = self.package / 'personal_discord'
         package.mkdir(parents=True)
         (package / '__init__.py').write_text('')
+        (package / 'checks.py').write_text('class Refusal(ValueError):\n    pass\n')
         (package / 'journal.py').write_text(JOURNAL)
         (package / 'integration.py').write_text(INTEGRATION)
         (package / 'parent.py').write_text('class Parent:\n    def __init__(self,journal,mapping):\n        self.j,self.mapping=journal,mapping\n')
@@ -146,8 +186,6 @@ class Reply(unittest.TestCase):
                            source_commit=subprocess.check_output(['git','-C',str(self.source),'rev-parse','HEAD'],text=True).strip(),
                            source_digest=digest(files), python_executable=str(Path(sys.executable).resolve()),
                            package_root=str(self.package),
-                           hashes={str(p.relative_to(self.package)):hashlib.sha256(p.read_bytes()).hexdigest()
-                                   for p in package.glob('*.py')},
                            journal=str(self.world/'parent.sqlite'), egress=str(self.world/'egress.sqlite'),
                            ingress=str(self.world/'must-not-open-ingress'), mapping={'fixture':True},
                            projects={'project':str(self.source)}, routes=[dict(target='domain',project='project')])
@@ -165,6 +203,128 @@ class Reply(unittest.TestCase):
         sqlite3.connect(self.config['egress']).close()
         self.return_path = self.home / 'state/pending-replies' / self.binding['correlation']
         self.lifecycle_return()
+
+    def domain_configs(self):
+        import copy
+        configs = {}
+        for index, domain in enumerate(('pristine-valets', 'galagoa-new')):
+            instance = self.world/'domains'/domain/'parent'
+            (instance/'code/current/venv/bin').mkdir(parents=True)
+            (instance/'code/current/venv/bin/python').symlink_to(Path(sys.executable).resolve())
+            shutil.copytree(self.package/'personal_discord', instance/'code/current/personal_discord')
+            (instance/'state').mkdir()
+            config = dict(self.config, domain=domain, instance_root=str(instance),
+                          package_root=str(instance/'code/current'),
+                          python_executable=str(instance/'code/current/venv/bin/python'),
+                          **{key:str(instance/'state'/(key+'.sqlite')) for key in ('journal','ingress','egress')})
+            config['mapping'] = dict(bridge_id=domain, owner_id='owner', guild_id=str(index+1),
+                                     parent_channel_id=str(index+10), mapping_revision='pilot-v1', project_key='project')
+            target = domain+'-mate'
+            config['routes'] = [dict(target=target, project='project')]
+            path = self.home/'config/discord'/domain/'integration.json'
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps(config))
+            shutil.copyfile(self.config['journal'], config['journal'])
+            shutil.copyfile(self.config['egress'], config['egress'])
+            fixture = copy.deepcopy(self.fixture)
+            fixture['mapping'] = config['mapping']
+            fixture['request']['origin'] = dict(config['mapping'], thread_id=str(index+10), source_message_id='100')
+            fixture['binding'].update(work_id=target, correlation=str(index+1)*16)
+            with database(config['journal']) as db:
+                db.execute('UPDATE fixture SET body=?', (json.dumps(fixture),))
+            record = self.home/'state/pending-replies'/fixture['binding']['correlation']
+            record.write_text('corr_id='+fixture['binding']['correlation']+'\ntask_id='+target+
+                              '\nparent_home='+str(self.home)+'\nphase=resolved\n')
+            configs[domain] = config
+        return configs
+
+    def domain_call(self, domain, config):
+        return subprocess.run([sys.executable, '-I', str(self.source/'bin/fm-discord-reply.py'),
+                               self.ident, config['routes'][0]['target'], 'Only '+domain+' approved answer'],
+                              env={**os.environ, 'FM_HOME':str(self.home), 'FM_DISCORD_DOMAIN':domain},
+                              capture_output=True, text=True, timeout=15)
+
+    def test_two_domains_reply_concurrently_to_only_their_own_bot(self):
+        from concurrent.futures import ThreadPoolExecutor
+        configs = self.domain_configs()
+        before = self.config_path.read_bytes()
+        with ThreadPoolExecutor() as executor:
+            jobs = [executor.submit(self.domain_call, domain, config) for domain, config in configs.items()]
+            for job in jobs:
+                result = job.result()
+                self.assertEqual(result.returncode, 0, result.stderr)
+        for index, (domain, config) in enumerate(configs.items()):
+            expected = dict(bridge_id=domain, owner_id='owner', guild_id=str(index+1),
+                            parent_channel_id=str(index+10), mapping_revision='pilot-v1', project_key='project')
+            with database(config['egress']) as db:
+                self.assertEqual(db.execute('SELECT bot,text FROM sent').fetchall(),
+                                 [(json.dumps(expected, sort_keys=True), 'Only '+domain+' approved answer')])
+        self.assertEqual(self.config_path.read_bytes(), before)
+        self.assertEqual(self.approvals(), [])
+        self.invoke()  # Legacy reply still uses only the unchanged global configuration.
+
+    def test_domain_reply_writes_leave_sibling_state_untouched(self):
+        configs = self.domain_configs()
+        for domain, config in configs.items():
+            sibling = next(value for key, value in configs.items() if key != domain)
+            state = Path(sibling['instance_root'])/'state'
+            before = {p.relative_to(state):p.read_bytes() for p in state.rglob('*') if p.is_file()}
+            result = self.domain_call(domain, config)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual({p.relative_to(state):p.read_bytes() for p in state.rglob('*') if p.is_file()}, before)
+
+    def test_bound_reply_missing_disabled_or_mismatched_binding_never_falls_back(self):
+        configs = self.domain_configs()
+        for domain, config in configs.items():
+            path = self.home/'config/discord'/domain/'integration.json'
+            for mode, message in (('missing', 'Bound domain configuration required'),
+                                  ('disabled', 'enabled parent configuration required'), ('mismatched', 'domain/root mismatch')):
+                if mode == 'missing':
+                    path.unlink()
+                else:
+                    path.write_text(json.dumps(dict(config, **({'enabled':False} if mode == 'disabled' else {'domain':'foreign'}))))
+                result = self.domain_call(domain, config)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn(message, result.stderr)
+                self.assertFalse(Path(config['egress']).with_suffix('.opened').exists())
+                self.assertEqual(self.approvals(), [])
+            path.write_text(json.dumps(config))
+
+    def test_foreign_origin_and_return_refuse_before_egress_in_both_directions(self):
+        import copy
+        configs = self.domain_configs()
+        for domain, config in configs.items():
+            other = next(value for key, value in configs.items() if key != domain)
+            with database(config['journal']) as db:
+                original = json.loads(db.execute('SELECT body FROM fixture').fetchone()[0])
+            for kind in ('origin', 'return'):
+                fixture = copy.deepcopy(original)
+                if kind == 'origin':
+                    fixture['request']['origin'] = other['mapping']
+                else:
+                    fixture['binding']['correlation'] = '2'*16 if domain == 'pristine-valets' else '1'*16
+                with database(config['journal']) as db:
+                    db.execute('UPDATE fixture SET body=?', (json.dumps(fixture),))
+                result = self.domain_call(domain, config)
+                self.assertEqual(result.returncode, 1, result.stderr)
+                self.assertIn('another bound domain' if kind == 'origin' else 'another route or home', result.stderr)
+                self.assertFalse(Path(config['egress']).with_suffix('.opened').exists())
+                with database(config['journal']) as db:
+                    self.assertEqual(db.execute('SELECT * FROM approvals').fetchall(), [])
+
+    def test_unbound_ordinary_outcome_stays_silent_with_domain_configs(self):
+        self.domain_configs()
+        with database(self.config['journal']) as db:
+            db.execute('CREATE TABLE records(id,family)')
+        for global_config in (True, False):
+            if not global_config:
+                self.config_path.unlink()
+            environment = {key:value for key,value in os.environ.items() if key != 'FM_DISCORD_DOMAIN'}
+            result = subprocess.run([sys.executable, '-I', str(self.source/'bin/fm-discord-hook.py'),
+                                     'outcome', 'domain-note'], input='a'*64, text=True, capture_output=True,
+                                    env={**environment, 'FM_HOME':str(self.home)})
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stderr, '')
 
     def lifecycle_return(self, **changes):
         # Fake lifecycle owner, not the command under test, records the return.
@@ -296,7 +456,7 @@ class Reply(unittest.TestCase):
         self.refuse('ambiguous correlated return')
 
     def test_unknown_request_or_route_refuses(self):
-        self.refuse('reconcile before retry',ident='missing-request')
+        self.refuse('Captured request lookup failed',ident='missing-request')
         self.refuse('exact mapped route required',route='missing-route')
 
     def test_wrong_project_or_task_binding_refuses(self):
@@ -332,16 +492,31 @@ class Reply(unittest.TestCase):
                 self.refuse('remains fenced')
                 self.fixture[flag] = False
 
-    def test_mismatched_pin_refuses_before_journal_open(self):
-        self.config['source_commit'] = '0'*40
+    def test_source_status_fields_are_optional_and_do_not_fence(self):
+        self.config['source_commit'] = 'old'
+        self.config.pop('source_digest')
         self.config_path.write_text(json.dumps(self.config))
-        self.refuse('reconcile before retry')
-        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
-        self.assertFalse(Path(self.config['egress']).with_suffix('.opened').exists())
+        self.invoke()
+        self.assertEqual(len(self.approvals()),1)
 
-    def test_changed_package_refuses_before_journal_open(self):
+    def test_escaping_package_root_refuses_before_import_or_journal(self):
         (self.package/'personal_discord/journal.py').write_text('raise AssertionError("must not import")')
-        self.refuse('reconcile before retry')
+        (self.world/'code').mkdir()
+        (self.world/'code/current').symlink_to(self.package)
+        self.config['package_root']=str(self.world/'code/current')
+        self.config_path.write_text(json.dumps(self.config))
+        self.refuse('canonical release inside the enrolled code tree')
+        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
+
+    def test_home_binding_refuses_by_check_name_before_journal(self):
+        self.config['home']='/private/wrong-home'
+        self.config_path.write_text(json.dumps(self.config))
+        self.refuse('Integration schema/home mismatch')
+        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
+
+    def test_duplicate_configuration_refuses_by_check_name(self):
+        self.config_path.write_text('{"enabled":true,"enabled":false}')
+        self.refuse('Duplicate configuration field')
         self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
 
     def test_unsafe_or_oversized_words_refuse_before_journal_open(self):
@@ -394,18 +569,203 @@ class Reply(unittest.TestCase):
         with database(self.config['journal']) as db:
             self.assertEqual(json.loads(db.execute('SELECT body FROM fixture').fetchone()[0])['readiness'],{'expires':0})
 
-    def test_preflight_verifier_agrees_on_offline_fixtures(self):
-        manifest = self.world/'transport.json'
-        manifest.write_text(json.dumps(dict(schema=2,enabled=True,parent_identity={
-            **{key:self.config[key] for key in ('source_commit','source_digest')},
-            'home_identity':hashlib.sha256(str(self.home).encode()).hexdigest()})))
-        result = subprocess.run([sys.executable,'-I',str(self.source/'bin/fm-discord-verify-pins.py'),
-                                 '--parent-config',str(self.config_path),'--transport-manifest',str(manifest)],
-                                capture_output=True,text=True,timeout=10)
-        self.assertEqual(result.returncode,0,result.stderr)
-        self.assertEqual(result.stdout,'Discord source/config/manifest pins agree; journal epoch and fences not checked.\n')
-        self.assertEqual(self.approvals(),[])
-        print(result.stdout.strip())
+
+class AcknowledgementTests(unittest.TestCase):
+    setUp = Reply.setUp
+    lifecycle_return = Reply.lifecycle_return
+    update = Reply.update
+    approvals = Reply.approvals
+
+    def configure(self, *, enabled=True, words='I am checking the invoice totals.'):
+        command = self.world/'cheap-wording.py'
+        command.write_text('import json, os, pwd, sys\nfrom pathlib import Path\n'
+                           'assert not any(key.startswith("FM_") for key in os.environ)\n'
+                           'assert "ANTHROPIC_API_KEY" not in os.environ\n'
+                           'assert os.environ["HOME"] == pwd.getpwuid(os.getuid()).pw_dir\n'
+                           'assert os.environ["USER"] == os.environ["LOGNAME"] == pwd.getpwuid(os.getuid()).pw_name\n'
+                           'assert not list(Path.cwd().iterdir())\n'
+                           f'assert not Path.cwd().is_relative_to(Path({str(self.home)!r}))\n'
+                           'data=json.load(sys.stdin)\n'
+                           'assert data["verified_public_context"] == "Checking invoice totals against receipts."\n'
+                           'assert "Maximum 400 UTF-8 bytes" in data["instruction"]\n'
+                           'assert "one sentence" in data["instruction"] and "No private paths" in data["instruction"]\n'
+                           'assert "links or mentions" in data["instruction"]\n'
+                           f'Path({str(self.world/"wording-called")!r}).touch()\n'
+                           f'print({words!r})\n')
+        (self.home/'config/discord-acknowledgement.json').write_text(json.dumps(
+            dict(enabled=enabled, wording_command=[sys.executable, '-I', str(command)])))
+
+    def invoke_ack(self, *, delay='well-over-30s', success=True, command=None, env=None, timeout=15):
+        result = subprocess.run([command or sys.executable, '-I', str(self.source/'bin/fm-discord-acknowledge.py'),
+                                 self.ident, 'domain', delay, 'Checking invoice totals against receipts.'],
+                                capture_output=True, text=True, timeout=timeout,
+                                env={**os.environ, 'FM_HOME':str(self.home), **(env or {})})
+        self.assertEqual(result.returncode, 0 if success else 1, result.stderr)
+        self.assertEqual(result.stdout, '')
+        if success:
+            self.assertEqual(result.stderr, '')
+        else:
+            self.assertNotIn(str(self.world), result.stderr)
+            self.assertNotIn('unsafe private caption fixture', result.stderr)
+            self.assertNotIn('Traceback', result.stderr)
+        return result
+
+    def test_slow_sends_one_contextual_line_with_original_binding(self):
+        self.fixture['request']['origin'].update(thread_id='123', message_id='456', extra={'preserve':True})
+        self.update()
+        self.configure()
+        self.invoke_ack(env={'TMPDIR':str(self.home/'state'), 'HOME':str(self.home),
+                             'FM_TEST_UNTRUSTED':'must-not-inherit', 'ANTHROPIC_API_KEY':'fixture-only'})
+        rows = self.approvals()
+        self.assertEqual([row[0] for row in rows], ['attempt', 'ack'])
+        body = json.loads(rows[1][1])
+        self.assertEqual(body['safe_text'], 'I am checking the invoice totals.')
+        self.assertEqual(body['origin'], self.fixture['request']['origin'])
+        self.assertEqual(body['generation'], self.binding['generation'])
+        self.assertEqual(body['correlation'], self.binding['correlation'])
+        self.assertEqual(body['revision'], 7)
+        self.assertTrue((self.world/'wording-called').exists())
+
+    def test_imminent_never_opens_configuration_journal_or_model(self):
+        self.configure()
+        self.config_path.write_text('invalid')
+        self.invoke_ack(delay='imminent')
+        self.assertEqual(self.approvals(), [])
+        self.assertFalse((self.world/'wording-called').exists())
+        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
+
+    def test_absent_and_inactive_switch_send_nothing(self):
+        self.invoke_ack()
+        self.configure(enabled=False)
+        self.invoke_ack()
+        self.assertEqual(self.approvals(), [])
+        self.assertFalse((self.world/'wording-called').exists())
+        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
+
+    def test_closed_window_and_conflict_are_silent_single_attempts(self):
+        for flag in ('unpublished', 'conflict'):
+            with self.subTest(flag=flag):
+                self.setUp()
+                self.fixture[flag] = True
+                self.update()
+                self.configure()
+                before = list((self.home/'state').rglob('*'))
+                self.invoke_ack()
+                self.assertEqual([row[0] for row in self.approvals()], ['attempt'])
+                self.assertEqual(list((self.home/'state').rglob('*')), before)
+
+    def test_overlong_and_multiline_wording_never_reach_approval(self):
+        for words in ('x'*401, '\u00e9'*201, '', 'Two\nlines', 'Two\u2028lines', 'Two\x01lines',
+                      'Two\x85lines', 'Two\u202elines', 'Two\u2067lines', '\u200b', '\u200b \u200b'):
+            with self.subTest(words=repr(words)):
+                self.setUp()
+                self.configure(words=words)
+                self.invoke_ack(success=False)
+                self.assertEqual(self.approvals(), [])
+
+    def test_unsafe_copy_uses_live_guard_without_approval_side_effect(self):
+        self.configure(words='The secret invoice total is available.')
+        result = self.invoke_ack(success=False)
+        self.assertIn('public caption guard refused', result.stderr)
+        self.assertEqual(self.approvals(), [])
+
+    def test_missing_transport_api_is_safe_before_wording(self):
+        self.configure()
+        with (self.package/'personal_discord/integration.py').open('a') as stream:
+            stream.write('\ndel Integration.approve_acknowledgement\n')
+        result = subprocess.run([sys.executable, '-I', str(self.source/'bin/fm-discord-acknowledge.py'),
+                                 self.ident, 'domain', 'well-over-30s', 'Checking invoice totals against receipts.'],
+                                capture_output=True, text=True, timeout=15,
+                                env={**os.environ, 'FM_HOME':str(self.home)})
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout, '')
+        self.assertEqual(result.stderr, 'Discord acknowledgement unavailable: enrolled release lacks contextual acknowledgement; keep the switch off.\n')
+        self.assertFalse((self.world/'wording-called').exists())
+        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
+        self.assertEqual(self.approvals(), [])
+
+    def test_pinned_reexec_keeps_acknowledgement_entrypoint(self):
+        self.configure()
+        python = next((path for path in (shutil.which('python3.12'), '/usr/bin/python3', shutil.which('python3'))
+                       if path and Path(path).is_file() and Path(path).resolve() != Path(sys.executable).resolve()), None)
+        if python is None:
+            self.skipTest('no alternate Python interpreter installed')
+        self.invoke_ack(command=python)
+        self.assertEqual([row[0] for row in self.approvals()], ['attempt', 'ack'])
+
+    def test_gate_refuses_before_wording_and_journal(self):
+        self.configure()
+        self.invoke_ack(success=False, env={'NO_MISTAKES_GATE':'review', 'FM_GATE_REFUSE_BYPASS':''})
+        self.assertFalse((self.world/'wording-called').exists())
+        self.assertFalse(Path(self.config['journal']).with_suffix('.opened').exists())
+        self.assertEqual(self.approvals(), [])
+
+    def test_wording_failure_is_not_retried_or_published(self):
+        self.configure()
+        command = self.world/'cheap-wording.py'
+        command.write_text('from pathlib import Path\nimport sys\n'
+                           f'p=Path({str(self.world/"attempts")!r})\n'
+                           'p.write_text(p.read_text()+"x" if p.exists() else "x")\n'
+                           'sys.exit(1)\n')
+        self.invoke_ack(success=False)
+        self.assertEqual((self.world/'attempts').read_text(), 'x')
+        self.assertEqual(self.approvals(), [])
+
+    def test_wording_timeout_kills_the_whole_process_group(self):
+        self.configure()
+        marker = self.world/'wording-child'
+        command = self.world/'cheap-wording.py'
+        command.write_text('from pathlib import Path\nimport subprocess, sys, time\n'
+                           'child=subprocess.Popen([sys.executable,"-c","import time; time.sleep(120)"])\n'
+                           f'Path({str(marker)!r}).write_text(str(child.pid))\n'
+                           'time.sleep(120)\n')
+        child = None
+        try:
+            result = self.invoke_ack(success=False, timeout=35)
+            self.assertIn('timed out; no line sent, do not retry', result.stderr)
+            child = int(marker.read_text())
+            # A killed orphan can briefly remain a zombie until init reaps it.
+            for _ in range(30):
+                state = subprocess.run(['ps', '-o', 'stat=', '-p', str(child)],
+                                       capture_output=True, text=True, timeout=5).stdout.strip()
+                if not state or state.startswith('Z'):
+                    break
+                time.sleep(0.1)
+            self.assertTrue(not state or state.startswith('Z'), 'wording child still running')
+            self.assertEqual(self.approvals(), [])
+        finally:
+            if child is None and marker.exists():
+                child = int(marker.read_text())
+            if child is not None:
+                try:
+                    os.kill(child, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+
+    def test_wrong_binding_refuses_before_wording(self):
+        self.configure()
+        self.binding['generation'] = 'old'
+        self.update()
+        self.invoke_ack(success=False)
+        self.assertFalse((self.world/'wording-called').exists())
+        self.assertEqual(self.approvals(), [])
+
+    def test_does_not_require_a_finished_return_to_acknowledge(self):
+        self.configure()
+        self.lifecycle_return(phase='awaiting_report', delivered_epoch='1234567880')
+        before = self.return_path.read_bytes()
+        self.invoke_ack()
+        self.assertEqual(self.return_path.read_bytes(), before)
+        self.assertEqual(len(self.approvals()), 2)
+
+    def test_missing_delivery_evidence_skips_before_wording(self):
+        self.configure()
+        self.lifecycle_return(phase='delivery_unknown')
+        before = self.return_path.read_bytes()
+        self.invoke_ack()
+        self.assertEqual(self.return_path.read_bytes(), before)
+        self.assertFalse((self.world/'wording-called').exists())
+        self.assertEqual(self.approvals(), [])
 
 
 unittest.main(argv=['discord-reply'],verbosity=2)

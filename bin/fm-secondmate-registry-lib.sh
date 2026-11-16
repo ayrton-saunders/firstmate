@@ -10,6 +10,11 @@
 # and semicolons, so field boundaries are anchored to the suffix markers rather
 # than to the first incidental punctuation.
 
+# shellcheck source=bin/fm-herdr-session-lib.sh
+. "$(CDPATH='' cd -- "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)/fm-herdr-session-lib.sh"
+
+SECONDMATE_REGISTRY_SESSION=
+SECONDMATE_REGISTRY_MATCH_SESSION=
 SECONDMATE_REGISTRY_ID=
 SECONDMATE_REGISTRY_SUMMARY=
 SECONDMATE_REGISTRY_HOST=
@@ -28,13 +33,75 @@ SECONDMATE_REGISTRY_MATCH_PROJECTS=
 SECONDMATE_REGISTRY_MATCH_REMOTE=0
 SECONDMATE_REGISTRY_ERROR=
 
+# Stable exact identity projection for sampled parent records. No legacy defaults:
+# missing endpoint evidence must remain distinguishable from a recorded value.
+secondmate_registry_parent_binding() {
+  local meta=$1 binding
+  [ -f "$meta" ] && [ ! -L "$meta" ] || return 1
+  binding=$(awk -F= '
+    BEGIN { n=split("endpoint_task_id kind remote_host remote_root home worktree backend remote_backend remote_herdr_session remote_target", keys, " ") }
+    { for(i=1;i<=n;i++) if($1==keys[i]) { if(seen[i]++) exit 1; values[i]=substr($0,length($1)+2) } }
+    END { for(i=1;i<=n;i++) if(seen[i]) printf "%s=%s\n",keys[i],values[i] }
+  ' "$meta") || return 1
+  printf '%s' "$binding" | base64 | tr -d '\n'
+}
+
+secondmate_registry_meta_field() {
+  local meta=$1 key=$2
+  [ -f "$meta" ] && [ ! -L "$meta" ] || return 1
+  awk -F= -v key="$key" '$1 == key { n++; value=substr($0,length(key)+2) } END { if(n==1) print value; else exit 1 }' "$meta"
+}
+
+# A returned route field is usable only when it occurs exactly once. Empty or
+# duplicate output remains missing evidence rather than last-writer-wins.
+secondmate_registry_output_field() {
+  local output=$1 key=$2
+  printf '%s\n' "$output" | awk -F= -v key="$key" '$1 == key { n++; value=substr($0,length(key)+2) } END { if(n==1) print value }'
+}
+
+secondmate_registry_parent_matches() { # <meta> <id> <host> <root> <home> <session>
+  local meta=$1 id=$2 host=$3 root=$4 home=$5 session=$6 backend target explicit_backend
+  SECONDMATE_REGISTRY_ERROR='remote route disagrees with its parent endpoint record; preserving both'
+  [ "$(secondmate_registry_meta_field "$meta" kind)" = secondmate ] &&
+    [ "$(secondmate_registry_meta_field "$meta" endpoint_task_id)" = "$id" ] &&
+    [ "$(secondmate_registry_meta_field "$meta" remote_host)" = "$host" ] &&
+    [ "$(secondmate_registry_meta_field "$meta" remote_root)" = "$root" ] &&
+    [ "$(secondmate_registry_meta_field "$meta" home)" = "$home" ] &&
+    [ "$(secondmate_registry_meta_field "$meta" worktree)" = "$home" ] || return 1
+  if backend=$(secondmate_registry_meta_field "$meta" remote_backend); then
+    [ -n "$backend" ] || return 1
+  else
+    # Pre-Rex parent records can omit this field. Absence is not a backend
+    # default: the explicit session/target proof below must still succeed.
+    # A present-but-duplicate field is contradictory evidence, never absence.
+    ! grep -q '^remote_backend=' "$meta" || return 1
+    backend=
+  fi
+  case "$backend" in
+    ''|herdr)
+      if explicit_backend=$(secondmate_registry_meta_field "$meta" backend); then
+        [ "$explicit_backend" = herdr ] || return 1
+      else
+        ! grep -q '^backend=' "$meta" || return 1
+      fi
+      [ "$(secondmate_registry_meta_field "$meta" remote_herdr_session)" = "$session" ] || return 1
+      target=$(secondmate_registry_meta_field "$meta" remote_target) || return 1
+      case "$target" in "$session":?*) ;; *) return 1 ;; esac
+      ;;
+    rex) ;;
+    *) return 1 ;;
+  esac
+  SECONDMATE_REGISTRY_ERROR=
+}
+
 secondmate_registry_lock_path() { printf '%s/.secondmate-registry.lock\n' "$1"; }
 secondmate_reply_lifecycle_lock_path() { printf '%s/.remote-reply-lifecycle-%s.lock\n' "$1" "$2"; }
 
 secondmate_registry_parse_line() {
-  local line=$1
+  local line=$1 session_suffix
+  SECONDMATE_REGISTRY_SESSION=
   local local_re='^- ([A-Za-z0-9._-]+) - (.+) \(home:[[:space:]]*([^;)]*);[[:space:]]*scope:[[:space:]]*(.*);[[:space:]]*projects:[[:space:]]*([^;)]*);[[:space:]]*added[[:space:]]+([0-9]{4}-[0-9]{2}-[0-9]{2})\)[[:space:]]*$'
-  local remote_re='^- ([A-Za-z0-9._-]+) - (.+) \(host:[[:space:]]*([^;)]*);[[:space:]]*root:[[:space:]]*([^;)]*);[[:space:]]*home:[[:space:]]*([^;)]*);[[:space:]]*scope:[[:space:]]*(.*);[[:space:]]*projects:[[:space:]]*([^;)]*);[[:space:]]*added[[:space:]]+([0-9]{4}-[0-9]{2}-[0-9]{2})\)[[:space:]]*$'
+  local remote_re='^- ([A-Za-z0-9._-]+) - (.+) \(host:[[:space:]]*([^;)]*);[[:space:]]*root:[[:space:]]*([^;)]*);[[:space:]]*home:[[:space:]]*([^;)]*);[[:space:]]*(session:([^;)]*);[[:space:]]*)?scope:[[:space:]]*(.*);[[:space:]]*projects:[[:space:]]*([^;)]*);[[:space:]]*added[[:space:]]+([0-9]{4}-[0-9]{2}-[0-9]{2})\)[[:space:]]*$'
   SECONDMATE_REGISTRY_ID=
   SECONDMATE_REGISTRY_SUMMARY=
   SECONDMATE_REGISTRY_HOST=
@@ -54,14 +121,22 @@ secondmate_registry_parse_line() {
     SECONDMATE_REGISTRY_PROJECTS=${BASH_REMATCH[5]}
     SECONDMATE_REGISTRY_ADDED=${BASH_REMATCH[6]}
   elif [[ "$line" =~ $remote_re ]]; then
+    if [ -n "${BASH_REMATCH[6]}" ]; then
+      session_suffix=${BASH_REMATCH[7]}
+      session_suffix=${session_suffix# }
+      fm_remote_herdr_session_validate "$session_suffix" || return 1
+      SECONDMATE_REGISTRY_SESSION=$session_suffix
+    else
+      SECONDMATE_REGISTRY_SESSION=$FM_REMOTE_HERDR_LEGACY_SESSION
+    fi
     SECONDMATE_REGISTRY_ID=${BASH_REMATCH[1]}
     SECONDMATE_REGISTRY_SUMMARY=${BASH_REMATCH[2]}
     SECONDMATE_REGISTRY_HOST=${BASH_REMATCH[3]}
     SECONDMATE_REGISTRY_ROOT=${BASH_REMATCH[4]}
     SECONDMATE_REGISTRY_HOME=${BASH_REMATCH[5]}
-    SECONDMATE_REGISTRY_SCOPE=${BASH_REMATCH[6]}
-    SECONDMATE_REGISTRY_PROJECTS=${BASH_REMATCH[7]}
-    SECONDMATE_REGISTRY_ADDED=${BASH_REMATCH[8]}
+    SECONDMATE_REGISTRY_SCOPE=${BASH_REMATCH[8]}
+    SECONDMATE_REGISTRY_PROJECTS=${BASH_REMATCH[9]}
+    SECONDMATE_REGISTRY_ADDED=${BASH_REMATCH[10]}
     SECONDMATE_REGISTRY_REMOTE=1
   else
     return 1
@@ -96,6 +171,7 @@ secondmate_registry_field() {
     host) printf '%s\n' "$SECONDMATE_REGISTRY_HOST" ;;
     root) printf '%s\n' "$SECONDMATE_REGISTRY_ROOT" ;;
     home) printf '%s\n' "$SECONDMATE_REGISTRY_HOME" ;;
+    session) printf '%s\n' "$SECONDMATE_REGISTRY_SESSION" ;;
     scope) printf '%s\n' "$SECONDMATE_REGISTRY_SCOPE" ;;
     projects) printf '%s\n' "$SECONDMATE_REGISTRY_PROJECTS" ;;
     remote) printf '%s\n' "$SECONDMATE_REGISTRY_REMOTE" ;;
@@ -118,6 +194,7 @@ secondmate_registry_path_key() {
 secondmate_registry_validate_bindings() {
   local reg=$1 resolver=$2 expected_id=${3:-} expected_home=${4:-}
   local tmp snapshot bindings line id host root home home_key duplicate_homes duplicate_ids overlaps expected_home_key
+  SECONDMATE_REGISTRY_MATCH_SESSION=
   SECONDMATE_REGISTRY_MATCH_HOST=
   SECONDMATE_REGISTRY_MATCH_ROOT=
   SECONDMATE_REGISTRY_MATCH_HOME=
@@ -228,6 +305,7 @@ secondmate_registry_validate_bindings() {
         fi
         printf '%s\t%s\n' "$home_key" "$id" >> "$bindings"
         if [ -n "$expected_id" ] && [ "$id" = "$expected_id" ]; then
+          SECONDMATE_REGISTRY_MATCH_SESSION=$SECONDMATE_REGISTRY_SESSION
           SECONDMATE_REGISTRY_MATCH_HOST=$host
           SECONDMATE_REGISTRY_MATCH_ROOT=$root
           SECONDMATE_REGISTRY_MATCH_HOME=$home

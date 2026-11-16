@@ -472,6 +472,7 @@ secondmate_agent_may_be_alive() {  # <id>
   if [ -n "$remote_host" ]; then
     state=$("$SCRIPT_DIR/fm-on.sh" "$id" \
       fm-remote-secondmate-control.sh state "$id" < /dev/null 2>/dev/null) || state=unreadable
+    case "$state" in alive) ;; dead|missing) return 1 ;; *) return 2 ;; esac
   elif fm_backend_validate_task_endpoint "$meta" "$id" >/dev/null 2>&1; then
     state=$(fm_backend_agent_state "$FM_BACKEND_VALIDATED_BACKEND" \
       "$FM_BACKEND_VALIDATED_TARGET" 2>/dev/null) || state=unreadable
@@ -553,7 +554,11 @@ if [ -f "$SECONDMATES_MD" ]; then
     id=$SECONDMATE_REGISTRY_ID
     home=$SECONDMATE_REGISTRY_HOME
     if [ "$SECONDMATE_REGISTRY_REMOTE" -eq 1 ]; then
-      if remote_out=$("$SCRIPT_DIR/fm-on.sh" "$id" fm-remote-secondmate-control.sh update "$id" < /dev/null 2>&1); then
+      if remote_out=$(FM_REMOTE_EXPECTED_ROUTE_LINE="$line" "$SCRIPT_DIR/fm-on.sh" "$id" fm-remote-secondmate-control.sh update "$id" < /dev/null 2>&1); then
+        if ! secondmate_registry_line_for_id "$SECONDMATES_MD" "$id" || [ "$SECONDMATE_REGISTRY_LINE" != "$line" ]; then
+          echo "remote secondmate $id: route changed during update; preserving records and refusing restart" >&2
+          continue
+        fi
         remote_result=$(printf '%s\n' "$remote_out" | tail -1)
         case "$remote_result" in
           synced:*)
@@ -595,7 +600,7 @@ if [ -f "$SECONDMATES_MD" ]; then
     elif [ -n "$secondmate_base" ]; then
       process_secondmate "$id" "$home" "" "$secondmate_base" yes
     fi
-  done < "$SECONDMATES_MD"
+  done < <(cat "$SECONDMATES_MD")
 fi
 
 # --- caller action summary -------------------------------------------------
