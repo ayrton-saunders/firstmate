@@ -226,7 +226,18 @@ def evidence(home, row, original):
     result = run(['gh-axi', 'pr', 'view', url, '--json', 'headRefOid,statusCheckRollup'])
     require(result.returncode == 0)
     checks = json.loads(result.stdout)
-    require(checks['headRefOid'] == pr['headRefOid'] and isinstance(checks['statusCheckRollup'], list))
+    require(re.fullmatch('[0-9a-f]{40,64}', checks['headRefOid']))
+    if checks['headRefOid'] != pr['headRefOid']:
+        raise Invalidated('superseded')
+    require(isinstance(checks['statusCheckRollup'], list))
+    not_ready = any(check.get('state') in ('ERROR', 'EXPECTED', 'FAILURE', 'PENDING')
+                    or check.get('status') in ('IN_PROGRESS', 'PENDING', 'QUEUED', 'REQUESTED', 'WAITING')
+                    or check.get('status') == 'COMPLETED' and check.get('conclusion') in
+                    ('ACTION_REQUIRED', 'CANCELLED', 'FAILURE', 'STALE', 'STARTUP_FAILURE', 'TIMED_OUT')
+                    for check in checks['statusCheckRollup'])
+    if not_ready and row['state'] != 'queued':
+        raise Invalidated('superseded')
+    require(not not_ready)
     require(not checks['statusCheckRollup'] or run(['gh-axi', 'pr', 'checks', url]).returncode == 0)
     if project.get('sensitive', True):
         return identity, {'template_id': 'sensitive-decision'}

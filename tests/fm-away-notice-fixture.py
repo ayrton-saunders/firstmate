@@ -124,18 +124,23 @@ if [ "$1" = api ]; then
   printf '{"url":"https://github.com/owner/repo/pull/1","state":"open","isDraft":false,"headRefOid":"%s"}\n' "$head"
 elif [ "$2" = view ]; then
   [ "$mode" != view-error ] || { printf 'forge unavailable\n' >&2; exit 1; }
+  [ ! -f "$FM_HOME/state/checks-head" ] || head=$(head -n 1 "$FM_HOME/state/checks-head")
   checks='[{"name":"ci","status":"COMPLETED","conclusion":"SUCCESS"}]'
   case "$mode" in
     none) checks='[]' ;;
     failing) checks='[{"name":"ci","status":"COMPLETED","conclusion":"FAILURE"}]' ;;
     pending) checks='[{"name":"ci","status":"IN_PROGRESS","conclusion":""}]' ;;
+    context-failing) checks='[{"context":"ci","state":"FAILURE"}]' ;;
+    context-pending) checks='[{"context":"ci","state":"PENDING"}]' ;;
+    context-error) checks='[{"context":"ci","state":"ERROR"}]' ;;
+    context-expected) checks='[{"context":"ci","state":"EXPECTED"}]' ;;
   esac
   printf '{"headRefOid":"%s","statusCheckRollup":%s}\n' "$head" "$checks"
 else
   case "$mode" in
     none) printf 'no checks reported\n' >&2; exit 1 ;;
-    failing) exit 1 ;;
-    pending) exit 8 ;;
+    failing|context-failing|context-error) exit 1 ;;
+    pending|context-pending|context-expected) exit 8 ;;
     checks-error) printf 'forge unavailable\n' >&2; exit 1 ;;
   esac
 fi
@@ -264,6 +269,70 @@ fi
 
 
 class Notices(Fixture):
+    def assert_readiness_withdrawn(self, mode, uncertain=False):
+        """Choice A: positively lost readiness disposes the unsent obligation."""
+        self.hold()
+        self.ready()
+        if uncertain:
+            self.flag('lost')
+        self.report('pr-ready')
+        self.assertEqual(self.rows()[0]['state'], 'uncertain' if uncertain else 'owed')
+        notice_id = self.rows()[0]['notice_id']
+        (self.home / 'state/checks-mode').write_text(mode)
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'withdrawn')
+        self.assertEqual(Path(self.config['journal'] + '.' + notice_id).read_text(), 'stopped')
+        self.assertEqual(self.calls('withdraw')[0]['body']['reason'], 'superseded')
+        self.assertEqual(len(self.calls('approve')), 1)
+        self.assertTrue((self.home / 'state/task.hold').exists())
+        self.assertFalse((self.home / 'state/.branch-outcomes-processed').exists())
+
+    def test_red_ci_withdraws_owed_notice_at_same_head(self):
+        self.assert_readiness_withdrawn('failing')
+
+    def test_pending_ci_withdraws_owed_notice_at_same_head(self):
+        self.assert_readiness_withdrawn('pending')
+
+    def test_failed_status_context_withdraws_owed_notice(self):
+        self.assert_readiness_withdrawn('context-failing')
+
+    def test_pending_status_context_withdraws_owed_notice(self):
+        self.assert_readiness_withdrawn('context-pending')
+
+    def test_error_status_context_withdraws_owed_notice(self):
+        self.assert_readiness_withdrawn('context-error')
+
+    def test_expected_status_context_withdraws_owed_notice(self):
+        self.assert_readiness_withdrawn('context-expected')
+
+    def test_lost_readiness_withdraws_uncertain_approval(self):
+        self.assert_readiness_withdrawn('pending', uncertain=True)
+
+    def test_head_changed_between_queries_withdraws_notice(self):
+        self.ready()
+        self.report('pr-ready')
+        (self.home / 'state/checks-head').write_text('b' * 40)
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'withdrawn')
+        self.assertEqual(self.calls('withdraw')[0]['body']['reason'], 'superseded')
+
+    def test_forge_errors_preserve_owed_notice_and_recover(self):
+        self.ready()
+        self.report('pr-ready')
+        mode = self.home / 'state/checks-mode'
+        for error in ('view-error', 'checks-error'):
+            mode.write_text(error)
+            self.call('drain')
+            self.assertEqual(self.rows()[0]['state'], 'owed')
+            self.assertIsNotNone(self.rows()[0]['error'])
+            self.assertEqual(self.calls('withdraw'), [])
+        self.unavailable()
+        mode.write_text('none')
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'owed')
+        self.assertIsNone(self.rows()[0]['error'])
+        self.assertEqual(len(self.calls('approve')), 1)
+
     def test_no_ci_pr_is_ready_at_recorded_head(self):
         """Repository readiness contract: no CI is not a failed check."""
         self.ready()
@@ -714,6 +783,18 @@ class Notices(Fixture):
 @unittest.skipUnless(REAL_SOURCE, 'set FM_NOTICE_REAL_SOURCE to the reviewed slice-1 checkout')
 class RealFacade(Fixture):
     real = True
+
+    def test_real_readiness_loss_withdraws_parent_obligation(self):
+        self.ready()
+        self.report('pr-ready')
+        (self.home / 'state/checks-mode').write_text('pending')
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'withdrawn')
+        with closing(sqlite3.connect(self.config['journal'])) as db, db:
+            self.assertEqual(db.execute('SELECT phase FROM obligations').fetchone()[0], 'owner-disposed')
+            withdrawal = json.loads(db.execute("SELECT body FROM records WHERE family='notice-withdrawal'").fetchone()[0])
+            self.assertEqual(withdrawal['reason'], 'superseded')
+        self.assertEqual(len(self.events()), 1)
 
     def test_real_no_ci_pr_creates_one_notice(self):
         self.ready()
