@@ -1,38 +1,138 @@
-# Away notice parent boundary
+# Away notice lifecycle and slice-1 interface
 
-The authoritative executable contract is the header of `bin/fm-away-notice.py`.
-This fork uses the separately enrolled `personal_discord.private_notice` API;
-it does not implement Discord transport or authorize enrollment or live tests.
+`bin/fm-away-notice.py` owns this outbound-only fork adapter. Its header is the
+executable contract. Selection is **off by default**: absent configuration or
+`{"reach":"none"}` publishes nothing. `config/away-reach.json` can explicitly
+select `{"reach":"discord-private","domain":"personal"}`. The separately
+reviewed `away-notices.json` in that domain supplies the immutable mapping and
+project disclosure policy; it does not enroll a bot or prove channel privacy.
+No enrollment, live Discord test, reply-to-decision handling, work release or merge
+authority is granted here.
 
-## Authorized interface addition: withdrawal
+## Actual merged facade
 
-Firstmate must confirm this addition with the slice-1 builder and include it in
-the eventual PR description:
+Qualified against firstmate-discord main
+`45e67bfeaf33d787e7dbf7ffaf4ca186f2e9f018`, not an invented approval surface.
+The trusted domain/runtime guards import `personal_discord.private_notice` and
+require `CAPABILITY == 'private-notice-v1'`. Actor provenance stays intact.
 
-`withdraw(config=..., notice=...)` accepts the original immutable notice, preserving
-its ID, origin and actor provenance. It returns exactly
-`{"notice_id": "<same ID>", "state": "stopped"}` or the same receipt with state
-`delivered` when receipt closure already proved delivery. Withdrawal must be
-idempotent and atomically fence parent-owned pending egress, including uncertain
-approvals and notices whose original enrollment has since changed or been revoked.
-It must not create an approval, retarget a notice, or claim to unsend delivery.
+- `available(config=config)` is configuration-only readiness: enabled, both
+  `private_notices` capability declarations, and valid non-retired enrollment.
+  It is neither transport health nor delivery proof.
+- `approve(config=config, notice=proposal)` takes `notice_id`, `mapping_id`,
+  `template_id`, `approved: true`, and only the template's used fields below.
+  `mapping_id` comes from the real `personal_discord.mappings.mapping_id` of the
+  original trusted mapping. Lifecycle identity is hashed locally, not sent.
+- `state(config=config, notice_id=..., mapping_id=...)` reconciles a confirmed
+  owed notice without creating another approval.
+- `withdraw(config=config, notice_id=..., mapping_id=..., reason=...)` uses exactly
+  `resolved`, `superseded`, `enrollment-revoked`, or `away-ended`. It always uses
+  the original mapping, never a replacement. State and withdrawal do not require
+  availability after capability disablement or retirement.
+- All receipts are exactly `{notice_id, state}` with the same ID and state
+  `owed`, `delivered`, or `stopped`. Unknown delivery remains owed; denial maps to
+  stopped and remains a reconciliation concern. Withdrawal returning owed is
+  not disposal. A delivered receipt is never downgraded or locally unsent.
 
-The fork rechecks every queued or owed notice on drains. Resolved/replaced holds,
-changed PR evidence, revoked or changed enrollment, mismatched recorded bindings,
-and ending away mode trigger withdrawal. Unavailable evidence also stops approval
-and requests withdrawal conservatively. Failed or unsupported withdrawal retains
-a durable reconciliation obligation, retried only as withdrawal, never approval.
-Reach reads unavailable while reconciliation or an unrecovered failure remains;
-return summaries retain bounded historical failures separately from current health.
-Report validation/evidence failures belong to the exact typed report invocation
-(outcome sequence, task and kind). Replay that invocation to recover it; an
-unrelated drain, another report or restored parent capability cannot clear it.
-A successful evidence recheck can also establish that the report is no longer
-useful without creating a notice. Configuration and binding failures recover
-only through their respective successful checks.
+| Template | Additional proposal fields | Parent-owned wording |
+| --- | --- | --- |
+| `decision-waiting` | reviewed `project_alias`; no URL | A decision is waiting for the {alias} work. Please review it in our usual conversation. |
+| `sensitive-decision` | neither alias nor URL | A decision is waiting. Please review it in our usual conversation. |
+| `pr-ready` | reviewed `project_alias`, exact `pr_url` | The {alias} work is ready for review: <{pr_url}>. Review it in our usual conversation. Discord replies do not approve it. |
 
-Uncertain approval attempts reserve durable destination traffic allowance before
-crossing the parent boundary, including recovery after failure or a crash. Only a
-validated approval receipt exempts subsequent reconciliation from new-notice
-accounting. Transport retry-after, ambiguous POST recovery and delivery receipts
-remain exclusively parent-owned. Outcome, hold and inbox bookkeeping is untouched.
+Aliases follow the real facade's ASCII-letter initial, letters/digits/spaces/hyphens,
+64-character bound. PR URLs are exact enrolled-repository HTTPS GitHub paths with
+one to ten decimal PR-number digits, no userinfo, query or fragment. The parent
+owns rendering, mention/preview suppression, egress, Discord retry-after and receipts.
+The adapter cannot accept raw report/status/transcript/error/body/attachment fields
+for publication: its only source input is an outcome sequence, task and typed kind;
+its only outgoing proposal is the fixed field set above. It sends neither `origin`
+nor `identity`. This is a structural disclosure restriction, not prose filtering.
+
+## One durable lifecycle
+
+A row owns its typed source reference, original reviewed target, frozen lifecycle
+identity/proposal once checked, state, current fixed failure reason and withdrawal
+reason. The six states are `queued`, `uncertain` (approval may have committed),
+`owed`, `delivered`, `withdrawn`, and `reconcile` (needs reconciliation).
+
+Report intent is committed **before evidence lookup**. Failed evidence therefore
+remains queued and is retried on ordinary supervision drains, without requiring a
+new report or waking main. Duplicate reports coalesce on the checked hold lifecycle
+or PR URL/head/ready identity plus mapping ID, not on outcome sequence. Terminal
+identities remain for dedupe; changed heads/holds require fresh checks.
+
+Every drain rechecks live unsent rows. Temporary hold, forge or configuration-read
+errors leave their state unchanged with a current failure; they do not prove
+resolution or revoke an approval. Positive resolution, supersession, enrollment
+replacement/revocation, or ended away mode starts disposal. Only never-attempted
+queued rows can be cancelled locally. Every possibly approved row needs parent
+withdrawal acknowledgement. Failed/uncertain withdrawal remains `reconcile`, retrying
+only disposal. Parent denial without proven invalidation stays a reconciliation
+concern; it is not relabelled as enrollment revocation.
+
+`return` withdraws **every** owed, uncertain and reconciliation row with `away-ended`
+before printing, including when the away record has already been archived. It has
+no row-count/deadline truncation. A delivered receipt preserves delivery evidence.
+No transition processes an outcome, resolves a hold, releases work, clears an inbox
+note or implies human acknowledgement.
+
+SQLite serializes drains. A durable reservation precedes every potentially new
+approval, including uncertain replay: at least 30 seconds apart and at most ten
+within 600 seconds for the same destination. Confirmed owed rows use `state`, not
+approval replay. Excess remains queued and is rechecked, not reminded periodically.
+
+## Selection is not health
+
+Away entry records explicit selection and a verified binding even if capability or
+current delivery health is unavailable. It never converts that selection to none
+because an earlier failure exists. No binding is invented when enrollment cannot
+be validated; a fresh entry can bind restored enrollment. Old obligations retain
+their original target and cannot be retargeted. A changed parent journal is refused
+for reconciliation rather than silently consulting a replacement journal.
+
+Read-back derives availability from current capability and live rows: current row
+failures, uncertain approval and reconciliation mean unavailable; ordinary queued
+traffic and healthy owed rows mean configured, not delivered. Corresponding row
+recovery or acknowledged disposal clears that row's failure. The bounded historical
+failure log (twenty fixed codes) is return evidence only. There is no global or
+report-keyed health latch. An unrelated successful report cannot clear another row.
+
+The earlier, unreleased guessed-facade SQLite schema is refused rather than silently
+converted, dropped or reinterpreted as real parent approvals. Any such private test
+journal needs explicit disposition; no migration of live obligations is claimed.
+
+## Offline qualification
+
+Portable behavioral fixtures:
+
+```sh
+bash tests/fm-away-notice.test.sh
+```
+
+Real-facade qualification command used for this change (read-only archived source;
+all runtime/package copies and journals are disposable test fixtures):
+
+```sh
+FM_NOTICE_REAL_SOURCE=/Users/ayrton/.treehouse/personal-3b61fd/3/personal/data/fork-discord-away-notice-adapter/slice1-main \
+  bash tests/fm-away-notice.test.sh
+```
+
+The fixture executes the CLI with branch provenance and the real host report twin.
+The real-facade cases use unmodified `private_notice`, `admin`, `Integration`,
+`Parent`, `Mappings` and isolated real SQLite journals. They assert exact wording for
+all three templates, immutable event dedupe, owed/read-back distinction, no synthetic
+request, retirement/capability-disabled withdrawal, and preservation of closed
+parent delivery evidence. The receipt fixture seeds closed evidence only inside its
+isolated parent journal; it does not claim a live delivery. No network or Discord
+transport is invoked. Portable cases additionally exercise lost receipts, crash
+recovery, parallel drains, both rate limits, temporary evidence/config errors,
+revocation/re-entry, failed withdrawal after archive, and independent bookkeeping.
+
+Focused verification result: **24 tests passed**, including both real-facade
+cases above. This is offline contract evidence, not channel privacy qualification
+or live delivery evidence.
+
+Pi's report-tool-to-CLI sequence/actor contract remains covered by
+`tests/fm-pi-branch-extension.test.sh`; this rewrite keeps that invocation unchanged.
+The ordinary pipeline owns the remaining review, tests, lint, PR and CI phases.
