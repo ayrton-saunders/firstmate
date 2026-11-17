@@ -94,7 +94,9 @@ def run(args):
 
 def selection(home):
     path = home / 'config/away-reach.json'
-    if not path.exists():
+    try:
+        path.lstat()
+    except FileNotFoundError:
         return None
     value = read_json(path)
     if value == {'reach': 'none'}:
@@ -116,7 +118,9 @@ def target(home, domain):
     enrolled = read_json(home / 'config/discord' / domain / 'away-notices.json')
     require(set(enrolled) == {'schema', 'enabled', 'private_owner_only', 'mapping', 'projects'}
             and enrolled['schema'] == 1 and type(enrolled['enabled']) is bool
-            and enrolled['private_owner_only'] is True)
+            and type(enrolled['private_owner_only']) is bool)
+    if not enrolled['private_owner_only']:
+        raise Invalidated('enrollment-revoked')
     mapping = enrolled['mapping']
     require(isinstance(mapping, dict) and set(mapping) == FIELDS)
     mappings = config['mapping'] if isinstance(config['mapping'], list) else [config['mapping']]
@@ -128,8 +132,10 @@ def target(home, domain):
     if private is None:
         raise Invalidated('enrollment-revoked')
     require(isinstance(private, dict) and set(private) == {'owner_only', 'aliases', 'repositories'}
-            and private['owner_only'] is True and isinstance(private['aliases'], list)
+            and type(private['owner_only']) is bool and isinstance(private['aliases'], list)
             and isinstance(private['repositories'], list))
+    if not private['owner_only']:
+        raise Invalidated('enrollment-revoked')
     require(isinstance(enrolled['projects'], dict))
     for key, project in enrolled['projects'].items():
         require(key in config['projects'] and set(project) <= {'alias', 'repository', 'sensitive'}
@@ -137,9 +143,10 @@ def target(home, domain):
                 and re.fullmatch('[A-Za-z][A-Za-z0-9 -]{0,63}', project['alias'])
                 and re.fullmatch('[A-Za-z0-9_-]+/[A-Za-z0-9_.-]+', project['repository'])
                 and project['repository'].split('/')[1] not in ('.', '..')
-                and project['alias'] in private['aliases']
-                and 'https://github.com/' + project['repository'] in private['repositories']
                 and type(project.get('sensitive', True)) is bool)
+        if (project['alias'] not in private['aliases']
+                or 'https://github.com/' + project['repository'] not in private['repositories']):
+            raise Invalidated('enrollment-revoked')
     return {'domain': domain, 'enrollment': enrolled, 'mapping': matches[0],
             'roots': config['projects'], 'journal': config['journal']}
 
@@ -329,9 +336,8 @@ def drain_row(home, db, row, returning):
         return
     try:
         domain = selection(home)
-        if domain is False or 'domain' in original and domain is not None and domain != original['domain']:
+        if not domain or 'domain' in original and domain != original['domain']:
             raise Invalidated('enrollment-revoked')
-        require(domain is not None)
         current = target(home, domain)
         binding = original.get('binding', digest(original))
         if digest(current) != binding:

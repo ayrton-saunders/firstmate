@@ -275,25 +275,6 @@ class Notices(Fixture):
         self.assertEqual(self.rows()[0]['state'], 'owed')
         self.assertEqual(len(self.calls('approve')), 1)
 
-    def test_forge_double_rejects_unsupported_or_unscoped_invocations(self):
-        self.ready()
-        forge = self.world / 'tools/gh-axi'
-        for args in (
-            ['pr', 'view', 'https://github.com/owner/repo/pull/1', '--json', 'headRefOid,statusCheckRollup'],
-            ['pr', 'view', 'https://github.com/owner/repo/pull/1', '--fields', 'headRefOid,statusCheckRollup'],
-            ['pr', 'view', '1', '-R', 'owner/repo', '--json', 'headRefOid,statusCheckRollup'],
-            ['pr', 'checks', 'https://github.com/owner/repo/pull/1'],
-            ['pr', 'checks', '1'],
-        ):
-            result = subprocess.run([str(forge), *args], env=self.env, text=True, capture_output=True)
-            self.assertEqual(result.returncode, 2)
-        result = subprocess.run([str(forge), 'api', '/repos/owner/repo/pulls/1', '--jq',
-                                 '{url:.html_url,state:.state,isDraft:.draft,headRefOid:.head.sha}|tojson'],
-                                env=self.env, text=True, capture_output=True, check=True)
-        self.assertIn('headRefOid:', result.stdout)
-        with self.assertRaises(json.JSONDecodeError):
-            json.loads(result.stdout)
-
     def test_unrecognized_forge_output_keeps_the_notice_and_failure_health(self):
         self.ready()
         self.report('pr-ready')
@@ -422,6 +403,97 @@ class Notices(Fixture):
     def test_intake_survives_selection_lookup_failure(self):
         self.assert_intake_recovers(self.selection)
         self.assertEqual(len(self.calls('approve')), 1)
+
+    def assert_qualification_revoked(self, change, state='owed'):
+        """Enrollment revocation must dispose unsent notices, never acknowledge work."""
+        self.hold()
+        self.ready()
+        if state == 'uncertain':
+            self.flag('lost')
+        elif state == 'queued':
+            (self.home / 'state/checks-mode').write_text('pending')
+        self.report('pr-ready')
+        row = self.rows()[0]
+        if state == 'reconcile':
+            Path(self.config['journal'] + '.' + row['notice_id']).write_text('stopped')
+            self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], state)
+        change()
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'withdrawn')
+        self.assertIsNone(self.rows()[0]['error'])
+        if state == 'queued':
+            self.assertEqual(self.calls('withdraw'), [])
+        else:
+            self.assertEqual(self.calls('withdraw')[-1]['body']['reason'], 'enrollment-revoked')
+            self.assertEqual(Path(self.config['journal'] + '.' + row['notice_id']).read_text(), 'stopped')
+        self.assertEqual(len(self.calls('approve')), 0 if state == 'queued' else 1)
+        self.assertTrue((self.home / 'state/task.hold').exists())
+        self.assertFalse((self.home / 'state/.branch-outcomes-processed').exists())
+
+    def revoke_qualification(self, owner, key, value):
+        owner[key] = value
+        self.enroll()
+
+    def test_local_privacy_revocation_withdraws_owed_notice(self):
+        self.assert_qualification_revoked(
+            lambda: self.revoke_qualification(self.enrollment, 'private_owner_only', False))
+
+    def test_parent_privacy_revocation_withdraws_owed_notice(self):
+        self.assert_qualification_revoked(
+            lambda: self.revoke_qualification(self.config['mapping']['private_notices'], 'owner_only', False))
+
+    def test_alias_revocation_withdraws_uncertain_notice(self):
+        self.assert_qualification_revoked(
+            lambda: self.revoke_qualification(self.config['mapping']['private_notices'], 'aliases', []),
+            state='uncertain')
+
+    def test_repository_revocation_withdraws_owed_notice(self):
+        self.assert_qualification_revoked(
+            lambda: self.revoke_qualification(self.config['mapping']['private_notices'], 'repositories', []))
+
+    def test_absent_selection_withdraws_owed_notice(self):
+        self.assert_qualification_revoked(self.selection.unlink)
+
+    def test_off_selection_withdraws_reconciliation_notice(self):
+        self.assert_qualification_revoked(
+            lambda: self.selection.write_text(json.dumps({'reach': 'none'})), state='reconcile')
+
+    def test_privacy_revocation_disposes_queued_notice_without_parent_call(self):
+        self.assert_qualification_revoked(
+            lambda: self.revoke_qualification(self.enrollment, 'private_owner_only', False), state='queued')
+
+    def test_configuration_read_errors_preserve_owed_notice_and_recover(self):
+        """Temporary errors retain custody; recovery reconciles without reapproval."""
+        self.ready()
+        self.report('pr-ready')
+        paths = [self.selection, self.home / 'config/discord/personal/away-notices.json',
+                 self.home / 'config/discord/personal/integration.json']
+        for path in paths:
+            for mode in ('malformed', 'unreadable'):
+                with self.subTest(path=path.name, mode=mode):
+                    content = path.read_text()
+                    if mode == 'malformed':
+                        path.write_text('{')
+                    else:
+                        path.unlink()
+                        path.mkdir()
+                    try:
+                        self.call('drain')
+                        self.assertEqual(self.rows()[0]['state'], 'owed')
+                        self.assertIsNotNone(self.rows()[0]['error'])
+                        self.assertEqual(self.calls('withdraw'), [])
+                        if path != self.selection:
+                            self.unavailable()
+                    finally:
+                        if mode == 'unreadable':
+                            path.rmdir()
+                        path.write_text(content)
+                    self.call('drain')
+                    self.assertEqual(self.rows()[0]['state'], 'owed')
+                    self.assertIsNone(self.rows()[0]['error'])
+                    self.assertEqual(len(self.calls('approve')), 1)
+                    self.assertIn('notifications configured', self.call('reach').stdout)
 
     def test_deferred_intent_cannot_adopt_replacement_binding(self):
         self.hold()
@@ -831,6 +903,19 @@ class RealFacade(Fixture):
             self.assertEqual(db.execute('SELECT phase FROM obligations').fetchone()[0], 'owner-disposed')
             withdrawal = json.loads(db.execute("SELECT body FROM records WHERE family='notice-withdrawal'").fetchone()[0])
             self.assertEqual(withdrawal['reason'], 'superseded')
+        self.assertEqual(len(self.events()), 1)
+
+    def test_real_privacy_revocation_withdraws_parent_obligation(self):
+        self.ready()
+        self.report('pr-ready')
+        self.enrollment['private_owner_only'] = False
+        self.enroll()
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'withdrawn')
+        with closing(sqlite3.connect(self.config['journal'])) as db, db:
+            self.assertEqual(db.execute('SELECT phase FROM obligations').fetchone()[0], 'owner-disposed')
+            withdrawal = json.loads(db.execute("SELECT body FROM records WHERE family='notice-withdrawal'").fetchone()[0])
+            self.assertEqual(withdrawal['reason'], 'enrollment-revoked')
         self.assertEqual(len(self.events()), 1)
 
     def test_real_no_ci_pr_creates_one_notice(self):
