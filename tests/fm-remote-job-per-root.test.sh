@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Two code roots, one account, real workers and a private launchctl simulator.
 set -eu
+# shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 SUBJECT=${FM_CHARACTERIZATION_ROOT:-$ROOT}
@@ -103,6 +104,7 @@ export LAB="$TMP_ROOT" PATH="$TMP_ROOT/stub-bin:$PATH"
 export FM_REMOTE_JOB_PLATFORM_OVERRIDE=Darwin
 unset FM_REMOTE_JOB_STATE_ROOT
 ensure() (
+  # shellcheck source=bin/fm-remote-job-lib.sh
   . "$1/bin/fm-remote-job-lib.sh"
   fm_remote_job_ensure_worker "$1" "$TMP_ROOT/account" || { printf '%s\n' "$FM_REMOTE_JOB_ERROR" >&2; exit 1; }
   printf '%s\n' "$FM_REMOTE_JOB_LABEL" > "$TMP_ROOT/${1##*/}.label"
@@ -111,6 +113,7 @@ ensure() (
 # Seed a legacy agent pointing to root one. No migration may rewrite, restart,
 # or boot it out, whether it belongs to this root or to its neighbour.
 (
+  # shellcheck source=bin/fm-remote-job-lib.sh
   . "$TMP_ROOT/one/bin/fm-remote-job-lib.sh"
   fm_remote_job_render_launchagent "$TMP_ROOT/one" "$TMP_ROOT/account"
 ) > "$TMP_ROOT/legacy.original"
@@ -135,7 +138,9 @@ done
 legacy_serving=$(cat "$TMP_ROOT/account/.firstmate/remote-job/worker.pid")
 kill -STOP "$legacy_serving"
 (
+  # shellcheck disable=SC2030 # Only this subshell submits into the legacy queue.
   export FM_REMOTE_JOB_STATE_ROOT="$TMP_ROOT/account/.firstmate/remote-job"
+  # shellcheck source=bin/fm-remote-job-lib.sh
   . "$TMP_ROOT/one/bin/fm-remote-job-lib.sh"
   fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/mate" fm-hold.sh "$TMP_ROOT/legacy-started" "$TMP_ROOT/release-legacy" < /dev/null > /dev/null
   fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/mate" fm-touch.sh "$TMP_ROOT/legacy-drained" < /dev/null > /dev/null
@@ -143,6 +148,7 @@ kill -STOP "$legacy_serving"
 ensure "$TMP_ROOT/one"
 ensure "$TMP_ROOT/two"
 (
+  # shellcheck source=bin/fm-remote-job-lib.sh
   . "$TMP_ROOT/one/bin/fm-remote-job-lib.sh"
   fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/mate" fm-after.sh "$TMP_ROOT/legacy-drained" "$TMP_ROOT/overlap" "$TMP_ROOT/migrated" < /dev/null > /dev/null
   fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/other-mate" fm-touch.sh "$TMP_ROOT/other-home" < /dev/null > /dev/null
@@ -177,6 +183,7 @@ FM_REMOTE_JOB_STATE_ROOT="$TMP_ROOT/account/.firstmate/remote-job" bash -c '
   . "$LAB/one/bin/fm-remote-job-lib.sh"
   fm_remote_job_stage "$LAB/account" "$LAB/one" "$LAB/account/staging-mate" fm-hold.sh "$LAB/stage-started" "$LAB/release-stage" "$LAB/stage-finished"
 ' 7>&- < "$TMP_ROOT/legacy-input" > "$TMP_ROOT/staged-job" &
+# shellcheck disable=SC2031 # Capture this shell's stager, not a sourced fixture's background job.
 stager_pid=$!
 stage_ready=0
 for _ in $(seq 1 400); do
@@ -189,6 +196,7 @@ done
 [ "$stage_ready" -eq 1 ] || fail 'legacy submission did not block capturing stdin'
 kill -0 "$stager_pid" || fail 'legacy staging owner exited before input closed'
 (
+  # shellcheck source=bin/fm-remote-job-lib.sh
   . "$TMP_ROOT/one/bin/fm-remote-job-lib.sh"
   fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/staging-mate" fm-after.sh "$TMP_ROOT/stage-finished" "$TMP_ROOT/stage-overlap" "$TMP_ROOT/stage-migrated" < /dev/null > /dev/null
   fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/other-mate" fm-touch.sh "$TMP_ROOT/stage-other-home" < /dev/null > /dev/null
@@ -226,6 +234,7 @@ state=$(cat "$TMP_ROOT/one.state")
 serving=$(cat "$state/worker.pid")
 kill -STOP "$serving"
 (
+  # shellcheck source=bin/fm-remote-job-lib.sh
   . "$TMP_ROOT/one/bin/fm-remote-job-lib.sh"
   fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/mate" fm-touch.sh "$TMP_ROOT/touched" < /dev/null > /dev/null
 )
@@ -243,6 +252,7 @@ ensure "$TMP_ROOT/two"
 cp "$TMP_ROOT/launchctl.log" "$TMP_ROOT/initial.calls"
 ensure "$TMP_ROOT/one"
 ensure "$TMP_ROOT/two"
+# shellcheck disable=SC2031 # Sourced helpers run in the subshell; the outer loop owns name.
 for name in one two; do
   (
     # shellcheck source=bin/fm-remote-job-lib.sh
@@ -263,6 +273,7 @@ cmp "$TMP_ROOT/legacy.original" "$TMP_ROOT/account/Library/LaunchAgents/dev.firs
 ln -s "$TMP_ROOT/one" "$TMP_ROOT/alias"
 ensure "$TMP_ROOT/alias"
 (
+  # shellcheck source=bin/fm-remote-job-lib.sh
   . "$TMP_ROOT/alias/bin/fm-remote-job-lib.sh"
   [ "$FM_REMOTE_JOB_LABEL" = "$(cat "$TMP_ROOT/one.label")" ]
   fm_remote_job_prepare_state "$TMP_ROOT/account"
