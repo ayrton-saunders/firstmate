@@ -683,7 +683,9 @@ report_required_tools_from_worker() {
   if [ -n "$HERDR_ASSIGNED_SESSION" ]; then
     probe_args+=(--herdr-session "$HERDR_SESSION_NAME")
   fi
-  if [ -n "$FM_REMOTE_ROUTE_ID" ]; then
+  # Seed preflight precedes home provisioning; only a marked home has route
+  # ownership for the worker's endpoint guard to validate.
+  if [ -n "$FM_REMOTE_ROUTE_ID" ] && [ -f "${FM_HOME:-}/.fm-secondmate-home" ]; then
     probe_args+=(--route-id "$FM_REMOTE_ROUTE_ID")
   fi
   probe_args+=(--worker-tool-probe)

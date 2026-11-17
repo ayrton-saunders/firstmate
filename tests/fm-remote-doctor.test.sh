@@ -1200,6 +1200,14 @@ assert_contains "$DOCTOR_OUT" 'fix remote-job-worker=applied:' "--fix did not re
 assert_contains "$DOCTOR_OUT" 'check remote-job-worker=ok:' "the refreshed worker was not confirmed ready"
 assert_contains "$DOCTOR_OUT" 'check remote-job-probe=ok: the remote job worker completed the required-tool probe' \
   "doctor did not probe tools through the refreshed worker"
+# Seed readiness runs before provisioning creates the secondmate marker.
+# Its real-worker tool probe must not require ownership of an unseeded home.
+doctor --herdr-session fm-remote-personal --route-id fpl --backend herdr
+assert_contains "$DOCTOR_OUT" 'check remote-job-probe=ok: the remote job worker completed the required-tool probe' \
+  "the real worker rejected an unprovisioned route home: $DOCTOR_OUT"
+assert_absent "$CASE_PROJECT_HOME/.fm-secondmate-home" "seed readiness provisioned the home"
+pass "the real worker probes a non-default route before home provisioning"
+
 # Keep the real worker and give the doctor a route assigned outside fm-remote.
 # Read-only readiness may report other fixture gaps, but its staged probe must
 # pass the same endpoint guard as the caller and return the six tool facts.
