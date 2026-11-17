@@ -56,7 +56,12 @@ def captured(name, current=head):
 
 
 if args[:1] == ['api']:
-    sys.stdout.write(captured('identity.tsv' if args[-1] == tsv else 'identity.toon'))
+    output = captured('identity.tsv' if args[-1] == tsv else 'identity.toon')
+    if (home / 'pr-draft').exists():
+        output = output.replace('\tfalse\t', '\ttrue\t')
+    if (home / 'pr-closed').exists():
+        output = output.replace('\topen\t', '\tclosed\t')
+    sys.stdout.write(output)
 elif args == view_args:
     if mode == 'view-error':
         print('error: "forge unavailable"\ncode: UNKNOWN')
@@ -117,5 +122,8 @@ else:
         code = 1 if bucket == 'fail' else 8 if bucket == 'pending' else 0
     if (home / 'after-checks-head').exists():
         (home / 'head').write_text((home / 'after-checks-head').read_text())
+    for change, flag in (('draft', 'pr-draft'), ('closed', 'pr-closed'), ('error', 'forge-error')):
+        if (home / ('after-checks-' + change)).exists():
+            (home / flag).touch()
     sys.stdout.write(output)
     sys.exit(code)

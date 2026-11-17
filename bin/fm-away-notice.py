@@ -201,6 +201,12 @@ def pr_identity(repository, number):
     return pr
 
 
+def eligible_pr(pr, url, head):
+    require(pr['url'] == url)
+    if pr['state'] != 'open' or pr['isDraft'] == 'true' or pr['headRefOid'] != head:
+        raise Invalidated('superseded')
+
+
 def expected_context(output, rollup):
     """EXPECTED is not ready even though gh-axi classifies it as skip."""
     count = int(rollup[1] or 0)
@@ -255,9 +261,7 @@ def evidence(home, row, original):
         raise Invalidated('superseded')
     number, repository = url.rsplit('/', 1)[1], project['repository']
     pr = pr_identity(repository, number)
-    require(pr['url'] == url)
-    if pr['state'] != 'open' or pr['isDraft'] == 'true' or fields['pr_head'] != pr['headRefOid']:
-        raise Invalidated('superseded')
+    eligible_pr(pr, url, fields['pr_head'])
     identity = {'pr_url': url, 'head': pr['headRefOid'], 'ready': True}
     if previous is not None and identity != previous:
         raise Invalidated('superseded')
@@ -289,7 +293,7 @@ def evidence(home, row, original):
         # under the pre-F1 policy. Query errors without a table stay temporary.
         require(result.returncode == (1 if 'fail' in states else 8 if 'pending' in states else 0))
         confirmed = pr_identity(repository, number)
-        require(confirmed['url'] == url and confirmed['headRefOid'] == pr['headRefOid'])
+        eligible_pr(confirmed, url, fields['pr_head'])
     if not_ready and row['state'] != 'queued':
         raise Invalidated('superseded')
     require(not not_ready)

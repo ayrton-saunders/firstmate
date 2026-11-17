@@ -353,18 +353,90 @@ class Notices(Fixture):
     def test_cancelled_check_withdraws_owed_notice_despite_exit_zero(self):
         self.assert_readiness_withdrawn('cancel')
 
-    def test_head_change_during_checks_is_temporary_until_rechecked(self):
+    def assert_final_identity_invalidated(self, change, approved):
+        """R10/R13: final positive ineligibility must never leave deliverable work."""
+        self.hold()
         self.ready()
-        self.report('pr-ready')
-        (self.home / 'state/after-checks-head').write_text('b' * 40)
-        self.call('drain')
-        self.assertEqual(self.rows()[0]['state'], 'owed')
+        if approved:
+            self.report('pr-ready')
+        (self.home / ('state/after-checks-' + change)).write_text('b' * 40)
+        if approved:
+            self.call('drain')
+        else:
+            self.report('pr-ready', host=True)
+        self.assertEqual(self.rows()[0]['state'], 'withdrawn')
+        self.assertIsNone(self.rows()[0]['error'])
+        self.assertEqual(len(self.calls('approve')), int(approved))
+        if approved:
+            self.assertEqual(self.calls('withdraw')[0]['body']['reason'], 'superseded')
+            notice_id = self.rows()[0]['notice_id']
+            self.assertEqual(Path(self.config['journal'] + '.' + notice_id).read_text(), 'stopped')
+        else:
+            self.assertEqual(self.calls('withdraw'), [])
+        self.assertTrue((self.home / 'state/task.hold').exists())
+        self.assertFalse((self.home / 'state/.branch-outcomes-processed').exists())
+
+    def test_head_change_during_checks_withdraws_owed_notice(self):
+        self.assert_final_identity_invalidated('head', True)
+
+    def test_draft_during_checks_withdraws_owed_notice(self):
+        self.assert_final_identity_invalidated('draft', True)
+
+    def test_close_during_checks_withdraws_owed_notice(self):
+        self.assert_final_identity_invalidated('closed', True)
+
+    def test_head_change_during_checks_prevents_approval(self):
+        self.assert_final_identity_invalidated('head', False)
+
+    def test_draft_during_checks_prevents_approval(self):
+        self.assert_final_identity_invalidated('draft', False)
+
+    def test_close_during_checks_prevents_approval(self):
+        self.assert_final_identity_invalidated('closed', False)
+
+    def assert_final_query_error_recovers(self, state):
+        """R13: query failure is not proof of supersession in any live state."""
+        self.ready()
+        if state == 'uncertain':
+            self.flag('lost')
+        if state != 'queued':
+            self.report('pr-ready')
+        if state == 'reconcile':
+            custody = Path(self.config['journal'] + '.' + self.rows()[0]['notice_id'])
+            custody.write_text('stopped')
+            self.call('drain')
+        (self.home / 'state/after-checks-error').touch()
+        if state == 'queued':
+            self.report('pr-ready')
+        else:
+            self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], state)
         self.assertIsNotNone(self.rows()[0]['error'])
         self.assertEqual(self.calls('withdraw'), [])
+        self.unavailable()
+        (self.home / 'state/after-checks-error').unlink()
+        (self.home / 'state/forge-error').unlink()
+        Path(self.config['journal'] + '.lost').unlink(missing_ok=True)
+        if state == 'reconcile':
+            custody.write_text('owed')
+        self.age()
         self.call('drain')
-        self.assertEqual(self.rows()[0]['state'], 'withdrawn')
-        self.assertEqual(self.calls('withdraw')[0]['body']['reason'], 'superseded')
-        self.assertEqual(len(self.calls('approve')), 1)
+        self.assertEqual(self.rows()[0]['state'], 'owed')
+        self.assertIsNone(self.rows()[0]['error'])
+        self.assertEqual(self.calls('withdraw'), [])
+        self.assertEqual(len({call['body']['notice_id'] for call in self.calls('approve')}), 1)
+
+    def test_final_query_error_preserves_queued_notice(self):
+        self.assert_final_query_error_recovers('queued')
+
+    def test_final_query_error_preserves_owed_notice(self):
+        self.assert_final_query_error_recovers('owed')
+
+    def test_final_query_error_preserves_uncertain_notice(self):
+        self.assert_final_query_error_recovers('uncertain')
+
+    def test_final_query_error_preserves_reconciling_notice(self):
+        self.assert_final_query_error_recovers('reconcile')
 
     def test_lost_readiness_withdraws_uncertain_approval(self):
         self.assert_readiness_withdrawn('pending', uncertain=True)
