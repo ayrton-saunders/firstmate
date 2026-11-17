@@ -261,6 +261,20 @@ assert_contains "$GUARD_OUT" "pid $WORKER_PID born in the Aqua login session (wo
   "the guard did not name the worker owner"
 pass "launchd and worker markers require gui-domain launchctl proof"
 
+. "$ROOT/bin/fm-remote-job-lib.sh"
+hold FM_REMOTE_JOB_ACTIVE=1 "XPC_SERVICE_NAME=$FM_REMOTE_JOB_LABEL"
+ROOT_WORKER_PID=$HOLDER_PID
+new_case running
+printf '%s\n' "$ROOT_WORKER_PID" > "$CASE_OWNER"
+load_job gui "$FM_REMOTE_JOB_LABEL"
+guard
+expect_code 0 "$GUARD_RC" "the guard did not recognize a per-root worker label"
+assert_not_started "the guard replaced a per-root Aqua worker owner"
+load_job user "$FM_REMOTE_JOB_LABEL"
+guard
+expect_code 1 "$GUARD_RC" "the guard accepted an ambiguous worker domain"
+pass "per-root worker markers still require exclusive gui-domain proof"
+
 # --- a foreign owner is stopped, then the guard becomes the server -----------
 
 new_case running

@@ -2,8 +2,8 @@
 # Shared remote fm-on job-worker protocol.
 #
 # Source this file from the fixed SSH entrypoint, the long-lived worker, or the
-# remote doctor. It owns the per-account queue at
-# ~/.firstmate/remote-job (override only with FM_REMOTE_JOB_STATE_ROOT for
+# remote doctor. It owns the per-code-root queue at
+# ~/.firstmate/remote-job-<root-hash> (override only with FM_REMOTE_JOB_STATE_ROOT for
 # isolated tests), the bounded job record, worker installation, and the remote
 # runtime PATH.
 #
@@ -80,7 +80,7 @@
 # order the filesystem happens to return.
 #
 # On macOS the worker is Firstmate's Aqua LaunchAgent
-# dev.firstmate.remote-job at ~/Library/LaunchAgents/dev.firstmate.remote-job.plist
+# dev.firstmate.remote-job.<root-hash> in ~/Library/LaunchAgents
 # with logs under ~/Library/Logs. Linux starts the same worker process without
 # an Aqua requirement. The launch-agent renderer and repair helpers here are
 # shared by the entrypoint and remote doctor so their ownership cannot drift.
@@ -97,7 +97,24 @@
 # bin/fm-remote-job-reap-orphans.sh uses it to reap workers that were already
 # orphaned that way.
 
-FM_REMOTE_JOB_LABEL=dev.firstmate.remote-job
+# Bind identity to the physical code root, never FM_HOME or the working directory.
+fm_remote_job_select_root() { # <code-root>
+  local canonical digest
+  case "$1" in /*) ;; *) return 1 ;; esac
+  canonical=$(CDPATH='' cd -- "$1" && pwd -P) || return 1
+  if [ "$canonical" = "${FM_REMOTE_JOB_CODE_ROOT:-}" ] && [ -n "${FM_REMOTE_JOB_ROOT_KEY:-}" ]; then return 0; fi
+  if command -v shasum >/dev/null 2>&1; then
+    digest=$(printf '%s' "$canonical" | shasum -a 256) || return 1
+  else
+    digest=$(printf '%s' "$canonical" | sha256sum) || return 1
+  fi
+  digest=${digest%% *}
+  case "$digest" in ''|*[!0-9a-f]*) return 1 ;; esac
+  FM_REMOTE_JOB_CODE_ROOT=$canonical
+  FM_REMOTE_JOB_ROOT_KEY=${digest:0:16}
+  FM_REMOTE_JOB_LABEL="dev.firstmate.remote-job.$FM_REMOTE_JOB_ROOT_KEY"
+}
+fm_remote_job_select_root "$(CDPATH='' cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)" || return 1
 FM_REMOTE_JOB_MAX_BYTES=${FM_REMOTE_JOB_MAX_BYTES:-1048576}
 FM_REMOTE_JOB_QUEUE_TIMEOUT=${FM_REMOTE_JOB_QUEUE_TIMEOUT:-360}
 FM_REMOTE_JOB_TIMEOUT=${FM_REMOTE_JOB_TIMEOUT:-360}
@@ -438,7 +455,7 @@ fm_remote_job_prepare_state() { # <account-home>
       FM_REMOTE_JOB_ERROR="cannot prepare $account_home/.firstmate for remote jobs"
       return 1
     }
-    root=$(fm_remote_job_safe_child_dir "$firstmate" remote-job) || {
+    root=$(fm_remote_job_safe_child_dir "$firstmate" "remote-job-$FM_REMOTE_JOB_ROOT_KEY") || {
       FM_REMOTE_JOB_ERROR="cannot prepare remote job state"
       return 1
     }
@@ -656,6 +673,8 @@ fm_remote_job_cancel() { # <account-home> <id>
 fm_remote_job_stage() { # <account-home> <root> <home> <command> [args...]; stdin is captured
   local account_home=$1 root=$2 home=$3 command=$4 stage id destination bytes queue_deadline owner_start
   shift 4
+  fm_remote_job_select_root "$root" || return 1
+  root=$FM_REMOTE_JOB_CODE_ROOT
   fm_remote_job_prepare_state "$account_home" || return 1
   root=$(fm_remote_job_canonical_existing_dir "$root") || {
     FM_REMOTE_JOB_ERROR="remote job root is unavailable or unsafe"
@@ -900,6 +919,8 @@ fm_remote_job_plist_safe_path() {
 
 fm_remote_job_render_launchagent() { # <remote-root> <account-home>
   local root=$1 account_home=$2 worker
+  fm_remote_job_select_root "$root" || return 1
+  root=$FM_REMOTE_JOB_CODE_ROOT
   worker="$root/bin/fm-remote-job-worker.sh"
   fm_remote_job_launchagent_paths "$account_home"
   fm_remote_job_plist_safe_path "$worker" && fm_remote_job_plist_safe_path "$account_home" &&
@@ -939,6 +960,7 @@ XML
 
 fm_remote_job_launchagent_contract_matches() { # <remote-root> <account-home>
   local root=$1 account_home=$2 actual expected
+  fm_remote_job_select_root "$root" || return 1
   fm_remote_job_launchagent_paths "$account_home"
   [ -f "$FM_REMOTE_JOB_LAUNCH_AGENT_PLIST" ] && [ ! -L "$FM_REMOTE_JOB_LAUNCH_AGENT_PLIST" ] || return 1
   actual=$(tr -d ' \t\r\n' < "$FM_REMOTE_JOB_LAUNCH_AGENT_PLIST" 2>/dev/null) || return 1
@@ -953,6 +975,7 @@ fm_remote_job_gui_available() { # <uid>
 
 fm_remote_job_launchagent_loaded() { # <remote-root> <account-home> <uid>
   local root=$1 account_home=$2 uid=$3 worker loaded compact
+  fm_remote_job_select_root "$root" || return 1
   fm_remote_job_launchagent_paths "$account_home"
   worker="$root/bin/fm-remote-job-worker.sh"
   loaded=$(launchctl print "gui/$uid/$FM_REMOTE_JOB_LABEL" 2>/dev/null) || return 1
@@ -1227,6 +1250,7 @@ fm_remote_job_wait_for_probe() { # <remote-root> <account-home>
 
 fm_remote_job_write_launchagent() { # <remote-root> <account-home>
   local root=$1 account_home=$2 tmp
+  fm_remote_job_select_root "$root" || return 1
   fm_remote_job_launchagent_paths "$account_home"
   if ! mkdir -p "$FM_REMOTE_JOB_LAUNCH_AGENT_DIR" 2>/dev/null ||
     ! mkdir -p "$FM_REMOTE_JOB_LAUNCH_AGENT_LOG_DIR" 2>/dev/null; then
@@ -1483,6 +1507,8 @@ fm_remote_job_ensure_worker() { # <remote-root> <account-home>
   local root=$1 account_home=$2 platform uid
   FM_REMOTE_JOB_ERROR=
   FM_REMOTE_JOB_REPAIRED=0
+  fm_remote_job_select_root "$root" || return 1
+  root=$FM_REMOTE_JOB_CODE_ROOT
   root=$(fm_remote_job_canonical_existing_dir "$root") || {
     FM_REMOTE_JOB_ERROR="configured remote root is unavailable or unsafe"
     return 1

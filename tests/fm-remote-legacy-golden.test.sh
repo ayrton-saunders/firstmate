@@ -109,13 +109,14 @@ printf '%s\n' "state=${FM_REMOTE_JOB_STATE#"$HOME"}" \
   "jobs=${FM_REMOTE_JOB_JOBS#"$HOME"}" "claims=${FM_REMOTE_JOB_SEQ_CLAIMS#"$HOME"}" \
   "label=$FM_REMOTE_JOB_LABEL" "plist=${FM_REMOTE_JOB_LAUNCH_AGENT_PLIST#"$HOME"}" \
   "log=${FM_REMOTE_JOB_LAUNCH_AGENT_LOG#"$HOME"}" > "$TMP_ROOT/queue"
-cat > "$TMP_ROOT/queue.expected" <<'TXT'
-state=/.firstmate/remote-job
-jobs=/.firstmate/remote-job/jobs
-claims=/.firstmate/remote-job/.seq-claims
-label=dev.firstmate.remote-job
-plist=/Library/LaunchAgents/dev.firstmate.remote-job.plist
-log=/Library/Logs/dev.firstmate.remote-job.log
+key=$(python3 -c 'import hashlib,pathlib,sys; print(hashlib.sha256(str(pathlib.Path(sys.argv[1]).resolve()).encode()).hexdigest()[:16])' "$SUBJECT")
+cat > "$TMP_ROOT/queue.expected" <<TXT
+state=/.firstmate/remote-job-$key
+jobs=/.firstmate/remote-job-$key/jobs
+claims=/.firstmate/remote-job-$key/.seq-claims
+label=dev.firstmate.remote-job.$key
+plist=/Library/LaunchAgents/dev.firstmate.remote-job.$key.plist
+log=/Library/Logs/dev.firstmate.remote-job.$key.log
 TXT
 diff -u "$TMP_ROOT/queue.expected" "$TMP_ROOT/queue" || fail "legacy queue default projection changed"
 queue_footprint() {
@@ -130,15 +131,15 @@ for path in sorted(home.rglob('*')):
 PY
 }
 queue_footprint > "$TMP_ROOT/footprint"
-cat > "$TMP_ROOT/footprint.expected" <<'TXT'
+cat > "$TMP_ROOT/footprint.expected" <<TXT
 .firstmate directory 0o700
-.firstmate/remote-job directory 0o700
-.firstmate/remote-job/.seq-claims directory 0o700
-.firstmate/remote-job/jobs directory 0o700
-.firstmate/remote-job/logs directory 0o700
+.firstmate/remote-job-$key directory 0o700
+.firstmate/remote-job-$key/.seq-claims directory 0o700
+.firstmate/remote-job-$key/jobs directory 0o700
+.firstmate/remote-job-$key/logs directory 0o700
 TXT
 diff -u "$TMP_ROOT/footprint.expected" "$TMP_ROOT/footprint" || fail "legacy queue write footprint changed"
 fm_remote_job_prepare_state "$HOME"
 queue_footprint > "$TMP_ROOT/footprint"
 diff -u "$TMP_ROOT/footprint.expected" "$TMP_ROOT/footprint" || fail "repeat queue preparation changed its footprint"
-pass "no-enrollment queue paths, label, private modes and idempotent write footprint remain unchanged"
+pass "no-enrollment queue paths and label are root-scoped with private, idempotent write footprint"

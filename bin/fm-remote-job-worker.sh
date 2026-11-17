@@ -1,7 +1,7 @@
 #!/bin/bash
 # Long-lived per-account worker for remote fm-on jobs.
 #
-# This process is launched by the Firstmate-owned dev.firstmate.remote-job
+# This process is launched by the Firstmate-owned dev.firstmate.remote-job.<root-hash>
 # LaunchAgent on macOS and by a detached restart supervisor on Linux. It claims
 # only complete 0700 records staged by fm-remote-job-lib.sh under the fixed
 # account queue, refuses symlinks and malformed records, and executes only a
@@ -74,6 +74,11 @@ WORKER_SWEEP_SECONDS=60
 SCRIPT_DIR=$(CDPATH='' cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)
 FM_ROOT=${FM_ROOT_OVERRIDE:-$(CDPATH='' cd "$SCRIPT_DIR/.." && pwd -P)}
 
+# Leave an installed legacy agent on its original queue even if launchd starts
+# updated code after migration. Never redirect it into the new root's queue.
+if [ "${XPC_SERVICE_NAME:-}" = dev.firstmate.remote-job ] && [ -z "${FM_REMOTE_JOB_STATE_ROOT:-}" ]; then
+  export FM_REMOTE_JOB_STATE_ROOT="${HOME:?}/.firstmate/remote-job"
+fi
 # shellcheck source=bin/fm-remote-job-lib.sh
 . "$SCRIPT_DIR/fm-remote-job-lib.sh"
 
@@ -1033,7 +1038,7 @@ worker_reap_finished_lanes() {
 # arrived before running, establish the deadline, run to publication, and reap
 # the record when its caller cancelled and can no longer reap it.
 worker_lane_execute() { # <account-home> <job-dir>
-  local account_home=$1 job=$2 timeout queue_deadline deadline
+  local account_home=$1 job=$2 timeout queue_deadline deadline now
   local supervisor_pid supervisor_start pid_tmp start_tmp
   worker_claim "$job" || return 0
   supervisor_pid=${BASHPID:-$$}
@@ -1065,7 +1070,9 @@ worker_lane_execute() { # <account-home> <job-dir>
   fi
   queue_deadline=$(fm_remote_job_read_number "$job" queue_deadline 2>/dev/null || true)
   case "$queue_deadline" in ''|*[!0-9]*) worker_publish_result "$job" 126 || true; return 0 ;; esac
-  if [ "$(date +%s)" -ge "$queue_deadline" ]; then
+  now=$(date +%s) || { worker_publish_result "$job" 125 || true; return 0; }
+  case "$now" in ''|*[!0-9]*) worker_publish_result "$job" 125 || true; return 0 ;; esac
+  if [ "$now" -ge "$queue_deadline" ]; then
     worker_publish_result "$job" 124 || true
     return 0
   fi
@@ -1078,7 +1085,7 @@ worker_lane_execute() { # <account-home> <job-dir>
   # The deadline is measured in whole seconds from a truncated clock read, so
   # the +1 keeps the granted window at least the recorded timeout instead of
   # silently shaving up to a second off it.
-  deadline=$(( $(date +%s) + timeout + 1 ))
+  deadline=$((now + timeout + 1))
   fm_remote_job_write_number "$job" deadline "$deadline" || {
     worker_publish_result "$job" 125 || true
     return 0
@@ -1122,7 +1129,7 @@ worker_lane_main() { # <job-id>
 }
 
 worker_process_once() { # <account-home>
-  local account_home=$1 job id state queue_deadline home seq candidates=''
+  local account_home=$1 job id state queue_deadline now home seq candidates=''
   local reserved_index reserved_count home_reserved
   local reserved_homes=()
   worker_reap_finished_lanes
@@ -1152,7 +1159,11 @@ worker_process_once() { # <account-home>
         fi
         queue_deadline=$(fm_remote_job_read_number "$job" queue_deadline 2>/dev/null || true)
         case "$queue_deadline" in ''|*[!0-9]*) worker_publish_result "$job" 126 || true; continue ;; esac
-        if [ "$(date +%s)" -ge "$queue_deadline" ]; then
+        # A stop signal can interrupt date while command substitution is
+        # running. Do not feed its missing output into a numeric comparison.
+        now=$(date +%s) || return 1
+        case "$now" in ''|*[!0-9]*) worker_error 'cannot read the queue clock'; return 1 ;; esac
+        if [ "$now" -ge "$queue_deadline" ]; then
           worker_publish_result "$job" 124 || true
           continue
         fi

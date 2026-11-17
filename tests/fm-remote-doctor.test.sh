@@ -23,7 +23,9 @@ LABEL=dev.firstmate.herdr.fm-remote
 INTERACTIVE_LABEL=dev.firstmate.herdr
 mkdir -p "$TMP_ROOT"
 TMP_ROOT=$(cd "$TMP_ROOT" && pwd -P)
-JOB_LABEL=dev.firstmate.remote-job
+. "$ROOT/bin/fm-remote-job-lib.sh"
+JOB_LABEL=$FM_REMOTE_JOB_LABEL
+JOB_STATE_NAME=remote-job-$FM_REMOTE_JOB_ROOT_KEY
 CASE_N=0
 DOCTOR_WORKER_PID=
 HOLDER_PIDS=()
@@ -155,7 +157,7 @@ case "${1:-}" in
     loaded="$FM_FAKE_STATE/loaded-$label"
     [ ! -f "$loaded" ] || { printf 'Bootstrap failed: service already loaded\n' >&2; exit 5; }
     case "$label" in
-      dev.firstmate.remote-job)
+      dev.firstmate.remote-job|dev.firstmate.remote-job.*)
         cat > "$loaded" <<EOF
 path = $FM_FAKE_JOB_PLIST
 program = $FM_FAKE_JOB_WORKER
@@ -213,7 +215,7 @@ EOF
       label=${domain##*/}
     fi
     case "$label" in
-      dev.firstmate.remote-job) : ;;
+      dev.firstmate.remote-job|dev.firstmate.remote-job.*) : ;;
       *)
         # The real job execs the guard, which stops a foreign server and
         # becomes the Aqua-born owner; the fixture models that outcome. A
@@ -1181,11 +1183,11 @@ HOME="$CASE_HOME" FM_ROOT_OVERRIDE="$ROOT" FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux
   "$ROOT/bin/fm-remote-job-worker.sh" > "$CASE_STATE/worker.out" 2> "$CASE_STATE/worker.err" &
 DOCTOR_WORKER_PID=$!
 for _ in $(seq 1 100); do
-  [ -f "$CASE_HOME/.firstmate/remote-job/worker.ready" ] && break
+  [ -f "$CASE_HOME/.firstmate/$JOB_STATE_NAME/worker.ready" ] && break
   sleep 0.05
 done
-assert_present "$CASE_HOME/.firstmate/remote-job/worker.ready" "the stale-identity fixture worker did not start"
-printf 'stale-worker-identity\n' > "$CASE_HOME/.firstmate/remote-job/worker.identity"
+assert_present "$CASE_HOME/.firstmate/$JOB_STATE_NAME/worker.ready" "the stale-identity fixture worker did not start"
+printf 'stale-worker-identity\n' > "$CASE_HOME/.firstmate/$JOB_STATE_NAME/worker.identity"
 doctor
 expect_code 1 "$DOCTOR_RC" "doctor accepted a live worker with stale code identity"
 assert_contains "$DOCTOR_OUT" 'check remote-job-worker=fixable: the running remote job worker does not match the current Firstmate code' \
@@ -1198,7 +1200,7 @@ assert_contains "$DOCTOR_OUT" 'fix remote-job-worker=applied:' "--fix did not re
 assert_contains "$DOCTOR_OUT" 'check remote-job-worker=ok:' "the refreshed worker was not confirmed ready"
 assert_contains "$DOCTOR_OUT" 'check remote-job-probe=ok: the remote job worker completed the required-tool probe' \
   "doctor did not probe tools through the refreshed worker"
-DOCTOR_WORKER_PID=$(cat "$CASE_HOME/.firstmate/remote-job/worker.pid")
+DOCTOR_WORKER_PID=$(cat "$CASE_HOME/.firstmate/$JOB_STATE_NAME/worker.pid")
 kill -TERM "$DOCTOR_WORKER_PID"
 for _ in $(seq 1 100); do
   kill -0 "$DOCTOR_WORKER_PID" 2>/dev/null || break

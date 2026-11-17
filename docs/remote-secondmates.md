@@ -89,7 +89,12 @@ Each such command takes these steps:
 3. It waits for its result.
 4. It relays stdout, stderr, and the exit status separately.
 
-On macOS the worker is `dev.firstmate.remote-job`, an Aqua-scoped LaunchAgent at `~/Library/LaunchAgents/dev.firstmate.remote-job.plist` with logs under `~/Library/Logs/`.
+On macOS each code root has an Aqua-scoped LaunchAgent named `dev.firstmate.remote-job.<root-hash>`, with its matching plist in `~/Library/LaunchAgents/` and log in `~/Library/Logs/`.
+The queue is `~/.firstmate/remote-job-<root-hash>` on both platforms; the hash is the first 16 hexadecimal characters of SHA-256 of the canonical physical code-root path, so symlink aliases share an identity while separate roots do not.
+Migration installs that root's separate runner without rewriting, restarting, or unloading the legacy `dev.firstmate.remote-job` service, regardless of which root the legacy plist names.
+The legacy queue and runner remain available to finish existing jobs; updated code launched by the legacy service stays on its legacy queue.
+Retiring the legacy service is a separate operator action after all legacy clients and jobs have finished.
+[`bin/fm-remote-job-lib.sh`](../bin/fm-remote-job-lib.sh) owns identity and repair; `tests/fm-remote-job-per-root.test.sh` exercises two roots sharing an isolated account without host launchd access.
 After that bootstrap, every non-doctor `fm-on.sh` target runs through that worker in the remote account's GUI session.
 It never runs in the SSH process or a Herdr pane.
 Linux uses the same queue and worker protocol without the Aqua-session requirement.
@@ -272,7 +277,7 @@ bin/fm-on.sh <secondmate-id|ssh-alias> fm-remote-doctor.sh --fix
 
 Over the plain SSH doctor bootstrap, it writes and reloads the applicable Firstmate-owned launch agents on macOS:
 
-- `dev.firstmate.remote-job`.
+- `dev.firstmate.remote-job.<root-hash>`.
 - The selected session's `dev.firstmate.herdr.<session>` agent, with a same-label plist under `~/Library/LaunchAgents/` and log under `~/Library/Logs/`.
   Legacy routes retain their existing paths byte-for-byte; case-folded label or path collisions refuse before repair writes anything.
 
@@ -847,8 +852,11 @@ Do not run doctor `--fix`, signal a process, change the queue or readiness times
 Run this Bash sampling loop on that Mac; it only reads service and process records and the existing state files:
 
 ```bash
-label=dev.firstmate.remote-job
-state="$HOME/.firstmate/remote-job"
+# Set this to the deployed code root, not its operational home.
+root="$HOME/Secondmates/firstmate-source"
+. "$root/bin/fm-remote-job-lib.sh"
+label=$FM_REMOTE_JOB_LABEL
+state="$HOME/.firstmate/remote-job-$FM_REMOTE_JOB_ROOT_KEY"
 for ((sample=0; sample<=120; sample++)); do
   date -u '+%Y-%m-%dT%H:%M:%SZ'
   service=$(launchctl print "gui/$(id -u)/$label") || break
