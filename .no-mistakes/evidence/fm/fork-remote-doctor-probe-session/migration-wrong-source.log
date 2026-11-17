@@ -1,0 +1,3 @@
+error: remote secondmate fpl endpoint is recorded in Herdr session 'fm-lab-probe-personal', expected 'fm-lab-probe-wrong'; refusing access until it is explicitly migrated
+
+process_exit=1

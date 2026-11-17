@@ -1,0 +1,30 @@
+mode=check
+path={run-worktree}/bin:{run-worktree}/.test-live/bootstrap:/usr/bin:/bin:/usr/sbin:/sbin
+entrypoint=yes
+platform=darwin
+required git=/usr/bin/git
+required jq={run-worktree}/.test-live/bootstrap/jq
+required backend=MISSING
+required tasks-axi=MISSING
+required treehouse=MISSING
+required harness=MISSING
+optional tmux=absent
+optional no-mistakes=absent
+optional gh=absent
+check backend=human: neither the herdr nor the rex CLI resolves on the remote runtime PATH
+check gui-session=ok: gui/501
+check remote-job-worker=fixable: {run-worktree}/.test-live/account/Library/LaunchAgents/dev.firstmate.remote-job.3ebd53347cc43c49.plist does not match the Firstmate-owned Aqua worker contract
+check remote-job-worker-loaded=fixable: dev.firstmate.remote-job.3ebd53347cc43c49 is not loaded in gui/501
+check remote-job-probe=fixable: the remote job worker returned an invalid required-tool probe result
+check entrypoint-link=fixable: no entrypoint symlink at {run-worktree}/.test-live/account/.local/bin/fm-remote-entrypoint.sh
+action: backend: install herdr from https://herdr.dev or Rex on that account, or add a ~/.local/bin wrapper for one; a remote second mate needs one session-provider backend
+action: remote-job-worker: rerun this command with --fix to write dev.firstmate.remote-job.3ebd53347cc43c49
+action: remote-job-worker-loaded: rerun this command with --fix to bootstrap the worker
+action: remote-job-probe: rerun this command with --fix to restart the worker
+action: entrypoint-link: rerun this command with --fix to create it
+error: required tools do not resolve on the remote runtime PATH: backend tasks-axi treehouse harness
+fix: install each one where it resolves on the path reported above, or put a wrapper script for it in {run-worktree}/.test-live/account/.local/bin, which is always on that PATH.
+fix: tools in an unselected nvm version or outside the discovered asdf or mise paths need an absolute wrapper; see docs/remote-secondmates.md for the wrapper recipe.
+error: this host is not ready for a remote second mate; unresolved: backend remote-job-worker remote-job-worker-loaded remote-job-probe entrypoint-link
+
+process_exit=1

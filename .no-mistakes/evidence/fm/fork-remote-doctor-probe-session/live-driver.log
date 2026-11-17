@@ -1,0 +1,7 @@
+PASS seed: unmarked home probed without being provisioned
+REPRODUCED previous parent: invalid required-tool probe
+PASS assigned and inferred custom route: real child returned valid Herdr tool facts
+error: remote secondmate fpl endpoint is recorded in Herdr session 'fm-lab-probe-personal', expected 'fm-lab-probe-wrong'; refusing access until it is explicitly migrated
+PASS wrong session: both readiness and queued worker probe refused
+PASS migration source: inferred ownership admitted only correct source to intent guard; no lifecycle called
+Worker stopped and waited; disposable homes remain only for removal by test runner.
