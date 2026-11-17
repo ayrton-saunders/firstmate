@@ -1,0 +1,87 @@
+summary: "52 passed, 0 failed, 30 skipped, 82 total"
+checks[82]{name,conclusion}:
+  release-gate,skip
+  Determine changes,pass
+  Compute memory usage diff,pass
+  Compute diagnostic diff,pass
+  Build ty (base),pass
+  Build ty (pr),pass
+  security-review / security review,pass
+  plan,pass
+  publish-report / publish,pass
+  publish-report / publish,pass
+  analyze-shards (0),pass
+  analyze-shards (1),pass
+  analyze-shards (2),pass
+  analyze-shards (3),pass
+  custom-build-binaries,skip
+  security-review / prepare,pass
+  Generate diagnostic diff report,pass
+  security-review / report,skip
+  publish-report / publish,pass
+  cargo fmt,pass
+  shellcheck,pass
+  cargo clippy,pass
+  cargo hawk,pass
+  cargo publish dry-run,pass
+  cargo test (linux),pass
+  "cargo test (linux, release)",pass
+  custom-build-docker,skip
+  cargo test (namespace-profile-windows-2022-x86-64-16x32),pass
+  cargo test (namespace-profile-macos-15),pass
+  cargo test (wasm),pass
+  cargo build (msrv),pass
+  cargo fuzz build,pass
+  fuzz parser,skip
+  custom-build-wasm,skip
+  build-playground,skip
+  test scripts,pass
+  ecosystem,skip
+  sign-release-binaries,skip
+  Fuzz for new ty panics/timeouts,pass
+  crates cooldowns,pass
+  cargo deny,pass
+  cargo shear,pass
+  ty completion evaluation,pass
+  generate-checksum-manifest,skip
+  python package,pass
+  PGO,skip
+  build-global-artifacts,skip
+  host,skip
+  prek,pass
+  custom-publish-pypi,skip
+  mkdocs,pass
+  formatter instabilities and black similarity,skip
+  custom-publish-wasm,skip
+  check playground,skip
+  custom-publish-crates,skip
+  benchmarks instrumented (ruff),skip
+  announce,skip
+  custom-notify-dependents,skip
+  benchmarks instrumented ty (build),pass
+  benchmarks walltime ruff (build),skip
+  custom-publish-docs,skip
+  custom-publish-playground,skip
+  benchmarks walltime ty (build),pass
+  publish-ecosystem-report,skip
+  custom-publish-versions,skip
+  notify-ty-fuzz / publish,pass
+  Minimize ty fuzz failures,skip
+  custom-publish-mirror,skip
+  all required checks passed,pass
+  "benchmarks instrumented ty (simulation: micro-1)",pass
+  "benchmarks instrumented ty (simulation: micro-2)",pass
+  "benchmarks instrumented ty (memory: micro-1)",pass
+  "benchmarks instrumented ty (memory: micro-2)",pass
+  "benchmarks instrumented ty (simulation: constraint_set)",pass
+  "benchmarks instrumented ty (memory: constraint_set)",pass
+  "benchmarks instrumented ty (simulation: projects)",pass
+  "benchmarks instrumented ty (memory: projects)",pass
+  "benchmarks instrumented ty (simulation: module_resolution)",pass
+  benchmarks walltime ruff (x86_64),skip
+  benchmarks walltime ty (x86_64),pass
+  publish-ty-fuzz-report,skip
+  CodSpeed Performance Analysis,pass
+help[2]:
+  Run `gh-axi pr view 30483 -R astral-sh/ruff` to see PR details
+  Run `gh-axi pr merge 30483 -R astral-sh/ruff` to merge when ready

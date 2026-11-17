@@ -252,8 +252,9 @@ class Notices(Fixture):
             ['api', '/repos/owner/repo/pulls/1', '--jq', '[.html_url,.state,(.draft|tostring),.head.sha]|@tsv'],
             ['pr', 'view', '1', '-R', 'owner/repo', '--fields', 'headRefOid,statusCheckRollup'],
             ['pr', 'checks', '1', '-R', 'owner/repo'],
+            ['api', '/repos/owner/repo/pulls/1', '--jq', '[.html_url,.state,(.draft|tostring),.head.sha]|@tsv'],
         ]
-        for args, name in zip(expected, ('identity.tsv', 'view.toon', 'checks.toon')):
+        for args, name in zip(expected, ('identity.tsv', 'view.toon', 'checks.toon', 'identity.tsv')):
             result = subprocess.run([str(tools / 'gh-axi'), *args], env=self.env,
                                     text=True, capture_output=True, check=True)
             capture = (tools / name).read_text().replace(
@@ -274,6 +275,29 @@ class Notices(Fixture):
         self.report('pr-ready')
         self.assertEqual(self.rows()[0]['state'], 'owed')
         self.assertEqual(len(self.calls('approve')), 1)
+
+    def test_green_with_captured_skipped_checks_qualifies(self):
+        self.ready()
+        (self.home / 'state/checks-mode').write_text('skips')
+        self.report('pr-ready', host=True)
+        self.assertEqual(self.rows()[0]['state'], 'owed')
+        self.assertIsNone(self.rows()[0]['error'])
+        self.assertEqual(len(self.calls('approve')), 1)
+        self.assertEqual(self.calls('approve')[0]['body']['pr_url'], 'https://github.com/owner/repo/pull/1')
+
+    def test_neutral_status_context_skip_is_ready(self):
+        self.ready()
+        (self.home / 'state/checks-mode').write_text('context-neutral')
+        self.report('pr-ready')
+        self.assertEqual(self.rows()[0]['state'], 'owed')
+
+    def test_duplicate_empty_and_counted_rollup_headers_are_unavailable(self):
+        self.ready()
+        (self.home / 'state/checks-mode').write_text('duplicate-empty')
+        self.report('pr-ready')
+        self.assertEqual(self.rows()[0]['state'], 'queued')
+        self.assertIsNotNone(self.rows()[0]['error'])
+        self.assertEqual(self.calls('approve'), [])
 
     def test_unrecognized_forge_output_keeps_the_notice_and_failure_health(self):
         self.ready()
@@ -322,6 +346,25 @@ class Notices(Fixture):
 
     def test_expected_status_context_withdraws_owed_notice(self):
         self.assert_readiness_withdrawn('context-expected')
+
+    def test_mixed_expected_context_withdraws_owed_notice(self):
+        self.assert_readiness_withdrawn('mixed-expected')
+
+    def test_cancelled_check_withdraws_owed_notice_despite_exit_zero(self):
+        self.assert_readiness_withdrawn('cancel')
+
+    def test_head_change_during_checks_is_temporary_until_rechecked(self):
+        self.ready()
+        self.report('pr-ready')
+        (self.home / 'state/after-checks-head').write_text('b' * 40)
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'owed')
+        self.assertIsNotNone(self.rows()[0]['error'])
+        self.assertEqual(self.calls('withdraw'), [])
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'withdrawn')
+        self.assertEqual(self.calls('withdraw')[0]['body']['reason'], 'superseded')
+        self.assertEqual(len(self.calls('approve')), 1)
 
     def test_lost_readiness_withdraws_uncertain_approval(self):
         self.assert_readiness_withdrawn('pending', uncertain=True)
@@ -979,6 +1022,24 @@ class RealFacade(Fixture):
         with closing(sqlite3.connect(self.config['journal'])) as db, db:
             self.assertEqual(db.execute("SELECT count(*) FROM records WHERE family='request'").fetchone()[0], 0)
         self.assertNotIn('secret', json.dumps(self.events()))
+        self.assertFalse((self.home / 'state/.branch-outcomes-processed').exists())
+
+    def test_real_parent_new_revision_revokes_original_notice(self):
+        self.hold()
+        self.ready()
+        self.report('pr-ready')
+        event = self.events()[0]['id']
+        self.config['mapping']['mapping_revision'] = 'r2'
+        self.config['mapping']['private_notices']['aliases'] = ['Other']
+        self.enroll()
+        self.call('drain')
+        self.assertEqual(self.rows()[0]['state'], 'withdrawn')
+        self.assertIsNone(self.rows()[0]['error'])
+        with closing(sqlite3.connect(self.config['journal'])) as db, db:
+            self.assertEqual(db.execute('SELECT phase FROM obligations WHERE event=?', (event,)).fetchone()[0], 'owner-disposed')
+            withdrawal = json.loads(db.execute("SELECT body FROM records WHERE family='notice-withdrawal'").fetchone()[0])
+            self.assertEqual(withdrawal['reason'], 'enrollment-revoked')
+        self.assertTrue((self.home / 'state/task.hold').exists())
         self.assertFalse((self.home / 'state/.branch-outcomes-processed').exists())
 
     def test_real_withdrawal_after_retirement_and_delivery_evidence(self):

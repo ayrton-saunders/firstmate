@@ -16,8 +16,10 @@ Deferred lookup may materialize the reviewed target only when its hash matches t
 Failed lookup remains queued and is retried on subsequent report/drain invocations, without requiring a new typed report or waking main.
 Duplicate reports coalesce on the checked hold lifecycle or PR URL/head/ready identity plus mapping ID, not on outcome sequence.
 Terminal identities remain for dedupe; changed heads/holds require fresh checks.
-PR readiness follows the repository's no-CI semantics ([readiness implementation](../../bin/fm-dod-lib.sh)): a successful empty check rollup at the recorded head is ready without CI; otherwise checks must pass.
-Pending/failing checks and forge-query errors never count as ready.
+PR readiness follows the repository's no-CI semantics ([readiness implementation](../../bin/fm-dod-lib.sh)): a successful empty check rollup at the recorded head is ready without CI.
+For nonempty rollups, pass and skip are ready; cancelled, failed, pending and EXPECTED contexts are not ready, preserving the pre-F1 policy even where gh-axi exits zero.
+Checks are confirmed against the same head after retrieval; an inter-query head change remains temporary until fresh evidence is obtained.
+Forge-query errors never count as readiness.
 Positively observed head change or lost readiness withdraws possibly approved unsent notices as superseded.
 Red/pending checks leave never-attempted queued work waiting; genuine forge errors preserve every live notice with temporary failure health.
 

@@ -1,0 +1,4 @@
+checks: "0 passed, 0 failed, no check results reported for the PR head commit"
+help[2]:
+  Checks can take a few seconds to register after a push; rerun `gh-axi pr checks 11747 -R octocat/Hello-World` shortly
+  Run `gh-axi run list --commit <head-sha> -R octocat/Hello-World` to see workflow runs for the head commit

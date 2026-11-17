@@ -42,6 +42,7 @@ The lifecycle, recovery, rate limits and read-back health contract are owned by
 ../docs/away-notice/interface.md; this header owns invocation, enrollment and facade mechanics.
 """
 from contextlib import closing
+import csv
 import hashlib
 import importlib
 import json
@@ -188,6 +189,47 @@ def meta(home, task):
     return fields
 
 
+def pr_identity(repository, number):
+    result = run(['gh-axi', 'api', '/repos/' + repository + '/pulls/' + number,
+                  '--jq', '[.html_url,.state,(.draft|tostring),.head.sha]|@tsv'])
+    require(result.returncode == 0 and len(result.stdout.splitlines()) == 1)
+    values = result.stdout.splitlines()[0].split('\t')
+    require(len(values) == 4)
+    pr = dict(zip(('url', 'state', 'isDraft', 'headRefOid'), values))
+    require(re.fullmatch('[0-9a-f]{40,64}', pr['headRefOid'])
+            and pr['state'] in ('open', 'closed') and pr['isDraft'] in ('true', 'false'))
+    return pr
+
+
+def expected_context(output, rollup):
+    """EXPECTED is not ready even though gh-axi classifies it as skip."""
+    count = int(rollup[1] or 0)
+    if not count:
+        return False
+    rows = output[rollup.end():].splitlines()[1:]
+    if rollup[2]:
+        names = rollup[2].split(',')
+        if 'state' not in names:
+            return False
+        require('__typename' in names and len(rows) >= count)
+        for line in rows[:count]:
+            require(line.startswith('    '))
+            values = next(csv.reader([line[4:]], escapechar='\\'))
+            require(len(values) == len(names))
+            if values[names.index('__typename')] == 'StatusContext' and values[names.index('state')] == 'EXPECTED':
+                return True
+        return False
+    items = [line for line in rows if line.startswith('    - ')]
+    require(len(items) == count and all(line in ('    - __typename: CheckRun', '    - __typename: StatusContext') for line in items))
+    context = False
+    for line in rows:
+        if line.startswith('    - '):
+            context = line == '    - __typename: StatusContext'
+        elif context and line == '      state: EXPECTED':
+            return True
+    return False
+
+
 def evidence(home, row, original):
     fields = meta(home, row['task'])
     enrolled = original['enrollment']
@@ -212,14 +254,8 @@ def evidence(home, row, original):
     if previous is not None and (url != previous['pr_url'] or fields['pr_head'] != previous['head']):
         raise Invalidated('superseded')
     number, repository = url.rsplit('/', 1)[1], project['repository']
-    result = run(['gh-axi', 'api', '/repos/' + repository + '/pulls/' + number,
-                  '--jq', '[.html_url,.state,(.draft|tostring),.head.sha]|@tsv'])
-    require(result.returncode == 0 and len(result.stdout.splitlines()) == 1)
-    values = result.stdout.splitlines()[0].split('\t')
-    require(len(values) == 4)
-    pr = dict(zip(('url', 'state', 'isDraft', 'headRefOid'), values))
-    require(pr['url'] == url and re.fullmatch('[0-9a-f]{40,64}', pr['headRefOid'])
-            and pr['state'] in ('open', 'closed') and pr['isDraft'] in ('true', 'false'))
+    pr = pr_identity(repository, number)
+    require(pr['url'] == url)
     if pr['state'] != 'open' or pr['isDraft'] == 'true' or fields['pr_head'] != pr['headRefOid']:
         raise Invalidated('superseded')
     identity = {'pr_url': url, 'head': pr['headRefOid'], 'ready': True}
@@ -227,15 +263,15 @@ def evidence(home, row, original):
         raise Invalidated('superseded')
     result = run(['gh-axi', 'pr', 'view', number, '-R', repository, '--fields', 'headRefOid,statusCheckRollup'])
     require(result.returncode == 0 and result.stdout.startswith('pull_request:\n'))
-    # --fields is TOON, not gh's JSON dialect. Only consume the selected head
-    # and array length; `pr checks` owns normalization of check/context states.
+    # gh-axi uses inline [] for an empty rollup. Keep exactly one header and
+    # retain raw EXPECTED evidence, which its normalized buckets call skip.
     heads = re.findall(r'^  headRefOid: ("?)([0-9a-f]{40,64})\1$', result.stdout, re.MULTILINE)
-    counts = re.findall(r'^  statusCheckRollup\[([0-9]+)\](?:\{[A-Za-z0-9_,]+\})?:$', result.stdout, re.MULTILINE)
-    require(len(heads) == len(counts) == 1)
+    rollups = list(re.finditer(r'^  statusCheckRollup(?:\[([0-9]+)\](?:\{([A-Za-z0-9_,]+)\})?:|: \[\])$', result.stdout, re.MULTILINE))
+    require(len(heads) == len(rollups) == 1)
     if heads[0][1] != pr['headRefOid']:
         raise Invalidated('superseded')
-    not_ready = False
-    if int(counts[0]):
+    not_ready = expected_context(result.stdout, rollups[0])
+    if int(rollups[0][1] or 0):
         result = run(['gh-axi', 'pr', 'checks', number, '-R', repository])
         require(result.returncode in (0, 1, 8))
         lines = result.stdout.splitlines()
@@ -247,11 +283,13 @@ def evidence(home, row, original):
         rows = lines[index + 1:index + 1 + count]
         require(count > 0 and len(rows) == count and all(line.startswith('  ') and ',' in line for line in rows))
         states = [line.rsplit(',', 1)[1] for line in rows]
-        require(all(state in ('pass', 'fail', 'pending') for state in states))
-        not_ready = 'fail' in states or 'pending' in states
-        # Exit 1 also covers genuine query errors. Only structured failing or
-        # pending evidence invalidates; an error without that table is temporary.
+        require(all(state in ('pass', 'fail', 'skip', 'cancel', 'pending') for state in states))
+        not_ready = not_ready or any(state in ('fail', 'cancel', 'pending') for state in states)
+        # gh-axi exits 0 for pass/skip/cancel; cancellation is still not ready
+        # under the pre-F1 policy. Query errors without a table stay temporary.
         require(result.returncode == (1 if 'fail' in states else 8 if 'pending' in states else 0))
+        confirmed = pr_identity(repository, number)
+        require(confirmed['url'] == url and confirmed['headRefOid'] == pr['headRefOid'])
     if not_ready and row['state'] != 'queued':
         raise Invalidated('superseded')
     require(not not_ready)
