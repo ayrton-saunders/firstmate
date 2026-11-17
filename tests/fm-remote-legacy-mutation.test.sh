@@ -45,7 +45,8 @@ mutant fm-ff-lib.sh 'echo "$label: already current"' \
   'echo "$label: changed output"' fm-remote-legacy-golden.test.sh 'exact-current output changed'
 mutant fm-remote-job-reap-orphans.sh 'would reap abandoned remote job worker' \
   'changed reap abandoned remote job worker' fm-remote-root-characterization.test.sh 'legacy dry-run golden changed'
-mutant fm-remote-job-lib.sh 'FM_REMOTE_JOB_LABEL=dev.firstmate.remote-job' \
+# shellcheck disable=SC2016 # Mutate the literal assignment, not the fixture key.
+mutant fm-remote-job-lib.sh 'FM_REMOTE_JOB_LABEL="dev.firstmate.remote-job.$FM_REMOTE_JOB_ROOT_KEY"' \
   'FM_REMOTE_JOB_LABEL=dev.firstmate.changed' fm-remote-legacy-golden.test.sh 'legacy queue default projection changed'
 # shellcheck disable=SC2016 # Deliberately remove the literal fixture code call.
 mutant fm-teardown.sh '"$SCRIPT_DIR/fm-remote-job-reap-orphans.sh" >&2 || true' \

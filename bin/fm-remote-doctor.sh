@@ -21,7 +21,7 @@
 # verify; the default `any` resolves herdr when its CLI is present, then
 # rex, so a host offering both is still verified for the default backend. On
 # the Herdr backend the account needs the Firstmate-owned Aqua Herdr agent plus
-# the sibling dev.firstmate.remote-job worker that runs normal fm-on commands
+# the sibling dev.firstmate.remote-job.<root-hash> worker that runs normal fm-on commands
 # through the Aqua or Linux job-worker path. On darwin, that Herdr agent runs
 # bin/fm-remote-herdr-guard.sh through the remote account's login shell
 # (`-l -c`) so the server inherits the account's own environment; the
@@ -558,7 +558,7 @@ launch_agent_loaded_contract_matches() { # <resolved-login-shell>
 
 remote_job_existing_state() {
   local root
-  root=${FM_REMOTE_JOB_STATE_ROOT:-${HOME:-}/.firstmate/remote-job}
+  root=${FM_REMOTE_JOB_STATE_ROOT:-${HOME:-}/.firstmate/remote-job-$FM_REMOTE_JOB_ROOT_KEY}
   root=$(fm_remote_job_canonical_existing_dir "$root") || return 1
   fm_remote_job_canonical_existing_dir "$root/jobs" >/dev/null || return 1
   # shellcheck disable=SC2034 # The sourceable worker helpers consume the validated state root.
@@ -599,7 +599,7 @@ check_remote_job_worker() {
       record remote-job-worker "ok: $FM_REMOTE_JOB_LAUNCH_AGENT_PLIST matches the Firstmate-owned Aqua worker contract"
     else
       record remote-job-worker "fixable: $FM_REMOTE_JOB_LAUNCH_AGENT_PLIST does not match the Firstmate-owned Aqua worker contract" \
-        "rerun this command with --fix to write dev.firstmate.remote-job"
+        "rerun this command with --fix to write $FM_REMOTE_JOB_LABEL"
     fi
     if [ -z "$UID_NUM" ] || ! command -v launchctl >/dev/null 2>&1; then
       record remote-job-worker-loaded "human: the remote job worker cannot be inspected without launchctl and an account uid" \
@@ -615,7 +615,7 @@ check_remote_job_worker() {
     fi
   else
     local pid
-    pid=$(cat "${FM_REMOTE_JOB_STATE_ROOT:-${HOME:-}/.firstmate/remote-job}/worker.pid" 2>/dev/null || true)
+    pid=$(cat "${FM_REMOTE_JOB_STATE_ROOT:-${HOME:-}/.firstmate/remote-job-$FM_REMOTE_JOB_ROOT_KEY}/worker.pid" 2>/dev/null || true)
     if [ "${FM_REMOTE_JOB_ACTIVE:-}" = 1 ] ||
       { remote_job_existing_state && case "$pid" in ''|*[!0-9]*) false ;; *) kill -0 "$pid" 2>/dev/null ;; esac; }; then
       record remote-job-worker "ok: the Linux remote job worker is running"

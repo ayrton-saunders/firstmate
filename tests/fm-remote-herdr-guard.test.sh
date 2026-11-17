@@ -40,6 +40,15 @@ for tool in ps awk sed grep tr dirname basename sleep cat cp mv rm env bash sh i
   ln -sf "$real" "$TOOLS/$tool"
 done
 ln -sf "$JQ" "$TOOLS/jq"
+# Root-scoped worker identity uses a host SHA-256 tool at library load time.
+# Preserve this dependency inside the hermetic PATH, including shasum's env
+# interpreter when that host implementation is a Perl script.
+if command -v shasum >/dev/null 2>&1; then
+  ln -sf "$(command -v shasum)" "$TOOLS/shasum"
+  if command -v perl >/dev/null 2>&1; then ln -sf "$(command -v perl)" "$TOOLS/perl"; fi
+else
+  ln -sf "$(command -v sha256sum)" "$TOOLS/sha256sum"
+fi
 FAKE="$TMP_ROOT/fake"
 mkdir -p "$FAKE"
 cat > "$FAKE/lsof" <<'SH'
@@ -260,6 +269,20 @@ assert_not_contains "$(herdr_calls)" 'server stop' "the guard stopped a gui-doma
 assert_contains "$GUARD_OUT" "pid $WORKER_PID born in the Aqua login session (worker)" \
   "the guard did not name the worker owner"
 pass "launchd and worker markers require gui-domain launchctl proof"
+
+. "$ROOT/bin/fm-remote-job-lib.sh"
+hold FM_REMOTE_JOB_ACTIVE=1 "XPC_SERVICE_NAME=$FM_REMOTE_JOB_LABEL"
+ROOT_WORKER_PID=$HOLDER_PID
+new_case running
+printf '%s\n' "$ROOT_WORKER_PID" > "$CASE_OWNER"
+load_job gui "$FM_REMOTE_JOB_LABEL"
+guard
+expect_code 0 "$GUARD_RC" "the guard did not recognize a per-root worker label"
+assert_not_started "the guard replaced a per-root Aqua worker owner"
+load_job user "$FM_REMOTE_JOB_LABEL"
+guard
+expect_code 1 "$GUARD_RC" "the guard accepted an ambiguous worker domain"
+pass "per-root worker markers still require exclusive gui-domain proof"
 
 # --- a foreign owner is stopped, then the guard becomes the server -----------
 

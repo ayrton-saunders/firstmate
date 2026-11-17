@@ -101,7 +101,10 @@ PREFIX_SHA=$(sha 'alpha\nbeta\n')
 run_reader 11 "$PREFIX_SHA" 4 > "$TMP_ROOT/truncated.out" &
 READER_PID=$!
 sleep 0.3
-printf 'a\n' > "$DELTA_HOME/$DELTA_LOG_REL"
+# Publish the complete shrunk log atomically. Truncate-then-write exposes a
+# valid zero-byte snapshot, which would correctly report to_offset=0.
+printf 'a\n' > "$DELTA_HOME/state/shrunk.status"
+mv "$DELTA_HOME/state/shrunk.status" "$DELTA_HOME/$DELTA_LOG_REL"
 wait "$READER_PID" || fail 'the truncated read did not exit 0'
 OUT=$(<"$TMP_ROOT/truncated.out")
 assert_contains "$OUT" 'status=continuity-broken' 'truncation did not produce a break'

@@ -153,7 +153,7 @@ fm_on --stdin ios fm-probe-one.sh "$ARGV_ACTUAL" 23 \
   < "$TMP_ROOT/stdin" > "$TMP_ROOT/stdout" 2> "$TMP_ROOT/stderr"
 rc=$?
 set -e
-[ "$rc" -eq 23 ] || fail "remote exit status was not preserved (got $rc)"
+[ "$rc" -eq 23 ] || fail "remote exit status was not preserved (got $rc): $(<"$TMP_ROOT/stderr")"
 cmp -s "$ARGV_EXPECTED" "$ARGV_ACTUAL" || fail "remote argv boundaries were not preserved byte-for-byte"
 assert_grep 'stdout: 5 args' "$TMP_ROOT/stdout" "remote stdout was not preserved"
 assert_grep 'stdin: payload one' "$TMP_ROOT/stdout" "remote stdin was not preserved"
@@ -477,6 +477,26 @@ out=$(
 )
 set -e
 assert_contains "$out" 'mode=check' "the trusted doctor could not bootstrap while git was unavailable"
+set +e
+out=$(
+  # shellcheck disable=SC2329 # Exported for use by the entrypoint process.
+  command() {
+    if [ "${1:-}" = -v ] && [ "${2:-}" = git ]; then return 1; fi
+    builtin command "$@"
+  }
+  export -f command
+  doctor_argv_b64=$(printf '%s\0' fm-remote-doctor.sh | base64 | tr -d '\n')
+  "$ROOT/bin/fm-remote-entrypoint.sh" 1 "$untracked_root_b64" "$untracked_home_b64" "$doctor_argv_b64" 2>&1
+)
+rc=$?
+set -e
+expect_code 64 "$rc" "cross-root doctor forwarding accepted an unverifiable target"
+assert_contains "$out" "git is required to forward to another code root; install git or run that root's own doctor directly by its full path: $REMOTE_ROOT/bin/fm-remote-doctor.sh" \
+  "cross-root doctor forwarding did not explain missing-git recovery"
+[ "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" -eq 1 ] \
+  || fail "cross-root missing-git recovery was not a one-line diagnostic"
+pass "cross-root doctor forwarding requires git and explains direct recovery"
+
 printf '\n' >> "$REMOTE_ROOT/bin/fm-remote-doctor.sh"
 set +e
 out=$(

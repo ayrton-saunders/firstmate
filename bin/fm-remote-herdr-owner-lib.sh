@@ -42,7 +42,8 @@
 #       launchd  XPC_SERVICE_NAME=<label>, with launchctl proving that job is
 #                the owner in gui/<uid> or is loaded only in that domain
 #       worker   FM_REMOTE_JOB_ACTIVE=1, with launchctl proving that
-#                dev.firstmate.remote-job is loaded only in gui/<uid>
+#                the matching dev.firstmate.remote-job.<root-hash> label
+#                (or legacy dev.firstmate.remote-job) is loaded only in gui/<uid>
 #       unknown  none of the above; XPC_SERVICE_NAME alone, including value 0,
 #                does not prove an Aqua birth
 #   fm_remote_herdr_birth_is_aqua <birth>
@@ -130,7 +131,8 @@ fm_remote_herdr_gui_job_is_exclusive() { # <uid> <label>
 }
 
 fm_remote_herdr_owner_birth() { # <pid>
-  local pid=$1 session=${2:-} env uid xpc_line label expected_label
+  local pid=$1 session=${2:-} env uid xpc_line label expected_label worker_label
+  worker_label=${FM_REMOTE_JOB_LABEL:-dev.firstmate.remote-job}
   if [ -n "$session" ]; then
     expected_label=$(fm_remote_herdr_session_label "$session") || { printf 'unknown\n'; return 0; }
   fi
@@ -149,7 +151,9 @@ fm_remote_herdr_owner_birth() { # <pid>
     return 0
   fi
   uid=$(id -u 2>/dev/null) || uid=
-  if [ -n "$session" ] && [ -n "$xpc_line" ] && [ "$label" != "$expected_label" ] && [ "$label" != dev.firstmate.remote-job ] && [ "$label" != 0 ]; then
+  # The legacy label remains recognizable while its old queue drains.
+  if [ "$label" = dev.firstmate.remote-job ] || [[ "$label" =~ ^dev\.firstmate\.remote-job\.[0-9a-f]{16}$ ]]; then worker_label=$label; fi
+  if [ -n "$session" ] && [ -n "$xpc_line" ] && [ "$label" != "$expected_label" ] && [ "$label" != "$worker_label" ] && [ "$label" != dev.firstmate.remote-job ] && [ "$label" != 0 ]; then
     printf 'unknown\n'
     return 0
   fi
@@ -160,7 +164,8 @@ fm_remote_herdr_owner_birth() { # <pid>
   fi
   if printf '%s\n' "$env" | grep -q -E '^FM_REMOTE_JOB_ACTIVE=1$' \
     && [ -n "$uid" ] \
-    && fm_remote_herdr_gui_job_is_exclusive "$uid" dev.firstmate.remote-job; then
+    && { fm_remote_herdr_gui_job_is_exclusive "$uid" "$worker_label" \
+      || { [ -z "$xpc_line" ] && fm_remote_herdr_gui_job_is_exclusive "$uid" dev.firstmate.remote-job; }; }; then
     printf 'worker\n'
     return 0
   fi

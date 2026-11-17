@@ -77,11 +77,14 @@ That lets read-only mode report worker gaps and lets `--fix` install or repair t
 The entrypoint authorizes that bootstrap in one of two ways:
 
 - With normal git tracking when git resolves.
-- With its pinned doctor digest when doctor must report that git itself is missing.
+- With its pinned doctor digest when doctor must report that git itself is missing, but only for the code root the shared PATH entrypoint names.
+
+Forwarding to another code root requires git to validate that root's tracked entrypoint.
+If git is missing, install it or run the target root's own `bin/fm-remote-doctor.sh` directly by its full path.
 
 ### The remote job worker
 
-After setup, every other command goes through Firstmate's account-owned remote job worker.
+After setup, every other command goes through the remote job worker for its code root on that account.
 Each such command takes these steps:
 
 1. It verifies the worker.
@@ -89,7 +92,20 @@ Each such command takes these steps:
 3. It waits for its result.
 4. It relays stdout, stderr, and the exit status separately.
 
-On macOS the worker is `dev.firstmate.remote-job`, an Aqua-scoped LaunchAgent at `~/Library/LaunchAgents/dev.firstmate.remote-job.plist` with logs under `~/Library/Logs/`.
+On macOS each code root has an Aqua-scoped LaunchAgent named `dev.firstmate.remote-job.<root-hash>`, with its matching plist in `~/Library/LaunchAgents/` and log in `~/Library/Logs/`.
+The queue is `~/.firstmate/remote-job-<root-hash>` on both platforms; the hash is the first 16 hexadecimal characters of SHA-256 of the canonical physical code-root path, so symlink aliases share an identity while separate roots do not.
+First update the account's shared PATH entrypoint to this forwarding version, or have the operator point its existing link at a root containing it; an unchanged pre-forwarding entrypoint cannot route requests to root-owned implementations.
+After that bootstrap update, requests are delegated to the named root's tracked, non-symlink entrypoint before selecting its worker, so roots can retain different library and worker versions and upgrade independently.
+Upgrade a code root only when no remote job is in flight, including SSH callers that have loaded the legacy library but have not yet finished submitting work.
+Pause new submissions to that root and let those callers and jobs finish before upgrading.
+Migration installs that root's separate runner without stopping, rewriting, kickstarting, or unloading the legacy `dev.firstmate.remote-job` service, regardless of which root the legacy plist names.
+The legacy queue and runner drain on their own; updated code launched by the legacy service stays on its legacy queue.
+The new runner defers matching-root/home work for observed live legacy stages and queued or running jobs, but that scan is not mutual exclusion against already-loaded legacy clients.
+A late legacy submission or a stage whose ownership, root, or home is still being initialized can escape the scan and overlap a new same-root/home command during the one-time upgrade window.
+Migration therefore does not guarantee durable cross-queue isolation without the quiescent cutover above.
+Retiring the legacy service is a separate operator action after all legacy clients and jobs have finished.
+When removing or moving a code root, first let its jobs finish, then boot out its old `dev.firstmate.remote-job.<root-hash>` agent and remove the matching plist and `~/.firstmate/remote-job-<root-hash>` folder.
+[`bin/fm-remote-job-lib.sh`](../bin/fm-remote-job-lib.sh) owns identity and repair; `tests/fm-remote-job-per-root.test.sh` exercises two roots sharing an isolated account without host launchd access.
 After that bootstrap, every non-doctor `fm-on.sh` target runs through that worker in the remote account's GUI session.
 It never runs in the SSH process or a Herdr pane.
 Linux uses the same queue and worker protocol without the Aqua-session requirement.
@@ -110,7 +126,7 @@ The independent heartbeat and live-owner check build on [Diabl0570's contributio
 
 ### Job lanes and preemption
 
-The worker serves one lane per staged home:
+Within each code root's queue, the worker serves one lane per staged home:
 
 - Jobs for the same home follow the staging-order contract owned by [`bin/fm-remote-job-lib.sh`](../bin/fm-remote-job-lib.sh).
 - Different homes' lanes run concurrently, so one home's long job never delays another home's commands.
@@ -272,7 +288,7 @@ bin/fm-on.sh <secondmate-id|ssh-alias> fm-remote-doctor.sh --fix
 
 Over the plain SSH doctor bootstrap, it writes and reloads the applicable Firstmate-owned launch agents on macOS:
 
-- `dev.firstmate.remote-job`.
+- `dev.firstmate.remote-job.<root-hash>`.
 - The selected session's `dev.firstmate.herdr.<session>` agent, with a same-label plist under `~/Library/LaunchAgents/` and log under `~/Library/Logs/`.
   Legacy routes retain their existing paths byte-for-byte; case-folded label or path collisions refuse before repair writes anything.
 
@@ -323,7 +339,7 @@ Unproven or contradictory process ownership refuses takeover and requires explic
 
 - It starts the same workers directly on Linux.
 - It recreates the `~/.local/bin/fm-remote-entrypoint.sh` symlink when it is absent.
-  An existing link to another Firstmate checkout's entrypoint is accepted as is, because every call names its code root, so a second code root on the account never repoints the first one's link.
+  An existing link to another Firstmate checkout's entrypoint is accepted as is, so a second code root never repoints the first one's link; the [worker migration prerequisites](#the-remote-job-worker) own the required shared-entrypoint update before independent root upgrades.
 - It creates only Firstmate-owned required-tool wrappers that it can prove resolve to a version-manager target.
   It stops after one harness satisfies the at-least-one requirement, which is the harness line of the [required remote tools](#required-remote-tools).
 
@@ -351,6 +367,7 @@ A file at `~/.local/bin/fm-remote-entrypoint.sh` that is not Firstmate's own sym
 | Requirement | Tools |
 | --- | --- |
 | Always required | `git`, `jq`, the selected backend's CLI (`herdr` or `rex`), compatible `tasks-axi`, and `treehouse` |
+| Code-root identity bootstrap | Runnable `shasum` or `sha256sum` on the initial `PATH`, before worker PATH discovery |
 | At least one of | `claude`, `codex`, `opencode`, `pi`, `pi-signed`, `grok`, `kimi`, or `omp` |
 | Additionally required on macOS | `lsof`, so the doctor and guard can prove which process owns the session socket |
 
@@ -371,7 +388,7 @@ bin/fm-remote-home-seed.sh [--herdr-session NAME] <id> <ssh-alias> <remote-root>
 The optional seed session is validated before SSH or mutation and persisted before readiness runs.
 Omission or explicit `fm-remote` writes the legacy record shape.
 The [route schema](../.agents/skills/secondmate-provisioning/SKILL.md#routing-table) owns naming, validation, and upgrade order; use [explicit session migration](#explicit-session-migration) rather than editing the session beneath a live endpoint.
-The shared SSH job worker remains account-owned and session-neutral.
+Herdr session selection does not change the [code-root worker identity](#the-remote-job-worker).
 
 ### Project origins
 
@@ -847,8 +864,11 @@ Do not run doctor `--fix`, signal a process, change the queue or readiness times
 Run this Bash sampling loop on that Mac; it only reads service and process records and the existing state files:
 
 ```bash
-label=dev.firstmate.remote-job
-state="$HOME/.firstmate/remote-job"
+# Set this to the deployed code root, not its operational home.
+root="$HOME/Secondmates/firstmate-source"
+. "$root/bin/fm-remote-job-lib.sh"
+label=$FM_REMOTE_JOB_LABEL
+state="$HOME/.firstmate/remote-job-$FM_REMOTE_JOB_ROOT_KEY"
 for ((sample=0; sample<=120; sample++)); do
   date -u '+%Y-%m-%dT%H:%M:%SZ'
   service=$(launchctl print "gui/$(id -u)/$label") || break
