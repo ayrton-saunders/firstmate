@@ -4,6 +4,10 @@
 #
 # The suite drives only public commands, package executables, and the durable
 # records those commands publish. It never asserts implementation-source bytes.
+# FM_TEST_EXTENSION_BINDING_DIAGNOSTIC_DIR retains each failed section's fixture
+# as a byte-bounded archive before cleanup, including detached runner stderr.
+# tests/extension-binding-diagnostics.py owns the archive/file budgets and its
+# truncation manifest. Expected coordinator failure probes produce no archives.
 set -u
 
 # The aggregate runner reaps stale fixtures before launching its isolated
@@ -18,7 +22,7 @@ fi
 
 extension_segment=${FM_EXTENSION_BINDING_SEGMENT:-all}
 case "$extension_segment" in
-  all|coordinator|deadlines|early-bind|early-validation|early-handshake|early-integrity|matrix|matrix-runtime|lifecycle-flow|lifecycle-host-errors|lifecycle-order|lifecycle-lock|lifecycle-runner|lifecycle-state|lifecycle-invocation-cleanup|lifecycle-orphan-readiness|remote-envelope|remote-activation|remote-lifecycle|remote-retirement|example|coordinator-fail|coordinator-wait|coordinator-stubborn|coordinator-pass|coordinator-late-pass|coordinator-scheduler-block|coordinator-scheduler-late) ;;
+  all|coordinator|diagnostics|deadlines|early-bind|early-validation|early-handshake|early-integrity|matrix|matrix-runtime|lifecycle-flow|lifecycle-host-errors|lifecycle-order|lifecycle-lock|lifecycle-runner|lifecycle-state|lifecycle-invocation-cleanup|lifecycle-orphan-readiness|remote-envelope|remote-activation|remote-lifecycle|remote-retirement|example|coordinator-fail|coordinator-wait|coordinator-stubborn|coordinator-pass|coordinator-late-pass|coordinator-scheduler-block|coordinator-scheduler-late) ;;
   *) printf 'unknown extension-binding segment: %s\n' "$extension_segment" >&2; exit 64 ;;
 esac
 
@@ -26,6 +30,10 @@ HOST="$ROOT/bin/fm-extension.mjs"
 PROCEVENT="$ROOT/bin/fm-procevent.sh"
 TMP_ROOT_RAW=$(fm_test_tmproot fm-extension-binding)
 TMP_ROOT=$(cd "$TMP_ROOT_RAW" && pwd -P)
+if [ -n "${FM_TEST_EXTENSION_BINDING_DIAGNOSTIC_DIR:-}" ]; then
+  export FM_TEST_PROCEVENT_DETACH_STDERR="$TMP_ROOT/detached-runners.stderr"
+fi
+extension_cleanup_started=0
 first_bind_pid=
 second_bind_pid=
 handshake_orphan_pid=
@@ -63,7 +71,30 @@ order_register_pid=
 order_reconcile_pid=
 order_release=
 section_coordinator_pid=
-extension_test_cleanup() {
+extension_test_cleanup() {  # <exit-status>
+  [ "$extension_cleanup_started" -eq 0 ] || return 0
+  extension_cleanup_started=1
+  # Snapshot before releasing fixtures or sweeping claims: those operations
+  # remove the very invocation, capture, and ownership evidence CI needs.
+  if [ "$1" -ne 0 ] && [ -n "${FM_TEST_EXTENSION_BINDING_DIAGNOSTIC_DIR:-}" ]; then
+    case "$extension_segment" in
+      coordinator-*) ;; # These children deliberately fail to test the coordinator.
+      *)
+        local diagnostic
+        if mkdir -p "$FM_TEST_EXTENSION_BINDING_DIAGNOSTIC_DIR" \
+          && diagnostic=$(mktemp -d "$FM_TEST_EXTENSION_BINDING_DIAGNOSTIC_DIR/$extension_segment.XXXXXXXX"); then
+          printf 'section=%s\nexit=%s\n' "$extension_segment" "$1" > "$diagnostic/outcome.txt"
+          # Archive rather than traverse fixture symlinks during artifact upload.
+          # Keep the original failure even if a still-writing fixture changes.
+          python3 "$ROOT/tests/extension-binding-diagnostics.py" "$TMP_ROOT" "$diagnostic" \
+            2> "$diagnostic/snapshot.stderr" \
+            || printf 'warning: extension fixture snapshot incomplete: %s\n' "$diagnostic" >&2
+        else
+          printf 'warning: could not create extension fixture diagnostic directory\n' >&2
+        fi
+        ;;
+    esac
+  fi
   [ -z "$concurrent_release" ] || touch "$concurrent_release" 2>/dev/null || true
   [ -z "$race_release" ] || touch "$race_release" 2>/dev/null || true
   [ -z "$process_race_release" ] || touch "$process_race_release" 2>/dev/null || true
@@ -126,9 +157,9 @@ extension_test_cleanup() {
   chmod -R u+w "$TMP_ROOT_RAW" 2>/dev/null || true
   fm_test_cleanup
 }
-trap extension_test_cleanup EXIT
-trap 'extension_test_cleanup; exit 130' INT
-trap 'extension_test_cleanup; exit 143' TERM
+trap 'extension_test_cleanup "$?"' EXIT
+trap 'extension_test_cleanup 130; exit 130' INT
+trap 'extension_test_cleanup 143; exit 143' TERM
 export FM_PROCEVENT_CLAIM_ROOT="$TMP_ROOT/claims"
 PACKAGES="$TMP_ROOT/packages"
 HOMES="$TMP_ROOT/homes"
@@ -574,7 +605,7 @@ if [ "$extension_segment" = all ] || [ "$extension_segment" = coordinator ]; the
     (
       trap - EXIT HUP INT
       trap 'terminate_section_lanes; exit 143' TERM
-      run_extension_section_lanes lifecycle-flow lifecycle-order remote-lifecycle example deadlines
+      run_extension_section_lanes lifecycle-flow lifecycle-order remote-lifecycle example deadlines diagnostics
     ) &
     section_coordinator_pid=$!
   fi
@@ -650,6 +681,172 @@ if [ "$extension_segment" = all ] || [ "$extension_segment" = coordinator ]; the
   pass "independent extension conformance sections complete through isolated public homes"
   printf '\nall extension-binding tests passed\n'
   exit 0
+fi
+
+# The executable diagnostic sinks bound both noisy writers and large fixtures.
+if section_enabled diagnostics; then
+python3 - "$ROOT" "$TMP_ROOT" <<'PY' || fail "diagnostic byte budgets were not enforced"
+import concurrent.futures, pathlib, subprocess, sys, tarfile
+
+root, temporary = map(pathlib.Path, sys.argv[1:])
+fixture = temporary / "budget-fixture"
+fixture.mkdir()
+log = fixture / "detached-runners.stderr"
+sink = ["perl", str(root / "bin/fm-procevent-diagnostic-stderr.pl"), str(log)]
+writers = [subprocess.Popen(sink, stdin=subprocess.PIPE) for _ in range(2)]
+def write_noise(writer):
+    writer.stdin.write(b"diagnostic noise\n" * 65536)
+    writer.stdin.close()  # A premature sink exit would break the writer's pipe.
+    return writer.wait(timeout=10)
+with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
+    assert list(executor.map(write_noise, writers)) == [0, 0]
+assert log.stat().st_size <= 262144
+assert b"[stderr truncated: shared byte limit=262144]" in log.read_bytes()
+
+# Sparse inputs exercise both the per-file and total archive budgets cheaply.
+for index in range(40):
+    with (fixture / f"large-{index:02d}").open("wb") as stream:
+        stream.truncate(16 * 1024 * 1024)
+(fixture / "a-outside-link").symlink_to(temporary / "not-copied")
+destination = temporary / "bounded-snapshot"
+destination.mkdir()
+subprocess.run([sys.executable, str(root / "tests/extension-binding-diagnostics.py"),
+                str(fixture), str(destination)], check=True)
+archive_path = destination / "fixture.tar"
+assert archive_path.stat().st_size <= 8388608
+with tarfile.open(archive_path) as archive:
+    members = archive.getmembers()
+    assert members and all(item.size <= 262144 for item in members if item.isfile())
+    assert archive.getmember("./a-outside-link").issym()
+    assert archive.extractfile("./detached-runners.stderr").read() == log.read_bytes()
+    for item in members:
+        if item.isfile():
+            assert len(archive.extractfile(item).read()) == item.size
+manifest = (destination / "truncation.txt").read_text()
+assert "archive_limit_bytes=8388608\n" in manifest
+assert "file_limit_bytes=262144\n" in manifest
+assert "truncation=1\n" in manifest
+assert "truncated_files=0\n" not in manifest
+assert "omitted_entries_at_least=0\n" not in manifest
+assert len(manifest.encode()) < 8192
+print("bounded stderr drained; valid fixture archive and manifest stayed within their byte budgets")
+PY
+pass "diagnostic stderr and fixture capture enforce fixed byte budgets and record truncation"
+
+# Exercise the real nested start -> owner-watchdog -> diagnostic-reader path.
+# Freeze only the private guard, keeping its stderr pipe open after the source
+# exits, so a reader in the source's group is a deterministic false liveness.
+new_home "$TMP_ROOT/diagnostic-groups-home"
+fm_test_track_procevent_home "$TMP_ROOT/diagnostic-groups-home" "$TMP_ROOT/diagnostic-groups-claims"
+python3 - "$ROOT" "$TMP_ROOT" <<'PY' || fail "nested diagnostic reader changed source group liveness"
+import os, pathlib, signal, subprocess, sys, time
+
+root, temporary = map(pathlib.Path, sys.argv[1:])
+home = temporary / "diagnostic-groups-home"
+claims = temporary / "diagnostic-groups-claims"
+log = temporary / "nested-stderr"
+guard_file = temporary / "nested-guard.pid"
+drained = temporary / "nested-guard.drained"
+marker, release = temporary / "nested-source.ready", temporary / "nested-source.release"
+hook, poll = temporary / "nested-startup.sh", temporary / "nested-poll.sh"
+noise = temporary / "nested-noise.sh"
+noise.write_text('''perl -e 'print STDERR "nested-noise" x 131072 or exit 99' || exit 99
+printf drained > "$NESTED_DRAINED"
+''')
+hook.write_text('''if [ "${0##*/}" = fm-procevent.sh ] && [ "${1:-}" = _owner-watchdog ]; then
+  printf '%s\\n' "$$" > "$NESTED_GUARD_PID"
+  printf 'nested guard stderr ready\\n' >&2
+  trap 'bash "$NESTED_NOISE_SCRIPT"' USR1
+fi
+''')
+poll.write_text('''printf ready > "$NESTED_SOURCE_READY"
+while [ ! -e "$NESTED_SOURCE_RELEASE" ]; do sleep 0.01; done
+exit 75
+''')
+env = dict(os.environ, FM_HOME=str(home), FM_PROCEVENT_CLAIM_ROOT=str(claims),
+           FM_TEST_SEAM="1", FM_TEST_PROCEVENT_DETACH_STDERR=str(log), BASH_ENV=str(hook),
+           NESTED_GUARD_PID=str(guard_file), NESTED_DRAINED=str(drained), NESTED_NOISE_SCRIPT=str(noise),
+           NESTED_SOURCE_READY=str(marker), NESTED_SOURCE_RELEASE=str(release))
+pe = str(root / "bin/fm-procevent.sh")
+source = "diagnostic-group-source"
+
+
+def wait_for(predicate):
+    for _ in range(400):
+        if predicate():
+            return
+        time.sleep(0.025)
+    raise AssertionError("nested diagnostic fixture did not reach its control boundary")
+
+
+def readers():
+    # Inspect only readers whose argv names this fixture's unique destination.
+    result = []
+    for row in subprocess.check_output(["ps", "-A", "-o", "pid=,pgid=,args="], text=True).splitlines():
+        fields = row.split(None, 2)
+        if len(fields) == 3 and str(log) in fields[2] and "fm-procevent-diagnostic-stderr.pl" in fields[2]:
+            result.append((int(fields[0]), int(fields[1])))
+    return result
+
+
+start = None
+runner = guard = None
+try:
+    subprocess.run([pe, "register", "lavish", source, "--", "bash", str(poll)],
+                   env=env, check=True, stdout=subprocess.DEVNULL)
+    start = subprocess.Popen([pe, "start", source], env=env, start_new_session=True,
+                             stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    wait_for(lambda: marker.exists() and guard_file.exists())
+    runner = int((claims / (source + ".claim")).read_text().splitlines()[1])
+    guard = int(guard_file.read_text())
+    assert os.getpgid(guard) == guard and guard != runner
+    os.kill(guard, signal.SIGSTOP)
+    wait_for(lambda: log.exists() and b"nested guard stderr ready" in log.read_bytes())
+    release.touch()
+    output, error = start.communicate(timeout=10)
+    assert start.returncode == 0, (output, error)
+    assert b"no-result: diagnostic-group-source (exit 75)" in output, output
+    os.kill(guard, 0)  # The intentionally stopped guard must still be present.
+    active_readers = readers()
+    assert active_readers, "the guard did not retain its captured stderr reader"
+    try:
+        os.killpg(runner, 0)
+        runner_group_live = True
+    except ProcessLookupError:
+        runner_group_live = False
+    reader_in_runner_group = any(group == runner for _, group in active_readers)
+    print(f"nested group probe: runner_group_live={runner_group_live} "
+          f"reader_in_runner_group={reader_in_runner_group} guard_alive=True", flush=True)
+    assert not reader_in_runner_group, "diagnostic reader retained the source runner's group"
+    assert not runner_group_live, "an exited source's group remained alive only for diagnostics"
+    # Queue the noisy handler while stopped, then let the unchanged real guard
+    # finish its ordinary wait/check. The sink must keep draining after its cap.
+    os.kill(guard, signal.SIGUSR1)
+    os.kill(guard, signal.SIGCONT)
+    wait_for(drained.exists)
+    assert log.stat().st_size <= 262144
+    assert b"[stderr truncated: shared byte limit=262144]" in log.read_bytes()
+finally:
+    if guard is not None:
+        try:
+            os.kill(guard, signal.SIGCONT)
+            # Only the guard was stopped. On macOS, signaling its group after
+            # it exits can return EPERM for a zombie-only group.
+            os.kill(guard, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    if runner is not None and start is not None and start.poll() is None:
+        try:
+            os.killpg(runner, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+    if start is not None and start.poll() is None:
+        start.terminate()
+        start.communicate(timeout=10)
+    subprocess.run([pe, "retire", source], env=env, stdout=subprocess.DEVNULL,
+                   stderr=subprocess.DEVNULL, timeout=10)
+PY
+pass "a nested diagnostic reader leaves the exited runner group empty while its guard lives and drains"
 fi
 
 # Freeze the real host and invocation group across each deadline. All cases
@@ -2431,7 +2628,7 @@ fm_write_meta "$H_REMOTE/state/parent-route/ios.meta" \
   "backend=herdr" "endpoint_task_id=ios" "window=fm-remote:p1" \
   "herdr_session=fm-remote" "herdr_workspace_id=w1" "herdr_tab_id=t1" "herdr_pane_id=p1"
 for remote_file in \
-  fm-extension.mjs fm-extension-deadline.mjs fm-extension-launch-barrier.mjs fm-extension.sh fm-procevent.sh fm-procevent-lib.sh fm-procevent-extension-capture.pl fm-procevent-lavish.sh \
+  fm-extension.mjs fm-extension-deadline.mjs fm-extension-launch-barrier.mjs fm-extension.sh fm-procevent.sh fm-procevent-lib.sh fm-procevent-extension-capture.pl fm-procevent-diagnostic-stderr.pl fm-procevent-lavish.sh \
   fm-pr-lib.sh fm-role-lib.sh fm-wake-lib.sh fm-path-lib.sh fm-remote-entrypoint.sh fm-remote-job-lib.sh \
   fm-remote-job-worker.sh fm-remote-endpoint-lib.sh fm-herdr-session-lib.sh fm-backend.sh; do
   cp "$ROOT/bin/$remote_file" "$REMOTE_ROOT/bin/$remote_file"

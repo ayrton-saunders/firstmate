@@ -2524,7 +2524,8 @@ pass "a 64-char source id keeps the launch-failed key within the watcher's marke
 # --- reconcile reports only launches it actually confirmed -------------------
 # The reported incident. A review board the captain had answered sat collecting
 # nothing while `reconcile` reported a start on every run: `detach_runner` is
-# fire-and-forget with the child's stderr discarded, so a runner that died
+# fire-and-forget with the child's stderr normally discarded (the test-only
+# capture seam is documented in bin/fm-procevent.sh), so a runner that died
 # before it could claim was counted exactly like one that is listening. A
 # surface that presents as armed while being a dead drop is worse than one that
 # visibly fails, because the answers look recorded.
@@ -2542,8 +2543,36 @@ if ! awk '/^argv:$/ { print; exit } { print }' "$UF_SOURCE" > "$UF_SOURCE.tmp"; 
 fi
 mv "$UF_SOURCE.tmp" "$UF_SOURCE" || fail "could not damage the unstartable registration"
 chmod 0600 "$UF_SOURCE"
+uf_diagnostic="$TMP_ROOT/detached-runner.stderr"
+# The diagnostic destination is inert outside the explicit test seam.
+FM_TEST_SEAM=0 FM_TEST_PROCEVENT_DETACH_STDERR="$uf_diagnostic" \
+  FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=2 pe "$HUF" reconcile >/dev/null 2>&1 || true
+[ ! -e "$uf_diagnostic" ] || fail "detached stderr diagnostics ran without the test seam"
 uf_rc=0
-uf_out=$(FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=2 pe "$HUF" reconcile) || uf_rc=$?
+uf_out=$(FM_TEST_PROCEVENT_DETACH_STDERR="$uf_diagnostic" \
+  FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=2 pe "$HUF" reconcile) || uf_rc=$?
+assert_contains "$(cat "$uf_diagnostic")" "registration argv is unreadable: unstartable-src" \
+  "detached startup diagnostics lost the runner's refusal"
+assert_not_contains "$uf_out" "registration argv is unreadable" \
+  "detached stderr leaked into reconcile stdout"
+# Flood only the detached runner's startup stderr, not the source command (whose
+# stderr the built-in adapter intentionally discards). This exercises the real
+# redirect and proves the diagnostic sink drains excess data without SIGPIPE.
+uf_startup="$TMP_ROOT/diagnostic-startup.sh"
+cat > "$uf_startup" <<'SH'
+if [ "${0##*/}" = fm-procevent.sh ] && [ "${1:-}" = _start ]; then
+  perl -e 'print STDERR "diagnostic-noise" x 65536 or exit 99' || exit 99
+fi
+SH
+uf_noisy_rc=0
+uf_noisy_out=$(BASH_ENV="$uf_startup" FM_TEST_PROCEVENT_DETACH_STDERR="$uf_diagnostic" \
+  FM_PROCEVENT_LAUNCH_CONFIRM_SECONDS=2 pe "$HUF" reconcile) || uf_noisy_rc=$?
+[ "$uf_noisy_rc" -ne 0 ] || fail "noisy damaged registration unexpectedly succeeded"
+[ "$(wc -c < "$uf_diagnostic" | tr -d '[:space:]')" -le 262144 ] \
+  || fail "detached runner stderr exceeded its shared 256 KiB budget"
+assert_contains "$(tail -c 128 "$uf_diagnostic")" "[stderr truncated: shared byte limit=262144]" \
+  "detached runner stderr did not record truncation"
+assert_contains "$uf_noisy_out" "failed=1" "noisy failure lost its original reconcile result"
 assert_contains "$uf_out" "started=0" \
   "reconcile counted a runner that never started as a start: $uf_out"
 assert_contains "$uf_out" "failed=1" \
