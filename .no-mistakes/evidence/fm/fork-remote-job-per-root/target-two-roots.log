@@ -1,0 +1,6 @@
+ensure root=one label=dev.firstmate.remote-job.eb2c675f18600a03 queue={run-worktree}/.test-tmp/two-roots.AYFPpC/account/.firstmate/remote-job-eb2c675f18600a03 repaired=1
+ensure root=two label=dev.firstmate.remote-job.a02d305bf4bb10e8 queue={run-worktree}/.test-tmp/two-roots.AYFPpC/account/.firstmate/remote-job-a02d305bf4bb10e8 repaired=1
+ensure root=one label=dev.firstmate.remote-job.eb2c675f18600a03 queue={run-worktree}/.test-tmp/two-roots.AYFPpC/account/.firstmate/remote-job-eb2c675f18600a03 repaired=0
+ensure root=two label=dev.firstmate.remote-job.a02d305bf4bb10e8 queue={run-worktree}/.test-tmp/two-roots.AYFPpC/account/.firstmate/remote-job-a02d305bf4bb10e8 repaired=0
+root=one independently ready
+root=two independently ready

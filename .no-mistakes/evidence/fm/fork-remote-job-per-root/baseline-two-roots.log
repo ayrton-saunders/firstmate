@@ -1,0 +1,4 @@
+ensure root=one label=dev.firstmate.remote-job queue={run-worktree}/.test-tmp/two-roots.qL4j52/account/.firstmate/remote-job repaired=1
+ensure root=two label=dev.firstmate.remote-job queue={run-worktree}/.test-tmp/two-roots.qL4j52/account/.firstmate/remote-job repaired=1
+ensure root=one label=dev.firstmate.remote-job queue={run-worktree}/.test-tmp/two-roots.qL4j52/account/.firstmate/remote-job repaired=1
+FAIL: alternating readiness restarted an already installed root
