@@ -20,6 +20,7 @@ trap cleanup EXIT
 for name in one two; do
   mkdir -p "$TMP_ROOT/$name/bin"
   cp "$SUBJECT/bin/fm-remote-job-lib.sh" "$SUBJECT/bin/fm-remote-job-worker.sh" "$TMP_ROOT/$name/bin/"
+  # shellcheck disable=SC2016 # The fixture command receives its own argument.
   printf '#!/usr/bin/env bash\n: > "$1"\n' > "$TMP_ROOT/$name/bin/fm-touch.sh"
   chmod +x "$TMP_ROOT/$name/bin/"*.sh
   printf 'fixture\n' > "$TMP_ROOT/$name/AGENTS.md"
@@ -132,6 +133,7 @@ ensure "$TMP_ROOT/one"
 ensure "$TMP_ROOT/two"
 for name in one two; do
   (
+    # shellcheck source=bin/fm-remote-job-lib.sh
     . "$TMP_ROOT/$name/bin/fm-remote-job-lib.sh"
     fm_remote_job_launchagent_contract_matches "$TMP_ROOT/$name" "$TMP_ROOT/account"
     fm_remote_job_probe "$TMP_ROOT/account"

@@ -40,6 +40,15 @@ for tool in ps awk sed grep tr dirname basename sleep cat cp mv rm env bash sh i
   ln -sf "$real" "$TOOLS/$tool"
 done
 ln -sf "$JQ" "$TOOLS/jq"
+# Root-scoped worker identity uses a host SHA-256 tool at library load time.
+# Preserve this dependency inside the hermetic PATH, including shasum's env
+# interpreter when that host implementation is a Perl script.
+if command -v shasum >/dev/null 2>&1; then
+  ln -sf "$(command -v shasum)" "$TOOLS/shasum"
+  if command -v perl >/dev/null 2>&1; then ln -sf "$(command -v perl)" "$TOOLS/perl"; fi
+else
+  ln -sf "$(command -v sha256sum)" "$TOOLS/sha256sum"
+fi
 FAKE="$TMP_ROOT/fake"
 mkdir -p "$FAKE"
 cat > "$FAKE/lsof" <<'SH'
