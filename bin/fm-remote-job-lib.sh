@@ -107,8 +107,11 @@ fm_remote_job_select_root() { # <code-root>
   if [ "$canonical" = "${FM_REMOTE_JOB_CODE_ROOT:-}" ] && [ -n "${FM_REMOTE_JOB_ROOT_KEY:-}" ]; then return 0; fi
   if command -v shasum >/dev/null 2>&1; then
     digest=$(printf '%s' "$canonical" | shasum -a 256) || return 1
-  else
+  elif command -v sha256sum >/dev/null 2>&1; then
     digest=$(printf '%s' "$canonical" | sha256sum) || return 1
+  else
+    printf '%s\n' 'remote-job: missing SHA-256 tool: runnable shasum or sha256sum required' >&2
+    return 1
   fi
   digest=${digest%% *}
   case "$digest" in ''|*[!0-9a-f]*) return 1 ;; esac

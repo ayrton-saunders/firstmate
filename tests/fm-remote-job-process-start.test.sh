@@ -51,6 +51,20 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Loading the public library without either hashing tool must explain why it
+# refuses initialization, rather than disappearing before defining its API.
+BASH_BIN=$(command -v bash)
+mkdir -p "$TMP_ROOT/no-hash-bin"
+ln -s "$(command -v dirname)" "$TMP_ROOT/no-hash-bin/dirname"
+# shellcheck disable=SC2016 # The fresh shell receives the library as its argument.
+if PATH="$TMP_ROOT/no-hash-bin" "$BASH_BIN" -c '. "$1"' _ "$ROOT/bin/fm-remote-job-lib.sh" \
+  > "$TMP_ROOT/no-hash.out" 2> "$TMP_ROOT/no-hash.err"; then
+  fail 'library initialized without a SHA-256 tool'
+fi
+assert_grep 'missing SHA-256 tool: runnable shasum or sha256sum required' "$TMP_ROOT/no-hash.err" 'missing hash tool had no actionable diagnostic'
+[ "$(wc -l < "$TMP_ROOT/no-hash.err" | tr -d ' ')" = 1 ] || fail 'missing hash tool did not produce one diagnostic line'
+pass 'a missing SHA-256 tool is named when library initialization refuses'
+
 wait_gone() { # <pid>
   local i=0
   while kill -0 "$1" 2>/dev/null && [ "$i" -lt 100 ]; do i=$((i + 1)); sleep 0.1; done

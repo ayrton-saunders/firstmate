@@ -188,7 +188,8 @@ worker_lock_recent() {
   local mtime now
   mtime=$(fm_remote_job_path_mtime "$WORKER_LOCK" 2>/dev/null || true)
   case "$mtime" in ''|*[!0-9]*) return 0 ;; esac
-  now=$(date +%s)
+  now=$(date +%s) || return 0
+  case "$now" in ''|*[!0-9]*) return 0 ;; esac
   [ $((now - mtime)) -le 10 ]
 }
 
@@ -873,7 +874,7 @@ worker_capture_output() { # <fifo> <destination>
 }
 
 worker_run_job() { # <account-home> <job-dir>
-  local account_home=$1 job=$2 root home command command_path git_bin rc deadline remaining
+  local account_home=$1 job=$2 root home command command_path git_bin rc deadline remaining now
   local stdout_pipe stderr_pipe stdout_reader stderr_reader preemptible=0
   local -a argv child_env
   root=$(worker_read_text "$job" root 8192) || { worker_publish_result "$job" 126; return; }
@@ -889,7 +890,9 @@ worker_run_job() { # <account-home> <job-dir>
   fm_remote_job_regular_bounded "$job/argv" "$FM_REMOTE_JOB_MAX_BYTES" || { worker_publish_result "$job" 126; return; }
   fm_remote_job_regular_bounded "$job/stdin" "$FM_REMOTE_JOB_MAX_BYTES" || { worker_publish_result "$job" 126; return; }
   deadline=$(fm_remote_job_read_deadline "$job") || { worker_publish_result "$job" 126; return; }
-  remaining=$((deadline - $(date +%s)))
+  now=$(date +%s) || now=
+  case "$now" in ''|*[!0-9]*) worker_publish_result "$job" 125; return ;; esac
+  remaining=$((deadline - now))
   [ "$remaining" -gt 0 ] || { worker_publish_result "$job" 124; return; }
   argv=()
   while IFS= read -r -d '' command; do argv+=("$command"); done < "$job/argv"
@@ -906,7 +909,9 @@ worker_run_job() { # <account-home> <job-dir>
   fm_remote_job_compose_operator_path "$account_home" >/dev/null
   git_bin=$(fm_remote_job_operator_tool git 2>/dev/null || true)
   [ -n "$git_bin" ] || { worker_publish_result "$job" 126; return; }
-  remaining=$((deadline - $(date +%s)))
+  now=$(date +%s) || now=
+  case "$now" in ''|*[!0-9]*) worker_publish_result "$job" 125; return ;; esac
+  remaining=$((deadline - now))
   [ "$remaining" -gt 0 ] || { worker_publish_result "$job" 124; return; }
   set +e
   worker_run_with_timeout "$job" "$remaining" \
@@ -950,7 +955,15 @@ worker_run_job() { # <account-home> <job-dir>
   if [ -n "${FM_REMOTE_JOB_PLATFORM_OVERRIDE:-}" ]; then
     child_env+=("FM_REMOTE_JOB_PLATFORM_OVERRIDE=$FM_REMOTE_JOB_PLATFORM_OVERRIDE")
   fi
-  remaining=$((deadline - $(date +%s)))
+  now=$(date +%s) || now=
+  case "$now" in
+    ''|*[!0-9]*)
+      worker_cleanup_output_capture "$job" "$stdout_reader" "$stderr_reader"
+      worker_publish_result "$job" 125
+      return
+      ;;
+  esac
+  remaining=$((deadline - now))
   [ "$remaining" -gt 0 ] || {
     worker_cleanup_output_capture "$job" "$stdout_reader" "$stderr_reader"
     worker_publish_result "$job" 124
@@ -1130,7 +1143,7 @@ worker_lane_main() { # <job-id>
 
 worker_process_once() { # <account-home>
   local account_home=$1 job id state queue_deadline now home seq candidates=''
-  local reserved_index reserved_count home_reserved legacy_jobs legacy_root legacy_prefix
+  local reserved_index reserved_count home_reserved legacy_jobs legacy_root legacy_prefix legacy_field legacy_deadline
   local reserved_homes=()
   worker_reap_finished_lanes
   legacy_jobs="$account_home/.firstmate/remote-job/jobs"
@@ -1144,10 +1157,20 @@ worker_process_once() { # <account-home>
         else
           fm_remote_job_safe_id "${job##*/}" || continue
           state=$(fm_remote_job_read_state "$job" 2>/dev/null || true)
-          case "$state" in queued|running) ;; *) continue ;; esac
+          case "$state" in
+            queued) legacy_field=queue_deadline ;;
+            running) legacy_field=deadline ;;
+            *) continue ;;
+          esac
         fi
         legacy_root=$(worker_read_text "$job" root 8192 2>/dev/null || true)
         [ "$legacy_root" = "$FM_ROOT" ] || continue
+        if [ "$legacy_prefix" = job- ] &&
+          legacy_deadline=$(fm_remote_job_read_number "$job" "$legacy_field" 2>/dev/null); then
+          now=$(date +%s) || return 1
+          case "$now" in ''|*[!0-9]*) worker_error 'cannot read the legacy queue clock'; return 1 ;; esac
+          [ "$now" -lt "$legacy_deadline" ] || continue
+        fi
         home=$(worker_read_text "$job" home 8192 2>/dev/null || true)
         [ -n "$home" ] && reserved_homes+=("$home")
       done

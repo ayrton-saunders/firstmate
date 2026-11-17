@@ -55,9 +55,37 @@ SH
   git -C "$TMP_ROOT/$name" -c user.name=Test -c user.email=test@example.invalid commit -qm fixture
 done
 REAL_DATE=$(command -v date)
-export REAL_DATE
+REAL_PS=$(command -v ps)
+export REAL_DATE REAL_PS
 cat > "$TMP_ROOT/stub-bin/date" <<'SH'
 #!/usr/bin/env bash
+if [ "${1:-}" = +%s ] && [ "${FM_TEST_LOCK_CLOCK:-}" = 1 ] && [ -f "$LAB/lock-clock" ]; then
+  rm -f "$LAB/lock-clock"
+  : > "$LAB/lock-clock-interrupted"
+  printf 'invalid-clock\n'
+  exit 0
+fi
+if [ "${1:-}" = +%s ] && [ -f "$LAB/lane-clock-target" ]; then
+  parent=$("$REAL_PS" -p "$PPID" -o command=)
+  case "$parent" in
+    *fm-remote-job-worker.sh*--lane*)
+      count=0
+      [ ! -f "$LAB/clock-count.$PPID" ] || read -r count < "$LAB/clock-count.$PPID"
+      count=$((count + 1))
+      printf '%s\n' "$count" > "$LAB/clock-count.$PPID"
+      read -r target < "$LAB/lane-clock-target"
+      if [ "$count" -eq "$target" ]; then
+        rm -f "$LAB/lane-clock-target"
+        : > "$LAB/lane-clock-interrupted-$target"
+        case "$target" in
+          3) printf 'invalid-clock\n'; exit 0 ;;
+          4) exit 1 ;;
+          *) exit 0 ;;
+        esac
+      fi
+      ;;
+  esac
+fi
 if [ "${1:-}" = +%s ] && [ -f "$LAB/empty-clock" ]; then
   rm -f "$LAB/empty-clock"
   : > "$LAB/clock-interrupted"
@@ -280,3 +308,82 @@ ensure "$TMP_ROOT/alias"
   [ "$FM_REMOTE_JOB_STATE" = "$(cat "$TMP_ROOT/one.state")" ]
 ) || fail 'symlink changed root identity'
 pass 'two roots keep separate runners and queues, preserve legacy, and converge through symlinks'
+
+# A failed clock cannot reclaim a stale lock or abort startup arithmetic.
+mkdir -p "$TMP_ROOT/clock-account" "$TMP_ROOT/clock-state/worker.lock"
+touch -t 200001010000 "$TMP_ROOT/clock-state/worker.lock"
+: > "$TMP_ROOT/lock-clock"
+set -m
+HOME="$TMP_ROOT/clock-account" FM_ROOT_OVERRIDE="$TMP_ROOT/one" \
+  FM_REMOTE_JOB_STATE_ROOT="$TMP_ROOT/clock-state" FM_TEST_LOCK_CLOCK=1 \
+  "$TMP_ROOT/one/bin/fm-remote-job-worker.sh" --serve > "$TMP_ROOT/lock-clock.log" 2>&1 &
+# shellcheck disable=SC2031 # Capture this shell's worker, not a sourced fixture's background job.
+lock_clock_pid=$!
+set +m
+printf '%s\n' "$lock_clock_pid" > "$TMP_ROOT/launchd/clock-lock.pid"
+for _ in $(seq 1 400); do
+  [ -f "$TMP_ROOT/clock-state/worker.ready" ] && break
+  kill -0 "$lock_clock_pid" 2>/dev/null || break
+  sleep 0.05
+done
+[ -f "$TMP_ROOT/lock-clock-interrupted" ] || fail 'lock clock fault was not exercised'
+[ -f "$TMP_ROOT/clock-state/worker.ready" ] || fail 'an invalid lock clock aborted worker startup'
+pass 'an invalid lock clock defers stale-lock reclamation without arithmetic failure'
+
+# These are the three execution-budget clock reads after the lane's initial
+# deadline check. Exercise empty, malformed, and failed date output separately.
+for clock_read in 2 3 4; do
+  printf '%s\n' "$clock_read" > "$TMP_ROOT/lane-clock-target"
+  (
+    # shellcheck source=bin/fm-remote-job-lib.sh
+    . "$TMP_ROOT/one/bin/fm-remote-job-lib.sh"
+    export FM_REMOTE_JOB_TIMEOUT=4 FM_REMOTE_JOB_QUEUE_TIMEOUT=8 FM_REMOTE_JOB_WAIT_GRACE=2
+    fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/clock-mate" fm-touch.sh "$TMP_ROOT/clock-$clock_read-ran" < /dev/null > /dev/null
+    fm_remote_job_wait "$TMP_ROOT/account" "$FM_REMOTE_JOB_ID" || fail "$FM_REMOTE_JOB_ERROR"
+    [ "$FM_REMOTE_JOB_EXIT" = 125 ] || fail "invalid execution clock $clock_read did not return an internal error"
+    [ ! -e "$FM_REMOTE_JOB_JOBS/$FM_REMOTE_JOB_ID/.stdout.pipe" ] || fail 'clock failure left an output pipe'
+    [ ! -e "$FM_REMOTE_JOB_JOBS/$FM_REMOTE_JOB_ID/.stderr.pipe" ] || fail 'clock failure left an error pipe'
+  )
+  [ -f "$TMP_ROOT/lane-clock-interrupted-$clock_read" ] || fail "execution clock $clock_read fault was not exercised"
+  [ ! -f "$TMP_ROOT/clock-$clock_read-ran" ] || fail 'an invalid clock allowed command execution'
+done
+if grep -Eq 'integer expression expected|syntax error|unbound variable' "$TMP_ROOT/"*.log; then
+  fail 'an invalid worker clock reached arithmetic'
+fi
+pass 'all execution-budget clock failures return bounded errors without running commands'
+
+# Lab C: a retired or crashed legacy worker cannot finish these records.
+# Their own persisted deadlines must eventually release migration reservations.
+kill -TERM -- "-$legacy_pid"
+for _ in $(seq 1 400); do
+  kill -0 -- "-$legacy_pid" 2>/dev/null || break
+  sleep 0.05
+done
+! kill -0 -- "-$legacy_pid" 2>/dev/null || fail 'fixture legacy worker did not stop'
+(
+  # shellcheck source=bin/fm-remote-job-lib.sh
+  . "$TMP_ROOT/one/bin/fm-remote-job-lib.sh"
+  # shellcheck disable=SC2030,SC2031 # Only these leftovers belong to this subshell's legacy queue.
+  export FM_REMOTE_JOB_STATE_ROOT="$TMP_ROOT/account/.firstmate/remote-job"
+  expired=$(( $(date +%s) - 1 ))
+  fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/expired-queued" fm-touch.sh "$TMP_ROOT/legacy-must-not-run" < /dev/null > /dev/null
+  fm_remote_job_write_number "$FM_REMOTE_JOB_JOBS/$FM_REMOTE_JOB_ID" queue_deadline "$expired"
+  fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/expired-running" fm-touch.sh "$TMP_ROOT/legacy-must-not-run" < /dev/null > /dev/null
+  fm_remote_job_write_number "$FM_REMOTE_JOB_JOBS/$FM_REMOTE_JOB_ID" deadline "$expired"
+  fm_remote_job_write_state "$FM_REMOTE_JOB_JOBS/$FM_REMOTE_JOB_ID" running
+)
+(
+  # shellcheck source=bin/fm-remote-job-lib.sh
+  . "$TMP_ROOT/one/bin/fm-remote-job-lib.sh"
+  for home in expired-queued expired-running; do
+    fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/$home" fm-touch.sh "$TMP_ROOT/$home-ran" < /dev/null > /dev/null
+  done
+)
+for _ in $(seq 1 200); do
+  [ -f "$TMP_ROOT/expired-queued-ran" ] && [ -f "$TMP_ROOT/expired-running-ran" ] && break
+  sleep 0.05
+done
+[ -f "$TMP_ROOT/expired-queued-ran" ] || fail 'expired orphaned queued legacy record still reserves its home'
+[ -f "$TMP_ROOT/expired-running-ran" ] || fail 'expired orphaned running legacy record still reserves its home'
+[ ! -f "$TMP_ROOT/legacy-must-not-run" ] || fail 'migration executed a legacy leftover'
+pass 'expired orphaned legacy queued and running records release their homes'

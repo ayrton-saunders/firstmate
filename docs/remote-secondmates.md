@@ -99,6 +99,7 @@ The new runner defers matching-root/home work for observed live legacy stages an
 A late legacy submission or a stage whose ownership, root, or home is still being initialized can escape the scan and overlap a new same-root/home command during the one-time upgrade window.
 Migration therefore does not guarantee durable cross-queue isolation without the quiescent cutover above.
 Retiring the legacy service is a separate operator action after all legacy clients and jobs have finished.
+When removing or moving a code root, first let its jobs finish, then boot out its old `dev.firstmate.remote-job.<root-hash>` agent and remove the matching plist and `~/.firstmate/remote-job-<root-hash>` folder.
 [`bin/fm-remote-job-lib.sh`](../bin/fm-remote-job-lib.sh) owns identity and repair; `tests/fm-remote-job-per-root.test.sh` exercises two roots sharing an isolated account without host launchd access.
 After that bootstrap, every non-doctor `fm-on.sh` target runs through that worker in the remote account's GUI session.
 It never runs in the SSH process or a Herdr pane.
