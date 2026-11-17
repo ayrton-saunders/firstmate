@@ -1496,7 +1496,7 @@ SSH-born herdr server (child of `herdr --session fm-remote remote-client-bridge`
 `XPC_SERVICE_NAME` identifies a launchd label but does not identify its domain, because the Background `user/501` job also carried that variable while lacking keychain access.
 The owner classifier therefore accepts that label only when `launchctl print gui/<uid>/<label>` identifies the owner pid or the label is loaded in `gui/<uid>` but not `user/<uid>`.
 `XPC_SERVICE_NAME=0`, including a value inherited by a herdr live-handoff child, remains unknown.
-`FM_REMOTE_JOB_ACTIVE=1` proves the Aqua worker only when its matching `dev.firstmate.remote-job.<root-hash>` label (or the legacy `dev.firstmate.remote-job`) is loaded in `gui/<uid>` but not `user/<uid>`.
+The [`fm-remote-herdr-owner-lib.sh` header](../../bin/fm-remote-herdr-owner-lib.sh) owns the `FM_REMOTE_JOB_ACTIVE=1` worker classification, including root-scoped and legacy labels.
 The isolated two-root service regression is `bash bin/fm-test-run.sh tests/fm-remote-job-per-root.test.sh`; it verifies simulated launchd ownership and migration, not a new live-host Aqua measurement.
 
 The SSH-born row was read on the remote host whose `dev.firstmate.herdr.fm-remote` job showed `state = spawn scheduled`, `runs = 239`, `last exit code = 1` and a log repeating `error: herdr server is already running`: herdr's remote attach had started the session's server as its own child before the login session existed, and launchd's copy lost the socket on every retry.

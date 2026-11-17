@@ -42,7 +42,8 @@
 #       launchd  XPC_SERVICE_NAME=<label>, with launchctl proving that job is
 #                the owner in gui/<uid> or is loaded only in that domain
 #       worker   FM_REMOTE_JOB_ACTIVE=1, with launchctl proving that
-#                dev.firstmate.remote-job is loaded only in gui/<uid>
+#                the matching dev.firstmate.remote-job.<root-hash> label
+#                (or legacy dev.firstmate.remote-job) is loaded only in gui/<uid>
 #       unknown  none of the above; XPC_SERVICE_NAME alone, including value 0,
 #                does not prove an Aqua birth
 #   fm_remote_herdr_birth_is_aqua <birth>

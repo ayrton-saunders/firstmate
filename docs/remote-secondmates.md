@@ -81,7 +81,7 @@ The entrypoint authorizes that bootstrap in one of two ways:
 
 ### The remote job worker
 
-After setup, every other command goes through Firstmate's account-owned remote job worker.
+After setup, every other command goes through the remote job worker for its code root on that account.
 Each such command takes these steps:
 
 1. It verifies the worker.
@@ -120,7 +120,7 @@ The independent heartbeat and live-owner check build on [Diabl0570's contributio
 
 ### Job lanes and preemption
 
-The worker serves one lane per staged home:
+Within each code root's queue, the worker serves one lane per staged home:
 
 - Jobs for the same home follow the staging-order contract owned by [`bin/fm-remote-job-lib.sh`](../bin/fm-remote-job-lib.sh).
 - Different homes' lanes run concurrently, so one home's long job never delays another home's commands.

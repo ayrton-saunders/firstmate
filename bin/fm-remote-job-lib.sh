@@ -31,8 +31,8 @@
 # stderr separately, then reap only their completed record. Input, argv,
 # stdout, and stderr are each capped at 1048576 bytes.
 #
-# The worker serves one lane per staged home: jobs for the same home run
-# strictly FIFO in seq order while lanes for different homes run concurrently,
+# Within this code root's queue, the worker serves one lane per staged home:
+# jobs for the same home run strictly FIFO in seq order while lanes for different homes run concurrently,
 # so one home's long job never delays another home's commands. Within a lane a
 # deliberately long-blocking poll would still serialize that home's short
 # interactive commands behind its wait window.
@@ -84,11 +84,8 @@
 # with logs under ~/Library/Logs. Linux starts the same worker process without
 # an Aqua requirement. The launch-agent renderer and repair helpers here are
 # shared by the entrypoint and remote doctor so their ownership cannot drift.
-# Migration requires an idle code root, with no remote job or legacy caller in
-# flight; docs/remote-secondmates.md owns the quiescent cutover rule. The legacy
-# shared runner drains on its own, never stopped, rewritten, or kickstarted by
-# the new runner. Already-loaded legacy clients can still cause one-time
-# upgrade-window overlap; queue scans do not provide durable migration isolation.
+# For migration prerequisites and cross-queue isolation limits, see the
+# quiescent cutover rule in docs/remote-secondmates.md.
 #
 # The Linux start path puts the worker tree in its own process group, so
 # stopping a worker signals its restart supervisor, its serving child, and any
