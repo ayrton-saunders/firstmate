@@ -1200,6 +1200,47 @@ assert_contains "$DOCTOR_OUT" 'fix remote-job-worker=applied:' "--fix did not re
 assert_contains "$DOCTOR_OUT" 'check remote-job-worker=ok:' "the refreshed worker was not confirmed ready"
 assert_contains "$DOCTOR_OUT" 'check remote-job-probe=ok: the remote job worker completed the required-tool probe' \
   "doctor did not probe tools through the refreshed worker"
+# Keep the real worker and give the doctor a route assigned outside fm-remote.
+# Read-only readiness may report other fixture gaps, but its staged probe must
+# pass the same endpoint guard as the caller and return the six tool facts.
+printf 'fpl\n' > "$CASE_PROJECT_HOME/.fm-secondmate-home"
+mkdir -p "$CASE_PROJECT_HOME/state/parent-route"
+cat > "$CASE_PROJECT_HOME/state/parent-route/fpl.meta" <<EOF
+kind=secondmate
+home=$CASE_PROJECT_HOME
+worktree=$CASE_PROJECT_HOME
+project=$ROOT
+backend=herdr
+endpoint_task_id=fpl
+window=fm-remote-personal:pane-1
+herdr_session=fm-remote-personal
+herdr_workspace_id=workspace-1
+herdr_tab_id=tab-1
+herdr_pane_id=pane-1
+EOF
+doctor --herdr-session fm-remote-personal --route-id fpl --backend herdr
+assert_contains "$DOCTOR_OUT" 'check remote-job-probe=ok: the remote job worker completed the required-tool probe' \
+  "the real worker lost the route's non-default session: $DOCTOR_OUT"
+doctor --herdr-session fm-remote-wrong --route-id fpl --backend herdr
+expect_code 1 "$DOCTOR_RC" "readiness accepted a route assigned to another session"
+assert_contains "$DOCTOR_OUT" "expected 'fm-remote-wrong'; refusing access" "the endpoint guard was weakened"
+doctor --herdr-session fm-remote-wrong --route-id fpl --worker-tool-probe --backend herdr
+expect_code 1 "$DOCTOR_RC" "probe mode bypassed the endpoint guard"
+assert_contains "$DOCTOR_OUT" "expected 'fm-remote-wrong'; refusing access" "probe mode lost endpoint protection"
+pass "the real worker preserves non-default route identity and rejects a mismatched session"
+
+# Migration birth is invoked with the source session and home, but without an
+# explicit route id. It must validate that home before admitting any birth.
+# No intent is installed here, so this never drives Herdr lifecycle behavior.
+doctor --herdr-session fm-remote-personal --birth-for-migration fm-remote-next op.test
+expect_code 1 "$DOCTOR_RC" "migration birth proceeded without an intent"
+assert_contains "$DOCTOR_OUT" 'migration intent is missing or disagrees' \
+  "migration birth lost the route identity inferred from its home: $DOCTOR_OUT"
+doctor --herdr-session fm-remote-wrong --birth-for-migration fm-remote-next op.test
+expect_code 1 "$DOCTOR_RC" "migration birth accepted a mismatched source session"
+assert_contains "$DOCTOR_OUT" "expected 'fm-remote-wrong'; refusing access" "migration birth bypassed the source guard"
+pass "migration birth validates the inferred route and source session before intent admission"
+
 DOCTOR_WORKER_PID=$(cat "$CASE_HOME/.firstmate/$JOB_STATE_NAME/worker.pid")
 kill -TERM "$DOCTOR_WORKER_PID"
 for _ in $(seq 1 100); do

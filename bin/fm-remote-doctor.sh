@@ -119,6 +119,9 @@ elif [ -n "$FM_REMOTE_EXPECTED_BACKEND$FM_REMOTE_EXPECTED_TARGET" ]; then
 elif [ -n "${FM_HOME:-}" ] && [ -f "$FM_HOME/.fm-secondmate-home" ]; then
   DOCTOR_ROUTE_ID=$(<"$FM_HOME/.fm-secondmate-home")
   if [ -e "$FM_HOME/state/parent-route/$DOCTOR_ROUTE_ID.meta" ] || [ -L "$FM_HOME/state/parent-route/$DOCTOR_ROUTE_ID.meta" ]; then
+    # Home-owned calls such as migration birth have no explicit --route-id.
+    # Give the guard the inferred identity so it can validate custom sessions.
+    FM_REMOTE_ROUTE_ID=$DOCTOR_ROUTE_ID
     fm_remote_endpoint_guard "$HERDR_SESSION_NAME" || exit 1
   fi
 fi
@@ -673,7 +676,17 @@ report_required_tools_from_worker() {
   # The probe recomputes the same backend selection in the worker's own PATH:
   # an explicit selection is passed through, while `none` stays unflagged so the
   # probe reports `backend=MISSING` rather than resolving differently.
-  local -a probe_args=(--worker-tool-probe)
+  local -a probe_args=()
+  # The child re-enters the endpoint guard before parsing probe mode. Preserve
+  # the caller's assignment and route identity rather than defaulting to the
+  # legacy session in the same secondmate home.
+  if [ -n "$HERDR_ASSIGNED_SESSION" ]; then
+    probe_args+=(--herdr-session "$HERDR_SESSION_NAME")
+  fi
+  if [ -n "$FM_REMOTE_ROUTE_ID" ]; then
+    probe_args+=(--route-id "$FM_REMOTE_ROUTE_ID")
+  fi
+  probe_args+=(--worker-tool-probe)
   case "$DOCTOR_BACKEND" in
     herdr | rex) probe_args+=(--backend "$DOCTOR_BACKEND") ;;
   esac
