@@ -1,0 +1,33 @@
+mode=check
+path={run-worktree}/bin:{run-worktree}/.probe-live/account/.local/bin:~/.pi/agent/bin:~/.nvm/versions/node/v24.22.2/bin:/opt/homebrew/bin:/opt/homebrew/sbin:~/.local/bin:/usr/local/bin:/System/Cryptexes/App/usr/bin:/usr/bin:/bin:/usr/sbin:/sbin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/local/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin:/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin:/pkg/env/global/bin:/Library/Apple/usr/bin:~/go/bin:~/.cargo/bin:~/bin:/usr/local/sbin:~/.orbstack/bin
+entrypoint=yes
+platform=darwin
+required git=/opt/homebrew/bin/git
+required jq=/usr/bin/jq
+required herdr=/opt/homebrew/bin/herdr
+required tasks-axi=MISSING (incompatible)
+required treehouse={run-worktree}/.probe-live/account/.local/bin/treehouse
+required harness=claude:{run-worktree}/.probe-live/account/.local/bin/claude
+optional tmux=/opt/homebrew/bin/tmux
+optional no-mistakes=~/.local/bin/no-mistakes
+optional gh=/opt/homebrew/bin/gh
+check herdr=ok: /opt/homebrew/bin/herdr
+check gui-session=ok: gui/501
+check remote-job-worker=fixable: {run-worktree}/.probe-live/account/Library/LaunchAgents/dev.firstmate.remote-job.ce51d78527775163.plist does not match the Firstmate-owned Aqua worker contract
+check remote-job-worker-loaded=fixable: dev.firstmate.remote-job.ce51d78527775163 is not loaded in gui/501
+check remote-job-probe=ok: the remote job worker completed the required-tool probe
+check launchagent=human: no launch agent at {run-worktree}/.probe-live/account/Library/LaunchAgents/dev.firstmate.herdr.fm-remote.plist; cannot claim or reload session fm-remote because server status is unavailable (owner: unknown)
+check launchagent-scope=skip: no launch agent is installed yet
+check launchagent-loaded=human: cannot load dev.firstmate.herdr.fm-remote because server status is unavailable (owner: unknown)
+check herdr-server=fixable: the herdr server for session fm-remote is not running
+check entrypoint-link=fixable: no entrypoint symlink at {run-worktree}/.probe-live/account/.local/bin/fm-remote-entrypoint.sh
+action: remote-job-worker: rerun this command with --fix to write dev.firstmate.remote-job.ce51d78527775163
+action: remote-job-worker-loaded: rerun this command with --fix to bootstrap the worker
+action: launchagent: resolve ownership or wait until session fm-remote has no panes, then rerun this command with --fix
+action: launchagent-loaded: resolve ownership or wait until session fm-remote has no panes, then rerun this command with --fix
+action: herdr-server: rerun this command with --fix to start it
+action: entrypoint-link: rerun this command with --fix to create it
+error: required tools do not resolve on the remote runtime PATH: tasks-axi
+fix: install each one where it resolves on the path reported above, or put a wrapper script for it in {run-worktree}/.probe-live/account/.local/bin, which is always on that PATH.
+fix: tools in an unselected nvm version or outside the discovered asdf or mise paths need an absolute wrapper; see docs/remote-secondmates.md for the wrapper recipe.
+error: this host is not ready for a remote second mate; unresolved: remote-job-worker remote-job-worker-loaded launchagent launchagent-loaded herdr-server entrypoint-link
