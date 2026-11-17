@@ -1,0 +1,387 @@
+
+=== SCENARIO Explicit reach off and quiet ignore transport prose ===
+Away posture recorded at 2026-11-17T11:59:09Z: Reach unavailable; hold-for-return only. Your away instructions are recorded verbatim; the away session will carry them out where it can, and anything it is unsure of, or that needs you, waits for your return. Destructive, irreversible, and security-sensitive actions are never pre-authorizable, whatever the words say. Expected return: not given. Spend cap: 1 concurrent workers.
+Away posture (recorded):
+  entered: 2026-11-17T11:59:09Z
+  expected return: not given
+  spend cap: 1 concurrent workers
+  reach: Reach unavailable; hold-for-return only.
+  your words (verbatim):
+    Send @everyone to a public client Discord channel
+
+hold task 0 task
+ 
+Quiet mode recorded at 2026-11-17T11:59:11Z: you are present, so nothing waits for your return: every action you ask for, a local landing or a merge included, proceeds now under ordinary attended authority, and quiet mode changes only which updates reach this conversation. Only an explicit /quiet off ends it.
+Quiet mode (recorded):
+  entered: 2026-11-17T11:59:11Z
+  holds: none - you are present, so nothing waits for your return: every action you ask for, a local landing or a merge included, proceeds now under ordinary attended authority, and quiet mode changes only which updates reach this conversation.
+  your words: (none)
+
+
+PRODUCT quiet makes no notice
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+af1dffdce0ea67b72ece38301926ea36bb73c70070894005c8ab5b8e2451d6a2
+
+immutable parent events []
+parent obligation phases []
+
+=== SCENARIO Host held-decision reporting dedupes with independent bookkeeping ===
+hold task 0 task
+ 
+
+PRODUCT duplicate host reports retain one event and an open hold
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+8c73f18c2e2d4cbfdd289492be2af1ffe18643d994ee954a5fe582761fa062cf
+
+adapter rows [{"kind": "decision", "state": "owed", "error": null, "identity": "{\"hold\":\"2026-11-17T11:59:12Z#0\",\"task\":\"task\"}", "notice_id": "a4a51c3b1c44315c0abf1542d215e5f919a74eb64d4e597899246ec07f089bca"}, {"kind": "decision", "state": "withdrawn", "error": null, "identity": null, "notice_id": null}]
+immutable parent events [{"at": "2026-11-17T11:59:15Z", "id": "notice.2ca98fb702161cf5baa02aabceefb85ba49267b620dbe5246cfd4d1e0a0b3024", "kind": "private-notice", "notice_id": "a4a51c3b1c44315c0abf1542d215e5f919a74eb64d4e597899246ec07f089bca", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": null, "project_alias": "Personal", "template_id": "decision-waiting", "text": "A decision is waiting for the Personal work. Please review it in our usual conversation."}]
+parent obligation phases [('owed',)]
+
+=== SCENARIO Enrollment-read failure preserves outcome and recovers typed intent ===
+hold task 0 task
+ 
+
+PRODUCT malformed enrollment retains typed intent and outcome
+discord-private
+-
+Reach unavailable; hold-for-return only.
+-
+
+adapter rows [{"kind": "decision", "state": "queued", "error": "evidence-or-parent-unavailable", "identity": null, "notice_id": null}]
+immutable parent events []
+parent obligation phases []
+
+PRODUCT configuration recovery drains original binding
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+c68d6b8a67d47ff3ac03a1b32ff4fcd8c54e087b2a16ca062142075df02e70e5
+
+adapter rows [{"kind": "decision", "state": "owed", "error": null, "identity": "{\"hold\":\"2026-11-17T11:59:21Z#0\",\"task\":\"task\"}", "notice_id": "842d3b871f6925d4e9872a904f1e80cb5bf641f1d7ca3f45d0c3763e533182de"}]
+immutable parent events [{"at": "2026-11-17T11:59:24Z", "id": "notice.f821238947d9cc231670add24f3af648713c9b67a6cba6a81af8d5feb141d771", "kind": "private-notice", "notice_id": "842d3b871f6925d4e9872a904f1e80cb5bf641f1d7ca3f45d0c3763e533182de", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": null, "project_alias": "Personal", "template_id": "decision-waiting", "text": "A decision is waiting for the Personal work. Please review it in our usual conversation."}]
+parent obligation phases [('owed',)]
+
+=== SCENARIO Real 30-second spacing retains distinct sensitive decision ===
+hold task 0 task
+ 
+hold other 0 other
+ 
+
+PRODUCT distinct sensitive decision queued behind 30-second limit
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+850ae1ef6885e6037b5918a199bec6ffe2f25acf34ab977aa03b6dc5c4a2ea54
+
+adapter rows [{"kind": "decision", "state": "owed", "error": null, "identity": "{\"hold\":\"2026-11-17T11:59:25Z#0\",\"task\":\"task\"}", "notice_id": "139e87720e620b47e7cbf0a56bcd9fbe1e8fb796a2f68655e0573ab26ba38428"}, {"kind": "decision", "state": "queued", "error": null, "identity": "{\"hold\":\"2026-11-17T11:59:28Z#0\",\"task\":\"other\"}", "notice_id": "48cb31e63f20059de60eda6e5c7e1612bc7f94b225f07fb6c5465e58c31aa8fc"}]
+immutable parent events [{"at": "2026-11-17T11:59:28Z", "id": "notice.732ce8ebc1d3aabf657a4b6a449b07309ad68fd351bebcf3837ff47fb3bc5f71", "kind": "private-notice", "notice_id": "139e87720e620b47e7cbf0a56bcd9fbe1e8fb796a2f68655e0573ab26ba38428", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": null, "project_alias": "Personal", "template_id": "decision-waiting", "text": "A decision is waiting for the Personal work. Please review it in our usual conversation."}]
+parent obligation phases [('owed',)]
+Waiting 31 actual seconds (no clock/database manipulation)
+
+PRODUCT eligible excess emitted once after actual spacing
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+850ae1ef6885e6037b5918a199bec6ffe2f25acf34ab977aa03b6dc5c4a2ea54
+
+adapter rows [{"kind": "decision", "state": "owed", "error": null, "identity": "{\"hold\":\"2026-11-17T11:59:25Z#0\",\"task\":\"task\"}", "notice_id": "139e87720e620b47e7cbf0a56bcd9fbe1e8fb796a2f68655e0573ab26ba38428"}, {"kind": "decision", "state": "owed", "error": null, "identity": "{\"hold\":\"2026-11-17T11:59:28Z#0\",\"task\":\"other\"}", "notice_id": "48cb31e63f20059de60eda6e5c7e1612bc7f94b225f07fb6c5465e58c31aa8fc"}]
+immutable parent events [{"at": "2026-11-17T11:59:28Z", "id": "notice.732ce8ebc1d3aabf657a4b6a449b07309ad68fd351bebcf3837ff47fb3bc5f71", "kind": "private-notice", "notice_id": "139e87720e620b47e7cbf0a56bcd9fbe1e8fb796a2f68655e0573ab26ba38428", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": null, "project_alias": "Personal", "template_id": "decision-waiting", "text": "A decision is waiting for the Personal work. Please review it in our usual conversation."}, {"at": "2026-11-17T12:00:08Z", "id": "notice.49d8a47a76a56109da94e50823b92371f71795a86e8e8f3aaefe54d5a0bcae64", "kind": "private-notice", "notice_id": "48cb31e63f20059de60eda6e5c7e1612bc7f94b225f07fb6c5465e58c31aa8fc", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": null, "project_alias": null, "template_id": "sensitive-decision", "text": "A decision is waiting. Please review it in our usual conversation."}]
+parent obligation phases [('owed',), ('owed',)]
+
+=== SCENARIO Domain replacement privacy revocation and return withdraw original obligations ===
+hold task 0 task
+ 
+hold other 0 other
+ 
+
+PRODUCT domain replacement disposes original obligation without retargeting
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+c9eed5b0031e6e3453350b335f649beca0bb492e7a086558cf59fc89fa934616
+
+adapter rows [{"kind": "decision", "state": "withdrawn", "error": null, "identity": "{\"hold\":\"2026-11-17T12:00:09Z#0\",\"task\":\"task\"}", "notice_id": "6a400427b5804f8ee2c00a66f7e031b3233e57e8e75f6be91d00b61aaa099641"}, {"kind": "decision", "state": "owed", "error": null, "identity": "{\"hold\":\"2026-11-17T12:00:21Z#0\",\"task\":\"other\"}", "notice_id": "5448c8c648318089f8d4cd19135a213bf3592777f22c7120c236c780b82d390f"}]
+immutable parent events [{"at": "2026-11-17T12:00:19Z", "id": "notice.c40a3aec8ce41cf9a30d5a7bd2f867e574cf5cf4363b31cfba39e55e240e8a0a", "kind": "private-notice", "notice_id": "6a400427b5804f8ee2c00a66f7e031b3233e57e8e75f6be91d00b61aaa099641", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": null, "project_alias": "Personal", "template_id": "decision-waiting", "text": "A decision is waiting for the Personal work. Please review it in our usual conversation."}]
+parent obligation phases [('owner-disposed',)]
+Private reach: 0 retained failure(s), 0 current failure(s), 0 withdrawal(s) needing reconciliation, 0 pending notice(s), 2 withdrawn, 0 confirmed delivered; decisions still await the usual conversation.
+
+original domain journal personal [('{"reason":"enrollment-revoked"}',)]
+original domain journal private [('{"reason":"away-ended"}',)]
+hold task 0 task
+ 
+
+PRODUCT positive privacy revocation withdraws owed notice
+discord-private
+-
+Reach unavailable; hold-for-return only.
+-
+
+adapter rows [{"kind": "decision", "state": "withdrawn", "error": null, "identity": "{\"hold\":\"2026-11-17T12:00:29Z#0\",\"task\":\"task\"}", "notice_id": "123ca3bdfa88e55adabcc5dd5a2bcdf88365055df5183b61f9c1c1eb01830008"}]
+immutable parent events [{"at": "2026-11-17T12:00:33Z", "id": "notice.07432ccb84162d93915d2c2a7779b0b5d12327d2ca0b8e37f67ed2c818c978d9", "kind": "private-notice", "notice_id": "123ca3bdfa88e55adabcc5dd5a2bcdf88365055df5183b61f9c1c1eb01830008", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": null, "project_alias": "Personal", "template_id": "decision-waiting", "text": "A decision is waiting for the Personal work. Please review it in our usual conversation."}]
+parent obligation phases [('owner-disposed',)]
+
+=== SCENARIO PR ready no-CI pending and readiness-loss use real gh-axi locally ===
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 3 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 4 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+
+PRODUCT real gh-axi on local GitHub green
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+8a08176de6eeba80dde414ecba4700979320e9b872344058248cabc0efeda929
+
+adapter rows [{"kind": "pr-ready", "state": "owed", "error": null, "identity": "{\"head\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"pr_url\":\"https://github.com/owner/repo/pull/1\",\"ready\":true}", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa"}]
+immutable parent events [{"at": "2026-11-17T12:00:36Z", "id": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a", "kind": "private-notice", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": "https://github.com/owner/repo/pull/1", "project_alias": "Personal", "template_id": "pr-ready", "text": "The Personal work is ready for review: <https://github.com/owner/repo/pull/1>. Review it in our usual conversation. Discord replies do not approve it."}]
+parent obligation phases [('owed',)]
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view none
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view none
+
+PRODUCT real gh-axi on local GitHub none
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+6544eef0489036b6c726489df911a704c0025e9040d0db1e3cac4d0bd5d1e48d
+
+adapter rows [{"kind": "pr-ready", "state": "owed", "error": null, "identity": "{\"head\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"pr_url\":\"https://github.com/owner/repo/pull/1\",\"ready\":true}", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa"}]
+immutable parent events [{"at": "2026-11-17T12:00:38Z", "id": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a", "kind": "private-notice", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": "https://github.com/owner/repo/pull/1", "project_alias": "Personal", "template_id": "pr-ready", "text": "The Personal work is ready for review: <https://github.com/owner/repo/pull/1>. Review it in our usual conversation. Discord replies do not approve it."}]
+parent obligation phases [('owed',)]
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view red
+HTTPS GraphQL checks red
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+
+PRODUCT real gh-axi on local GitHub red
+discord-private
+r1
+Reach unavailable; hold-for-return only.
+aee7f05af65cdb63cf7b249f6b64e4ecadef812319ba9671edf9239eac669531
+
+adapter rows [{"kind": "pr-ready", "state": "queued", "error": "evidence-or-parent-unavailable", "identity": null, "notice_id": null}]
+immutable parent events []
+parent obligation phases []
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view pending
+HTTPS GraphQL checks pending
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+
+PRODUCT real gh-axi on local GitHub pending
+discord-private
+r1
+Reach unavailable; hold-for-return only.
+a7f1d8f68c77bd02ad29a9ff5e24ad3eeb70f22c8263ce788ea9a071de385695
+
+adapter rows [{"kind": "pr-ready", "state": "queued", "error": "evidence-or-parent-unavailable", "identity": null, "notice_id": null}]
+immutable parent events []
+parent obligation phases []
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 3 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 4 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 5 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view pending
+HTTPS GraphQL checks pending
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 6 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+
+PRODUCT same-head pending CI withdraws stale parent obligation
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+ccac22c2fbd3a147a870f3ea6c83331db6dc9554738e2b223eee41c5c6dfb061
+
+adapter rows [{"kind": "pr-ready", "state": "withdrawn", "error": null, "identity": "{\"head\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"pr_url\":\"https://github.com/owner/repo/pull/1\",\"ready\":true}", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa"}]
+immutable parent events [{"at": "2026-11-17T12:00:44Z", "id": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a", "kind": "private-notice", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": "https://github.com/owner/repo/pull/1", "project_alias": "Personal", "template_id": "pr-ready", "text": "The Personal work is ready for review: <https://github.com/owner/repo/pull/1>. Review it in our usual conversation. Discord replies do not approve it."}]
+parent obligation phases [('owner-disposed',)]
+
+=== SCENARIO Final identity head draft closure races fence queued and owed notices ===
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb open False
+
+PRODUCT confirmation race queued head
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+9b04b44b69c5d24c6e7bd3a6c3c60156ca162a11f4acc1dfdf0aff10ae53568a
+
+adapter rows [{"kind": "pr-ready", "state": "withdrawn", "error": null, "identity": null, "notice_id": null}]
+immutable parent events []
+parent obligation phases []
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open True
+
+PRODUCT confirmation race queued draft
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+904e2eaf3f9c0ad022c6645a1da054c40b518ae079db669498f8a44455e6b2d1
+
+adapter rows [{"kind": "pr-ready", "state": "withdrawn", "error": null, "identity": null, "notice_id": null}]
+immutable parent events []
+parent obligation phases []
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa closed False
+
+PRODUCT confirmation race queued close
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+885a44d26bbac2b6db8231c938e54fe4c404c32312bbc28ef769d6ec7f3cd66f
+
+adapter rows [{"kind": "pr-ready", "state": "withdrawn", "error": null, "identity": null, "notice_id": null}]
+immutable parent events []
+parent obligation phases []
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 3 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 4 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb open False
+
+PRODUCT confirmation race owed head
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+0574c67ceea0534fcb96dade1fbf6d2f5df6e826e66bc1d41976715ef9afca93
+
+adapter rows [{"kind": "pr-ready", "state": "withdrawn", "error": null, "identity": "{\"head\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"pr_url\":\"https://github.com/owner/repo/pull/1\",\"ready\":true}", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa"}]
+immutable parent events [{"at": "2026-11-17T12:00:53Z", "id": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a", "kind": "private-notice", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": "https://github.com/owner/repo/pull/1", "project_alias": "Personal", "template_id": "pr-ready", "text": "The Personal work is ready for review: <https://github.com/owner/repo/pull/1>. Review it in our usual conversation. Discord replies do not approve it."}]
+parent obligation phases [('owner-disposed',)]
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 3 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 4 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open True
+
+PRODUCT confirmation race owed draft
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+58f08616ac870f5ac9a2c9bccf641630a4d3f6c644a353464d6fb1f6e4c4ae26
+
+adapter rows [{"kind": "pr-ready", "state": "withdrawn", "error": null, "identity": "{\"head\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"pr_url\":\"https://github.com/owner/repo/pull/1\",\"ready\":true}", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa"}]
+immutable parent events [{"at": "2026-11-17T12:00:57Z", "id": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a", "kind": "private-notice", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": "https://github.com/owner/repo/pull/1", "project_alias": "Personal", "template_id": "pr-ready", "text": "The Personal work is ready for review: <https://github.com/owner/repo/pull/1>. Review it in our usual conversation. Discord replies do not approve it."}]
+parent obligation phases [('owner-disposed',)]
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 3 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 4 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa closed False
+
+PRODUCT confirmation race owed close
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+606b8a33ec4067b0577b8d73bbe66d0b83353ce9060cd0a978b54d4af0a38a2b
+
+adapter rows [{"kind": "pr-ready", "state": "withdrawn", "error": null, "identity": "{\"head\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"pr_url\":\"https://github.com/owner/repo/pull/1\",\"ready\":true}", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa"}]
+immutable parent events [{"at": "2026-11-17T12:01:02Z", "id": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a", "kind": "private-notice", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": "https://github.com/owner/repo/pull/1", "project_alias": "Personal", "template_id": "pr-ready", "text": "The Personal work is ready for review: <https://github.com/owner/repo/pull/1>. Review it in our usual conversation. Discord replies do not approve it."}]
+parent obligation phases [('owner-disposed',)]
+
+=== SCENARIO Final forge query outage preserves work and recovers without duplicates ===
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+
+PRODUCT 503 from final confirmation retains queued
+discord-private
+r1
+Reach unavailable; hold-for-return only.
+003f1f78aec6b67b72efc2b899295b4a31d1ca0140af92b2b68ec931c612bc7e
+
+adapter rows [{"kind": "pr-ready", "state": "queued", "error": "evidence-or-parent-unavailable", "identity": null, "notice_id": null}]
+immutable parent events []
+parent obligation phases []
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+
+PRODUCT final-query recovery without duplicate approval
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+003f1f78aec6b67b72efc2b899295b4a31d1ca0140af92b2b68ec931c612bc7e
+
+adapter rows [{"kind": "pr-ready", "state": "owed", "error": null, "identity": "{\"head\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"pr_url\":\"https://github.com/owner/repo/pull/1\",\"ready\":true}", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa"}]
+immutable parent events [{"at": "2026-11-17T12:01:06Z", "id": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a", "kind": "private-notice", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": "https://github.com/owner/repo/pull/1", "project_alias": "Personal", "template_id": "pr-ready", "text": "The Personal work is ready for review: <https://github.com/owner/repo/pull/1>. Review it in our usual conversation. Discord replies do not approve it."}]
+parent obligation phases [('owed',)]
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 3 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 4 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+
+PRODUCT 503 from final confirmation retains owed
+discord-private
+r1
+Reach unavailable; hold-for-return only.
+dd506e0f3d44d44c889bf7cda1440168893f5e8e912491804b82a82bb377760d
+
+adapter rows [{"kind": "pr-ready", "state": "owed", "error": "evidence-or-parent-unavailable", "identity": "{\"head\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"pr_url\":\"https://github.com/owner/repo/pull/1\",\"ready\":true}", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa"}]
+immutable parent events [{"at": "2026-11-17T12:01:08Z", "id": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a", "kind": "private-notice", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": "https://github.com/owner/repo/pull/1", "project_alias": "Personal", "template_id": "pr-ready", "text": "The Personal work is ready for review: <https://github.com/owner/repo/pull/1>. Review it in our usual conversation. Discord replies do not approve it."}]
+parent obligation phases [('owed',)]
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 1 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+HTTPS GraphQL view green
+HTTPS GraphQL checks green
+HTTPS GET /api/v3/repos/owner/repo/pulls/1 identity 2 aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa open False
+
+PRODUCT final-query recovery without duplicate approval
+discord-private
+r1
+Private Discord notifications configured, not proof of delivery; decisions still wait for return.
+dd506e0f3d44d44c889bf7cda1440168893f5e8e912491804b82a82bb377760d
+
+adapter rows [{"kind": "pr-ready", "state": "owed", "error": null, "identity": "{\"head\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"pr_url\":\"https://github.com/owner/repo/pull/1\",\"ready\":true}", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa"}]
+immutable parent events [{"at": "2026-11-17T12:01:08Z", "id": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a", "kind": "private-notice", "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa", "origin": {"bridge_id": "personal", "guild_id": "2", "mapping_revision": "r1", "owner_id": "1", "parent_channel_id": "3", "project_key": "project", "thread_id": "3"}, "pr_url": "https://github.com/owner/repo/pull/1", "project_alias": "Personal", "template_id": "pr-ready", "text": "The Personal work is ready for review: <https://github.com/owner/repo/pull/1>. Review it in our usual conversation. Discord replies do not approve it."}]
+parent obligation phases [('owed',)]
+
+RESULTS [{"name": "Explicit reach off and quiet ignore transport prose", "result": "pass"}, {"name": "Host held-decision reporting dedupes with independent bookkeeping", "result": "pass"}, {"name": "Enrollment-read failure preserves outcome and recovers typed intent", "result": "pass"}, {"name": "Real 30-second spacing retains distinct sensitive decision", "result": "pass"}, {"name": "Domain replacement privacy revocation and return withdraw original obligations", "result": "pass"}, {"name": "PR ready no-CI pending and readiness-loss use real gh-axi locally", "result": "pass"}, {"name": "Final identity head draft closure races fence queued and owed notices", "result": "pass"}, {"name": "Final forge query outage preserves work and recovers without duplicates", "result": "pass"}]

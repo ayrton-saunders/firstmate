@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Explicit reach off and quiet ignore transport prose",
+    "result": "pass"
+  },
+  {
+    "name": "Host held-decision reporting dedupes with independent bookkeeping",
+    "result": "pass"
+  },
+  {
+    "name": "Enrollment-read failure preserves outcome and recovers typed intent",
+    "result": "pass"
+  },
+  {
+    "name": "Real 30-second spacing retains distinct sensitive decision",
+    "result": "pass"
+  },
+  {
+    "name": "Domain replacement privacy revocation and return withdraw original obligations",
+    "result": "pass"
+  },
+  {
+    "name": "PR ready no-CI pending and readiness-loss use real gh-axi locally",
+    "result": "pass"
+  },
+  {
+    "name": "Final identity head draft closure races fence queued and owed notices",
+    "result": "pass"
+  },
+  {
+    "name": "Final forge query outage preserves work and recovers without duplicates",
+    "result": "pass"
+  }
+]
