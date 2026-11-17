@@ -1,0 +1,40 @@
+Initial observed queue paths: root one={run-worktree}/.gate-remote-lab/account/.firstmate/remote-job-fb5e573dad75a7a7 root two={run-worktree}/.gate-remote-lab/account/.firstmate/remote-job-6d265e3b2d56ba5d
+Isolated direct workers after alternating readiness and symlink alias:
+root one: label=dev.firstmate.remote-job.fb5e573dad75a7a7 state={run-worktree}/.gate-remote-lab/account/.firstmate/remote-job-fb5e573dad75a7a7 serving_pid=37443
+root two: label=dev.firstmate.remote-job.6d265e3b2d56ba5d state={run-worktree}/.gate-remote-lab/account/.firstmate/remote-job-6d265e3b2d56ba5d serving_pid=38121
+job-ZnbERE
+
+Root one real command output (exit 23):
+root={run-worktree}/.gate-remote-lab/one
+home={run-worktree}/.gate-remote-lab/account/mate
+active=1
+arg=<two words>
+arg=<>
+arg=<$literal>
+live synthetic stdin
+probe stderr
+job-yagqiU
+
+Root two real command output (exit 23):
+root={run-worktree}/.gate-remote-lab/two
+home={run-worktree}/.gate-remote-lab/account/mate
+active=1
+arg=<two words>
+arg=<>
+arg=<$literal>
+live synthetic stdin
+probe stderr
+job-SMaSyC
+
+Stopping root one with TERM-resistant active command pid=49144; root two stays serving_pid=38121
+job-Oy2gAt
+root={run-worktree}/.gate-remote-lab/two
+home={run-worktree}/.gate-remote-lab/account/mate
+active=1
+arg=<after-neighbor-shutdown>
+probe stderr
+
+Active command and root one worker stopped; neighbouring worker served its next real command without replacement.
+All disposable workers stopped.
+
+DRIVER_EXIT=0
