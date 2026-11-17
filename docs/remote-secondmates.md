@@ -77,7 +77,9 @@ That lets read-only mode report worker gaps and lets `--fix` install or repair t
 The entrypoint authorizes that bootstrap in one of two ways:
 
 - With normal git tracking when git resolves.
-- With its pinned doctor digest when doctor must report that git itself is missing.
+- With its pinned doctor digest when doctor must report that git itself is missing, but only for the code root the shared PATH entrypoint names.
+
+Forwarding to another code root requires git to validate that root's tracked entrypoint. If git is missing, install it or run the target root's own `bin/fm-remote-doctor.sh` directly by its full path.
 
 ### The remote job worker
 

@@ -140,7 +140,7 @@ if [ "$ROOT" != "$ENTRYPOINT_ROOT" ]; then
   ACCOUNT_HOME=$(CDPATH='' cd ~ 2>/dev/null && pwd -P) || die "cannot resolve the remote account home"
   fm_remote_job_compose_operator_path "$ACCOUNT_HOME" >/dev/null
   TARGET_GIT_BIN=$(fm_remote_job_operator_tool git 2>/dev/null || true)
-  [ -n "$TARGET_GIT_BIN" ] || die "required tool git is unavailable; cannot verify the target entrypoint"
+  [ -n "$TARGET_GIT_BIN" ] || die "git is required to forward to another code root; install git or run that root's own doctor directly by its full path: $ROOT/bin/fm-remote-doctor.sh"
   "$TARGET_GIT_BIN" -C "$ROOT" ls-files --error-unmatch bin/fm-remote-entrypoint.sh >/dev/null 2>&1 \
     || die "target entrypoint is not tracked by the configured remote root: $TARGET_ENTRYPOINT"
   trap - EXIT
