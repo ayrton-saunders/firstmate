@@ -91,6 +91,8 @@ Each such command takes these steps:
 
 On macOS each code root has an Aqua-scoped LaunchAgent named `dev.firstmate.remote-job.<root-hash>`, with its matching plist in `~/Library/LaunchAgents/` and log in `~/Library/Logs/`.
 The queue is `~/.firstmate/remote-job-<root-hash>` on both platforms; the hash is the first 16 hexadecimal characters of SHA-256 of the canonical physical code-root path, so symlink aliases share an identity while separate roots do not.
+First update the account's shared PATH entrypoint to this forwarding version, or have the operator point its existing link at a root containing it; an unchanged pre-forwarding entrypoint cannot route requests to root-owned implementations.
+After that bootstrap update, requests are delegated to the named root's tracked, non-symlink entrypoint before selecting its worker, so roots can retain different library and worker versions and upgrade independently.
 Upgrade a code root only when no remote job is in flight, including SSH callers that have loaded the legacy library but have not yet finished submitting work.
 Pause new submissions to that root and let those callers and jobs finish before upgrading.
 Migration installs that root's separate runner without stopping, rewriting, kickstarting, or unloading the legacy `dev.firstmate.remote-job` service, regardless of which root the legacy plist names.
@@ -334,7 +336,7 @@ Unproven or contradictory process ownership refuses takeover and requires explic
 
 - It starts the same workers directly on Linux.
 - It recreates the `~/.local/bin/fm-remote-entrypoint.sh` symlink when it is absent.
-  An existing link to another Firstmate checkout's entrypoint is accepted as is, because every call names its code root, so a second code root on the account never repoints the first one's link.
+  An existing link to another Firstmate checkout's entrypoint is accepted as is, so a second code root never repoints the first one's link; the [worker migration prerequisites](#the-remote-job-worker) own the required shared-entrypoint update before independent root upgrades.
 - It creates only Firstmate-owned required-tool wrappers that it can prove resolve to a version-manager target.
   It stops after one harness satisfies the at-least-one requirement, which is the harness line of the [required remote tools](#required-remote-tools).
 

@@ -4,8 +4,9 @@
 # Install this tracked file as fm-remote-entrypoint.sh on the remote account's
 # non-interactive SSH PATH. It accepts protocol metadata plus a base64-encoded
 # NUL argv stream, validates one genuine tracked executable in <root>/bin/fm-*.sh,
-# then stages it for the Firstmate-owned remote job worker. It never accepts a
-# shell command string.
+# then hands off to that root's tracked entrypoint before worker selection if
+# this is another checkout. The selected root stages work with its own library
+# and worker version. It never accepts a shell command string.
 #
 # The readiness-owning fm-remote-doctor.sh runs in this plain SSH bootstrap so
 # check mode can inspect worker gaps without changing them and --fix can repair
@@ -37,8 +38,11 @@ REAL_SOURCE=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' 
   REAL_SOURCE=${BASH_SOURCE[0]}
 SCRIPT_DIR=$(CDPATH='' cd "$(dirname "$REAL_SOURCE")" && pwd -P)
 
+# Import validation helpers without binding the frontdoor's runner identity.
+FM_REMOTE_JOB_DEFER_IDENTITY=1
 # shellcheck source=bin/fm-remote-job-lib.sh
 . "$SCRIPT_DIR/fm-remote-job-lib.sh"
+unset FM_REMOTE_JOB_DEFER_IDENTITY
 
 die() { printf 'error: %s\n' "$1" >&2; exit "${2:-64}"; }
 
@@ -125,6 +129,28 @@ HOME_PATH=$(fm_remote_job_canonical_home "$HOME_PATH") || die "remote home is no
 [ -d "$ROOT/bin" ] && [ ! -L "$ROOT/bin" ] || die "remote root has no safe bin directory"
 if path_is_ancestor "$ROOT" "$HOME_PATH" || path_is_ancestor "$HOME_PATH" "$ROOT" || [ "$ROOT" = "$HOME_PATH" ]; then
   die "remote root and home must be separate, non-overlapping directories"
+fi
+
+ENTRYPOINT_ROOT=$(CDPATH='' cd "$SCRIPT_DIR/.." && pwd -P)
+if [ "$ROOT" != "$ENTRYPOINT_ROOT" ]; then
+  TARGET_ENTRYPOINT="$ROOT/bin/fm-remote-entrypoint.sh"
+  [ -f "$TARGET_ENTRYPOINT" ] && [ ! -L "$TARGET_ENTRYPOINT" ] && [ -x "$TARGET_ENTRYPOINT" ] \
+    || die "target entrypoint is missing or not a genuine executable: $TARGET_ENTRYPOINT"
+  unset HOME
+  ACCOUNT_HOME=$(CDPATH='' cd ~ 2>/dev/null && pwd -P) || die "cannot resolve the remote account home"
+  fm_remote_job_compose_operator_path "$ACCOUNT_HOME" >/dev/null
+  TARGET_GIT_BIN=$(fm_remote_job_operator_tool git 2>/dev/null || true)
+  [ -n "$TARGET_GIT_BIN" ] || die "required tool git is unavailable; cannot verify the target entrypoint"
+  "$TARGET_GIT_BIN" -C "$ROOT" ls-files --error-unmatch bin/fm-remote-entrypoint.sh >/dev/null 2>&1 \
+    || die "target entrypoint is not tracked by the configured remote root: $TARGET_ENTRYPOINT"
+  trap - EXIT
+  rm -rf -- "$TMP"
+  exec "$TARGET_ENTRYPOINT" "$@"
+fi
+# A frontdoor dispatcher can coexist with a pre-isolation library and worker.
+# Those versions already initialized their legacy identity while being sourced.
+if declare -F fm_remote_job_select_root >/dev/null; then
+  fm_remote_job_select_root "$ROOT" || die "cannot initialize the target root's remote worker identity"
 fi
 
 ARGV=()

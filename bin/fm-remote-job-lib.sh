@@ -100,6 +100,8 @@
 # orphaned that way.
 
 # Bind identity to the physical code root, never FM_HOME or the working directory.
+# The SSH bootstrap may set FM_REMOTE_JOB_DEFER_IDENTITY=1 while importing
+# validation helpers; it must select the root after target-entrypoint routing.
 fm_remote_job_select_root() { # <code-root>
   local canonical digest
   case "$1" in /*) ;; *) return 1 ;; esac
@@ -119,7 +121,9 @@ fm_remote_job_select_root() { # <code-root>
   FM_REMOTE_JOB_ROOT_KEY=${digest:0:16}
   FM_REMOTE_JOB_LABEL="dev.firstmate.remote-job.$FM_REMOTE_JOB_ROOT_KEY"
 }
-fm_remote_job_select_root "$(CDPATH='' cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)" || return 1
+if [ "${FM_REMOTE_JOB_DEFER_IDENTITY:-0}" != 1 ]; then
+  fm_remote_job_select_root "$(CDPATH='' cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)" || return 1
+fi
 FM_REMOTE_JOB_MAX_BYTES=${FM_REMOTE_JOB_MAX_BYTES:-1048576}
 FM_REMOTE_JOB_QUEUE_TIMEOUT=${FM_REMOTE_JOB_QUEUE_TIMEOUT:-360}
 FM_REMOTE_JOB_TIMEOUT=${FM_REMOTE_JOB_TIMEOUT:-360}

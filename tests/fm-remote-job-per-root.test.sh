@@ -34,7 +34,8 @@ cleanup() {
 trap cleanup EXIT
 for name in one two; do
   mkdir -p "$TMP_ROOT/$name/bin"
-  cp "$SUBJECT/bin/fm-remote-job-lib.sh" "$SUBJECT/bin/fm-remote-job-worker.sh" "$TMP_ROOT/$name/bin/"
+  cp "$SUBJECT/bin/fm-remote-job-lib.sh" "$SUBJECT/bin/fm-remote-job-worker.sh" \
+    "$SUBJECT/bin/fm-remote-entrypoint.sh" "$TMP_ROOT/$name/bin/"
   # shellcheck disable=SC2016 # The fixture command receives its own argument.
   printf '#!/usr/bin/env bash\n: > "$1"\n' > "$TMP_ROOT/$name/bin/fm-touch.sh"
   cat > "$TMP_ROOT/$name/bin/fm-hold.sh" <<'SH'
@@ -387,3 +388,122 @@ done
 [ -f "$TMP_ROOT/expired-running-ran" ] || fail 'expired orphaned running legacy record still reserves its home'
 [ ! -f "$TMP_ROOT/legacy-must-not-run" ] || fail 'migration executed a legacy leftover'
 pass 'expired orphaned legacy queued and running records release their homes'
+
+# Real pre-isolation libraries/workers exercise both mixed-version directions.
+# Only the account frontdoor must receive the forwarding update first; an
+# unchanged pre-PR entrypoint cannot execute routing code it does not contain.
+LEGACY_BASE=a36d406e18eebed3c44ab686ee51dc9f86d87ac6
+LEGACY_ROOT="$TMP_ROOT/legacy-root"
+mkdir -p "$LEGACY_ROOT/bin" "$TMP_ROOT/account/.local/bin"
+for script in fm-remote-job-lib.sh fm-remote-job-worker.sh fm-remote-entrypoint.sh; do
+  git -C "$ROOT" show "$LEGACY_BASE:bin/$script" > "$LEGACY_ROOT/bin/$script" \
+    || fail 'mixed-version regression requires the pre-isolation commit in local git history'
+done
+printf 'fixture\n' > "$LEGACY_ROOT/AGENTS.md"
+for fixture in "$TMP_ROOT/one" "$TMP_ROOT/two" "$LEGACY_ROOT"; do
+  cat > "$fixture/bin/fm-protocol-probe.sh" <<'SH'
+#!/usr/bin/env bash
+printf '%s\0' "$FM_ROOT_OVERRIDE" "$FM_HOME" "$FM_REMOTE_JOB_ACTIVE" "$@"
+cat
+printf 'protocol-probe stderr\n' >&2
+exit 23
+SH
+  chmod +x "$fixture/bin/"*.sh
+  if [ "$fixture" = "$LEGACY_ROOT" ]; then git -C "$fixture" init -q -b main; fi
+  git -C "$fixture" add .
+  git -C "$fixture" -c user.name=Test -c user.email=test@example.invalid commit -qm 'entrypoint protocol fixture'
+done
+# Production deliberately resolves the account home from passwd rather than
+# trusting HOME. Redirect that one cd in this isolated shell, never host paths.
+FM_TEST_NATIVE_HOME=$(unset HOME; builtin cd ~ && pwd -P)
+export FM_TEST_NATIVE_HOME
+cat > "$TMP_ROOT/entrypoint-env.sh" <<'SH'
+cd() {
+  if [ "$#" -eq 1 ] && [ "$1" = "$FM_TEST_NATIVE_HOME" ]; then
+    builtin cd "$LAB/account"
+  else
+    builtin cd "$@"
+  fi
+}
+case "$0" in */fm-remote-entrypoint.sh) printf '%s\n' "$0" >> "$LAB/entrypoint-execs" ;; esac
+SH
+printf 'stdin survives delegation\nsecond line without final newline' > "$TMP_ROOT/entrypoint.stdin"
+entrypoint_call() { # <frontdoor-root> <target-root>
+  local front=$1 target=$2 root_b64 home_b64 argv_b64
+  ln -sf "$front/bin/fm-remote-entrypoint.sh" "$TMP_ROOT/account/.local/bin/fm-remote-entrypoint.sh"
+  root_b64=$(printf '%s' "$target" | base64 | tr -d '\n')
+  home_b64=$(printf '%s' "$TMP_ROOT/account/mixed-mate" | base64 | tr -d '\n')
+  # shellcheck disable=SC2016 # Preserve literal shell-looking input as argv.
+  argv_b64=$(printf '%s\0' fm-protocol-probe.sh 'two words' '' '$not-a-command' | base64 | tr -d '\n')
+  : > "$TMP_ROOT/entrypoint-execs"
+  if BASH_ENV="$TMP_ROOT/entrypoint-env.sh" "$TMP_ROOT/account/.local/bin/fm-remote-entrypoint.sh" \
+    1 "$root_b64" "$home_b64" "$argv_b64" < "$TMP_ROOT/entrypoint.stdin" \
+    > "$TMP_ROOT/entrypoint.stdout" 2> "$TMP_ROOT/entrypoint.stderr"; then
+    ENTRYPOINT_RC=0
+  else
+    ENTRYPOINT_RC=$?
+  fi
+}
+assert_entrypoint_protocol() { # <target-root> <exec-count>
+  local target=$1 expected_execs=$2
+  expect_code 23 "$ENTRYPOINT_RC" 'entrypoint selected an incompatible worker version'
+  # shellcheck disable=SC2016 # Expected literal argv, not an expanded variable.
+  printf '%s\0' "$target" "$TMP_ROOT/account/mixed-mate" 1 'two words' '' '$not-a-command' > "$TMP_ROOT/entrypoint.expected"
+  cat "$TMP_ROOT/entrypoint.stdin" >> "$TMP_ROOT/entrypoint.expected"
+  cmp "$TMP_ROOT/entrypoint.expected" "$TMP_ROOT/entrypoint.stdout" || fail 'delegation changed argv, stdin, or target environment'
+  assert_grep 'protocol-probe stderr' "$TMP_ROOT/entrypoint.stderr" 'delegation lost stderr'
+  [ "$(wc -l < "$TMP_ROOT/entrypoint-execs" | tr -d ' ')" = "$expected_execs" ] || fail 'entrypoint delegation looped or failed to hand off'
+}
+# Lab A: new frontdoor, unchanged pre-PR target entrypoint/library/worker.
+entrypoint_call "$TMP_ROOT/one" "$LEGACY_ROOT"
+assert_entrypoint_protocol "$LEGACY_ROOT" 2
+pass 'a new frontdoor delegates to the real pre-isolation target version'
+
+# Lab B negative control: the truly unchanged pre-PR frontdoor cannot forward
+# and still routes an upgraded root through (and restarts) the shared agent.
+legacy_restarts=$(grep -Ec '^kickstart .*gui/[0-9]+/dev.firstmate.remote-job$' "$TMP_ROOT/launchctl.log" || true)
+entrypoint_call "$LEGACY_ROOT" "$TMP_ROOT/two"
+assert_entrypoint_protocol "$TMP_ROOT/two" 1
+[ "$(grep -Ec '^kickstart .*gui/[0-9]+/dev.firstmate.remote-job$' "$TMP_ROOT/launchctl.log" || true)" -gt "$legacy_restarts" ] \
+  || fail 'the unchanged pre-PR frontdoor control did not expose shared-runner coupling'
+pass 'the unchanged pre-PR frontdoor control demonstrates the bootstrap prerequisite'
+
+# Upgrade only its dispatcher, leaving the pre-PR library and worker in place.
+# A new target must then use its own runner without touching the shared agent.
+cp "$ROOT/bin/fm-remote-entrypoint.sh" "$LEGACY_ROOT/bin/fm-remote-entrypoint.sh"
+git -C "$LEGACY_ROOT" add bin/fm-remote-entrypoint.sh
+git -C "$LEGACY_ROOT" -c user.name=Test -c user.email=test@example.invalid commit -qm 'upgrade the account frontdoor dispatcher only'
+legacy_restarts=$(grep -Ec '^kickstart .*gui/[0-9]+/dev.firstmate.remote-job$' "$TMP_ROOT/launchctl.log" || true)
+entrypoint_call "$LEGACY_ROOT" "$TMP_ROOT/two"
+assert_entrypoint_protocol "$TMP_ROOT/two" 2
+[ "$(grep -Ec '^kickstart .*gui/[0-9]+/dev.firstmate.remote-job$' "$TMP_ROOT/launchctl.log" || true)" = "$legacy_restarts" ] \
+  || fail 'a legacy frontdoor bundle restarted the legacy service for an upgraded target'
+pass 'an upgraded dispatcher with a legacy bundle hands off to the new target version'
+entrypoint_call "$LEGACY_ROOT" "$LEGACY_ROOT"
+assert_entrypoint_protocol "$LEGACY_ROOT" 1
+pass 'a legacy root still uses its own worker after only its dispatcher is upgraded'
+
+entrypoint_call "$TMP_ROOT/one" "$TMP_ROOT/two"
+assert_entrypoint_protocol "$TMP_ROOT/two" 2
+entrypoint_call "$TMP_ROOT/one" "$TMP_ROOT/one"
+assert_entrypoint_protocol "$TMP_ROOT/one" 1
+pass 'same-version roots delegate once and canonical self-invocation never re-execs'
+
+mv "$LEGACY_ROOT/bin/fm-remote-entrypoint.sh" "$TMP_ROOT/entrypoint.backup"
+entrypoint_call "$TMP_ROOT/one" "$LEGACY_ROOT"
+expect_code 64 "$ENTRYPOINT_RC" 'a missing target entrypoint was accepted'
+assert_grep 'target entrypoint' "$TMP_ROOT/entrypoint.stderr" 'missing entrypoint had no clear diagnostic'
+ln -s "$TMP_ROOT/one/bin/fm-remote-entrypoint.sh" "$LEGACY_ROOT/bin/fm-remote-entrypoint.sh"
+entrypoint_call "$TMP_ROOT/one" "$LEGACY_ROOT"
+expect_code 64 "$ENTRYPOINT_RC" 'a symlinked target could delegate back into the frontdoor'
+rm "$LEGACY_ROOT/bin/fm-remote-entrypoint.sh"
+mv "$TMP_ROOT/entrypoint.backup" "$LEGACY_ROOT/bin/fm-remote-entrypoint.sh"
+chmod -x "$LEGACY_ROOT/bin/fm-remote-entrypoint.sh"
+entrypoint_call "$TMP_ROOT/one" "$LEGACY_ROOT"
+expect_code 64 "$ENTRYPOINT_RC" 'a non-executable target entrypoint was accepted'
+chmod +x "$LEGACY_ROOT/bin/fm-remote-entrypoint.sh"
+git -C "$LEGACY_ROOT" rm --cached -q bin/fm-remote-entrypoint.sh
+entrypoint_call "$TMP_ROOT/one" "$LEGACY_ROOT"
+expect_code 64 "$ENTRYPOINT_RC" 'an untracked target entrypoint was accepted'
+assert_grep 'target entrypoint is not tracked' "$TMP_ROOT/entrypoint.stderr" 'untracked entrypoint had no clear diagnostic'
+pass 'missing, symlinked, non-executable, and untracked delegation targets are refused'
