@@ -21,7 +21,7 @@
 # verify; the default `any` resolves herdr when its CLI is present, then
 # rex, so a host offering both is still verified for the default backend. On
 # the Herdr backend the account needs the Firstmate-owned Aqua Herdr agent plus
-# the sibling dev.firstmate.remote-job worker that runs normal fm-on commands
+# the sibling dev.firstmate.remote-job.<root-hash> worker that runs normal fm-on commands
 # through the Aqua or Linux job-worker path. On darwin, that Herdr agent runs
 # bin/fm-remote-herdr-guard.sh through the remote account's login shell
 # (`-l -c`) so the server inherits the account's own environment; the
