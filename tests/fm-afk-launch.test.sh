@@ -80,7 +80,7 @@ unit_enter_records_the_posture_in_one_step_without_a_daemon() {
     && [ "$(FM_HOME="$st" FM_STATE_OVERRIDE="$st/state" "$CONTRACT" field expected_return)" = 2026-09-08T08:00Z ] \
     && [ "$(FM_HOME="$st" FM_STATE_OVERRIDE="$st/state" "$CONTRACT" field spend_max_concurrent_workers)" = 2 ] \
     && [ ! -e "$st/state/.afk" ] && [ ! -e "$st/state/.afk-daemon-terminal" ] \
-    && printf '%s' "$out" | grep -F 'hold-for-return only. No phone channel is configured; anything that needs you waits for your return.' >/dev/null \
+    && printf '%s' "$out" | grep -F 'Reach unavailable; hold-for-return only.' >/dev/null \
     && printf '%s' "$out" | grep -F '    merge the windows fix when green' >/dev/null \
     && ! printf '%s' "$out" | grep -iE 'say go|to confirm|not yet confirmed' >/dev/null; then
     pass "enter: one call writes the record with the words, expected return, and spend cap, reads it back without asking for a go, and launches no daemon"

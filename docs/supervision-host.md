@@ -186,6 +186,9 @@ The host counts the wake handled only when all three hold:
 
 Away, a handled wake never reaches main, whether its outcome was routine or captain.
 Captain outcomes wait in the outcome store, and after the return the drain's `BRANCH OUTCOMES` section presents them; the return brief (`bin/fm-afk-return.sh`) counts them and points there.
+The report command's optional typed private notice follows the same narrow reach-only exception as Pi, owned by [`bin/fm-away-notice.py`](../bin/fm-away-notice.py)'s header.
+It runs after append, preserves branch actor provenance, and cannot prevent the host receipt or advance outcome processing when delivery fails.
+Subsequent reports reconsider rate-limited excess; no second reasoning session or scheduler is started.
 Attended, see [Captain outcomes](#captain-outcomes).
 
 ### A captain who returns during a turn

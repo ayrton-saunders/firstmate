@@ -1,0 +1,10 @@
+pull_request:
+  headRefOid: 68c0f62566bc731d9b9473b5391a5b1ad6fa6dc5
+  statusCheckRollup[2]:
+    - __typename: CheckRun
+      conclusion: SUCCESS
+      name: ci
+      status: COMPLETED
+    - __typename: StatusContext
+      context: required
+      state: EXPECTED

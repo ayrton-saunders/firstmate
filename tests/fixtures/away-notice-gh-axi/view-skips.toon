@@ -1,0 +1,85 @@
+pull_request:
+  headRefOid: 28464c3824c02b26860c420e6d1a0a4de6c8dcda
+  statusCheckRollup[82]{__typename,completedAt,conclusion,detailsUrl,name,startedAt,status,workflowName}:
+    CheckRun,"2026-11-16T22:46:32Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133670562514",release-gate,"2026-11-16T22:46:32Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:47:09Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670562748",Determine changes,"2026-11-16T22:46:36Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:49:52Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973242287/job/133670554281",Compute memory usage diff,"2026-11-16T22:46:35Z",COMPLETED,Run memory report
+    CheckRun,"2026-11-16T22:48:39Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973242542/job/133670557817",Compute diagnostic diff,"2026-11-16T22:46:34Z",COMPLETED,Run typing conformance
+    CheckRun,"2026-11-16T22:48:49Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973242553/job/133670558075",Build ty (base),"2026-11-16T22:46:35Z",COMPLETED,ty ecosystem-analyzer
+    CheckRun,"2026-11-16T22:48:28Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973242553/job/133670558503",Build ty (pr),"2026-11-16T22:46:35Z",COMPLETED,ty ecosystem-analyzer
+    CheckRun,"2026-11-16T22:52:00Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880716",security-review / security review,"2026-11-16T22:47:14Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:48:13Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133670559024",plan,"2026-11-16T22:46:33Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:50:18Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973242287/job/133672310581",publish-report / publish,"2026-11-16T22:49:56Z",COMPLETED,Run memory report
+    CheckRun,"2026-11-16T22:49:06Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973242542/job/133671681180",publish-report / publish,"2026-11-16T22:48:42Z",COMPLETED,Run typing conformance
+    CheckRun,"2026-11-16T22:57:06Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973242553/job/133671770447",analyze-shards (0),"2026-11-16T22:50:12Z",COMPLETED,ty ecosystem-analyzer
+    CheckRun,"2026-11-16T22:50:00Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973242553/job/133671770503",analyze-shards (1),"2026-11-16T22:48:53Z",COMPLETED,ty ecosystem-analyzer
+    CheckRun,"2026-11-16T22:51:47Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973242553/job/133671770466",analyze-shards (2),"2026-11-16T22:49:58Z",COMPLETED,ty ecosystem-analyzer
+    CheckRun,"2026-11-16T22:50:29Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973242553/job/133671770502",analyze-shards (3),"2026-11-16T22:48:53Z",COMPLETED,ty ecosystem-analyzer
+    CheckRun,"2026-11-16T22:48:13Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671451680",custom-build-binaries,"2026-11-16T22:48:13Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:52:13Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133673415110",security-review / prepare,"2026-11-16T22:52:03Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:57:38Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973242553/job/133676094055",Generate diagnostic diff report,"2026-11-16T22:57:09Z",COMPLETED,ty ecosystem-analyzer
+    CheckRun,"2026-11-16T22:52:13Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133673526583",security-review / report,"2026-11-16T22:52:13Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:58:12Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973242553/job/133676374727",publish-report / publish,"2026-11-16T22:57:41Z",COMPLETED,ty ecosystem-analyzer
+    CheckRun,"2026-11-16T22:47:44Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880686",cargo fmt,"2026-11-16T22:47:13Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:47:46Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880138",shellcheck,"2026-11-16T22:47:12Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:49:34Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880726",cargo clippy,"2026-11-16T22:47:12Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:54:23Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880230",cargo hawk,"2026-11-16T22:47:12Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:51:21Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880507",cargo publish dry-run,"2026-11-16T22:47:11Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:52:56Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880537",cargo test (linux),"2026-11-16T22:47:11Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:50:59Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880565","cargo test (linux, release)","2026-11-16T22:47:11Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:48:13Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671452637",custom-build-docker,"2026-11-16T22:48:13Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:52:41Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880667",cargo test (namespace-profile-windows-2022-x86-64-16x32),"2026-11-16T22:47:44Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:50:06Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880596",cargo test (namespace-profile-macos-15),"2026-11-16T22:47:30Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:50:15Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880583",cargo test (wasm),"2026-11-16T22:47:12Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:49:39Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880547",cargo build (msrv),"2026-11-16T22:47:11Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:54:09Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880531",cargo fuzz build,"2026-11-16T22:47:12Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:47:09Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670882988",fuzz parser,"2026-11-16T22:47:09Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:48:13Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671453344",custom-build-wasm,"2026-11-16T22:48:13Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:48:13Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671453156",build-playground,"2026-11-16T22:48:13Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:48:41Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880732",test scripts,"2026-11-16T22:47:13Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:47:09Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670882876",ecosystem,"2026-11-16T22:47:09Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:48:13Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671454053",sign-release-binaries,"2026-11-16T22:48:14Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:52:19Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880548",Fuzz for new ty panics/timeouts,"2026-11-16T22:47:11Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:47:24Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880526",crates cooldowns,"2026-11-16T22:47:12Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:47:51Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880815",cargo deny,"2026-11-16T22:47:13Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:47:38Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880602",cargo shear,"2026-11-16T22:47:12Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:50:18Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880618",ty completion evaluation,"2026-11-16T22:47:11Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:48:13Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671454365",generate-checksum-manifest,"2026-11-16T22:48:14Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:48:11Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670881039",python package,"2026-11-16T22:47:12Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:47:09Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670883546",PGO,"2026-11-16T22:47:09Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:48:13Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671455188",build-global-artifacts,"2026-11-16T22:48:14Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:48:13Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671456217",host,"2026-11-16T22:48:14Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:49:04Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880906",prek,"2026-11-16T22:47:11Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:48:13Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671456714",custom-publish-pypi,"2026-11-16T22:48:14Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:50:03Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880807",mkdocs,"2026-11-16T22:47:12Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:47:09Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670883882",formatter instabilities and black similarity,"2026-11-16T22:47:09Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:48:13Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671457068",custom-publish-wasm,"2026-11-16T22:48:14Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:47:09Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670883818",check playground,"2026-11-16T22:47:09Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:48:14Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671457985",custom-publish-crates,"2026-11-16T22:48:14Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:47:09Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670883220",benchmarks instrumented (ruff),"2026-11-16T22:47:09Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:48:14Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671460047",announce,"2026-11-16T22:48:14Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:48:14Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671460260",custom-notify-dependents,"2026-11-16T22:48:14Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:50:59Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880759",benchmarks instrumented ty (build),"2026-11-16T22:47:11Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:47:09Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670883552",benchmarks walltime ruff (build),"2026-11-16T22:47:09Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:48:14Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671459902",custom-publish-docs,"2026-11-16T22:48:14Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:48:14Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671460985",custom-publish-playground,"2026-11-16T22:48:14Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:50:52Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670880798",benchmarks walltime ty (build),"2026-11-16T22:47:11Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:47:09Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670884591",publish-ecosystem-report,"2026-11-16T22:47:09Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:48:14Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671460926",custom-publish-versions,"2026-11-16T22:48:14Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:52:46Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133673603516",notify-ty-fuzz / publish,"2026-11-16T22:52:25Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:52:21Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133673594902",Minimize ty fuzz failures,"2026-11-16T22:52:21Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:48:14Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973242669/job/133671460437",custom-publish-mirror,"2026-11-16T22:48:14Z",COMPLETED,Release
+    CheckRun,"2026-11-16T22:54:37Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133674664306",all required checks passed,"2026-11-16T22:54:26Z",COMPLETED,CI
+    CheckRun,"2026-11-16T23:05:53Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133672896975","benchmarks instrumented ty (simulation: micro-1)","2026-11-16T22:51:01Z",COMPLETED,CI
+    CheckRun,"2026-11-16T23:02:02Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133672897027","benchmarks instrumented ty (simulation: micro-2)","2026-11-16T22:51:01Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:56:49Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133672896648","benchmarks instrumented ty (memory: micro-1)","2026-11-16T22:51:01Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:57:37Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133672896930","benchmarks instrumented ty (memory: micro-2)","2026-11-16T22:51:01Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:57:30Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133672896939","benchmarks instrumented ty (simulation: constraint_set)","2026-11-16T22:51:01Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:54:59Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133672896952","benchmarks instrumented ty (memory: constraint_set)","2026-11-16T22:51:02Z",COMPLETED,CI
+    CheckRun,"2026-11-16T23:00:57Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133672897013","benchmarks instrumented ty (simulation: projects)","2026-11-16T22:51:01Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:55:46Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133672896924","benchmarks instrumented ty (memory: projects)","2026-11-16T22:51:01Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:53:27Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133672896948","benchmarks instrumented ty (simulation: module_resolution)","2026-11-16T22:51:01Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:47:09Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133670883578",benchmarks walltime ruff (x86_64),"2026-11-16T22:47:09Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:55:03Z",SUCCESS,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133672832812",benchmarks walltime ty (x86_64),"2026-11-16T22:51:26Z",COMPLETED,CI
+    CheckRun,"2026-11-16T22:52:46Z",SKIPPED,"https://github.com/astral-sh/ruff/actions/runs/43973243794/job/133673811609",publish-ty-fuzz-report,"2026-11-16T22:52:46Z",COMPLETED,CI
+    CheckRun,"2026-11-16T23:07:05Z",SUCCESS,"https://app.codspeed.io/astral-sh/ruff/branches/ibraheem%2Fmemoize-argument-checks?utm_source=github&utm_medium=check&utm_content=details",CodSpeed Performance Analysis,"2026-11-16T23:07:06Z",COMPLETED,""

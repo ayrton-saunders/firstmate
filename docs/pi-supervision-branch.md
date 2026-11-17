@@ -50,6 +50,10 @@ The away posture, recorded by `state/.afk-contract`, hands every row to the bran
 
 ### How outcomes reach main
 
+The optional typed private notice on `fm_branch_report` is a reach-only exception, owned by [`bin/fm-away-notice.py`](../bin/fm-away-notice.py)'s header and shared with the host command twin.
+It runs after durable append with branch actor provenance, never copies the report summary, and delivery failure cannot change ordinary outcome delivery or processing.
+`tests/fm-away-notice.test.sh` exercises the fake parent boundary and host reports; `tests/fm-pi-branch-extension.test.sh` exercises the actual Pi tool with a failing notice adapter.
+
 While attended, captain-relevant branch outcomes persist as exact, sequence-keyed visible transcript entries.
 They then open one sequence-keyed processing turn on main, which stays open until main acknowledges that sequence.
 While away, the entries persist but processing waits until the record is archived.

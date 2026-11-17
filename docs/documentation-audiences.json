@@ -334,6 +334,10 @@
       "audience": "maintainer-architecture"
     },
     {
+      "path": "docs/away-notice/interface.md",
+      "audience": "maintainer-architecture"
+    },
+    {
       "path": "docs/arm-pretool-check.md",
       "audience": "maintainer-architecture"
     },

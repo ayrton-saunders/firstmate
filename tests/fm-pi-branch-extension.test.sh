@@ -62,6 +62,17 @@ install_pi_branch_extension_fixture() {
   mkdir -p "$repo/bin"
   cp "$ROOT/bin/fm-operational-input.sh" "$repo/bin/fm-operational-input.sh"
   chmod +x "$repo/bin/fm-operational-input.sh"
+  cat > "$repo/bin/fm-away-notice.py" <<'PYNOTICE'
+import json, os, sys
+from pathlib import Path
+home = Path(os.environ['FM_HOME'])
+rows = [json.loads(line) for line in (home/'state/branch-outcomes.jsonl').read_text().splitlines()]
+assert any(str(row['seq']) == sys.argv[2] for row in rows), 'notice ran before outcome append'
+with (home/'state/notice-calls').open('a') as stream:
+    stream.write(json.dumps({'args':sys.argv[1:], 'actor':os.environ.get('FM_SUPERVISION_ACTOR')})+'\n')
+# Notice failure must never fail ordinary outcome publication.
+sys.exit(1)
+PYNOTICE
   cat > "$repo/node_modules/@earendil-works/pi-coding-agent/package.json" <<'JSON'
 {"name":"@earendil-works/pi-coding-agent","type":"module","exports":"./index.js"}
 JSON
@@ -661,9 +672,11 @@ test_branch_dispatch_two_stage_filter_and_prefix_contract() {
   local repo home out status
   repo="$TMP_ROOT/dispatch-root"
   home="$TMP_ROOT/dispatch-home"
-  mkdir -p "$home/state" "$home/config"
+  mkdir -p "$home/state" "$home/config" "$repo/bin"
+  cp -R "$ROOT/bin/." "$repo/bin/"
+  cp -R "$ROOT/.agents" "$repo/.agents"
   install_pi_branch_extension_fixture "$repo"
-  PLUGIN="$repo/.pi/extensions/fm-branch-supervision.ts" FM_HOME="$home" FM_ROOT_OVERRIDE="$ROOT" \
+  PLUGIN="$repo/.pi/extensions/fm-branch-supervision.ts" FM_HOME="$home" FM_ROOT_OVERRIDE="$repo" \
     DRIVER_PRELUDE="$DRIVER_PRELUDE" node --input-type=module > "$TMP_ROOT/node-output" 2>&1 <<'EOF'
 const prelude = process.env.DRIVER_PRELUDE;
 await eval(`(async () => { ${prelude}; globalThis.__t = { pi, fire, dispatch, settle, outcomeScript, sentToMain, mainUserMessages, mainTools, renderers, entryRenderers, mainEntries, defaultSessionCtx, home, realRoot }; })()`);
@@ -671,6 +684,8 @@ const { pi, fire, dispatch, settle, outcomeScript, sentToMain, mainUserMessages,
 import { readFileSync, writeFileSync } from "node:fs";
 
 writeFileSync(`${home}/state/.lock`, `${process.ppid}\n`);
+// Presence opts this fixture into the typed adapter boundary, not a live enrollment.
+writeFileSync(`${home}/config/away-reach.json`, "{}");
 await fire("session_start", {}, defaultSessionCtx);
 
 // 1. An accepted wake reaches the branch session, never main. Keep the
@@ -745,7 +760,11 @@ if (sentToMain[1].options.deliverAs !== "nextTurn" || sentToMain[1].options.trig
   throw new Error(`routine busy merge must defer to nextTurn without a turn: ${JSON.stringify(sentToMain[1].options)}`);
 }
 await fire("agent_end", {});
-await report.execute("call-3", { task: "task-9", verdict: "captain", summary: "PR https://example.com/pr/9 checks green, ready for review" }, undefined, undefined, {});
+await report.execute("call-3", { task: "task-9", verdict: "captain", summary: "PR https://example.com/pr/9 checks green, ready for review", notice: "decision" }, undefined, undefined, {});
+const noticeCalls = readFileSync(`${home}/state/notice-calls`, "utf8").trim().split("\n").map(JSON.parse);
+if (JSON.stringify(noticeCalls[2]) !== JSON.stringify({ args: ["report", "3", "task-9", "decision"], actor: "branch" })) {
+  throw new Error(`typed private notice lost sequence or actor, or copied raw text: ${JSON.stringify(noticeCalls)}`);
+}
 // A captain outcome opens exactly ONE sequence-keyed processing turn: a
 // hidden, typed request that names the sequence and carries the exact stored
 // summary. No unkeyed turn ever opens, and routine delivery is untouched.
