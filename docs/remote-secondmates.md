@@ -91,8 +91,13 @@ Each such command takes these steps:
 
 On macOS each code root has an Aqua-scoped LaunchAgent named `dev.firstmate.remote-job.<root-hash>`, with its matching plist in `~/Library/LaunchAgents/` and log in `~/Library/Logs/`.
 The queue is `~/.firstmate/remote-job-<root-hash>` on both platforms; the hash is the first 16 hexadecimal characters of SHA-256 of the canonical physical code-root path, so symlink aliases share an identity while separate roots do not.
-Migration installs that root's separate runner without rewriting, restarting, or unloading the legacy `dev.firstmate.remote-job` service, regardless of which root the legacy plist names.
-The legacy queue and runner remain available to finish existing jobs; updated code launched by the legacy service stays on its legacy queue.
+Upgrade a code root only when no remote job is in flight, including SSH callers that have loaded the legacy library but have not yet finished submitting work.
+Pause new submissions to that root and let those callers and jobs finish before upgrading.
+Migration installs that root's separate runner without stopping, rewriting, kickstarting, or unloading the legacy `dev.firstmate.remote-job` service, regardless of which root the legacy plist names.
+The legacy queue and runner drain on their own; updated code launched by the legacy service stays on its legacy queue.
+The new runner defers matching-root/home work for observed live legacy stages and queued or running jobs, but that scan is not mutual exclusion against already-loaded legacy clients.
+A late legacy submission or a stage whose ownership, root, or home is still being initialized can escape the scan and overlap a new same-root/home command during the one-time upgrade window.
+Migration therefore does not guarantee durable cross-queue isolation without the quiescent cutover above.
 Retiring the legacy service is a separate operator action after all legacy clients and jobs have finished.
 [`bin/fm-remote-job-lib.sh`](../bin/fm-remote-job-lib.sh) owns identity and repair; `tests/fm-remote-job-per-root.test.sh` exercises two roots sharing an isolated account without host launchd access.
 After that bootstrap, every non-doctor `fm-on.sh` target runs through that worker in the remote account's GUI session.

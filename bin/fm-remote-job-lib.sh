@@ -84,6 +84,11 @@
 # with logs under ~/Library/Logs. Linux starts the same worker process without
 # an Aqua requirement. The launch-agent renderer and repair helpers here are
 # shared by the entrypoint and remote doctor so their ownership cannot drift.
+# Migration requires an idle code root, with no remote job or legacy caller in
+# flight; docs/remote-secondmates.md owns the quiescent cutover rule. The legacy
+# shared runner drains on its own, never stopped, rewritten, or kickstarted by
+# the new runner. Already-loaded legacy clients can still cause one-time
+# upgrade-window overlap; queue scans do not provide durable migration isolation.
 #
 # The Linux start path puts the worker tree in its own process group, so
 # stopping a worker signals its restart supervisor, its serving child, and any
