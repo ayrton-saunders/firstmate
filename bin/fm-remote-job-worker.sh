@@ -1,10 +1,10 @@
 #!/bin/bash
-# Long-lived per-account worker for remote fm-on jobs.
+# Long-lived per-code-root worker for remote fm-on jobs.
 #
 # This process is launched by the Firstmate-owned dev.firstmate.remote-job.<root-hash>
 # LaunchAgent on macOS and by a detached restart supervisor on Linux. It claims
-# only complete 0700 records staged by fm-remote-job-lib.sh under the fixed
-# account queue, refuses symlinks and malformed records, and executes only a
+# only complete 0700 records staged by fm-remote-job-lib.sh under its private
+# root-scoped queue, refuses symlinks and malformed records, and executes only a
 # tracked non-symlink fm-*.sh under this worker's configured FM_ROOT/bin.
 #
 # Each child runs under env -i with the shared filesystem-composed PATH, HOME,
