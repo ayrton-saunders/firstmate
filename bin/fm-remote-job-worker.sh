@@ -1130,21 +1130,27 @@ worker_lane_main() { # <job-id>
 
 worker_process_once() { # <account-home>
   local account_home=$1 job id state queue_deadline now home seq candidates=''
-  local reserved_index reserved_count home_reserved legacy_jobs legacy_root
+  local reserved_index reserved_count home_reserved legacy_jobs legacy_root legacy_prefix
   local reserved_homes=()
   worker_reap_finished_lanes
   legacy_jobs="$account_home/.firstmate/remote-job/jobs"
   if [ "$FM_REMOTE_JOB_JOBS" != "$legacy_jobs" ] &&
     fm_remote_job_canonical_existing_dir "$legacy_jobs" >/dev/null 2>&1; then
-    for job in "$legacy_jobs"/job-*; do
-      [ -d "$job" ] && [ ! -L "$job" ] || continue
-      fm_remote_job_safe_id "${job##*/}" || continue
-      state=$(fm_remote_job_read_state "$job" 2>/dev/null || true)
-      case "$state" in queued|running) ;; *) continue ;; esac
-      legacy_root=$(worker_read_text "$job" root 8192 2>/dev/null || true)
-      [ "$legacy_root" = "$FM_ROOT" ] || continue
-      home=$(worker_read_text "$job" home 8192 2>/dev/null || true)
-      [ -n "$home" ] && reserved_homes+=("$home")
+    for legacy_prefix in .stage. job-; do
+      for job in "$legacy_jobs"/"$legacy_prefix"*; do
+        [ -d "$job" ] && [ ! -L "$job" ] || continue
+        if [ "$legacy_prefix" = .stage. ]; then
+          fm_remote_job_stage_owner_alive "$job" || continue
+        else
+          fm_remote_job_safe_id "${job##*/}" || continue
+          state=$(fm_remote_job_read_state "$job" 2>/dev/null || true)
+          case "$state" in queued|running) ;; *) continue ;; esac
+        fi
+        legacy_root=$(worker_read_text "$job" root 8192 2>/dev/null || true)
+        [ "$legacy_root" = "$FM_ROOT" ] || continue
+        home=$(worker_read_text "$job" home 8192 2>/dev/null || true)
+        [ -n "$home" ] && reserved_homes+=("$home")
+      done
     done
   fi
   for job in "$FM_REMOTE_JOB_JOBS"/job-*; do

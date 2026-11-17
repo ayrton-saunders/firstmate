@@ -7,12 +7,26 @@ SUBJECT=${FM_CHARACTERIZATION_ROOT:-$ROOT}
 TMP_ROOT=$(fm_test_tmproot fm-remote-job-per-root)
 TMP_ROOT=$(cd "$TMP_ROOT" && pwd -P)
 mkdir -p "$TMP_ROOT/account" "$TMP_ROOT/stub-bin" "$TMP_ROOT/launchd"
+stager_pid=
 cleanup() {
-  local file pid
+  local file pid attempt
+  exec 7>&-
+  if [ -n "$stager_pid" ]; then
+    kill -TERM "$stager_pid" 2>/dev/null || true
+    wait "$stager_pid" 2>/dev/null || true
+  fi
   for file in "$TMP_ROOT/launchd/"*.pid; do
     [ -f "$file" ] || continue
     pid=$(cat "$file")
     kill -TERM -- "-$pid" 2>/dev/null || true
+  done
+  for file in "$TMP_ROOT/launchd/"*.pid; do
+    [ -f "$file" ] || continue
+    pid=$(cat "$file")
+    for attempt in $(seq 1 400); do
+      kill -0 -- "-$pid" 2>/dev/null || break
+      sleep 0.05
+    done
   done
   rm -rf -- "$TMP_ROOT"
 }
@@ -25,17 +39,8 @@ for name in one two; do
   cat > "$TMP_ROOT/$name/bin/fm-hold.sh" <<'SH'
 #!/usr/bin/env bash
 : > "$1"
-while [ ! -f "$2" ]; do sleep 0.1; done
-SH
-  cat > "$TMP_ROOT/$name/bin/fm-after.sh" <<'SH'
-#!/usr/bin/env bash
-if [ ! -f "$1" ]; then : > "$2"; fi
-: > "$3"
-SH
-  cat > "$TMP_ROOT/$name/bin/fm-hold.sh" <<'SH'
-#!/usr/bin/env bash
-: > "$1"
 while [ ! -f "$2" ]; do sleep 0.05; done
+if [ -n "${3:-}" ]; then : > "$3"; fi
 SH
   cat > "$TMP_ROOT/$name/bin/fm-after.sh" <<'SH'
 #!/usr/bin/env bash
@@ -166,6 +171,55 @@ done
 [ -f "$TMP_ROOT/migrated" ] || fail 'new queue did not resume after legacy drained'
 [ ! -f "$TMP_ROOT/overlap" ] || fail 'new command ran before the legacy FIFO drained'
 pass 'migration waits for same-root/home legacy work without blocking unrelated lanes'
+mkfifo "$TMP_ROOT/legacy-input"
+exec 7<> "$TMP_ROOT/legacy-input"
+FM_REMOTE_JOB_STATE_ROOT="$TMP_ROOT/account/.firstmate/remote-job" bash -c '
+  . "$LAB/one/bin/fm-remote-job-lib.sh"
+  fm_remote_job_stage "$LAB/account" "$LAB/one" "$LAB/account/staging-mate" fm-hold.sh "$LAB/stage-started" "$LAB/release-stage" "$LAB/stage-finished"
+' 7>&- < "$TMP_ROOT/legacy-input" > "$TMP_ROOT/staged-job" &
+stager_pid=$!
+stage_ready=0
+for _ in $(seq 1 400); do
+  for stage in "$TMP_ROOT/account/.firstmate/remote-job/jobs/".stage.*; do
+    if [ -f "$stage/stdin" ]; then stage_ready=1; break; fi
+  done
+  [ "$stage_ready" -eq 0 ] || break
+  sleep 0.05
+done
+[ "$stage_ready" -eq 1 ] || fail 'legacy submission did not block capturing stdin'
+kill -0 "$stager_pid" || fail 'legacy staging owner exited before input closed'
+(
+  . "$TMP_ROOT/one/bin/fm-remote-job-lib.sh"
+  fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/staging-mate" fm-after.sh "$TMP_ROOT/stage-finished" "$TMP_ROOT/stage-overlap" "$TMP_ROOT/stage-migrated" < /dev/null > /dev/null
+  fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/other-mate" fm-touch.sh "$TMP_ROOT/stage-other-home" < /dev/null > /dev/null
+  fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/two" "$TMP_ROOT/account/staging-mate" fm-touch.sh "$TMP_ROOT/stage-other-root" < /dev/null > /dev/null
+)
+for _ in $(seq 1 400); do
+  [ -f "$TMP_ROOT/stage-other-home" ] && [ -f "$TMP_ROOT/stage-other-root" ] && break
+  sleep 0.05
+done
+[ -f "$TMP_ROOT/stage-other-home" ] || fail 'legacy staging blocked another home'
+[ -f "$TMP_ROOT/stage-other-root" ] || fail 'legacy staging blocked another root'
+sleep 2
+[ ! -f "$TMP_ROOT/stage-migrated" ] || fail 'new command bypassed live legacy staging'
+exec 7>&-
+wait "$stager_pid"
+stager_pid=
+for _ in $(seq 1 400); do
+  [ -f "$TMP_ROOT/stage-started" ] && break
+  sleep 0.05
+done
+[ -f "$TMP_ROOT/stage-started" ] || fail 'legacy stage did not publish and execute'
+sleep 2
+[ ! -f "$TMP_ROOT/stage-migrated" ] || fail 'publication lost the legacy reservation'
+: > "$TMP_ROOT/release-stage"
+for _ in $(seq 1 400); do
+  [ -f "$TMP_ROOT/stage-migrated" ] && break
+  sleep 0.05
+done
+[ -f "$TMP_ROOT/stage-migrated" ] || fail 'new command did not resume after legacy staging completed'
+[ ! -f "$TMP_ROOT/stage-overlap" ] || fail 'new command overtook the legacy stage'
+pass 'live legacy staging reserves its lane through publication and execution'
 # Inject an interrupted date only after staging, while the serving child is
 # stopped. Its next queue pass must defer work, never compare an empty number.
 state=$(cat "$TMP_ROOT/one.state")
