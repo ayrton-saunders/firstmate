@@ -1,0 +1,504 @@
+{
+  "parent_source": "https://github.com/ayrton-saunders/firstmate-discord",
+  "parent_commit": "45e67bfeaf33d787e7dbf7ffaf4ca186f2e9f018",
+  "scope": "Offline real adapter CLI, real captain-hold/tasks-axi, real parent facade and disposable SQLite journals. PR evidence uses the synthetic gh-axi captured-output boundary. Receipt evidence is seeded, not network delivery. No channel enrollment or Discord transport.",
+  "scenarios": [
+    {
+      "scenario": "RealHoldtest_local_rate_queue_and_resolved_decision",
+      "notices": [
+        {
+          "task": "one",
+          "kind": "decision",
+          "state": "owed",
+          "error": null
+        },
+        {
+          "task": "two",
+          "kind": "decision",
+          "state": "withdrawn",
+          "error": null
+        }
+      ],
+      "parent_events": [
+        {
+          "at": "2026-11-17T09:49:05Z",
+          "id": "notice.4e912b0bd0b1b7305e64078c9922c6e465dee7687dd1a5abb9e665e0e548466a",
+          "kind": "private-notice",
+          "notice_id": "7dc86e6374de3610373a4929c7b089ce8468435787911c8c4cfd1e5454d80b0d",
+          "origin": {
+            "bridge_id": "personal",
+            "guild_id": "2",
+            "mapping_revision": "r1",
+            "owner_id": "1",
+            "parent_channel_id": "3",
+            "project_key": "project",
+            "thread_id": "3"
+          },
+          "pr_url": null,
+          "project_alias": "Personal",
+          "template_id": "decision-waiting",
+          "text": "A decision is waiting for the Personal work. Please review it in our usual conversation."
+        },
+        {
+          "at": "2026-11-17T09:49:10Z",
+          "id": "notice.2c60553e0cfe43e466e64497c134e856fc226639d354fb062fe9b4f753802e6b",
+          "kind": "private-notice",
+          "notice_id": "835cf6401dabb967f3a97c379d5840b9ad07e27dff3597bafb0c68b6e2ab68da",
+          "origin": {
+            "bridge_id": "personal",
+            "guild_id": "2",
+            "mapping_revision": "r1",
+            "owner_id": "1",
+            "parent_channel_id": "3",
+            "project_key": "project",
+            "thread_id": "3"
+          },
+          "pr_url": null,
+          "project_alias": "Personal",
+          "template_id": "decision-waiting",
+          "text": "A decision is waiting for the Personal work. Please review it in our usual conversation."
+        }
+      ],
+      "parent_obligations": [
+        {
+          "event": "notice.4e912b0bd0b1b7305e64078c9922c6e465dee7687dd1a5abb9e665e0e548466a",
+          "phase": "owed"
+        },
+        {
+          "event": "notice.2c60553e0cfe43e466e64497c134e856fc226639d354fb062fe9b4f753802e6b",
+          "phase": "owner-disposed"
+        }
+      ],
+      "withdrawals": [
+        {
+          "reason": "resolved"
+        }
+      ]
+    },
+    {
+      "scenario": "RealHoldtest_local_selection_off_and_quiet",
+      "notices": [],
+      "parent_events": [],
+      "parent_obligations": [],
+      "withdrawals": []
+    },
+    {
+      "scenario": "RealHoldtest_real_intake_recovers_from_configuration_failure",
+      "notices": [
+        {
+          "task": "task",
+          "kind": "decision",
+          "state": "withdrawn",
+          "error": null
+        }
+      ],
+      "parent_events": [
+        {
+          "at": "2026-11-17T09:49:21Z",
+          "id": "notice.f7f83c5a1b67bd3f635b8cce740764c9e7fed5ad485c23dcfac5b31fbb19a615",
+          "kind": "private-notice",
+          "notice_id": "6e086d26dba34ffec359ebcaab4805b8ea526bc0ae9d661193de4f3bcc4ff937",
+          "origin": {
+            "bridge_id": "personal",
+            "guild_id": "2",
+            "mapping_revision": "r1",
+            "owner_id": "1",
+            "parent_channel_id": "3",
+            "project_key": "project",
+            "thread_id": "3"
+          },
+          "pr_url": null,
+          "project_alias": "Personal",
+          "template_id": "decision-waiting",
+          "text": "A decision is waiting for the Personal work. Please review it in our usual conversation."
+        }
+      ],
+      "parent_obligations": [
+        {
+          "event": "notice.f7f83c5a1b67bd3f635b8cce740764c9e7fed5ad485c23dcfac5b31fbb19a615",
+          "phase": "owner-disposed"
+        }
+      ],
+      "withdrawals": [
+        {
+          "reason": "away-ended"
+        }
+      ]
+    },
+    {
+      "scenario": "RealHoldtest_real_mixed_domain_withdrawal_and_return",
+      "notices": [
+        {
+          "task": "task",
+          "kind": "decision",
+          "state": "withdrawn",
+          "error": null
+        },
+        {
+          "task": "other",
+          "kind": "decision",
+          "state": "withdrawn",
+          "error": null
+        }
+      ],
+      "parent_events": [
+        {
+          "at": "2026-11-17T09:49:25Z",
+          "id": "notice.b84cc5404c320a6cbbde7376036d4071d405e117e80290f136792c865aa8c5bf",
+          "kind": "private-notice",
+          "notice_id": "1721bbb0a820c4d5adcd498acabf786498ad811508da6aa1b45bcee3d6e6c32d",
+          "origin": {
+            "bridge_id": "personal",
+            "guild_id": "2",
+            "mapping_revision": "r1",
+            "owner_id": "1",
+            "parent_channel_id": "3",
+            "project_key": "project",
+            "thread_id": "3"
+          },
+          "pr_url": null,
+          "project_alias": "Personal",
+          "template_id": "decision-waiting",
+          "text": "A decision is waiting for the Personal work. Please review it in our usual conversation."
+        },
+        {
+          "at": "2026-11-17T09:49:28Z",
+          "id": "notice.412e4275bff31dda43680ae4ba50f3d02af4c40e22abb67cbcf40ec73017faa3",
+          "kind": "private-notice",
+          "notice_id": "bb06c64749f1096629509b0741e8207ca3c1f666c162b55af1a1d33f3d510ad3",
+          "origin": {
+            "bridge_id": "private",
+            "guild_id": "2",
+            "mapping_revision": "r1",
+            "owner_id": "1",
+            "parent_channel_id": "4",
+            "project_key": "project",
+            "thread_id": "4"
+          },
+          "pr_url": null,
+          "project_alias": "Personal",
+          "template_id": "decision-waiting",
+          "text": "A decision is waiting for the Personal work. Please review it in our usual conversation."
+        }
+      ],
+      "parent_obligations": [
+        {
+          "event": "notice.b84cc5404c320a6cbbde7376036d4071d405e117e80290f136792c865aa8c5bf",
+          "phase": "owner-disposed"
+        },
+        {
+          "event": "notice.412e4275bff31dda43680ae4ba50f3d02af4c40e22abb67cbcf40ec73017faa3",
+          "phase": "owner-disposed"
+        }
+      ],
+      "withdrawals": [
+        {
+          "reason": "away-ended"
+        },
+        {
+          "reason": "away-ended"
+        }
+      ]
+    },
+    {
+      "scenario": "RealHoldtest_real_no_ci_pr_creates_one_notice",
+      "notices": [
+        {
+          "task": "task",
+          "kind": "pr-ready",
+          "state": "owed",
+          "error": null
+        }
+      ],
+      "parent_events": [
+        {
+          "at": "2026-11-17T09:49:30Z",
+          "id": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a",
+          "kind": "private-notice",
+          "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa",
+          "origin": {
+            "bridge_id": "personal",
+            "guild_id": "2",
+            "mapping_revision": "r1",
+            "owner_id": "1",
+            "parent_channel_id": "3",
+            "project_key": "project",
+            "thread_id": "3"
+          },
+          "pr_url": "https://github.com/owner/repo/pull/1",
+          "project_alias": "Personal",
+          "template_id": "pr-ready",
+          "text": "The Personal work is ready for review: <https://github.com/owner/repo/pull/1>. Review it in our usual conversation. Discord replies do not approve it."
+        }
+      ],
+      "parent_obligations": [
+        {
+          "event": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a",
+          "phase": "owed"
+        }
+      ],
+      "withdrawals": []
+    },
+    {
+      "scenario": "RealHoldtest_real_privacy_revocation_withdraws_parent_obligation",
+      "notices": [
+        {
+          "task": "task",
+          "kind": "pr-ready",
+          "state": "withdrawn",
+          "error": null
+        }
+      ],
+      "parent_events": [
+        {
+          "at": "2026-11-17T09:49:31Z",
+          "id": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a",
+          "kind": "private-notice",
+          "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa",
+          "origin": {
+            "bridge_id": "personal",
+            "guild_id": "2",
+            "mapping_revision": "r1",
+            "owner_id": "1",
+            "parent_channel_id": "3",
+            "project_key": "project",
+            "thread_id": "3"
+          },
+          "pr_url": "https://github.com/owner/repo/pull/1",
+          "project_alias": "Personal",
+          "template_id": "pr-ready",
+          "text": "The Personal work is ready for review: <https://github.com/owner/repo/pull/1>. Review it in our usual conversation. Discord replies do not approve it."
+        }
+      ],
+      "parent_obligations": [
+        {
+          "event": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a",
+          "phase": "owner-disposed"
+        }
+      ],
+      "withdrawals": [
+        {
+          "reason": "enrollment-revoked"
+        }
+      ]
+    },
+    {
+      "scenario": "RealHoldtest_real_readiness_loss_withdraws_parent_obligation",
+      "notices": [
+        {
+          "task": "task",
+          "kind": "pr-ready",
+          "state": "withdrawn",
+          "error": null
+        }
+      ],
+      "parent_events": [
+        {
+          "at": "2026-11-17T09:49:33Z",
+          "id": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a",
+          "kind": "private-notice",
+          "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa",
+          "origin": {
+            "bridge_id": "personal",
+            "guild_id": "2",
+            "mapping_revision": "r1",
+            "owner_id": "1",
+            "parent_channel_id": "3",
+            "project_key": "project",
+            "thread_id": "3"
+          },
+          "pr_url": "https://github.com/owner/repo/pull/1",
+          "project_alias": "Personal",
+          "template_id": "pr-ready",
+          "text": "The Personal work is ready for review: <https://github.com/owner/repo/pull/1>. Review it in our usual conversation. Discord replies do not approve it."
+        }
+      ],
+      "parent_obligations": [
+        {
+          "event": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a",
+          "phase": "owner-disposed"
+        }
+      ],
+      "withdrawals": [
+        {
+          "reason": "superseded"
+        }
+      ]
+    },
+    {
+      "scenario": "RealHoldtest_real_templates_dedupe_and_receipt_only_reconciliation",
+      "notices": [
+        {
+          "task": "task",
+          "kind": "decision",
+          "state": "owed",
+          "error": null
+        },
+        {
+          "task": "task",
+          "kind": "decision",
+          "state": "withdrawn",
+          "error": null
+        },
+        {
+          "task": "task",
+          "kind": "pr-ready",
+          "state": "owed",
+          "error": null
+        },
+        {
+          "task": "unassociated",
+          "kind": "decision",
+          "state": "owed",
+          "error": null
+        }
+      ],
+      "parent_events": [
+        {
+          "at": "2026-11-17T09:49:36Z",
+          "id": "notice.43bbab8c76829c218e6b122336e64afe77df018b2241f777adfebffef634ec7c",
+          "kind": "private-notice",
+          "notice_id": "8fba6baacc14b4a7cad3bfb6d3dcacf926747bb3a51595b7ed4787fa450978a7",
+          "origin": {
+            "bridge_id": "personal",
+            "guild_id": "2",
+            "mapping_revision": "r1",
+            "owner_id": "1",
+            "parent_channel_id": "3",
+            "project_key": "project",
+            "thread_id": "3"
+          },
+          "pr_url": null,
+          "project_alias": "Personal",
+          "template_id": "decision-waiting",
+          "text": "A decision is waiting for the Personal work. Please review it in our usual conversation."
+        },
+        {
+          "at": "2026-11-17T09:49:40Z",
+          "id": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a",
+          "kind": "private-notice",
+          "notice_id": "7dc3544c217b0d1528580c3066a2bc016b782438a727099253322105e7481caa",
+          "origin": {
+            "bridge_id": "personal",
+            "guild_id": "2",
+            "mapping_revision": "r1",
+            "owner_id": "1",
+            "parent_channel_id": "3",
+            "project_key": "project",
+            "thread_id": "3"
+          },
+          "pr_url": "https://github.com/owner/repo/pull/1",
+          "project_alias": "Personal",
+          "template_id": "pr-ready",
+          "text": "The Personal work is ready for review: <https://github.com/owner/repo/pull/1>. Review it in our usual conversation. Discord replies do not approve it."
+        },
+        {
+          "at": "2026-11-17T09:49:43Z",
+          "id": "notice.fbe0e99a21868d7c21d15ceeb3f437c1e022485659f012398705967384fcdda1",
+          "kind": "private-notice",
+          "notice_id": "b0a0092ceb3822d09cc488cc987febac081a025fad0fe66483d659d357e3df9e",
+          "origin": {
+            "bridge_id": "personal",
+            "guild_id": "2",
+            "mapping_revision": "r1",
+            "owner_id": "1",
+            "parent_channel_id": "3",
+            "project_key": "project",
+            "thread_id": "3"
+          },
+          "pr_url": null,
+          "project_alias": null,
+          "template_id": "sensitive-decision",
+          "text": "A decision is waiting. Please review it in our usual conversation."
+        }
+      ],
+      "parent_obligations": [
+        {
+          "event": "notice.43bbab8c76829c218e6b122336e64afe77df018b2241f777adfebffef634ec7c",
+          "phase": "owed"
+        },
+        {
+          "event": "notice.26322d5fb36eb236451affd3d8ee4b0f6cf280329935d1902118c6b51677bd6a",
+          "phase": "owed"
+        },
+        {
+          "event": "notice.fbe0e99a21868d7c21d15ceeb3f437c1e022485659f012398705967384fcdda1",
+          "phase": "owed"
+        }
+      ],
+      "withdrawals": []
+    },
+    {
+      "scenario": "RealHoldtest_real_withdrawal_after_retirement_and_delivery_evidence",
+      "notices": [
+        {
+          "task": "task",
+          "kind": "decision",
+          "state": "delivered",
+          "error": null
+        },
+        {
+          "task": "other",
+          "kind": "decision",
+          "state": "withdrawn",
+          "error": null
+        }
+      ],
+      "parent_events": [
+        {
+          "at": "2026-11-17T09:49:46Z",
+          "id": "notice.8b30f313e8b447e7fdb8435b5c457ae05278cd1f342b282f7d7067dc3dae7a0b",
+          "kind": "private-notice",
+          "notice_id": "2de83872be6021b2246a993a078e1b4773573499552cd5413cf42f71740f25c3",
+          "origin": {
+            "bridge_id": "personal",
+            "guild_id": "2",
+            "mapping_revision": "r1",
+            "owner_id": "1",
+            "parent_channel_id": "3",
+            "project_key": "project",
+            "thread_id": "3"
+          },
+          "pr_url": null,
+          "project_alias": "Personal",
+          "template_id": "decision-waiting",
+          "text": "A decision is waiting for the Personal work. Please review it in our usual conversation."
+        },
+        {
+          "at": "2026-11-17T09:49:49Z",
+          "id": "notice.fe09917d433fbad761c1e27818e4dadcb9cfadddf5cecfcf1992e17b1487275d",
+          "kind": "private-notice",
+          "notice_id": "33360a97aab1cfe63943b3d964e8368e13092f93679b2bf8aed75e16926283a4",
+          "origin": {
+            "bridge_id": "personal",
+            "guild_id": "2",
+            "mapping_revision": "r1",
+            "owner_id": "1",
+            "parent_channel_id": "3",
+            "project_key": "project",
+            "thread_id": "3"
+          },
+          "pr_url": null,
+          "project_alias": "Personal",
+          "template_id": "decision-waiting",
+          "text": "A decision is waiting for the Personal work. Please review it in our usual conversation."
+        }
+      ],
+      "parent_obligations": [
+        {
+          "event": "notice.8b30f313e8b447e7fdb8435b5c457ae05278cd1f342b282f7d7067dc3dae7a0b",
+          "phase": "delivered"
+        },
+        {
+          "event": "notice.fe09917d433fbad761c1e27818e4dadcb9cfadddf5cecfcf1992e17b1487275d",
+          "phase": "owner-disposed"
+        }
+      ],
+      "withdrawals": [
+        {
+          "reason": "away-ended"
+        }
+      ]
+    }
+  ]
+}
