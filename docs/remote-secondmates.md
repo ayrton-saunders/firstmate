@@ -79,7 +79,8 @@ The entrypoint authorizes that bootstrap in one of two ways:
 - With normal git tracking when git resolves.
 - With its pinned doctor digest when doctor must report that git itself is missing, but only for the code root the shared PATH entrypoint names.
 
-Forwarding to another code root requires git to validate that root's tracked entrypoint. If git is missing, install it or run the target root's own `bin/fm-remote-doctor.sh` directly by its full path.
+Forwarding to another code root requires git to validate that root's tracked entrypoint.
+If git is missing, install it or run the target root's own `bin/fm-remote-doctor.sh` directly by its full path.
 
 ### The remote job worker
 
@@ -366,6 +367,7 @@ A file at `~/.local/bin/fm-remote-entrypoint.sh` that is not Firstmate's own sym
 | Requirement | Tools |
 | --- | --- |
 | Always required | `git`, `jq`, the selected backend's CLI (`herdr` or `rex`), compatible `tasks-axi`, and `treehouse` |
+| Code-root identity bootstrap | Runnable `shasum` or `sha256sum` on the initial `PATH`, before worker PATH discovery |
 | At least one of | `claude`, `codex`, `opencode`, `pi`, `pi-signed`, `grok`, `kimi`, or `omp` |
 | Additionally required on macOS | `lsof`, so the doctor and guard can prove which process owns the session socket |
 
@@ -386,7 +388,7 @@ bin/fm-remote-home-seed.sh [--herdr-session NAME] <id> <ssh-alias> <remote-root>
 The optional seed session is validated before SSH or mutation and persisted before readiness runs.
 Omission or explicit `fm-remote` writes the legacy record shape.
 The [route schema](../.agents/skills/secondmate-provisioning/SKILL.md#routing-table) owns naming, validation, and upgrade order; use [explicit session migration](#explicit-session-migration) rather than editing the session beneath a live endpoint.
-The shared SSH job worker remains account-owned and session-neutral.
+Herdr session selection does not change the [code-root worker identity](#the-remote-job-worker).
 
 ### Project origins
 
