@@ -22,6 +22,26 @@ for name in one two; do
   cp "$SUBJECT/bin/fm-remote-job-lib.sh" "$SUBJECT/bin/fm-remote-job-worker.sh" "$TMP_ROOT/$name/bin/"
   # shellcheck disable=SC2016 # The fixture command receives its own argument.
   printf '#!/usr/bin/env bash\n: > "$1"\n' > "$TMP_ROOT/$name/bin/fm-touch.sh"
+  cat > "$TMP_ROOT/$name/bin/fm-hold.sh" <<'SH'
+#!/usr/bin/env bash
+: > "$1"
+while [ ! -f "$2" ]; do sleep 0.1; done
+SH
+  cat > "$TMP_ROOT/$name/bin/fm-after.sh" <<'SH'
+#!/usr/bin/env bash
+if [ ! -f "$1" ]; then : > "$2"; fi
+: > "$3"
+SH
+  cat > "$TMP_ROOT/$name/bin/fm-hold.sh" <<'SH'
+#!/usr/bin/env bash
+: > "$1"
+while [ ! -f "$2" ]; do sleep 0.05; done
+SH
+  cat > "$TMP_ROOT/$name/bin/fm-after.sh" <<'SH'
+#!/usr/bin/env bash
+[ -f "$1" ] || : > "$2"
+: > "$3"
+SH
   chmod +x "$TMP_ROOT/$name/bin/"*.sh
   printf 'fixture\n' > "$TMP_ROOT/$name/AGENTS.md"
   git -C "$TMP_ROOT/$name" init -q -b main
@@ -107,7 +127,45 @@ for _ in $(seq 1 400); do
   sleep 0.05
 done
 [ -f "$TMP_ROOT/account/.firstmate/remote-job/worker.ready" ] || fail 'legacy agent did not retain its legacy queue'
+legacy_serving=$(cat "$TMP_ROOT/account/.firstmate/remote-job/worker.pid")
+kill -STOP "$legacy_serving"
+(
+  export FM_REMOTE_JOB_STATE_ROOT="$TMP_ROOT/account/.firstmate/remote-job"
+  . "$TMP_ROOT/one/bin/fm-remote-job-lib.sh"
+  fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/mate" fm-hold.sh "$TMP_ROOT/legacy-started" "$TMP_ROOT/release-legacy" < /dev/null > /dev/null
+  fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/mate" fm-touch.sh "$TMP_ROOT/legacy-drained" < /dev/null > /dev/null
+)
 ensure "$TMP_ROOT/one"
+ensure "$TMP_ROOT/two"
+(
+  . "$TMP_ROOT/one/bin/fm-remote-job-lib.sh"
+  fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/mate" fm-after.sh "$TMP_ROOT/legacy-drained" "$TMP_ROOT/overlap" "$TMP_ROOT/migrated" < /dev/null > /dev/null
+  fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/one" "$TMP_ROOT/account/other-mate" fm-touch.sh "$TMP_ROOT/other-home" < /dev/null > /dev/null
+  fm_remote_job_stage "$TMP_ROOT/account" "$TMP_ROOT/two" "$TMP_ROOT/account/mate" fm-touch.sh "$TMP_ROOT/other-root" < /dev/null > /dev/null
+)
+for _ in $(seq 1 400); do
+  [ -f "$TMP_ROOT/other-home" ] && [ -f "$TMP_ROOT/other-root" ] && break
+  sleep 0.05
+done
+[ -f "$TMP_ROOT/other-home" ] || fail 'legacy queue blocked an unrelated home'
+[ -f "$TMP_ROOT/other-root" ] || fail 'legacy queue blocked the neighbouring root'
+[ ! -f "$TMP_ROOT/migrated" ] || fail 'new runner bypassed queued legacy work'
+kill -CONT "$legacy_serving"
+for _ in $(seq 1 400); do
+  [ -f "$TMP_ROOT/legacy-started" ] && break
+  sleep 0.05
+done
+[ -f "$TMP_ROOT/legacy-started" ] || fail 'legacy command did not start'
+sleep 2
+[ ! -f "$TMP_ROOT/migrated" ] || fail 'new runner overlapped running legacy work'
+: > "$TMP_ROOT/release-legacy"
+for _ in $(seq 1 400); do
+  [ -f "$TMP_ROOT/migrated" ] && break
+  sleep 0.05
+done
+[ -f "$TMP_ROOT/migrated" ] || fail 'new queue did not resume after legacy drained'
+[ ! -f "$TMP_ROOT/overlap" ] || fail 'new command ran before the legacy FIFO drained'
+pass 'migration waits for same-root/home legacy work without blocking unrelated lanes'
 # Inject an interrupted date only after staging, while the serving child is
 # stopped. Its next queue pass must defer work, never compare an empty number.
 state=$(cat "$TMP_ROOT/one.state")
