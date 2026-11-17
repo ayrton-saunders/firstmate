@@ -1044,7 +1044,7 @@ fm_procevent_capture_inbox_prepare() {
   state=$(fm_procevent_state_root_resolve "$state") || return 1
   inbox=$(fm_procevent_inbox_dir "$state")
   if [ ! -e "$inbox" ] && [ ! -L "$inbox" ]; then
-    (umask 077; mkdir "$inbox") || return 1
+    (umask 077; mkdir "$inbox" 2>/dev/null) || [ -d "$inbox" ] || return 1
   fi
   fm_procevent_private_directory_valid "$inbox" 1 || return 1
   printf '%s\n' "$inbox"
@@ -1066,7 +1066,7 @@ fm_procevent_capture_reservation_prepare() {
   state=$(fm_procevent_state_root_resolve "$state") || return 1
   reservation=$(fm_procevent_capture_reservation_dir "$state")
   if [ ! -e "$reservation" ] && [ ! -L "$reservation" ]; then
-    (umask 077; mkdir "$reservation") || return 1
+    (umask 077; mkdir "$reservation" 2>/dev/null) || [ -d "$reservation" ] || return 1
   fi
   fm_procevent_private_directory_valid "$reservation" 1 || return 1
   printf '%s\n' "$reservation"
