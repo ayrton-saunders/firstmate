@@ -80,18 +80,21 @@ Each serial row is a distinct, disjoint assignment exposed by `fm-test-run.sh --
 ## Prerequisites and caches
 
 Portable serial shards all install Pi and tasks-axi, and all portable jobs install pinned ShellCheck/actionlint; only some selected scripts actually exercise each tool.
-Parallel lane 1 installs Pi; parallel lane 2 already does not.
-The existing report section 2 measures median Pi installation at 10s, tasks-axi at about 1s, checkout at 4s, and linter downloads mostly below one-second timestamp resolution.
+Parallel lane 1 no longer installs global Pi; see [the parallel lane prerequisite contract](fm-test-portable-shards.md#parallel-lanes).
+The November 10 review's Appendix A recorded 9-13s (11s median) for the removed step in lane 1; expect to save that runner work, not necessarily any end-to-end time while serial finishes later.
+The existing report section 2 measures tasks-axi at about 1s, checkout at 4s, and linter downloads mostly below one-second timestamp resolution.
 Those are setup costs incurred concurrently, not minute-scale additive wall savings.
-A prerequisite-elision proposal must derive requirements from actual selected scripts and preserve strict missing-prerequisite enforcement; capability-skipping a newly unprovisioned test is lost coverage.
-No such provisioning change is made here, and full-history checkout remains because fixtures may depend on history.
+Further prerequisite elision must derive requirements from actual selected scripts and preserve strict missing-prerequisite enforcement; capability-skipping a newly unprovisioned test is lost coverage.
+Portable parallel lane 2 uses a depth-one checkout: its Git-dependent tests create their own history, and all twelve scripts passed locally against a single-commit checkout on November 18, 2026.
+A local depth-one clone used about 63% less packed Git data at the same revision; the baseline hosted checkout step cost a median 3.5s, so expect at most a small setup saving, with no measured hosted or end-to-end gain.
+Full history remains in the other portable jobs, whose fixture needs have not been qualified for this change.
 
 **No cache is introduced:** this evidence does not establish a cache whose restore is faster than those tiny verified downloads.
 Pi and Linux tasks-axi installs are unversioned; caching installed trees would freeze correctness-relevant dependency inputs.
 Caching linter binaries without rechecking archive digests would bypass provenance, while storing only verified downloads would still require digest validation and adds restore/save overhead.
 The report section 5 rank 2 explicitly requires pinning identities and checking restore overhead before claiming a saving.
 Pinning dependencies is a separate dependency-policy change, not a free cache; consider content-addressed download reuse with unchanged verification only after that decision.
-There is no delivered caching saving and no cache-staleness risk in this PR.
+The setup savings above come from avoiding work, not from caching.
 
 ## Implemented lint split and deferred repack
 
@@ -107,13 +110,19 @@ Byte weights are not duration weights, setup and verdict acquisition add overhea
 More runner demand can erase the benefit if shared capacity queues jobs; no paid capacity or concurrency change is authorized.
 No numeric end-to-end saving is claimed for this lint-only change.
 
+**Portable parallel repack:** [the shard verification inputs](fm-test-portable-shards.md#parallel-lanes) record the refreshed hints and Pi prerequisite constraint.
+Replaying the same three Ubuntu samples with the new assignments cuts the slower parallel lane's script sum by 57-84s, with all 26 tests retained and no extra runner.
+This is a lane-only projection; if a serial shard finishes later, it saves no time on the overall run.
+
 **Serial repack is a recorded deferral:** the existing report sections 4 and 5 rank 3 put refreshed eleven-way serial packing at **24.10 minutes against the unchanged 1200-second guard**.
-The single remote lifecycle suite reaches **21m14.867s**, so repacking or adding runners alone cannot meet that guard.
-Neither hints, lane membership, budgets, the coverage guard nor lifecycle assertions are changed here.
-Two future routes require separate human approval: a coverage-preserving split or acceleration of that suite as independently reviewed work, or an explicit modeled-target decision.
-The repack share of the originally combined optimization is **not delivered**, and no repack saving is claimed.
-The recorded narrower delivery retains lint splitting and the caching assessment, with no caching saving delivered; deferring repacking reduces speed gains, not coverage.
-The PR awaits explicit human merge approval covering this narrower delivery; the recorded deferral is not merge approval, and audit proposals require separate approval.
+The single remote lifecycle suite reaches **21m14.867s**, so adding runners alone cannot meet that guard.
+Joining Appendix D to the November 18 serial inventory also rules out fixing only that suite: the other measured paths sum to **14,623,697 ms** in per-script maxima, above the eleven-shard capacity of **13,200,000 ms**, even before adding the 16 paths with no timing record.
+Keeping that recorded workload and the current target requires at least 14 shards by total weight and a split of the over-budget suite; this lower bound is not evidence that 14 shards fit all current tests or that hosted capacity can run them concurrently.
+Serial timing hints, membership, budgets and lifecycle assertions stay unchanged; computing a packing once instead of once per shard selection reduces the guard's setup without changing what it checks.
+Future implementation needs current timing inputs and a choice between reducing work across suites, splitting the long suite and adding runner capacity, or explicitly re-deriving the modeled target without changing execution safeguards.
+Changes to test boundaries, runner count or the modeled target remain separate review decisions.
+The serial share of the originally combined optimization is **not delivered**, and no serial repack saving is claimed.
+Deferring serial repacking reduces speed gains, not coverage.
 The macOS pool question remains separate: existing cancellations are runner acquisition failures, not suite slowness; its required job is untouched.
 
 ## Verification entry points
@@ -121,5 +130,5 @@ The macOS pool question remains separate: existing cancellations are runner acqu
 `tests/fm-lint.test.sh` compares two-way and four-way partitions against the full canonical inventory, then checks executed roots, initial analysis flags and rejection of weakened modes.
 `tests/fm-ci-workflow.test.sh` compares actual execution-matrix roots to that same inventory and executes the required lint verdict against success, failure, cancellation and skip results.
 `tests/fm-no-mistakes-required.test.sh` exercises the fork threshold and integration routing as well as the pinned native attestation check.
-`bin/fm-test-run.sh --check-coverage` remains the unchanged authority for test selection and budgets.
+`bin/fm-test-run.sh --check-coverage` remains the authority for test selection and budgets.
 The implementation PR retains the before/after inventory comparison and final-head CI result; projected savings above are not a replacement for passing checks.

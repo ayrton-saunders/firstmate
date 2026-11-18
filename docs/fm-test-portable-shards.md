@@ -49,8 +49,8 @@ The same run measured the wedge-cap parity suite at 27763 ms, which `bin/fm-test
 `test_portable_serial_packing_budget_boundary` now pins every other fixture script to 1 ms, so packing exactly at the 1200000 ms budget is accepted and one millisecond above it is refused even when real serial members have no hint.
 The coverage-guard test owns modeled real-hint headroom under that budget.
 The session-start hint retains its pre-optimization maximum until CI measures the shorter fixture-only home-summary bound; do not discount a local speedup from CI packing weights.
-The T3 Code backend suites carry the slowest successful Ubuntu samples from CI runs [39463576576](https://github.com/kunchenguid/firstmate/actions/runs/39463576576), [39814995718](https://github.com/kunchenguid/firstmate/actions/runs/39814995718), and [39883948163](https://github.com/kunchenguid/firstmate/actions/runs/39883948163) - 239245 ms for `tests/fm-backend-t3code.test.sh`, 57613 ms for `tests/fm-t3-mcp.test.sh`, 283 ms for `tests/fm-watch-inbox-meta.test.sh`, and the 51 ms and 52 ms live-guard skips for `tests/fm-backend-t3code-live-e2e.test.sh` and `tests/fm-backend-t3code-pr-tools-live-e2e.test.sh`.
-`tests/fm-backend-t3code.test.sh` and `tests/fm-t3-mcp.test.sh` run in the portable parallel lanes, so those two values sit in `portable_parallel_weight_hints`: every case id the backend suite spawns carries a per-run suffix and its cleanup removes only the `/tmp/fm-<id>` directories that run created, and both suites passed running concurrently with each other and beside another parallel suite (see [`fm-test-isolation-proof.md`](fm-test-isolation-proof.md)).
+The T3 Code serial suites carry the slowest successful Ubuntu samples from CI runs [39463576576](https://github.com/kunchenguid/firstmate/actions/runs/39463576576), [39814995718](https://github.com/kunchenguid/firstmate/actions/runs/39814995718), and [39883948163](https://github.com/kunchenguid/firstmate/actions/runs/39883948163) - 283 ms for `tests/fm-watch-inbox-meta.test.sh` and the 51 ms and 52 ms live-guard skips for `tests/fm-backend-t3code-live-e2e.test.sh` and `tests/fm-backend-t3code-pr-tools-live-e2e.test.sh`.
+`tests/fm-backend-t3code.test.sh` and `tests/fm-t3-mcp.test.sh` remain in the portable parallel lanes; their concurrency evidence lives in [`fm-test-isolation-proof.md`](fm-test-isolation-proof.md).
 
 The three Discord command and hook suites carry provisional macOS arm64 measurements from three complete serial scoped runs on 2026-10-31 with Bash 5.3.20 and CPython 3.14.10, until the next Ubuntu CI refresh.
 The slowest successful per-script samples are 3524 ms for dispatch, 8860 ms for the hook and 2632 ms for reply.
@@ -61,8 +61,10 @@ The new `tests/fm-remote-herdr-identity.test.sh` serial hint is provisionally 61
 
 ## Parallel lanes
 
-The two parallel lanes use longest-processing-time assignment over those hints.
-[`tests/fm-pi-primary-types.test.sh`](../tests/fm-pi-primary-types.test.sh) owns its typecheck dependencies independently of the lane's installed Pi runtime.
+The parallel hints were refreshed from the slowest successful sample per script across Ubuntu runs [41936776593](https://github.com/ayrton-saunders/firstmate/actions/runs/41936776593), [42622327977](https://github.com/ayrton-saunders/firstmate/actions/runs/42622327977), and [42863498547](https://github.com/ayrton-saunders/firstmate/actions/runs/42863498547), measured November 4-10, 2026.
+All 26 current parallel members passed in all three uploaded `fm-test-timing-aggregate` artifacts, including the partial overall workflow in the third sample.
+The two parallel lanes use longest-processing-time assignment over those hints, after seeding shard 1 with the Pi typecheck so it keeps its workflow prerequisite check.
+Neither parallel lane installs the global Pi runtime: [`tests/fm-pi-primary-types.test.sh`](../tests/fm-pi-primary-types.test.sh) provisions its own pinned SDKs and compiler, while probes that need an installed Pi runtime stay in the portable serial lanes.
 [`bin/fm-test-run.sh`](../bin/fm-test-run.sh) holds the duration values in `portable_parallel_weight_hints` and the ordered memberships and lane-specific prerequisite constraints beside `list_portable_parallel_1` and `list_portable_parallel_2`.
 Read the derived packing estimates with that runner's `--check-coverage`; its header and `--help` own the output fields and the selection-specific `--list-scheduled` weight rules.
 The largest individual hint sets a lower bound on the estimated duration of any split, regardless of how evenly the remaining work is assigned.

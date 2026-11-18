@@ -1099,6 +1099,8 @@ test_portable_shard_union_and_coverage_guard() {
   serial=$("$RUNNER" --list --lane portable-serial)
   herdr=$("$RUNNER" --list --family real-herdr-gated)
   [ -n "$s1" ] && [ -n "$s2" ] || fail "portable parallel shards must be non-empty"
+  printf '%s\n' "$s1" | grep -Fxq 'tests/fm-pi-primary-types.test.sh' \
+    || fail "Pi typecheck must stay in portable parallel shard 1 with its CI prerequisite check"
   # Shards disjoint.
   overlap=$(comm -12 <(printf '%s\n' "$s1" | LC_ALL=C sort) <(printf '%s\n' "$s2" | LC_ALL=C sort) || true)
   [ -z "$overlap" ] || fail "portable parallel shards overlap: $overlap"

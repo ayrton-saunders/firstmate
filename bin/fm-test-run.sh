@@ -557,32 +557,32 @@ EOF
 # refresh procedure are owned by docs/fm-test-portable-shards.md.
 portable_parallel_weight_hints() {
   cat <<'EOF'
-tests/fm-arm-pretool-check.test.sh 33778
-tests/fm-backend-herdr.test.sh 36331
-tests/fm-backend-t3code.test.sh 239245
-tests/fm-brief.test.sh 10594
-tests/fm-captain-hold-lifecycle.test.sh 343658
-tests/fm-cd-pretool-check.test.sh 16801
-tests/fm-composer-ghost.test.sh 2292
-tests/fm-composer-lib.test.sh 9521
-tests/fm-crew-state.test.sh 82058
-tests/fm-ensure-agents-md.test.sh 895
-tests/fm-grok-harness.test.sh 7666
-tests/fm-herdr-lab.test.sh 18325
-tests/fm-lint.test.sh 252498
-tests/fm-pi-primary-types.test.sh 5426
-tests/fm-pr-merge.test.sh 300199
-tests/fm-review-diff.test.sh 4134
-tests/fm-send-popup-settle.test.sh 6624
-tests/fm-send-settle.test.sh 2310
-tests/fm-send-strict.test.sh 4804
-tests/fm-spawn-batch.test.sh 2987
-tests/fm-supervision-instructions.test.sh 809
-tests/fm-t3-mcp.test.sh 57613
-tests/fm-test-run.test.sh 156781
-tests/fm-tmux-submit-busy.test.sh 2600
-tests/fm-transition-lib.test.sh 101
-tests/fm-x-mode.test.sh 29896
+tests/fm-arm-pretool-check.test.sh 35987
+tests/fm-backend-herdr.test.sh 47528
+tests/fm-backend-t3code.test.sh 242671
+tests/fm-brief.test.sh 16554
+tests/fm-captain-hold-lifecycle.test.sh 856327
+tests/fm-cd-pretool-check.test.sh 21835
+tests/fm-composer-ghost.test.sh 2838
+tests/fm-composer-lib.test.sh 26719
+tests/fm-crew-state.test.sh 131641
+tests/fm-ensure-agents-md.test.sh 941
+tests/fm-grok-harness.test.sh 9193
+tests/fm-herdr-lab.test.sh 18323
+tests/fm-lint.test.sh 365530
+tests/fm-pi-primary-types.test.sh 31176
+tests/fm-pr-merge.test.sh 458953
+tests/fm-review-diff.test.sh 18818
+tests/fm-send-popup-settle.test.sh 8804
+tests/fm-send-settle.test.sh 3055
+tests/fm-send-strict.test.sh 6177
+tests/fm-spawn-batch.test.sh 4690
+tests/fm-supervision-instructions.test.sh 1660
+tests/fm-t3-mcp.test.sh 32872
+tests/fm-test-run.test.sh 378918
+tests/fm-tmux-submit-busy.test.sh 2985
+tests/fm-transition-lib.test.sh 279
+tests/fm-x-mode.test.sh 45654
 EOF
 }
 
@@ -598,44 +598,43 @@ portable_parallel_lane_weight() {
   ' <(portable_parallel_weight_hints) -
 }
 
-# Portable parallel shard 1: LPT balance of the proven-isolated set over the
-# hints above. Stored order agrees with this lane's --list-scheduled output.
-# tests/fm-pi-primary-types.test.sh runs the production-consumer typecheck here;
-# its own header owns temporary dependency provisioning.
+# Seed shard 1 with the Pi typecheck so it stays under the workflow's required
+# gate-skip check, then pack the remaining proven set longest-first into the
+# lighter shard. Store each shard in --list-scheduled order.
 list_portable_parallel_1() {
   cat <<'EOF'
-tests/fm-captain-hold-lifecycle.test.sh
+tests/fm-pr-merge.test.sh
+tests/fm-test-run.test.sh
 tests/fm-backend-t3code.test.sh
 tests/fm-crew-state.test.sh
+tests/fm-x-mode.test.sh
 tests/fm-t3-mcp.test.sh
-tests/fm-arm-pretool-check.test.sh
-tests/fm-herdr-lab.test.sh
-tests/fm-cd-pretool-check.test.sh
-tests/fm-grok-harness.test.sh
 tests/fm-pi-primary-types.test.sh
-tests/fm-review-diff.test.sh
+tests/fm-cd-pretool-check.test.sh
+tests/fm-herdr-lab.test.sh
+tests/fm-grok-harness.test.sh
+tests/fm-send-strict.test.sh
+tests/fm-send-settle.test.sh
 tests/fm-tmux-submit-busy.test.sh
-tests/fm-composer-ghost.test.sh
-tests/fm-transition-lib.test.sh
+tests/fm-supervision-instructions.test.sh
 EOF
 }
 
 # Portable parallel shard 2: the complementary LPT half of the proven set.
 list_portable_parallel_2() {
   cat <<'EOF'
-tests/fm-pr-merge.test.sh
+tests/fm-captain-hold-lifecycle.test.sh
 tests/fm-lint.test.sh
-tests/fm-test-run.test.sh
 tests/fm-backend-herdr.test.sh
-tests/fm-x-mode.test.sh
-tests/fm-brief.test.sh
+tests/fm-arm-pretool-check.test.sh
 tests/fm-composer-lib.test.sh
+tests/fm-review-diff.test.sh
+tests/fm-brief.test.sh
 tests/fm-send-popup-settle.test.sh
-tests/fm-send-strict.test.sh
 tests/fm-spawn-batch.test.sh
-tests/fm-send-settle.test.sh
+tests/fm-composer-ghost.test.sh
 tests/fm-ensure-agents-md.test.sh
-tests/fm-supervision-instructions.test.sh
+tests/fm-transition-lib.test.sh
 EOF
 }
 
