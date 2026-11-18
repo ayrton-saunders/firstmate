@@ -19,6 +19,13 @@ That plane covers workers running in this home; a remotely placed secondmate is 
 Load `harness-adapters` before a resume command or a harness-specific skill invocation, and whenever the adapter's own quirks matter.
 The target window's harness is recorded as `harness=` in `state/<id>.meta`.
 
+## Model safeguard stops
+
+A vendor safeguard/refusal pause is a stopped worker needing a decision, not continuing review or an expected external wait.
+Preserve the work, report the stopped task and the vendor's explanation, and await the captain's decision without retrying, relaunching, changing models, or changing permission posture.
+The rendered classifier and notification deduplication belong to `bin/fm-busy-lib.sh` and `bin/fm-watch.sh`; their verified harness scope is recorded in [`runtime backend verification`](../../../docs/verification/runtime-backends.md#model-safeguard-stops).
+A permission-approval prompt is a separate case handled below.
+
 ## Managed approval failover
 
 After observing a Claude policy refusal of a bypass session, ask the captain for explicit approval to change the owning home's worker permission posture and relaunch the worker.

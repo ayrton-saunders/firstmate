@@ -17,7 +17,7 @@ This document records the deterministic mechanism, structured surfaces, compatib
 | Why did a decision card disappear from the board? | [Card hygiene](#card-hygiene-a-landed-subject-is-not-a-live-call) |
 | Where does a hold appear in snapshots and Bearings? | [Structured read surfaces](#structured-read-surfaces) |
 | What does a `RECORD DIVERGENCE` section mean? | [Record divergence](#record-divergence) |
-| How do rows from older installs still work? | [Compatibility with pre-collapse installs](#compatibility-with-pre-collapse-installs) |
+| How do rows from older installs still work? | [Existing undated holds](#existing-undated-holds) and [compatibility with pre-collapse installs](#compatibility-with-pre-collapse-installs) |
 | Which tests prove this, and how is the record refreshed? | [Verification record](#verification-record) |
 
 ## Mechanism
@@ -49,12 +49,13 @@ It never reads report bodies, review artifacts, terminal output, or chat.
 The `hold` subcommand is the mandatory captain-hold creation path.
 It works in this order:
 
-1. It uses an existing task, or creates one when nothing exists to hold.
-2. It records the task's UTC hold-set timestamp as the leading line of the task body.
-3. It invokes the underlying tasks-axi hold operation.
-4. It verifies the captain-hold annotations and timestamp.
-5. In a secondmate home, it publishes the verified hold to the parent channel.
-6. When `--origin` is supplied, it records the origin on the task, replacing any previous association only after the backend hold succeeds.
+1. It checks the required inputs documented in [`bin/fm-captain-hold.sh --help`](../bin/fm-captain-hold.sh) before locking or looking up a task.
+2. It uses an existing task, or creates one when nothing exists to hold.
+3. It records the task's UTC hold-set timestamp as the leading line of the task body.
+4. It invokes the underlying tasks-axi hold operation.
+5. It verifies the captain-hold annotations and timestamp.
+6. In a secondmate home, it publishes the verified hold to the parent channel.
+7. When `--origin` is supplied, it records the origin on the task, replacing any previous association only after the backend hold succeeds.
 
 Publishing the stamp first ensures a snapshot cannot observe a newly captain-held task without the timestamp that defines its age.
 
@@ -477,6 +478,13 @@ The comparison is refused unless the status directory is the active home's own.
 Because tasks-axi reads that home's backlog, a mismatch would report one home's logs against another's tasks.
 If tasks-axi is unavailable or its listing cannot be parsed, the guard cannot read the structured record and prints nothing.
 
+## Existing undated holds
+
+No data migration is required: existing undated holds remain visible under the same [snapshot rules](#fleet-snapshot-buckets) and can still be answered.
+In the owning home, use `bin/fm-tasks-axi.sh list --state held --fields held,hold_kind,hold_until` to review active rows with `hold_kind: captain` and no `hold_until` date.
+Leave them in place unless there is a reason to change them.
+When re-holding, use the current `hold` inputs on the same task id, choosing a date only when one is known.
+
 ## Compatibility with pre-collapse installs
 
 The collapse is the change that made a decision an ordinary captain-held task whose key is its task id.
@@ -504,7 +512,7 @@ A markdown home keeps its legacy rows verbatim, so its resolution is unchanged.
 ### The `fm-decision-hold.sh` shim
 
 `bin/fm-decision-hold.sh` itself remains for one release as a thin command-mapping shim over `bin/fm-captain-hold.sh`.
-In-flight work briefed before the collapse therefore keeps working, and the shim's header owns the exact mapping.
+The shim's header owns the exact mapping, and its `hold` caller must supply the current `fm-captain-hold.sh` inputs.
 The shim recognizes an exact replay of a pre-collapse routed resolution by its historical answer digest and routed ids.
 It then finishes any still-recorded dependency-edge cleanup without rewriting the old decision text.
 
@@ -553,6 +561,7 @@ The suite does not test the accepted merge-to-cleanup re-hold window or asynchro
 
 ### Answers, stamps, and deferral
 
+- Missing the required date or explicit undated choice refuses creation and re-holding without backlog changes, while existing undated rows remain readable and answerable.
 - Answer-time resolution works through a bound channel with task-id keys.
   This includes the `release` mode, mode-matched replay idempotence, and the refusal of drifted, mode-mismatched, absent, unheld, and already-closed keys.
 - The chat channel reaches the same intake.

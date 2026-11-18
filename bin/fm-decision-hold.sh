@@ -9,8 +9,8 @@
 #
 # Mapping (old -> new):
 #   id <origin> <key>                      -> prints the legacy <origin>-decision-<key> identity
-#   hold <origin> <key> --title --reason [--repo]
-#                                          -> hold <origin>-decision-<key> --origin <origin> ...
+#   hold <origin> <key> <hold flags>        -> hold <origin>-decision-<key> --origin <origin> ...
+#                                             See fm-captain-hold.sh --help for required hold flags.
 #   complete <origin> (--none | <key>...)  -> complete <origin> (--none | <origin>-decision-<key>...)
 #   verify <origin>                        -> verify <origin>
 #   resolve <origin> <key> --decision-file <f> --routed-to <id>...

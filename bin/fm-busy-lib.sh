@@ -62,11 +62,14 @@
 # Classifier-only sources (never written into a record):
 #   endpoint-gone, herdr-native, rex-native, t3code-native, tern-native, grok-regex, rovo-regex, agy-regex, muse-session-log,
 #   cursor-transcript, missing, malformed, gen-mismatch, source-mismatch,
-#   kimi-unverified, codex-unverified, capture-failed, no-target, launch-prompt
+#   kimi-unverified, codex-unverified, capture-failed, no-target, launch-prompt,
+#   safeguard-pause
 #
 # Classification (fm_busy_classify): busy | idle | unknown | dead, always
 # with the producing source as the second token. Precedence:
-#   1. dead endpoint (fm_busy_classify_live only) -> dead endpoint-gone
+#   1. dead endpoint (fm_busy_classify_live only) -> dead endpoint-gone;
+#      otherwise a verified terminal model refusal in the supplied capture
+#      outranks every busy source below -> unknown safeguard-pause
 #   2. a t3code task: the T3 server's busy, idle, or unknown verdict
 #      (the provider reports it for claude and codex alike, and no
 #      shell sits in front of the agent)
@@ -1119,18 +1122,68 @@ fm_busy_launch_prompt_parked() {  # <harness>
   esac
 }
 
+# fm_busy_safeguard_pause: a terminal Claude refusal banner, not prose about
+# safeguards. The API-error heading and vendor recovery URL are independent
+# rendered signals; neither alone establishes a stop. Claude's automatic retry
+# notice deliberately does not match. A later user/assistant turn cancels an
+# older banner still visible in scrollback. Refresh vendor evidence with
+# tests/fm-claude-safeguard-live.test.sh; other harnesses have no verified banner.
+fm_busy_safeguard_pause() {  # <harness> <pane-tail>
+  case "$1" in claude|claude-*) ;; *) return 1 ;; esac
+  printf '%s\n' "$2" | awk '
+    BEGIN { esc = sprintf("%c", 27) }
+    {
+      gsub(esc "\\[[0-?]*[ -/]*[@-~]", "")
+      sub(/\r$/, "")
+      if ($0 ~ /^ ? ?(●|⏺|❯)[[:space:]]+[^[:space:]]/) {
+        fenced = 0
+        banner = ""
+        refused = 0
+      }
+      if ($0 ~ /^[[:space:]]*```/) {
+        fenced = !fenced
+        banner = ""
+        refused = 0
+        next
+      }
+      if (fenced) next
+      if ($0 ~ /safeguards stopped the response above .*continuing once with that noted/) {
+        banner = ""
+        refused = 0
+      }
+      if ($0 ~ /^[[:space:]]*((⎿|⏺)[[:space:]]*)?API Error: /) {
+        banner = $0
+        refused = 0
+      } else if (banner != "") {
+        banner = banner " " $0
+      }
+      gsub(/[[:space:]]/, "", banner)
+      if (banner ~ /APIError:[^\n]+\047ssafeguardsflaggedthismessage[.(]/ ||
+          banner ~ /APIError:[^\n]+can\047thelpwiththis\.Startanewsessiontocontinue\./) {
+        if (banner ~ /https:\/\/support\.claude\.com\/en\/articles\/(14604842|15363606|8106465)/ ||
+            banner ~ /https:\/\/www\.anthropic\.com\/legal\/aup/) refused = 1
+      }
+    }
+    END { exit !refused }
+  '
+}
+
 # fm_busy_classify: semantic classification for a task whose endpoint the
 # caller has already established as present. Prints "<verdict> <source>":
 # busy|idle|unknown plus the producing source (see header). Never probes
 # process state. <tail40> is optional pre-captured plain output: the grok,
 # rovo, and agy arms capture it themselves through fm_backend_capture when it
-# is absent (or report unknown capture-failed if that is unavailable too),
-# while the launch-prompt backstop below has no capture fallback of its own -
-# without a supplied tail40 it is skipped entirely and a record still pinned
-# at the fm-spawn seed keeps reading busy fm-spawn, unchanged.
+# is absent (or report unknown capture-failed if that is unavailable too).
+# The launch-prompt and safeguard backstops have no capture fallback of their
+# own; without a supplied tail they leave the ordinary semantic verdict intact.
 fm_busy_classify() {  # <backend> <target> <harness> <id> <state-dir> [tail40]
   local backend=$1 target=$2 harness=$3 id=$4 state=$5 tail40=${6-}
   local out rc r_state r_source native log
+  # A rendered terminal refusal outranks even a retained busy lifecycle record.
+  if [ -n "$tail40" ] && fm_busy_safeguard_pause "$harness" "$tail40"; then
+    printf 'unknown safeguard-pause'
+    return 0
+  fi
   # t3code first: the T3 server reports the session status for claude and
   # codex alike. Native uncertainty must not fall through to a stale idle
   # record or a harness-specific fallback.
