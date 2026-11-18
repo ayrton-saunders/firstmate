@@ -1,0 +1,177 @@
+Real private tmux terminal: alive
+
+initial-status: rc=0, poll-beacons=1, output='signal: {run-worktree}/fm-lab.aj2adhp_/state/finished.status\n'
+
+VERIFIED: initial-status surfaces an actionable notification
+
+DRAIN:
+1795029773	2	signal	finished.status	signal: {run-worktree}/fm-lab.aj2adhp_/state/finished.status
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 68774.1795029773.POa6om
+wake annotation: latest wake-EVENT observed at drain, not current state: finished.status: working: preparing synthetic release
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 10s ago).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  After draining queued wakes, repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e {run-worktree}/.pi/extensions/fm-primary-turnend-guard.ts -e {run-worktree}/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+
+
+first-idle: rc=0, poll-beacons=4, output='stale: primary:fm-finished\n'
+
+VERIFIED: first-idle surfaces an actionable notification
+
+DRAIN:
+1795029807	3	stale	primary:fm-finished	stale: primary:fm-finished
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 3 --recovery-generation 82187.1795029807.Hra86U
+
+Idle wake: if inspection confirms a finished ship awaiting a still-open captain decision, record it on the existing task before reporting (see --idle-handoff in bin/fm-captain-hold.sh --help); do not replace a different hold.
+WARNING: watcher still down (same stale episode; last beat: 43s ago, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+
+
+VERIFIED: idle worker is escalated before any handoff
+
+VERIFIED: real backlog and worker observation produce a matching handoff
+
+unchanged-handoff: rc=-15, poll-beacons=4, output=''
+
+VERIFIED: unchanged-handoff remains quiet over three completed real polling cycles
+
+DRAIN:
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 62440.1795029839.OGvHQq
+WARNING: watcher still down (same stale episode; last beat: 2s ago, grace 300s) - full banner already printed this episode.
+
+
+display-churn-handoff: rc=-15, poll-beacons=4, output=''
+
+VERIFIED: display-churn-handoff remains quiet over three completed real polling cycles
+
+DRAIN:
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 75216.1795029852.Py6wSJ
+WARNING: watcher still down (same stale episode; last beat: 3s ago, grace 300s) - full banner already printed this episode.
+
+
+paused-status: rc=0, poll-beacons=2, output='signal: {run-worktree}/fm-lab.aj2adhp_/state/finished.status\n'
+
+VERIFIED: paused-status surfaces an actionable notification
+
+DRAIN:
+1795029861	5	signal	finished.status	signal: {run-worktree}/fm-lab.aj2adhp_/state/finished.status
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 5 --recovery-generation 93210.1795029861.11FzLS
+wake annotation: latest wake-EVENT observed at drain, not current state: finished.status: paused: awaiting release approval
+WARNING: watcher still down (same stale episode; last beat: 13s ago, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+
+
+paused-handoff: rc=-15, poll-beacons=4, output=''
+
+VERIFIED: paused-handoff remains quiet over three completed real polling cycles
+
+DRAIN:
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 28715.1795029908.bkiQ91
+WARNING: watcher still down (same stale episode; last beat: 1s ago, grace 300s) - full banner already printed this episode.
+
+
+captain-held-status: rc=0, poll-beacons=2, output='signal: {run-worktree}/fm-lab.aj2adhp_/state/finished.status\n'
+
+VERIFIED: captain-held-status surfaces an actionable notification
+
+DRAIN:
+1795029912	7	signal	finished.status	needs-decision: {run-worktree}/fm-lab.aj2adhp_/state/finished.status
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 7 --recovery-generation 58617.1795029912.oEesX2
+wake annotation: latest wake-EVENT observed at drain, not current state: finished.status: captain-held: awaiting release approval
+WARNING: watcher still down (same stale episode; last beat: 4s ago, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+
+
+captain-held-handoff: rc=-15, poll-beacons=4, output=''
+
+VERIFIED: captain-held-handoff remains quiet over three completed real polling cycles
+
+DRAIN:
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 0 --recovery-generation 68587.1795029923.Ktlh4o
+WARNING: watcher still down (same stale episode; last beat: 1s ago, grace 300s) - full banner already printed this episode.
+
+
+new-blocker: rc=0, poll-beacons=2, output='signal: {run-worktree}/fm-lab.aj2adhp_/state/finished.status\n'
+
+VERIFIED: new-blocker surfaces an actionable notification
+
+DRAIN:
+1795029926	9	signal	finished.status	signal: {run-worktree}/fm-lab.aj2adhp_/state/finished.status
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 9 --recovery-generation 78829.1795029926.UBThp0
+wake annotation: unread wake-EVENT since last drain, not current state: finished.status: blocked [key=artifact-expired]: the synthetic release artifact expired
+wake annotation: latest wake-EVENT observed at drain, not current state: finished.status: working: checking for a replacement artifact
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+finished [key=artifact-expired] blocked: the synthetic release artifact expired
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+OPEN DECISIONS: <key> is the [key=...] printed before the verb; a token inside a note is prose, not a key.
+WARNING: watcher still down (same stale episode; last beat: 3s ago, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+
+
+VERIFIED: new blocker is delivered while the original captain decision is still open
+
+VERIFIED: changed status invalidates the idle receipt but preserves the decision
+
+answered-monitoring: rc=0, poll-beacons=3, output='stale: primary:fm-finished (idle 1s, possible wedge, escalation 1)\n'
+
+VERIFIED: answered-monitoring surfaces an actionable notification
+
+DRAIN:
+1795029934	10	stale	primary:fm-finished	stale: primary:fm-finished (idle 1s, possible wedge, escalation 1)
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 10 --recovery-generation 92280.1795029934.TE3agq
+
+Idle wake: if inspection confirms a finished ship awaiting a still-open captain decision, record it on the existing task before reporting (see --idle-handoff in bin/fm-captain-hold.sh --help); do not replace a different hold.
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+finished [key=artifact-expired] blocked: the synthetic release artifact expired
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+OPEN DECISIONS: <key> is the [key=...] printed before the verb; a token inside a note is prose, not a key.
+WARNING: watcher still down (same stale episode; last beat: 2s ago, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+
+
+VERIFIED: answering and releasing restores idle monitoring on the same terminal
+
+dated-conflict refusal: fm-captain-hold: --idle-handoff cannot replace the existing hold on finished
+
+
+VERIFIED: idle handoff refuses to replace a dated deferral without changing the decision
+
+different-decision refusal: fm-captain-hold: --idle-handoff cannot replace the existing hold on finished
+
+
+VERIFIED: idle handoff refuses a different pending decision without changing it
+
+synthetic-busy-bound: rc=0, poll-beacons=3, output='stale: primary:fm-finished (idle 5s - captain hold, awaiting the captain - held in the backlog, rechecked on a long cadence not a wedge; answer the held decision or release the hold)\n'
+
+VERIFIED: synthetic-busy-bound surfaces an actionable notification
+
+DRAIN:
+1795029957	11	stale	primary:fm-finished	stale: primary:fm-finished (idle 5s - captain hold, awaiting the captain - held in the backlog, rechecked on a long cadence not a wedge; answer the held decision or release the hold)
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 11 --recovery-generation 24116.1795029957.3QDUnA
+
+Idle wake: if inspection confirms a finished ship awaiting a still-open captain decision, record it on the existing task before reporting (see --idle-handoff in bin/fm-captain-hold.sh --help); do not replace a different hold.
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+finished [key=artifact-expired] blocked: the synthetic release artifact expired
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+OPEN DECISIONS: <key> is the [key=...] printed before the verb; a token inside a note is prose, not a key.
+WARNING: watcher still down (same stale episode; last beat: 10s ago, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
+
+
+VERIFIED: a synthetic busy generation exceeding its bound is not silenced by an otherwise matching handoff
+
+VERIFIED: real away daemon buffers the initial persistent idle escalation
+
+AWAY INITIAL BUFFER:
+finished.status: blocked [key=artifact-expired]: the synthetic release artifact expired (catch-all scan)
+stale persisted 2s (possible wedge): primary:fm-finished; if inspection confirms a finished ship awaiting a still-open captain decision, record it on the existing task before reporting (see --idle-handoff in bin/fm-captain-hold.sh --help); do not replace a different hold
+
+
+VERIFIED: real away daemon does not repeat the handed-off idle escalation despite terminal churn
+
+VERIFIED: real away daemon paused routing cannot bypass the matching handoff
+Lab server stopped; disposable home removed.

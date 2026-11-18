@@ -1,0 +1,6 @@
+[
+  "attended: first idle notification then unchanged/display-only silence",
+  "attended: paused and captain-held declarations cannot bypass a matching idle handoff",
+  "new blocker invalidates handoff; answering restores ordinary idle monitoring",
+  "conflicting decision and dated deferral are preserved"
+]

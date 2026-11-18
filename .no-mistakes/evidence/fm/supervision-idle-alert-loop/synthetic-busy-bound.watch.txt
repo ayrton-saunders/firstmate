@@ -1,0 +1,1 @@
+stale: primary:fm-finished (idle 2s - captain hold, awaiting the captain - held in the backlog, rechecked on a long cadence not a wedge; answer the held decision or release the hold)

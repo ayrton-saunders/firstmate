@@ -1,0 +1,9 @@
+[2026-11-18T19:26:02+0000] daemon starting (pid 56240); target=primary:fm-finished; target_source=FM_SUPERVISOR_TARGET; backend=tmux; backend_source=FM_SUPERVISOR_BACKEND; afk=off; inject_skip='heartbeat'; stale_escalate=1s; batch=999999s
+[2026-11-18T19:26:06+0000] wake: signal: {run-worktree}/fm-lab.aj2adhp_/state/finished.status
+[2026-11-18T19:26:07+0000] self-handle: signal: {run-worktree}/fm-lab.aj2adhp_/state/finished.status -> routine signal: finished.status: working: checking the local release
+[2026-11-18T19:26:16+0000] wake: stale: primary:fm-finished
+[2026-11-18T19:26:17+0000] self-handle: stale: primary:fm-finished -> transient stale (primary:fm-finished): working: checking the local release
+[2026-11-18T19:26:34+0000] wake: signal: {run-worktree}/fm-lab.aj2adhp_/state/finished.status
+[2026-11-18T19:26:36+0000] self-handle: signal: {run-worktree}/fm-lab.aj2adhp_/state/finished.status -> routine signal: finished.status: paused: pipeline awaits release approval
+[2026-11-18T19:26:49+0000] inject deferred: afk inactive
+[2026-11-18T19:26:49+0000] daemon shutting down

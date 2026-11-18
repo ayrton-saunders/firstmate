@@ -1,0 +1,1 @@
+signal: {run-worktree}/fm-lab.6fzfcaan/state/finished.status
