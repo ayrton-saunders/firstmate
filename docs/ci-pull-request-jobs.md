@@ -108,7 +108,7 @@ Expected lint-only saving comes from the existing report section 5 rank 4: measu
 That is approximately 13.38m less **lint-stage work on the slowest runner in the ideal projection**, not a measured CI-wall reduction.
 Byte weights are not duration weights, setup and verdict acquisition add overhead, and tests still dominate overall latency.
 More runner demand can erase the benefit if shared capacity queues jobs; no paid capacity or concurrency change is authorized.
-No numeric end-to-end saving is claimed for this lint-only change.
+No numeric end-to-end saving is claimed for the lint split.
 
 **Portable parallel repack:** [the shard verification inputs](fm-test-portable-shards.md#parallel-lanes) record the refreshed hints and Pi prerequisite constraint.
 Replaying the same three Ubuntu samples with the new assignments cuts the slower parallel lane's script sum by 57-84s, with all 26 tests retained and no extra runner.
