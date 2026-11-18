@@ -1,0 +1,142 @@
+[
+  {
+    "name": "two-named-waivers",
+    "ok": true,
+    "exit": 0,
+    "merged": true,
+    "attempts": 1
+  },
+  {
+    "name": "green-without-waivers",
+    "ok": true,
+    "exit": 0,
+    "merged": true,
+    "attempts": 1
+  },
+  {
+    "name": "legacy-single-waiver",
+    "ok": true,
+    "exit": 0,
+    "merged": true,
+    "attempts": 1
+  },
+  {
+    "name": "one-waiver-refuses-cancelled",
+    "ok": true,
+    "exit": 1,
+    "merged": false,
+    "attempts": 0
+  },
+  {
+    "name": "cancelled-is-not-missing",
+    "ok": true,
+    "exit": 1,
+    "merged": false,
+    "attempts": 0
+  },
+  {
+    "name": "prefix-name-does-not-waive",
+    "ok": true,
+    "exit": 1,
+    "merged": false,
+    "attempts": 0
+  },
+  {
+    "name": "red-waiver-cannot-cover-absence",
+    "ok": true,
+    "exit": 1,
+    "merged": false,
+    "attempts": 0
+  },
+  {
+    "name": "separate-missing-waiver-composes",
+    "ok": true,
+    "exit": 0,
+    "merged": true,
+    "attempts": 1
+  },
+  {
+    "name": "away-refuses-repeated-waivers",
+    "ok": true,
+    "exit": 2,
+    "merged": false,
+    "attempts": 0
+  },
+  {
+    "name": "away-arrives-during-preflight",
+    "ok": true,
+    "exit": 2,
+    "merged": false,
+    "attempts": 0
+  },
+  {
+    "name": "qualified-head-mismatch-refuses",
+    "ok": true,
+    "exit": 1,
+    "merged": false,
+    "attempts": 0
+  },
+  {
+    "name": "push-after-preflight-refuses",
+    "ok": true,
+    "exit": 1,
+    "merged": false,
+    "attempts": 1
+  },
+  {
+    "name": "required-source-unreadable-refuses",
+    "ok": true,
+    "exit": 1,
+    "merged": false,
+    "attempts": 0
+  },
+  {
+    "name": "wrong-producer-still-refuses",
+    "ok": true,
+    "exit": 1,
+    "merged": false,
+    "attempts": 0
+  },
+  {
+    "name": "branch-update-waits-beside-waived-failures",
+    "ok": true,
+    "exit": 0,
+    "merged": true,
+    "attempts": 1
+  },
+  {
+    "name": "repeated-waiver-needs-name",
+    "ok": true,
+    "exit": 2,
+    "merged": false,
+    "attempts": 0
+  },
+  {
+    "name": "equals-waiver-remains-refused",
+    "ok": true,
+    "exit": 2,
+    "merged": false,
+    "attempts": 0
+  },
+  {
+    "name": "gitlab-repeated-waivers-refused",
+    "ok": true,
+    "exit": 2,
+    "merged": false,
+    "attempts": 0
+  },
+  {
+    "name": "forgejo-repeated-waivers-refused",
+    "ok": true,
+    "exit": 2,
+    "merged": false,
+    "attempts": 0
+  },
+  {
+    "name": "before-fix-reproduces-one-waiver-limit",
+    "ok": true,
+    "exit": 2,
+    "merged": false,
+    "attempts": 0
+  }
+]

@@ -1,0 +1,235 @@
+### two-named-waivers
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-red" "Stock macOS Bash snapshot compatibility"
+exit=0; local forge merged=True; merge mutation attempts=1
+armed: state/task-x1.check.sh
+verified: https://github.com/lab/waivers/pull/88 is merged (state=MERGED, merged=true, isInMergeQueue=false)
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+verified: https://github.com/lab/waivers/pull/88 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+### green-without-waivers
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 
+exit=0; local forge merged=True; merge mutation attempts=1
+armed: state/task-x1.check.sh
+verified: https://github.com/lab/waivers/pull/88 is merged (state=MERGED, merged=true, isInMergeQueue=false)
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+verified: https://github.com/lab/waivers/pull/88 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+### legacy-single-waiver
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes"
+exit=0; local forge merged=True; merge mutation attempts=1
+armed: state/task-x1.check.sh
+verified: https://github.com/lab/waivers/pull/88 is merged (state=MERGED, merged=true, isInMergeQueue=false)
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+verified: https://github.com/lab/waivers/pull/88 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+### one-waiver-refuses-cancelled
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes"
+exit=1; local forge merged=False; merge mutation attempts=0
+armed: state/task-x1.check.sh
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: refusing to merge https://github.com/lab/waivers/pull/88
+  - check 'Stock macOS Bash snapshot compatibility' is not green
+error: these checks are not green: Stock macOS Bash snapshot compatibility
+
+### cancelled-is-not-missing
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-missing" "Stock macOS Bash snapshot compatibility"
+exit=1; local forge merged=False; merge mutation attempts=0
+armed: state/task-x1.check.sh
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: refusing to merge https://github.com/lab/waivers/pull/88
+  - check 'Stock macOS Bash snapshot compatibility' is not green
+error: these checks are not green: Stock macOS Bash snapshot compatibility
+
+### prefix-name-does-not-waive
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-red" "Stock macOS Bash snapshot compatibility"
+exit=1; local forge merged=False; merge mutation attempts=0
+armed: state/task-x1.check.sh
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: refusing to merge https://github.com/lab/waivers/pull/88
+  - check 'Stock macOS Bash snapshot compatibility extended' is not green
+error: these checks are not green: Stock macOS Bash snapshot compatibility extended
+
+### red-waiver-cannot-cover-absence
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-red" "Stock macOS Bash snapshot compatibility" "--allow-red" "security"
+exit=1; local forge merged=False; merge mutation attempts=0
+armed: state/task-x1.check.sh
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: refusing to merge https://github.com/lab/waivers/pull/88
+  - required check 'security' has not reported at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+error: these required checks have not reported: security
+
+### separate-missing-waiver-composes
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-red" "Stock macOS Bash snapshot compatibility" "--allow-missing" "security"
+exit=0; local forge merged=True; merge mutation attempts=1
+armed: state/task-x1.check.sh
+verified: https://github.com/lab/waivers/pull/88 is merged (state=MERGED, merged=true, isInMergeQueue=false)
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+verified: https://github.com/lab/waivers/pull/88 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+### away-refuses-repeated-waivers
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-red" "Stock macOS Bash snapshot compatibility"
+exit=2; local forge merged=False; merge mutation attempts=0
+error: --allow-red is attended-only; while the away-posture record exists the green check is absolute
+
+### away-arrives-during-preflight
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-red" "Stock macOS Bash snapshot compatibility"
+exit=2; local forge merged=False; merge mutation attempts=0
+armed: state/task-x1.check.sh
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+verified: https://github.com/lab/waivers/pull/88 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+error: --allow-red is attended-only; while the away-posture record exists the green check is absolute
+
+### qualified-head-mismatch-refuses
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-red" "Stock macOS Bash snapshot compatibility" "--expected-head" "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+exit=1; local forge merged=False; merge mutation attempts=0
+armed: state/task-x1.check.sh
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: refusing to merge https://github.com/lab/waivers/pull/88
+  - the live head is "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", not the expected head bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb; differs from expected qualified head; requalify before merging
+
+### push-after-preflight-refuses
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-red" "Stock macOS Bash snapshot compatibility"
+exit=1; local forge merged=False; merge mutation attempts=1
+armed: state/task-x1.check.sh
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+verified: https://github.com/lab/waivers/pull/88 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+GraphQL: Head branch was modified. Review and try again.
+error: GitHub merge outcome was not successful: state=OPEN, merged=false, isInMergeQueue=false
+
+### required-source-unreadable-refuses
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-red" "Stock macOS Bash snapshot compatibility"
+exit=1; local forge merged=False; merge mutation attempts=0
+armed: state/task-x1.check.sh
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: refusing to merge https://github.com/lab/waivers/pull/88
+  - the branch protection summary for base branch main could not be read, so a required check that has not reported cannot be ruled out
+
+### wrong-producer-still-refuses
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-red" "Stock macOS Bash snapshot compatibility"
+exit=1; local forge merged=False; merge mutation attempts=0
+armed: state/task-x1.check.sh
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+error: refusing to merge https://github.com/lab/waivers/pull/88
+  - required check 'PR must be raised via no-mistakes' has not reported at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  - required check 'Stock macOS Bash snapshot compatibility' has not reported at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+error: these required checks have not reported: PR must be raised via no-mistakes, Stock macOS Bash snapshot compatibility
+
+### branch-update-waits-beside-waived-failures
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-red" "Stock macOS Bash snapshot compatibility" "--update-branch"
+exit=0; local forge merged=True; merge mutation attempts=1
+armed: state/task-x1.check.sh
+{"message": "Updating pull request branch."}armed: state/task-x1.check.sh
+verified: https://github.com/lab/waivers/pull/88 is merged (state=MERGED, merged=true, isInMergeQueue=false)
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no watcher has a fresh beacon (last beat: never, grace 300s).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair missing watcher supervision according to the session-start block for this harness; do not use shell &.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+verified: https://github.com/lab/waivers/pull/88 is open and mergeable, with every unwaived required check reported and every unwaived check green at head aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+WARNING: watcher still down (same stale episode; last beat: never, grace 300s) - full banner already printed this episode.
+verified: https://github.com/lab/waivers/pull/88 is open and mergeable, with every unwaived required check reported and every unwaived check green at head bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+
+### repeated-waiver-needs-name
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-red"
+exit=2; local forge merged=False; merge mutation attempts=0
+error: --allow-red requires a check name
+
+### equals-waiver-remains-refused
+$ bin/fm-pr-merge.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red=PR must be raised via no-mistakes"
+exit=2; local forge merged=False; merge mutation attempts=0
+error: --allow-red requires a separate check name argument
+
+### gitlab-repeated-waivers-refused
+$ bin/fm-pr-merge.sh task-x1 https://gitlab.example/lab/waivers/-/merge_requests/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-red" "Stock macOS Bash snapshot compatibility"
+exit=2; local forge merged=False; merge mutation attempts=0
+error: --allow-red does not apply to GitLab, where a merge already requires the head pipeline to have succeeded; --allow-no-pipeline waives only a merge request with no head pipeline at all
+
+### forgejo-repeated-waivers-refused
+$ bin/fm-pr-merge.sh task-x1 https://forgejo.example/lab/waivers/pulls/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-red" "Stock macOS Bash snapshot compatibility"
+exit=2; local forge merged=False; merge mutation attempts=0
+error: --allow-red does not apply to Forgejo, where a merge already requires the head's combined commit status to have succeeded
+
+### before-fix-reproduces-one-waiver-limit
+$ bin/.waiver-before.sh task-x1 https://github.com/lab/waivers/pull/88 "--allow-red" "PR must be raised via no-mistakes" "--allow-red" "Stock macOS Bash snapshot compatibility"
+exit=2; local forge merged=False; merge mutation attempts=0
+error: --allow-red may be specified only once

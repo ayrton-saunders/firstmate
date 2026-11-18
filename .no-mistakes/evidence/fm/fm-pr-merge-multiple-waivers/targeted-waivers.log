@@ -1,0 +1,7 @@
+ok - fm-pr-merge accepts repeated --allow-red and still refuses a cancelled or failed check without an exact red waiver
+ok - fm-pr-merge requires a separate name for each --allow-red
+ok - fm-pr-merge rechecks away presence before an attended red merge
+ok - fm-pr-merge refuses --allow-red on GitLab
+ok - fm-pr-merge refuses --allow-red on Forgejo
+ok - fm-pr-merge updates a green behind branch and merges only after the new head is green
+ok - fm-pr-merge keeps draft, hold, review, check, authority, and identity refusals when --expected-head matches
