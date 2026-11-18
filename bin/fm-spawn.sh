@@ -484,16 +484,8 @@
 #   worktree, or record exists and names the accepted values. The file is read
 #   on every spawn and relaunch, so a change reaches the next launch without a
 #   restart, and it is inherited into secondmate homes (bin/fm-config-inherit-lib.sh).
-# Codex approval mode (config/codex-approval-mode):
-#   One whitespace-trimmed token: absent or `bypass` selects
-#   --dangerously-bypass-approvals-and-sandbox; `approve-for-me` selects
-#   --approve-for-me, with model-reviewed approvals in workspace-write.
-#   Any other value or unreadable file refuses before mutation, like the Claude
-#   file. Both files apply to ships, scouts, secondmates, and relaunches.
-#   bin/fm-approval-failover.sh owns captain-approved durable failover after
-#   firstmate observes a bypass approval prompt or policy refusal; no polling.
 #   T3 Code always uses full-access, so it refuses Claude `auto` and Codex
-#   `approve-for-me` or `restricted` before mutation.
+#   `restricted` before mutation.
 # Worker tool exclusions:
 #   docs/configuration.md "Worker tool exclusions" owns config/crew-exclude-tools
 #   and its operator contract. Resolve it with bin/fm-exclude-tools-lib.sh
@@ -860,9 +852,11 @@ case "$CLAUDE_PERMISSION_MODE" in
 auto) CLAUDE_PERM_FLAG='--permission-mode auto' ;;
 *) CLAUDE_PERM_FLAG='--dangerously-skip-permissions' ;;
 esac
-# shellcheck source=bin/fm-codex-config-lib.sh
-. "$SCRIPT_DIR/fm-codex-config-lib.sh"
-fm_codex_resolve_modes "$CONFIG" || exit 1
+CODEX_PERMISSION_MODE=$(fm_codex_permission_mode "$CONFIG") || exit 1
+case "$CODEX_PERMISSION_MODE" in
+restricted) CODEX_PERM_FLAG='--sandbox workspace-write --ask-for-approval on-request' ;;
+*) CODEX_PERM_FLAG='--dangerously-bypass-approvals-and-sandbox' ;;
+esac
 # config/lavish-axi-host is the primary-owned per-machine address for the
 # shared Lavish server. Read it once per launch and refuse malformed values so
 # every worker reaches the same server instead of starting a second one.
@@ -2957,16 +2951,10 @@ launch_template() {
   # release that drops this flag stops the launch rather than silently restoring
   # the modal. A managed policy can override the requested disablement, so its
   # effective hook state is not guaranteed.
-  # --approve-for-me uses Codex's automatic approval review with its workspace-write
-  # sandbox. When selected, it replaces complete bypass because managed settings
-  # can override its approval component while accepting the sandbox bypass. The
-  # workspace-write sandbox starts with network access disabled and reviews writes
-  # outside the worktree, so networked operations and external task channels may
-  # need automatic review before they proceed.
   # A secondmate is a firstmate PRIMARY in its own home, and its turn-end guard,
   # session-start digest, and cd/arm seatbelts are exactly those project hooks
   # (docs/turnend-guard.md, docs/sessionstart-nudge.md, docs/cd-guard.md), so the
-  # secondmate launch deliberately keeps hooks on but shares this approval posture.
+  # secondmate launch deliberately keeps hooks on but shares this permission posture.
   codex)
     if [ "$kind" = secondmate ]; then
       printf '%s' 'codex __MODELFLAG____EFFORTFLAG____CODEXAPPROVALFLAG__ "$(__OPINPUT__ encode launch-brief < __BRIEF__)"'
@@ -3557,10 +3545,8 @@ if [ "$BACKEND" = t3code ]; then
     echo "error: backend=t3code runs claude at T3's full-access runtime mode and cannot honor config/claude-permission-mode=$CLAUDE_PERMISSION_MODE; remove that file or choose another backend" >&2
     exit 1
   fi
-  if [ "$HARNESS" = codex ] && [ "$CODEX_APPROVAL_MODE" != bypass ]; then
-    codex_posture_setting="config/codex-approval-mode=$CODEX_APPROVAL_MODE"
-    [ "$CODEX_PERMISSION_MODE" != restricted ] || codex_posture_setting="config/codex-permission-mode=restricted"
-    echo "error: backend=t3code runs codex at T3's full-access runtime mode and cannot honor $codex_posture_setting; remove that file or choose another backend" >&2
+  if [ "$HARNESS" = codex ] && [ "$CODEX_PERMISSION_MODE" = restricted ]; then
+    echo "error: backend=t3code runs codex at T3's full-access runtime mode and cannot honor config/codex-permission-mode=restricted; remove that file or choose another backend" >&2
     exit 1
   fi
   if [ "$LAUNCH_ENV_ENABLED" = 1 ]; then
@@ -7360,7 +7346,7 @@ preserve_relaunch_meta() {
   if [ "$RAW_LAUNCH" = 0 ]; then
     case "$HARNESS" in
       claude) echo "approval_mode=$CLAUDE_PERMISSION_MODE" ;;
-      codex) echo "approval_mode=$CODEX_APPROVAL_MODE" ;;
+      codex) echo "approval_mode=$CODEX_PERMISSION_MODE" ;;
     esac
   fi
   echo "kind=$KIND"
@@ -7587,7 +7573,7 @@ case "$LAUNCH" in
   fi
   ;;
 esac
-LAUNCH=${LAUNCH//__CODEXAPPROVALFLAG__/$CODEX_APPROVAL_FLAG}
+LAUNCH=${LAUNCH//__CODEXAPPROVALFLAG__/$CODEX_PERM_FLAG}
 if [ "$KEEP_AI_TRAILERS" = 1 ]; then
   LAUNCH=${LAUNCH//__CLAUDEATTRIBUTION__/}
 else

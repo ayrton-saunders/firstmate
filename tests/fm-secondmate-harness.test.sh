@@ -1394,7 +1394,7 @@ new_world() {
     [ "$dispatch_ignore" = no ] || printf 'config/crew-dispatch.json\n'
     printf 'config/crew-harness\nconfig/secondmate-harness\nconfig/backlog-backend\n'
     printf 'config/backend\nconfig/herdr-presentation-spaces\nconfig/startup-memory-budget\n'
-    printf 'config/claude-permission-mode\nconfig/codex-approval-mode\n'
+    printf 'config/claude-permission-mode\n'
   } > "$w/main/.gitignore"
   printf 'v1\n' > "$w/main/AGENTS.md"
   printf 'r1\n' > "$w/main/README.md"
@@ -1848,32 +1848,29 @@ test_spawn_secondmate_claude_grants_parent_inbox_dir() {
 }
 
 test_approval_mode_inheritance_present_and_absent() {
-  local w head out err status setting fallback
+  local w head out err status setting=claude-permission-mode
   w=$(new_world permmode-inherit)
   head=$(git -C "$w/main" rev-parse HEAD)
   add_sm_worktree "$w" sm "$head"
   mkdir -p "$w/sm/config"
   err="$w/permmode-inherit.err"
 
-  for setting in claude-permission-mode codex-approval-mode; do
-    if [ "$setting" = claude-permission-mode ]; then fallback=auto; else fallback=approve-for-me; fi
-    printf '%s\n' "$fallback" > "$w/sm/config/$setting"
-    out=$(run_config_push "$w" 2>"$err"); status=$?
-    expect_code 0 "$status" "$setting primary-absent push should succeed"
-    [ ! -e "$w/sm/config/$setting" ] || fail "$setting local fallback survived primary absence"
+  printf 'auto\n' > "$w/sm/config/$setting"
+  out=$(run_config_push "$w" 2>"$err"); status=$?
+  expect_code 0 "$status" "$setting primary-absent push should succeed"
+  [ ! -e "$w/sm/config/$setting" ] || fail "$setting local fallback survived primary absence"
 
-    printf 'bypass\n' > "$w/home/config/$setting"
-    out=$(run_config_push "$w" 2>"$err"); status=$?
-    expect_code 0 "$status" "$setting present push should succeed"
-    assert_contains "$out" "$setting: pushed" "present value should report pushed"
-    [ "$(cat "$w/sm/config/$setting")" = bypass ] || fail "$setting explicit primary did not win"
+  printf 'bypass\n' > "$w/home/config/$setting"
+  out=$(run_config_push "$w" 2>"$err"); status=$?
+  expect_code 0 "$status" "$setting present push should succeed"
+  assert_contains "$out" "$setting: pushed" "present value should report pushed"
+  [ "$(cat "$w/sm/config/$setting")" = bypass ] || fail "$setting explicit primary did not win"
 
-    rm -f "$w/home/config/$setting"
-    out=$(run_config_push "$w" 2>"$err"); status=$?
-    expect_code 0 "$status" "$setting absence push should succeed"
-    [ ! -e "$w/sm/config/$setting" ] || fail "$setting inherited value survived primary absence"
-  done
-  pass "B12c approval modes follow primary values and primary absence"
+  rm -f "$w/home/config/$setting"
+  out=$(run_config_push "$w" 2>"$err"); status=$?
+  expect_code 0 "$status" "$setting absence push should succeed"
+  [ ! -e "$w/sm/config/$setting" ] || fail "$setting inherited value survived primary absence"
+  pass "B12c Claude permission mode follows primary values and primary absence"
 }
 
 test_backend_inheritance_present_and_absent() {

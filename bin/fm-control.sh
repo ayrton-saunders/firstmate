@@ -195,8 +195,8 @@ DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 . "$SCRIPT_DIR/fm-busy-lib.sh"
 # shellcheck source=bin/fm-control-lib.sh
 . "$SCRIPT_DIR/fm-control-lib.sh"
-# shellcheck source=bin/fm-codex-config-lib.sh
-. "$SCRIPT_DIR/fm-codex-config-lib.sh"
+# shellcheck source=bin/fm-config-inherit-lib.sh
+. "$SCRIPT_DIR/fm-config-inherit-lib.sh"
 # shellcheck source=bin/fm-polytoken-lib.sh
 . "$SCRIPT_DIR/fm-polytoken-lib.sh"
 # shellcheck source=bin/fm-pr-lib.sh
@@ -999,7 +999,7 @@ relaunch_rollback() {
 }
 
 resolve_relaunch_profile() {
-  fm_codex_resolve_modes "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}" || return 1
+  fm_codex_permission_mode "${FM_CONFIG_OVERRIDE:-$FM_HOME/config}" >/dev/null || return 1
   PRIOR_HARNESS=$HARNESS
   PRIOR_RECORDED_HARNESS=$RECORDED_HARNESS
   PRIOR_MODEL=$(fm_meta_get "$META" model)
