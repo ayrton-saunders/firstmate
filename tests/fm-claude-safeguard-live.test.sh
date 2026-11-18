@@ -68,23 +68,27 @@ config.mkdir(parents=True, exist_ok=True)
     "projects": {str(root): {"hasTrustDialogAccepted": True, "hasCompletedProjectOnboarding": True}},
 }))
 PY
-  tmux_socket="$TMP_ROOT/$category.sock"
-  env -i PATH="$PATH" HOME="$TMP_ROOT/home-$category" TERM=xterm-256color \
-    CLAUDE_CONFIG_DIR="$TMP_ROOT/config-$category" \
-    ANTHROPIC_API_KEY=sk-ant-synthetic-loopback-only \
-    ANTHROPIC_BASE_URL="http://127.0.0.1:$port" \
-    DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
-    tmux -S "$tmux_socket" -f /dev/null new-session -d -s refusal -x 180 -y 40 -c "$TMP_ROOT" \
-      "claude 'say hi' --model claude-sonnet-4-6 --setting-sources '' --strict-mcp-config --tools ''" \
-    || fail "Claude $version: private interactive session did not start"
-  pane=''
-  for ((i=0; i<300; i++)); do
-    pane=$(tmux -S "$tmux_socket" capture-pane -p -t refusal -S -40 2>/dev/null || true)
-    if printf '%s\n' "$pane" | grep -q 'API Error:'; then break; fi
-    sleep 0.1
+  for width in 180 64 40; do
+    tmux_socket="$TMP_ROOT/$category-$width.sock"
+    env -i PATH="$PATH" HOME="$TMP_ROOT/home-$category" TERM=xterm-256color \
+      CLAUDE_CONFIG_DIR="$TMP_ROOT/config-$category" \
+      ANTHROPIC_API_KEY=sk-ant-synthetic-loopback-only \
+      ANTHROPIC_BASE_URL="http://127.0.0.1:$port" \
+      DISABLE_AUTOUPDATER=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1 \
+      tmux -S "$tmux_socket" -f /dev/null new-session -d -s refusal -x "$width" -y 40 -c "$TMP_ROOT" \
+        "claude 'say hi' --model claude-sonnet-4-6 --setting-sources '' --strict-mcp-config --tools ''" \
+      || fail "Claude $version: private interactive session did not start"
+    pane=''
+    for ((i=0; i<300; i++)); do
+      pane=$(tmux -S "$tmux_socket" capture-pane -p -t refusal -S -40 2>/dev/null || true)
+      if fm_busy_safeguard_pause claude "$pane"; then break; fi
+      sleep 0.1
+    done
+    fm_busy_safeguard_pause claude "$pane" \
+      || fail "Claude $version: unrecognized interactive $category refusal at $width columns: $pane"
+    tmux -S "$tmux_socket" kill-server 2>/dev/null || true
+    tmux_socket=''
+    pass "Claude Code $version: interactive $category refusal is recognized at $width columns"
   done
-  fm_busy_safeguard_pause claude "$pane" \
-    || fail "Claude $version: unrecognized interactive $category refusal: $pane"
   stop_server
-  pass "Claude Code $version: interactive $category refusal is recognized from a real pane capture"
 done

@@ -29,7 +29,7 @@ new_state_dir() {  # <name>
 # --- writer: arm and apply ---------------------------------------------------
 
 test_safeguard_pause_beats_retained_busy() {
-  local state gen out backend harness banner tail
+  local state gen out backend harness banner tail refusal split
   state=$(new_state_dir safeguard)
   gen=$("$EV" arm "$state" t1)
   "$EV" apply "$state" t1 busy --gen "$gen" --source claude-hook --event user-prompt-submit
@@ -56,6 +56,29 @@ test_safeguard_pause_beats_retained_busy() {
   tail=$(printf '\140\140\140\n%s\n\140\140\140\n' "$banner")
   out=$(fm_busy_classify tmux w1 claude t1 "$state" "$tail")
   [ "$out" = 'busy claude-hook' ] || fail 'a quoted banner in a code block was treated as a stop'
+  for tail in \
+    "$banner"$'\n```\n    ⏺ '"$banner"$'\n```' \
+    $'```\n    ⏺ '"$banner"$'\n```'; do
+    out=$(fm_busy_classify tmux w1 claude t1 "$state" "$tail")
+    [ "$out" = 'busy claude-hook' ] || fail 'an indented quoted banner was treated as a stop'
+  done
+  for refusal in \
+    "$banner" \
+    "API Error: Claude can't help with this. Start a new session to continue. https://www.anthropic.com/legal/aup/" \
+    "API Error: Claude's safeguards flagged this message. https://support.claude.com/en/articles/15363606" \
+    "API Error: Claude's safeguards flagged this message. https://support.claude.com/en/articles/8106465"; do
+    for ((split=11; split<${#refusal}; split++)); do
+      tail="⏺ ${refusal:0:split}"$'\n    '"${refusal:split}"
+      fm_busy_safeguard_pause claude "$tail" || fail "refusal lost at wrap column $split: $tail"
+    done
+    for tail in \
+      $'truncated tool output\n```\n⏺ '"$refusal" \
+      $'truncated tool output\n```\n● New response\n  ⎿  '"$refusal" \
+      $'truncated tool output\n```\n❯ Retry\n  ⎿  '"$refusal"; do
+      out=$(fm_busy_classify tmux w1 claude t1 "$state" "$tail")
+      [ "$out" = 'unknown safeguard-pause' ] || fail "truncated fence hid refusal: $out"
+    done
+  done
   # Renderer wrapping, ANSI styling and the actual error tree prefix survive.
   tail=$(printf '\033[31m  ⎿  %s\033[0m\n' "$banner" | fold -s -w 100)
   fm_busy_safeguard_pause claude "$tail" || fail 'styled/wrapped refusal was missed'

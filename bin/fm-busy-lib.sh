@@ -1135,6 +1135,11 @@ fm_busy_safeguard_pause() {  # <harness> <pane-tail>
     {
       gsub(esc "\\[[0-?]*[ -/]*[@-~]", "")
       sub(/\r$/, "")
+      if ($0 ~ /^ ? ?(●|⏺|❯)[[:space:]]+[^[:space:]]/) {
+        fenced = 0
+        banner = ""
+        refused = 0
+      }
       if ($0 ~ /^[[:space:]]*```/) {
         fenced = !fenced
         banner = ""
@@ -1142,8 +1147,7 @@ fm_busy_safeguard_pause() {  # <harness> <pane-tail>
         next
       }
       if (fenced) next
-      if ($0 ~ /^ ? ?(●|⏺|❯)[[:space:]]+[^[:space:]]/ ||
-          $0 ~ /safeguards stopped the response above .*continuing once with that noted/) {
+      if ($0 ~ /safeguards stopped the response above .*continuing once with that noted/) {
         banner = ""
         refused = 0
       }
@@ -1153,8 +1157,9 @@ fm_busy_safeguard_pause() {  # <harness> <pane-tail>
       } else if (banner != "") {
         banner = banner " " $0
       }
-      if (banner ~ /API Error: [^\n]+\047s safeguards flagged this message[. (]/ ||
-          banner ~ /API Error: [^\n]+ can\047t help with this\. Start a new session to continue\./) {
+      gsub(/[[:space:]]/, "", banner)
+      if (banner ~ /APIError:[^\n]+\047ssafeguardsflaggedthismessage[.(]/ ||
+          banner ~ /APIError:[^\n]+can\047thelpwiththis\.Startanewsessiontocontinue\./) {
         if (banner ~ /https:\/\/support\.claude\.com\/en\/articles\/(14604842|15363606|8106465)/ ||
             banner ~ /https:\/\/www\.anthropic\.com\/legal\/aup/) refused = 1
       }
