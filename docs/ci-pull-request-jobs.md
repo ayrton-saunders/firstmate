@@ -59,7 +59,7 @@ Each serial row is a distinct, disjoint assignment exposed by `fm-test-run.sh --
 | CI / macos-stock-bash | `Stock macOS Bash snapshot compatibility` | yes | Real Bash 3.2 parse sweep and snapshot/helper regressions with BSD tools; Linux assertions are not a substitute. | Successful execution 317-439s, median 387s; failed acquisitions execute nothing and wait 901s. | Keep, unchanged runner/pool and conditions. |
 | CI / invariants | `Repo invariants` | yes | Broken CLAUDE pointer/skill symlink or tracked private fleet paths; some local verification overlaps, but behavioral test success alone does not establish these invariants. | 6.1s. | Merge into another job as a future proposal, retaining every assertion. |
 | CI / full-suite | `Full suite` | yes | Missing outside-PR go-ahead or failed/cancelled dependencies; individual skipped jobs can otherwise look acceptable. | 3.4s. | Keep. |
-| Require no-mistakes / check | `PR must be raised via no-mistakes` | yes | Missing/stale pipeline attestation or invalid focused-integration qualification; neither behavioral CI nor local lint establishes provenance. | Unmeasured; fresh runner plus base qualification or native verification. | Keep with all current exceptions, digest and pass conditions. |
+| Require no-mistakes / check | `PR must be raised via no-mistakes` | yes | Missing or stale attestation where required, or invalid requested focused evidence; see the [personal-fork statement policy](../CONTRIBUTING.md#personal-fork-statement-policy). | Unmeasured; base classification with verification where applicable. | Keep the required context. |
 
 ## What actually overlaps, and what removal costs
 
@@ -120,5 +120,6 @@ The macOS pool question remains separate: existing cancellations are runner acqu
 
 `tests/fm-lint.test.sh` compares two-way and four-way partitions against the full canonical inventory, then checks executed roots, initial analysis flags and rejection of weakened modes.
 `tests/fm-ci-workflow.test.sh` compares actual execution-matrix roots to that same inventory and executes the required lint verdict against success, failure, cancellation and skip results.
+`tests/fm-no-mistakes-required.test.sh` exercises the fork threshold and integration routing as well as the pinned native attestation check.
 `bin/fm-test-run.sh --check-coverage` remains the unchanged authority for test selection and budgets.
 The implementation PR retains the before/after inventory comparison and final-head CI result; projected savings above are not a replacement for passing checks.

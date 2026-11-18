@@ -53,7 +53,7 @@ For prose-only behavior, retain real evaluation evidence; file/source-string pre
 
 Publish the integration branch and open a genuine fork-only PR through the ordinary forge path, then require every applicable original forge check and verify its actual producer at final H.
 Recheck actual fork-only destinations immediately before publication.
-[`CONTRIBUTING.md`](../../../CONTRIBUTING.md) owns the personal-fork focused compliance allowance and its currently supported boundary.
+Before qualifying the published head, consult the [personal-fork statement policy](../../../CONTRIBUTING.md#personal-fork-statement-policy) for the canonical integration exemption and the separate clean focused evidence route.
 If required compliance rejects the integration, preserve the local result and report the concrete blocker rather than fabricating native attestation, changing workflow exemptions/rules or borrowing another PR's waiver.
 Personal feature validation remains owned by its normal no-mistakes pipeline, not this integration path.
 

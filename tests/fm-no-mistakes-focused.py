@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Controlled local Git histories for the production correspondence component."""
+"""Offline gate-classification fixtures and local Git correspondence regressions."""
 
 import copy
 import importlib.util
@@ -20,6 +20,106 @@ SPEC = importlib.util.spec_from_file_location(
     "focused", ROOT / ".github/verify-focused-upstream.py")
 FOCUSED = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(FOCUSED)
+
+
+class ThresholdTests(unittest.TestCase):
+    BASE = "1" * 40
+    HEAD = "2" * 40
+    PR_PATH = "/repos/ayrton-saunders/firstmate/pulls/23"
+
+    def file(self, path, additions=0, deletions=0, **extra):
+        return {"filename": path, "status": "modified", "additions": additions,
+                "deletions": deletions, **extra}
+
+    def api(self, files, **extra):
+        return {self.PR_PATH: {
+            "number": 23, "base": {"sha": self.BASE, "ref": "main"},
+            "head": {"sha": self.HEAD}, "changed_files": len(files), **extra,
+        }, self.PR_PATH + "/files": files}
+
+    def classify(self, read_json):
+        return FOCUSED.requires_no_mistakes(23, self.HEAD,
+                                            read_json=read_json)
+
+    def test_threshold_boundaries(self):
+        for files, required in (
+                ([], False),
+                ([self.file("README.md", 1)], False),
+                ([self.file("README.md", 30), self.file("LICENSE", deletions=30)], False),
+                ([self.file("README.md", 30), self.file("LICENSE", deletions=31)], True),
+                ([self.file("tests/fixtures/input", 800),
+                  self.file(".claude/mods/firstmate-calm/tests/calm.test.ts", 800)], False),
+                ([self.file("README.md", 60), self.file("tests/check.test.sh", 800)], False),
+                ([self.file("tests/a"), self.file("tests/b"), self.file("tests/c")], True),
+                ([self.file("docs/bin/example", 60), self.file("binary")], False),
+        ):
+            with self.subTest(files=files):
+                self.assertEqual(self.classify(self.api(files).__getitem__), required)
+
+    def test_protected_paths_include_rename_sources(self):
+        for path in ("bin/run.sh", ".agents/skills/example/SKILL.md",
+                     ".github/workflows/ci.yml"):
+            for change in (self.file(path, status="removed"),
+                           self.file(path, status="renamed", previous_filename="tests/file"),
+                           self.file("tests/file", status="renamed", previous_filename=path)):
+                with self.subTest(change=change):
+                    self.assertTrue(self.classify(self.api([change]).__getitem__))
+        self.assertTrue(self.classify(self.api([
+            self.file("tests/example", 61, status="renamed", previous_filename="docs/example"),
+        ]).__getitem__))
+
+    def test_diff_classification_ignores_author_editable_data(self):
+        for body in ("", "this is exempt", "firstmate-focused-upstream"):
+            for files, required in (([self.file("README.md", 1)], False),
+                                    ([self.file("bin/a.sh")], True)):
+                with self.subTest(body=body, files=files):
+                    replies = self.api(files, body=body, title="Small docs", labels=[],
+                                       additions=0, deletions=0)
+                    self.assertEqual(self.classify(replies.__getitem__), required)
+
+    def test_incomplete_or_invalid_api_data_cannot_exempt(self):
+        path = self.PR_PATH + "/files"
+        for replies in (
+                self.api([], changed_files=1),
+                self.api([], changed_files=True),
+                self.api([self.file("README.md", True)]),
+                self.api([self.file("README.md", deletions=-1)]),
+                self.api([self.file("README.md"), self.file("README.md")]),
+                self.api([self.file("tests/file", status="renamed")]),
+                {**self.api([]), path: {"message": "unavailable"}},
+        ):
+            with self.subTest(replies=replies), self.assertRaises(FOCUSED.Refusal):
+                self.classify(replies.__getitem__)
+
+    def test_changed_file_count_cannot_exempt(self):
+        replies = self.api([])
+
+        def read(path):
+            if path.endswith("/files"):
+                replies[self.PR_PATH]["changed_files"] = 1
+            return copy.deepcopy(replies[path])
+
+        with self.assertRaises(FOCUSED.Refusal):
+            self.classify(read)
+
+    def test_changed_publication_cannot_exempt(self):
+        for side in ("base", "head"):
+            for change_during_read in (False, True):
+                replies = self.api([self.file("README.md", 1)])
+                if not change_during_read:
+                    replies[self.PR_PATH][side]["sha"] = "3" * 40
+
+                def read(path):
+                    if path.endswith("/files"):
+                        replies[self.PR_PATH][side]["sha"] = "3" * 40
+                    return copy.deepcopy(replies[path])
+
+                with self.subTest(side=side, during_read=change_during_read):
+                    if side == "base" and not change_during_read:
+                        self.assertFalse(self.classify(read))
+                    else:
+                        with self.assertRaises(FOCUSED.Refusal):
+                            self.classify(read)
 
 
 class CorrespondenceTests(unittest.TestCase):
@@ -194,6 +294,139 @@ class CorrespondenceTests(unittest.TestCase):
                 "ref": "refs/heads/" + ref.replace("%2F", "/"),
                 "object": {"type": "commit", "sha": sha}}
         return replies
+
+    def integration_reader(self, claim, files=(), **pr_fields):
+        replies = self.live_api(claim)
+        pr_path = f"/repos/{FOCUSED.FORK}/pulls/23"
+        replies[pr_path].update(pr_fields)
+        replies[pr_path].setdefault("changed_files", len(files))
+        replies[pr_path + "/files"] = list(files)
+        prefix = f"/repos/{FOCUSED.FORK}/"
+
+        def read(path):
+            if path.startswith(prefix + "git/commits/"):
+                head = path.removeprefix(prefix + "git/commits/")
+                return {"sha": head, "parents": [{"sha": parent} for parent in
+                        self.git("show", "-s", "--format=%P", head).split()]}
+            if path.startswith(prefix + "compare/"):
+                older, newer = path.removeprefix(prefix + "compare/").split("...")
+                base = self.git("merge-base", older, newer)
+                status = "ahead" if base == older else "behind" if base == newer else "diverged"
+                return {"status": status, "base_commit": {"sha": older},
+                        "merge_base_commit": {"sha": base}}
+            return copy.deepcopy(replies[path])
+
+        return read
+
+    def integration(self, claim, read=None):
+        return FOCUSED.is_canonical_integration(23, claim["H"], claim["B"],
+                                               read_json=read or self.integration_reader(claim))
+
+    def test_canonical_integration_includes_clean_and_fast_forward_histories(self):
+        for mode in ("ff", "divergent", "ancestry-only"):
+            with self.subTest(mode=mode):
+                claim, _ = self.fixture(mode)
+                self.git("checkout", "-q", "--detach", claim["U"])
+                tip = self.commit_file("canonical", "canonical advanced after intake\n")
+                advertised = {**claim, "U": tip}
+                self.assertTrue(self.integration(claim, self.integration_reader(advertised)))
+                self.git("checkout", "-q", "--detach", self.common)
+
+    def test_conflicted_integration_exemption_does_not_depend_on_size_or_body(self):
+        base = self.commit_file("shared", "personal conflict\n")
+        self.git("checkout", "-q", "--detach", self.common)
+        self.commit_file("shared", "canonical conflict\n")
+        (self.repo / "bin").mkdir()
+        upstream = self.commit_file("bin/fixture", "new upstream content\n" * 80)
+        resolved = self.commit_file("shared", "retained personal and canonical behavior\n")
+        head = self.commit_tree(resolved + "^{tree}", base, upstream)
+        tested = self.commit_tree(head + "^{tree}", base, head)
+        claim, current = self.fixture()
+        claim.update(O=base, B=base, U=upstream, H=head, T=tested)
+        current.update(claim)
+        with self.assertRaisesRegex(FOCUSED.Refusal, "conflict resolutions"):
+            self.verify(claim, current)
+        large = self.integration_reader(claim, changed_files=227, mergeable=None)
+        self.assertTrue(FOCUSED.requires_no_mistakes(23, head, read_json=large))
+        # A resolved conflict can pass without a statement even when
+        # mergeability is unknown. The classification also takes priority
+        # over the below-threshold route and does not read the files list.
+        for count in (1, 227):
+            for body in (None, "native statement"):
+                with self.subTest(changed_files=count, body=body):
+                    read = self.integration_reader(claim, body=body, changed_files=count,
+                                                   mergeable=None)
+                    self.assertEqual(self.invoke_workflow(read, "conflicted", head, base),
+                                     "canonical-integration")
+
+    def test_personal_and_redundant_merges_are_not_canonical_integrations(self):
+        claim, _ = self.fixture()
+        self.git("checkout", "-q", "--detach", claim["B"])
+        personal = self.commit_file("unrelated", "personal work\n")
+        tree = claim["H"] + "^{tree}"
+        for parents in ((claim["B"], personal), (claim["U"], claim["B"]),
+                        (personal, claim["U"]), (claim["B"], self.common),
+                        (claim["H"],), (claim["B"], claim["U"], personal)):
+            with self.subTest(parents=parents):
+                self.assertFalse(self.integration({**claim, "H": self.commit_tree(tree, *parents)}))
+        read = self.integration_reader(claim, head={"sha": claim["H"], "repo": {
+            "full_name": "unrelated/firstmate"}}, body=self.declaration(claim))
+        self.assertFalse(self.integration(claim, read))
+
+    def test_integration_exemption_refuses_unbound_or_inconsistent_facts(self):
+        claim, _ = self.fixture()
+        read = self.integration_reader(claim)
+        with self.assertRaisesRegex(FOCUSED.Refusal, "matches event"):
+            self.integration({**claim, "H": self.common}, read)
+
+        for side in ("base", "head"):
+            reads = 0
+
+            def moved(path):
+                nonlocal reads
+                reply = read(path)
+                if path.endswith("/pulls/23"):
+                    reads += 1
+                    if reads == 2:
+                        reply[side]["sha"] = self.common
+                return reply
+
+            with self.subTest(moved=side):
+                if side == "base":
+                    self.assertTrue(self.integration(claim, moved))
+                else:
+                    with self.assertRaisesRegex(FOCUSED.Refusal, "matches event"):
+                        self.integration(claim, moved)
+
+        def inconsistent(path):
+            reply = read(path)
+            if "/compare/" in path:
+                reply["status"] = "ahead"
+            return reply
+
+        with self.assertRaisesRegex(FOCUSED.Refusal, "inconsistent GitHub ancestry"):
+            self.integration(claim, inconsistent)
+
+    def test_missing_comparison_is_not_proof_of_new_canonical_ancestry(self):
+        claim, _ = self.fixture()
+        tip = self.commit_file("canonical", "canonical advanced\n")
+        read = self.integration_reader({**claim, "U": tip})
+        for older, newer, verdict in ((claim["H"], tip, True),
+                                      (claim["U"], tip, False),
+                                      (claim["U"], claim["B"], None)):
+            missing = f"/compare/{older}...{newer}"
+
+            def unavailable(path):
+                if path.endswith(missing):
+                    raise FOCUSED.GitHubNotFound("fixture comparison not found")
+                return read(path)
+
+            with self.subTest(comparison=missing):
+                if verdict is None:
+                    with self.assertRaises(FOCUSED.GitHubNotFound):
+                        self.integration(claim, unavailable)
+                else:
+                    self.assertEqual(self.integration(claim, unavailable), verdict)
 
     def test_fresh_api_facts_bind_real_git_correspondence(self):
         claim, _ = self.fixture()
@@ -624,6 +857,85 @@ class CorrespondenceTests(unittest.TestCase):
         self.assertFalse((failed / "execution/execution.json").exists())
         self.assertFalse((failed / "qualified.json").exists())
 
+    def invoke_workflow(self, read_json, name, head, base, repository=FOCUSED.FORK):
+        event = self.repo / (name + "-event.json")
+        output = self.repo / (name + "-output")
+        event.write_text(json.dumps({"pull_request": {
+            "number": 23, "head": {"sha": head}, "base": {"sha": base}}}))
+        output.write_text("")
+        os.environ.update(GITHUB_EVENT_PATH=str(event), GITHUB_OUTPUT=str(output),
+                          GITHUB_WORKSPACE=str(ROOT), GITHUB_REPOSITORY=repository,
+                          FM_FOCUSED_EVIDENCE=str(self.repo / name))
+        code = FOCUSED.workflow_main(read_json=read_json)
+        emitted = output.read_text()
+        if code:
+            self.assertEqual(emitted, "")
+            raise FOCUSED.Refusal("workflow entry refused")
+        self.assertTrue(emitted.startswith("route="))
+        return emitted.removeprefix("route=").strip()
+
+    def test_workflow_applies_threshold_independently_of_pr_text(self):
+        claim, _ = self.fixture()
+        self.git("checkout", "-q", "--detach", claim["B"])
+        claim["H"] = self.commit_file("README.md", "personal change\n")
+        head, base = claim["H"], claim["B"]
+
+        def file(path, lines=0):
+            return {"filename": path, "additions": lines, "deletions": 0}
+
+        for files, expected in (
+                ([file("README.md", 1)], "below-threshold"),
+                ([file("README.md", 60), file("tests/check.test.sh", 500)], "below-threshold"),
+                ([file("README.md", 61)], "native"),
+                ([file("bin/run.sh", 1)], "native"),
+                ([file("tests/a"), file("tests/b"), file("tests/c")], "native")):
+            for body in (None, "firstmate-focused-upstream", self.declaration(claim)):
+                with self.subTest(files=files, body=body):
+                    read = self.integration_reader(claim, files=files, body=body,
+                                                   title="Small docs", labels=[])
+                    route = self.invoke_workflow(read, "workflow-threshold", head, base)
+                    self.assertEqual(route, expected)
+        self.assertFalse((self.repo / "workflow-threshold").exists())
+
+    def test_workflow_classifies_unchanged_heads_after_base_advances(self):
+        claim, _ = self.fixture()
+        self.git("checkout", "-q", "--detach", claim["B"])
+        head = self.commit_file("README.md", "personal change\n")
+        self.git("checkout", "-q", "--detach", claim["B"])
+        advanced = self.commit_file("unrelated", "main advanced\n")
+        for path, expected in (("README.md", "below-threshold"), ("bin/run.sh", "native")):
+            with self.subTest(path=path):
+                read = self.integration_reader(
+                    {**claim, "H": head, "B": advanced},
+                    files=[{"filename": path, "additions": 1, "deletions": 0}])
+                self.assertEqual(self.invoke_workflow(read, "advanced-base", head, claim["B"]),
+                                 expected)
+        read = self.integration_reader({**claim, "B": advanced})
+        self.assertEqual(self.invoke_workflow(read, "advanced-integration", claim["H"], claim["B"]),
+                         "canonical-integration")
+
+    def test_workflow_refuses_incomplete_or_stale_classification(self):
+        claim, _ = self.fixture()
+        self.git("checkout", "-q", "--detach", claim["B"])
+        claim["H"] = self.commit_file("README.md", "personal change\n")
+        read = self.integration_reader(claim, changed_files=1)
+        with self.assertRaises(FOCUSED.Refusal):
+            self.invoke_workflow(read, "incomplete", claim["H"], claim["B"])
+        with self.assertRaises(FOCUSED.Refusal):
+            self.invoke_workflow(read, "stale", self.common, claim["B"])
+
+    def test_workflow_keeps_explicit_focused_proof_and_nonfork_native_routes(self):
+        claim, _ = self.fixture("ff")
+        head, base = claim["H"], claim["B"]
+        unsigned = self.integration_reader(claim, changed_files=227)
+        self.assertEqual(self.invoke_workflow(unsigned, "upstream", head, base),
+                         "canonical-integration")
+        malformed = self.integration_reader(claim, body="firstmate-focused-upstream")
+        with self.assertRaises(FOCUSED.Refusal):
+            self.invoke_workflow(malformed, "malformed", head, base)
+        self.assertEqual(self.invoke_workflow({}.__getitem__, "nonfork", head, base,
+                                              repository=FOCUSED.CANONICAL), "native")
+
     def test_first_install_executes_actual_workflow_native_bootstrap(self):
         # Parse the workflow's literal shell block for execution, not assertions
         # about implementation text. No candidate checker exists on this base.
@@ -703,23 +1015,17 @@ class CorrespondenceTests(unittest.TestCase):
             os.environ[f"GIT_CONFIG_VALUE_{i}"] = "https://github.com/" + origin + ".git"
 
         def invoke(replies, name, head=None, read=None, base=None):
-            event = self.repo / (name + "-event.json")
-            output = self.repo / (name + "-output")
-            event.write_text(json.dumps({"pull_request": {
-                "number": 23, "head": {"sha": head or claim["H"]},
-                "base": {"sha": base or claim["B"]}}}))
-            output.write_text("")
-            os.environ.update(GITHUB_EVENT_PATH=str(event), GITHUB_OUTPUT=str(output),
-                              GITHUB_WORKSPACE=str(ROOT), GITHUB_REPOSITORY=FOCUSED.FORK,
-                              FM_FOCUSED_EVIDENCE=str(self.repo / name))
-            code = FOCUSED.workflow_main(read_json=read or replies.__getitem__)
-            if code:
-                self.assertEqual(output.read_text(), "")
-                raise FOCUSED.Refusal("workflow entry refused")
-            route = output.read_text().strip().removeprefix("route=")
-            if route == "native":
+            ancestry = self.integration_reader(claim)
+
+            def dispatch(path):
+                if path in replies:
+                    return copy.deepcopy(replies[path])
+                return ancestry(path)
+
+            route = self.invoke_workflow(read or dispatch, name, head or claim["H"],
+                                         base or claim["B"])
+            if route != "focused":
                 return {"route": route}
-            self.assertEqual(route, "focused")
             return json.loads((self.repo / name / "qualified.json").read_text())
 
         receipt = invoke(original, "workflow-positive")
@@ -749,25 +1055,23 @@ class CorrespondenceTests(unittest.TestCase):
                  "T": self.commit_tree(self.git("rev-parse", personal + "^{tree}"),
                                        claim["B"], personal)}
         replies = self.live_api(wrong)
-        replies[pr_path]["body"] = self.declaration(wrong)
-        with self.assertRaises(FOCUSED.Refusal):
-            invoke(replies, "workflow-personal", personal)
-        native = copy.deepcopy(original)
-        native[pr_path]["body"] = "ordinary personal feature without native attestation"
-        self.assertEqual(invoke(native, "workflow-native"), {"route": "native"})
-        self.assertFalse((self.repo / "workflow-native").exists())
-        calls = 0
+        replies[pr_path].update(body=self.declaration(wrong), changed_files=3)
+        self.assertEqual(invoke(replies, "workflow-personal", personal), {"route": "native"})
+        self.assertFalse((self.repo / "workflow-personal").exists())
+        drift = self.repo / "workflow-route-drift/execution/execution.json"
+        ancestry = self.integration_reader(claim)
 
-        def switch_to_native(path):
-            nonlocal calls
-            calls += 1
-            # First selection + six live facts reads finish before fetch/build.
-            if calls > 7 and path == pr_path:
-                return copy.deepcopy(native[path])
-            return copy.deepcopy(original[path])
+        def remove_declaration(path):
+            if path not in original:
+                return ancestry(path)
+            value = copy.deepcopy(original[path])
+            if path == pr_path and drift.exists():
+                value["body"] = None
+            return value
 
         with self.assertRaises(FOCUSED.Refusal):
-            invoke(original, "workflow-route-drift", read=switch_to_native)
+            invoke(original, "workflow-route-drift", read=remove_declaration)
+        self.assertTrue(drift.exists())
 
 
 if __name__ == "__main__":
