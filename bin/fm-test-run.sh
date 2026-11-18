@@ -410,7 +410,7 @@ family_for_basename() {
     fm-teardown-endpoint-safety.test.sh)
       printf '%s\n' backend-dispatch
       ;;
-    fm-check-unregister.test.sh|fm-pipeline-spend.test.sh|fm-pr-check-security.test.sh|\
+    fm-check-unregister.test.sh|fm-park.test.sh|fm-pipeline-spend.test.sh|fm-pr-check-security.test.sh|\
     fm-pr-health.test.sh|fm-pr-merge.test.sh|fm-pr-reviewers.test.sh|fm-pr-state.test.sh|\
     fm-review-diff.test.sh|fm-teardown.test.sh|fm-x-mode.test.sh)
       printf '%s\n' pr-forge
@@ -536,6 +536,7 @@ tests/fm-ensure-agents-md.test.sh
 tests/fm-grok-harness.test.sh
 tests/fm-herdr-lab.test.sh
 tests/fm-lint.test.sh
+tests/fm-park.test.sh
 tests/fm-pi-primary-types.test.sh
 tests/fm-pr-merge.test.sh
 tests/fm-review-diff.test.sh
@@ -570,6 +571,7 @@ tests/fm-ensure-agents-md.test.sh 941
 tests/fm-grok-harness.test.sh 9193
 tests/fm-herdr-lab.test.sh 18323
 tests/fm-lint.test.sh 365530
+tests/fm-park.test.sh 70085
 tests/fm-pi-primary-types.test.sh 31176
 tests/fm-pr-merge.test.sh 458953
 tests/fm-review-diff.test.sh 18818
@@ -607,16 +609,17 @@ tests/fm-pr-merge.test.sh
 tests/fm-test-run.test.sh
 tests/fm-backend-t3code.test.sh
 tests/fm-crew-state.test.sh
+tests/fm-backend-herdr.test.sh
 tests/fm-x-mode.test.sh
-tests/fm-t3-mcp.test.sh
 tests/fm-pi-primary-types.test.sh
-tests/fm-cd-pretool-check.test.sh
+tests/fm-composer-lib.test.sh
+tests/fm-review-diff.test.sh
 tests/fm-herdr-lab.test.sh
-tests/fm-grok-harness.test.sh
-tests/fm-send-strict.test.sh
+tests/fm-send-popup-settle.test.sh
+tests/fm-spawn-batch.test.sh
 tests/fm-send-settle.test.sh
-tests/fm-tmux-submit-busy.test.sh
-tests/fm-supervision-instructions.test.sh
+tests/fm-composer-ghost.test.sh
+tests/fm-transition-lib.test.sh
 EOF
 }
 
@@ -625,16 +628,16 @@ list_portable_parallel_2() {
   cat <<'EOF'
 tests/fm-captain-hold-lifecycle.test.sh
 tests/fm-lint.test.sh
-tests/fm-backend-herdr.test.sh
+tests/fm-park.test.sh
 tests/fm-arm-pretool-check.test.sh
-tests/fm-composer-lib.test.sh
-tests/fm-review-diff.test.sh
+tests/fm-t3-mcp.test.sh
+tests/fm-cd-pretool-check.test.sh
 tests/fm-brief.test.sh
-tests/fm-send-popup-settle.test.sh
-tests/fm-spawn-batch.test.sh
-tests/fm-composer-ghost.test.sh
+tests/fm-grok-harness.test.sh
+tests/fm-send-strict.test.sh
+tests/fm-tmux-submit-busy.test.sh
+tests/fm-supervision-instructions.test.sh
 tests/fm-ensure-agents-md.test.sh
-tests/fm-transition-lib.test.sh
 EOF
 }
 
