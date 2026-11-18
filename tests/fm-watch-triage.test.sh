@@ -2243,15 +2243,17 @@ test_terminal_stale_surfaced() {
 # --- model safeguard stop: one decision, never a busy absorb or stale loop ---
 test_safeguard_pause_surfaces_once() {
   local dir state fakebin out capture_file window key pane_hash pid
-  dir=$(make_case safeguard-pause); state="$dir/state"; fakebin="$dir/fakebin"
+  dir=$(make_case "safeguard-pause-${1:-existing}"); state="$dir/state"; fakebin="$dir/fakebin"
   out="$dir/watch.out"; capture_file="$dir/pane.txt"; window="test:fm-refused"
   # Captured from installed Claude Code 2.1.327 in a private tmux session with
   # a loopback API returning stop_reason=refusal, category=cyber to 'say hi'.
   printf '%s\n' "⏺ API Error: Sonnet 4.6's safeguards flagged this message. Our intentionally broad safeguards allow us to deliver more capabilities faster, but can sometimes flag" \
     '  legitimate cybersecurity work. Learn more: https://support.claude.com/en/articles/14604842-real-time-cyber-safeguards-on-claude' > "$capture_file"
   printf 'window=%s\nkind=ship\nharness=claude\n' "$window" > "$state/refused.meta"
-  printf 'working: reviewing\n' > "$state/refused.status"
-  prime_status_seen "$state" "$state/refused.status"
+  if [ "${1:-existing}" != absent ]; then
+    printf 'working: reviewing\n' > "$state/refused.status"
+    prime_status_seen "$state" "$state/refused.status"
+  fi
   key=$(watch_window_key "$window")
   pane_hash=$(hash_text "$(cat "$capture_file")")
   printf '%s' "$pane_hash" > "$state/.hash-$key"
@@ -2290,6 +2292,10 @@ test_safeguard_pause_surfaces_once() {
   [ "$(grep -c '^needs-decision .*key=model-safeguard-refused' "$state/refused.status")" = 1 ] \
     || fail "the safeguard decision was duplicated"
   pass "a model safeguard stop overrides stale busy evidence and surfaces once with a durable decision"
+}
+
+test_safeguard_pause_with_no_status() {
+  test_safeguard_pause_surfaces_once absent
 }
 
 # --- stale pane, STALE terminal status overridden by an active run: absorbed ---
@@ -5557,6 +5563,7 @@ fm_test_run \
   test_permission_recovery_surfaces_preserved_status \
   test_terminal_stale_surfaced \
   test_safeguard_pause_surfaces_once \
+  test_safeguard_pause_with_no_status \
   test_stale_terminal_status_overridden_by_active_run \
   test_nonterminal_stale_provably_working_absorbed_then_escalated \
   test_wedge_escalation_marks_demand_deep_inspection_after_threshold \

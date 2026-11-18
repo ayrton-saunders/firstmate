@@ -4533,6 +4533,10 @@ EOF
         fi
         safeguard_line="needs-decision [at=$(date +%s)] [key=model-safeguard-$task]: model safeguard stopped worker; decision required"
         if ! status_open_decisions "$STATE/$task.status" | cut -f1 | grep -Fxq "model-safeguard-$task"; then
+          # The worker may not have emitted any status yet. Establish an
+          # empty log so the self-announced append can own its initial range
+          # rather than surfacing our own decision again on the next poll.
+          touch "$STATE/$task.status" || exit 1
           safeguard_rc=0
           fm_wake_status_append_self_announced "$STATE" "$STATE/$task.status" "$safeguard_line" || safeguard_rc=$?
           [ "$safeguard_rc" -le 1 ] || exit 1
