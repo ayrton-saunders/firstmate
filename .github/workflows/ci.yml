@@ -167,11 +167,8 @@ jobs:
           set -eu
           npm install -g tasks-axi
           tasks-axi --version
-      - name: Install the Pi package for the Pi extension tests
-        run: |
-          set -eu
-          npm install -g @earendil-works/pi-coding-agent
-          npm ls -g --depth 0 @earendil-works/pi-coding-agent
+      # The Pi typecheck provisions its own pinned SDKs; installed-runtime
+      # probes stay in the serial lanes that provision the public Pi package.
       - name: Run portable parallel shard 1
         run: |
           set -eu
@@ -194,9 +191,8 @@ jobs:
     # Normal tier (see the timeout policy above).
     timeout-minutes: 45
     steps:
+      # Git-dependent cases in this lane create their own repository history.
       - uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
       - name: Install pinned ShellCheck
         run: |
           set -eu

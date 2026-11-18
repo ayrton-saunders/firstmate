@@ -714,9 +714,21 @@ SH
   pass "fm-lint.sh CI keeps source following without the local exclusion list"
 }
 
-test_main_branch_keeps_external_sources() {
-  local tmp fakebin log flag_log out
-  tmp=$(fm_test_tmproot fm-lint-main-follow)
+# Exercise context selection over a small canonical inventory. The partition
+# regression separately checks the source-aware flags for every real root.
+fm_lint_assert_full_context() {  # <branch> <merge-base-ok>
+  local branch=$1 merge_base_ok=$2 tmp repo fakebin log flag_log out expected
+  tmp=$(fm_test_tmproot fm-lint-context)
+  repo="$tmp/repo"
+  mkdir -p "$repo/bin/backends" "$repo/tests" "$repo/.github" \
+    || fail "could not create lint context fixture"
+  cp "$LINT" "$ROOT/bin/fm-timeout-lib.sh" "$ROOT/bin/fm-lint-workflows.sh" "$repo/bin/" \
+    || fail "could not copy lint scripts into context fixture"
+  cp -R "$ROOT/.github/workflows" "$repo/.github/" \
+    || fail "could not copy workflows into lint context fixture"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$repo/bin/backends/noop.sh"
+  printf '#!/usr/bin/env bash\nexit 0\n' > "$repo/tests/noop.test.sh"
+  : > "$tmp/empty-diff"
   fakebin=$(fm_fakebin "$tmp")
   fm_lint_stub_git "$fakebin"
   log="$tmp/shellcheck.log"
@@ -724,27 +736,23 @@ test_main_branch_keeps_external_sources() {
   fm_lint_stub_shellcheck "$fakebin" "$log"
 
   out=$(PATH="$fakebin:$PATH" GITHUB_ACTIONS='' CI='' FM_LINT_JOBS=1 \
-    FM_TEST_GIT_BRANCH=main \
-    FM_TEST_FLAG_LOG="$flag_log" "$LINT" 2>&1) \
-    || fail "main-branch lint failed"$'\n'"$out"
+    FM_TEST_GIT_BRANCH="$branch" FM_TEST_GIT_MERGE_BASE_OK="$merge_base_ok" \
+    FM_TEST_GIT_DIFF_FILE="$tmp/empty-diff" FM_TEST_FLAG_LOG="$flag_log" \
+    "$repo/bin/fm-lint.sh" 2>&1) \
+    || fail "lint failed for branch=$branch merge-base-ok=$merge_base_ok"$'\n'"$out"
+  expected=$(cd "$repo" && find bin tests -type f -name '*.sh' -print | LC_ALL=C sort)
+  [ "$(LC_ALL=C sort "$log")" = "$expected" ] \
+    || fail "did not lint every fixture root for branch=$branch merge-base-ok=$merge_base_ok"
   fm_lint_assert_flag_log "$flag_log" yes none
+}
+
+test_main_branch_keeps_external_sources() {
+  fm_lint_assert_full_context main 1
   pass "fm-lint.sh on main keeps source following without the local exclusion list"
 }
 
 test_merge_base_less_keeps_external_sources() {
-  local tmp fakebin log flag_log out
-  tmp=$(fm_test_tmproot fm-lint-nomergebase-follow)
-  fakebin=$(fm_fakebin "$tmp")
-  fm_lint_stub_git "$fakebin"
-  log="$tmp/shellcheck.log"
-  flag_log="$tmp/flags.log"
-  fm_lint_stub_shellcheck "$fakebin" "$log"
-
-  out=$(PATH="$fakebin:$PATH" GITHUB_ACTIONS='' CI='' FM_LINT_JOBS=1 \
-    FM_TEST_GIT_BRANCH=feature FM_TEST_GIT_MERGE_BASE_OK=0 \
-    FM_TEST_FLAG_LOG="$flag_log" "$LINT" 2>&1) \
-    || fail "merge-base-less lint failed"$'\n'"$out"
-  fm_lint_assert_flag_log "$flag_log" yes none
+  fm_lint_assert_full_context feature 0
   pass "fm-lint.sh without a merge-base keeps source following without the local exclusion list"
 }
 

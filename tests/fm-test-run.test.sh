@@ -1099,6 +1099,8 @@ test_portable_shard_union_and_coverage_guard() {
   serial=$("$RUNNER" --list --lane portable-serial)
   herdr=$("$RUNNER" --list --family real-herdr-gated)
   [ -n "$s1" ] && [ -n "$s2" ] || fail "portable parallel shards must be non-empty"
+  printf '%s\n' "$s1" | grep -Fxq 'tests/fm-pi-primary-types.test.sh' \
+    || fail "Pi typecheck must stay in portable parallel shard 1 with its CI prerequisite check"
   # Shards disjoint.
   overlap=$(comm -12 <(printf '%s\n' "$s1" | LC_ALL=C sort) <(printf '%s\n' "$s2" | LC_ALL=C sort) || true)
   [ -z "$overlap" ] || fail "portable parallel shards overlap: $overlap"
@@ -1153,7 +1155,7 @@ test_portable_parallel_lanes_stay_duration_balanced() {
 }
 
 test_portable_serial_shards_partition_the_serial_lane() {
-  local lanes count serial shard listed union dups shard_lane total cap
+  local lanes count serial shard listed union dups shard_lane total cap shard_size first_shard
   lanes=$("$RUNNER" --list-lanes)
   count=$(printf '%s\n' "$lanes" | grep -c '^portable-serial-[0-9]*of[0-9]*$')
   [ "$count" -ge 2 ] || fail "expected at least two portable serial shard lanes, got $count"
@@ -1161,12 +1163,22 @@ test_portable_serial_shards_partition_the_serial_lane() {
     || fail "shard lane names must carry the shard count ${count}: $lanes"
 
   serial=$("$RUNNER" --list --lane portable-serial | LC_ALL=C sort)
+  total=$(printf '%s\n' "$serial" | wc -l | tr -d ' ')
+  cap=$((total * 6 / 10))
   union=""
+  first_shard=""
   shard=1
   while [ "$shard" -le "$count" ]; do
     shard_lane="portable-serial-${shard}of${count}"
-    listed=$("$RUNNER" --list --lane "$shard_lane")
+    listed=$("$RUNNER" --list --lane "$shard_lane") || fail "$shard_lane could not list tests"
     [ -n "$listed" ] || fail "$shard_lane selected no tests"
+    # No shard should hold nearly all the scripts. An expensive suite can
+    # still occupy its own runner; script counts are not duration weights.
+    shard_size=$(printf '%s\n' "$listed" | wc -l | tr -d ' ')
+    [ "$shard_size" -le "$cap" ] || fail "$shard_lane holds $shard_size of $total scripts"
+    if [ "$shard" -eq 1 ]; then
+      first_shard=$listed
+    fi
     union=$(printf '%s\n%s' "$union" "$listed")
     shard=$((shard + 1))
   done
@@ -1177,25 +1189,27 @@ test_portable_serial_shards_partition_the_serial_lane() {
   [ "$(printf '%s\n' "$union" | LC_ALL=C sort)" = "$serial" ] \
     || fail "portable serial shards must exactly cover the portable serial lane"
 
-  # Every shard carries a real share of the lane, so no degenerate partition
-  # leaves one runner doing nearly all of the work the split exists to spread.
-  total=$(printf '%s\n' "$serial" | wc -l | tr -d ' ')
-  cap=$((total * 6 / 10))
-  shard=1
-  while [ "$shard" -le "$count" ]; do
-    listed=$("$RUNNER" --list --lane "portable-serial-${shard}of${count}" | wc -l | tr -d ' ')
-    # One expensive suite can legitimately occupy a whole runner. Non-empty
-    # coverage is asserted above; script counts are not duration weights.
-    [ "$listed" -le "$cap" ] \
-      || fail "portable-serial-${shard}of${count} holds $listed of $total scripts"
-    shard=$((shard + 1))
-  done
-
-  # Assignment is deterministic across invocations.
-  [ "$("$RUNNER" --list --lane "portable-serial-1of${count}")" = \
-    "$("$RUNNER" --list --lane "portable-serial-1of${count}")" ] \
-    || fail "portable serial shard membership must be deterministic"
+  # Compare shard 1 with a fresh invocation to check deterministic ordering.
+  listed=$("$RUNNER" --list --lane "portable-serial-1of${count}") || fail "could not relist shard 1"
+  [ "$first_shard" = "$listed" ] || fail "portable serial shard membership must be deterministic"
   pass "portable serial shards are a deterministic disjoint cover of the serial lane"
+}
+
+test_portable_serial_packing_rejects_failed_output() {
+  local tmp fakebin real_sort count out
+  tmp=$(fm_test_tmproot fm-test-run-packing-failure)
+  fakebin=$(fm_fakebin "$tmp")
+  real_sort=$(command -v sort)
+  count=$("$RUNNER" --list-lanes | grep -c '^portable-serial-[0-9]*of[0-9]*$')
+  # A failed sorter can emit usable-looking rows before it exits nonzero.
+  printf '#!/usr/bin/env bash\n"%s" "$@"\nexit 42\n' "$real_sort" > "$fakebin/sort"
+  chmod +x "$fakebin/sort"
+  if out=$(PATH="$fakebin:$PATH" "$RUNNER" --list --lane "portable-serial-1of${count}" 2>&1); then
+    fail "serial shard accepted output from a failed packer: $out"
+  fi
+  assert_contains "$out" 'could not pack portable serial shards' 'shard refusal must explain the packing failure'
+  assert_not_contains "$out" 'tests/' 'a failed packer must not publish a shard list'
+  pass 'serial shards reject output from a failed packer'
 }
 
 test_portable_serial_hint_coverage_is_reported_and_bounded() {
@@ -1951,6 +1965,7 @@ test_list_scheduled_non_lane_selections_use_serial_weights
 test_portable_shard_union_and_coverage_guard
 test_portable_parallel_lanes_stay_duration_balanced
 test_portable_serial_shards_partition_the_serial_lane
+test_portable_serial_packing_rejects_failed_output
 test_portable_serial_hint_coverage_is_reported_and_bounded
 test_portable_serial_packing_budget_boundary
 test_portable_serial_shard_lane_refusals

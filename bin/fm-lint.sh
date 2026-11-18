@@ -879,7 +879,9 @@ fm_lint_root_weights() {
     esac
     weight=1
     if [ -f "$path" ]; then
-      weight=$(wc -c < "$path" 2>/dev/null | tr -d '[:space:]')
+      # Replace the substitution shell with wc and trim its padding in Bash.
+      weight=$(exec wc -c < "$path" 2>/dev/null)
+      weight=${weight//[[:space:]]/}
     fi
     case "$weight" in ''|*[!0-9]*) weight=1 ;; esac
     printf '%s\t%s\t%s\n' "$weight" "$index" "$path"
