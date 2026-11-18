@@ -9,6 +9,8 @@
 #   buffered digest flushes to the supervisor pane as exactly ONE submission
 #   stale working-pane: transient (self + marker) -> persistent (escalates once,
 #     clears its marker) -> resumed/busy (clears without escalating)
+#   finished worker -> one idle escalation, no repeat after decision handoff,
+#     then a new blocker still escalates
 #
 # This proves the operator-visible routing/queueing/dedupe behavior through real
 # fm-watch.sh runs plus the daemon's own functions. The captain-relevant
@@ -45,7 +47,7 @@ run_watcher_once() {
   date '+%s' > "$state/.afk"
   PATH="$fakebin:$PATH" FM_STATE_OVERRIDE="$state" FM_POLL=1 FM_SIGNAL_GRACE=1 \
     FM_CHECK_INTERVAL=999999 FM_HEARTBEAT=999999 "$WATCH" > "$out" &
-  wait_for_exit "$!" 50
+  wait_for_exit "$!" 100
 }
 
 ack_handled_wakes() {  # <state> <drain-stderr>
@@ -114,6 +116,7 @@ test_routine_then_terminal_after_restart() {
     FM_FAKE_TMUX_CAPTURE="$dir/pane.txt" FM_ESCALATE_BATCH_SECS=0 escalate_flush "$state" \
     || fail "escalate_flush failed for the buffered digest"
   [ "$(grep -c '\[ENTER\]' "$sent")" -eq 1 ] || fail "buffered digest was not submitted exactly once"
+  assert_not_contains "$(< "$sent")" '--idle-handoff' 'a terminal status escalation does not need idle handoff instructions'
   [ ! -s "$state/.subsuper-escalations" ] || fail "buffer not cleared after a successful flush"
   pass "lifecycle: routine self-handles, terminal survives a watcher restart, buffers once, no dup, injects once"
 }
@@ -167,5 +170,79 @@ test_stale_pane_transient_persistent_resume() {
   pass "lifecycle: stale pane transient self-handles, persistent escalates once and clears, resumed clears quietly"
 }
 
+test_finished_worker_decision_does_not_wake_away_daemon_twice() (
+  local declaration=${1:-working} dir state fakebin win out pane sent buffer test_now delay blocker
+  command -v tasks-axi >/dev/null 2>&1 || { echo 'skip: tasks-axi not found (finished worker decision)'; return 0; }
+  dir=$(make_supercase "wd-finished-$declaration"); state="$dir/state"; fakebin="$dir/fakebin"
+  win=sess:fm-finished; out="$dir/watch.out"; pane="$dir/worker-pane"; sent="$dir/sent.log"
+  buffer="$state/.subsuper-escalations"
+  export FM_HOME="$dir" FM_STATE_OVERRIDE="$state" PATH="$fakebin:$PATH"
+  export FM_FAKE_TMUX_WINDOW="$win" FM_FAKE_TMUX_CAPTURE="$pane" FM_FAKE_TMUX_SENT="$sent"
+  export FM_SUPERVISOR_BACKEND=tmux FM_DAEMON_PRIMARY_HARNESS=grok
+  export FM_ESCALATE_BATCH_SECS=999999 FM_STALE_ESCALATE_SECS=5 FM_MAX_DEFER_SECS=0 FM_PAUSE_RESURFACE_SECS=5
+  mkdir -p "$dir/data"
+  fm_test_tasks_toml "$dir/.tasks.toml" || fail 'could not configure fixture backlog'
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$dir/data/backlog.md"
+  "$ROOT/bin/fm-tasks-axi.sh" add finished 'Prepare the release' >/dev/null || fail 'could not add the release task'
+  "$ROOT/bin/fm-tasks-axi.sh" start finished >/dev/null || fail 'could not start the release task'
+  fm_write_meta "$state/finished.meta" "window=$win" kind=ship harness=grok backend=tmux
+  printf 'working: preparing the release\n' > "$state/finished.status"
+  prime_status_seen "$state" "$state/finished.status" || fail 'could not mark the past progress seen'
+  FM_AFK_MODE=away "$ROOT/bin/fm-afk-contract.sh" enter --words 'Hold decisions for return' >/dev/null \
+    || fail 'could not enter away mode'
+  printf 'Release prepared; waiting for approval to proceed.\n' > "$pane"
+  printf '❯\n' > "$dir/supervisor-pane"
+  test_now=$(date +%s)
+  # shellcheck disable=SC2329 # Invoked indirectly by the sourced daemon functions.
+  _now() { printf '%s\n' "$test_now"; }
+
+  run_watcher_once "$state" "$fakebin" "$out" || fail 'watcher did not report the first idle observation'
+  assert_contains "$(< "$out")" "stale: $win" 'expected the first idle observation'
+  handle_durable_wakes "$(< "$out")" "$state" 2> "$dir/drain.err" \
+    || fail "daemon did not handle the idle wake: $(< "$dir/drain.err")"
+  test_now=$((test_now + 6))
+  housekeeping "$state"
+  assert_contains "$(< "$buffer")" "stale persisted 6s (possible wedge): $win" 'expected the initial escalation'
+  FM_FAKE_TMUX_CAPTURE="$dir/supervisor-pane" escalate_flush "$state" || fail 'initial escalation was not delivered'
+  [ "$(grep -c '\[ENTER\]' "$sent")" -eq 1 ] || fail 'expected exactly one submission before the decision handoff'
+  assert_contains "$(< "$sent")" '--idle-handoff' 'the delivered idle escalation does not tell the supervisor how to record the handoff'
+  assert_contains "$(< "$sent")" 'if inspection confirms' 'the delivered handoff must be conditional on inspection'
+  if [ "$declaration" != working ]; then
+    printf '%s: pipeline awaits release approval\n' "$declaration" >> "$state/finished.status"
+    prime_status_seen "$state" "$state/finished.status" || fail 'could not acknowledge the wait declaration'
+  fi
+  "$ROOT/bin/fm-captain-hold.sh" hold finished --reason 'Approve proceeding with the prepared release?' --open-ended --idle-handoff >/dev/null \
+    || fail 'could not record the pending decision'
+  stale_marker_record "$win" "$state"
+  test_now=$((test_now + 10))
+  housekeeping "$state"
+  [ ! -s "$buffer" ] || fail "a declared wait bypassed the idle handoff: $(< "$buffer")"
+
+  # A harmless display refresh is a distinct hash, not a new development.
+  printf '\nContext remaining: 65%%\n' >> "$pane"
+  run_watcher_once "$state" "$fakebin" "$out" || fail 'watcher did not hand off the display refresh'
+  assert_contains "$(< "$out")" "stale: $win" 'expected the daemon to classify the refreshed idle display'
+  handle_durable_wakes "$(< "$out")" "$state" 2> "$dir/drain.err" \
+    || fail "daemon did not classify the refreshed display: $(< "$dir/drain.err")"
+  for delay in 10 7; do
+    test_now=$((test_now + delay))
+    housekeeping "$state"
+    [ ! -s "$buffer" ] || fail "daemon escalated the same finished worker again: $(< "$buffer")"
+  done
+
+  # The actual task changes without an answer or another pane refresh.
+  blocker='the prepared release artifact expired'
+  printf 'blocked [key=artifact-expired]: %s\n' "$blocker" >> "$state/finished.status"
+  run_watcher_once "$state" "$fakebin" "$out" || fail 'watcher did not report the new blocker'
+  assert_contains "$(< "$out")" "signal: $state/finished.status" 'expected a status wake for the new blocker'
+  handle_durable_wakes "$(< "$out")" "$state" 2> "$dir/drain.err" \
+    || fail "daemon did not handle the blocker: $(< "$dir/drain.err")"
+  assert_contains "$(< "$buffer")" "$blocker" 'the old decision hid the new blocker'
+  "$ROOT/bin/fm-captain-hold.sh" open finished >/dev/null || fail 'the pending decision did not stay open'
+  pass 'lifecycle: the away daemon stays quiet after a finished worker decision but surfaces a new blocker'
+)
+
 test_routine_then_terminal_after_restart
 test_stale_pane_transient_persistent_resume
+test_finished_worker_decision_does_not_wake_away_daemon_twice
+test_finished_worker_decision_does_not_wake_away_daemon_twice paused

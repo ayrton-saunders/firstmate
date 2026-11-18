@@ -22,6 +22,7 @@
 # Usage:
 #   fm-captain-hold.sh hold <task-id> --reason <reason> \
 #     (--until YYYY-MM-DD | --open-ended) [--title <title>] [--repo <repo>] [--origin <origin-id>]
+#     [--idle-handoff]
 #   fm-captain-hold.sh answer <task-id> --decision-file <path> [--release]
 #   fm-captain-hold.sh answers [<legacy-origin> | --any-origin] --source <provenance>   (keyed answers on stdin)
 #   fm-captain-hold.sh reconcile-requests --source-id <source-id> --source <provenance>   (task ids on stdin)
@@ -30,7 +31,7 @@
 #   fm-captain-hold.sh binding <source-id>
 #   fm-captain-hold.sh complete <origin-id> (--none | <task-id>...)
 #   fm-captain-hold.sh verify <origin-id>
-#   fm-captain-hold.sh open <task-id> [--identity] [--distinguish-absent]
+#   fm-captain-hold.sh open <task-id> [--identity | --idle-state] [--distinguish-absent]
 #   fm-captain-hold.sh diverged
 #   fm-captain-hold.sh reconcile list
 #   fm-captain-hold.sh reconcile close <task-id> --evidence-file <path>
@@ -58,6 +59,20 @@
 # card. Use `--open-ended` only when the stated reason warrants a hold without
 # a date. Both modes require non-blank `--reason` text, and the same choice is
 # required when re-holding. `--open-ended` does not add a new backlog field.
+# `--idle-handoff` is for an existing live ship whose finished turn was
+# inspected on a stale wake and is being reported as waiting on this decision.
+# An existing hold is reused only if it is the same undated captain decision
+# (pass its recorded reason verbatim); otherwise the handoff refuses to change it.
+# It writes a private fingerprint to state/<id>.idle-decision-handoff after
+# holding the task, respecting both supervision leases. It changes only repeat
+# idle checks, not wake acknowledgement or delivery of the first decision.
+# A matching receipt requires the same active hold occurrence, reason, date,
+# backlog state and worker records. While it matches, repeat idle checks stay
+# quiet in both postures, including across display-only pane changes.
+# An answer or changed fingerprint restores ordinary monitoring; new status
+# signals still surface. Busy bounds and named blocking dialogs do not use
+# this receipt to silence their checks.
+# Teardown removes the receipt; ordinary holds never create one.
 #
 # `answer` records the captain's exact words and resolves the call in the same
 # act. It requires a non-empty captain decision file of at most 8192 bytes and
@@ -193,6 +208,8 @@
 # successive calls on one task id: re-holding released work starts a new
 # lifecycle without necessarily touching the task's status log, so a consumer
 # that bounds repeated work per call cannot use the task id alone.
+# `--idle-state` prints `handed-off` on a matching idle handoff receipt and
+# `held` on any other open call. It does not change the predicate exit codes.
 # bin/fm-teardown.sh asks it before its automatic
 # backlog close and, on 0, returns the row to Queued with its deliverable
 # recorded instead (bin/fm-backlog-transition-lib.sh owns that transition), so
@@ -249,6 +266,8 @@ DATA="${FM_DATA_OVERRIDE:-$FM_HOME/data}"
 # shellcheck source=bin/fm-wake-lib.sh
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/fm-wake-lib.sh"
+# shellcheck source=bin/fm-lease-lib.sh
+. "$SCRIPT_DIR/fm-lease-lib.sh"
 # shellcheck source=bin/fm-hold-reason-lib.sh
 # shellcheck disable=SC1091
 . "$SCRIPT_DIR/fm-hold-reason-lib.sh"
@@ -287,6 +306,7 @@ captain_hold_cleanup() {
     fm_lock_release "$CAPTAIN_CONTROL_LOCK" || true
     CAPTAIN_CONTROL_LOCK_HELD=0
   fi
+  fm_lease_guard_release || true
   fm_afk_contract_lock_release || true
 }
 trap captain_hold_cleanup EXIT
@@ -1105,9 +1125,42 @@ verify_entry_durable() {  # <origin-or-empty> <entry>; prints "<id> <how> <origi
   printf '%s %s %s\n' "$id" "$how" "$origin_state"
 }
 
+# Bind the receipt to this hold and worker observation, not to terminal prose or
+# the wording of an outcome. Use the status scanner's own notion of change.
+idle_handoff_fingerprint() {  # <task-id> <show-output>
+  local id=$1 show=$2 body stamp status meta turn='-' signature
+  [ "$(show_field_value "$show" hold_kind)" = captain ] \
+    && [ "$(show_field_value "$show" held)" = yes ] \
+    && [ "$(meta_value "$STATE/$id.meta" kind)" = ship ] || return 1
+  body=$(show_field "$show" body)
+  stamp=$(body_hold_set_timestamp "$(decode_shown_value "$body")")
+  [ -n "$stamp" ] || return 1
+  status=$(fm_wake_signal_sig "$STATE/$id.status") || return 1
+  meta=$(fm_wake_signal_sig "$STATE/$id.meta") || return 1
+  if [ -e "$STATE/$id.turn-ended" ]; then
+    turn=$(fm_wake_signal_sig "$STATE/$id.turn-ended") || return 1
+  fi
+  signature=$(printf '%s\n' "$stamp" "$(resolution_record_count "$body")" \
+    "$(show_field "$show" hold_reason)" "$(show_field "$show" hold_until)" \
+    "$(show_field "$show" state)" "$status" "$meta" "$turn")
+  sha256_text "$signature"
+}
+
+write_idle_handoff() {  # <task-id> <show-output>
+  local id=$1 fingerprint tmp
+  fingerprint=$(idle_handoff_fingerprint "$@") || return 1
+  [ -n "$fingerprint" ] || return 1
+  tmp=$(mktemp "$STATE/.$id.idle-decision-handoff.XXXXXX") || return 1
+  if printf '%s\n' "$fingerprint" > "$tmp" && mv -f -- "$tmp" "$STATE/$id.idle-decision-handoff"; then
+    return 0
+  fi
+  rm -f -- "$tmp"
+  return 1
+}
+
 command_hold() {
   local id=${1:-} title='' reason='' repo='' origin='' until='' show state existing_title body='' hold_kind hold_set occurrence
-  local existing_hold_kind='' existing_held='' preserve_hold_set=0 stored_reason original_body='' hold_status=0 open_ended=0
+  local existing_hold_kind='' existing_held='' preserve_hold_set=0 stored_reason original_body='' hold_status=0 open_ended=0 idle_handoff=0
   [ "$#" -ge 1 ] || { usage >&2; exit 2; }
   shift
   while [ "$#" -gt 0 ]; do
@@ -1122,6 +1175,7 @@ command_hold() {
         [ -n "$until" ] || fail "--until requires a YYYY-MM-DD date; omit it and use --open-ended for an intentionally undated hold"
         ;;
       --open-ended) open_ended=1 ;;
+      --idle-handoff) idle_handoff=1 ;;
       *) usage >&2; exit 2 ;;
     esac
     shift
@@ -1150,7 +1204,15 @@ command_hold() {
     [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]T[0-9][0-9]:[0-9][0-9]:[0-9][0-9]Z) : ;;
     *) fail "FM_CAPTAIN_HOLD_NOW must be a UTC YYYY-MM-DDTHH:MM:SSZ timestamp" ;;
   esac
+  if [ "$idle_handoff" -eq 1 ]; then
+    [ -z "$until" ] || fail "--idle-handoff is not a dated deferral"
+    fm_lease_guard "$id" 'record idle decision handoff' || exit $?
+    fm_lease_guard backlog 'record idle decision handoff' || exit $?
+  fi
   acquire_task_control_lock "$id"
+  if [ "$idle_handoff" -eq 1 ]; then
+    [ "$(meta_value "$STATE/$id.meta" kind)" = ship ] || fail "--idle-handoff requires a live ship task"
+  fi
   require_tasks_axi
   if task_show "$id"; then
     show=$TASK_SHOW_OUTPUT
@@ -1159,6 +1221,12 @@ command_hold() {
       || fail "task $id is already closed; a new captain call needs its own task"
     existing_hold_kind=$(show_field_value "$show" hold_kind)
     existing_held=$(show_field_value "$show" held)
+    if [ "$idle_handoff" -eq 1 ] && { [ -n "$existing_hold_kind" ] || [ "$existing_held" = yes ]; }; then
+      [ "$existing_hold_kind" = captain ] && [ "$existing_held" = yes ] \
+        && [ -z "$(show_field_value "$show" hold_until)" ] \
+        && [ "$(show_field_value "$show" hold_reason)" = "$stored_reason" ] \
+        || fail "--idle-handoff cannot replace the existing hold on $id"
+    fi
     if [ "$existing_hold_kind" = captain ] && [ "$existing_held" = yes ]; then
       preserve_hold_set=1
     fi
@@ -1167,6 +1235,7 @@ command_hold() {
       [ "$existing_title" = "$title" ] || fail "existing task $id has a different title"
     fi
   else
+    [ "$idle_handoff" -eq 0 ] || fail "--idle-handoff requires an existing backlog task"
     [ -n "$title" ] || fail "--title is required to create task $id"
     validate_one_line title "$title"
     if [ -z "$repo" ] && [ -n "$origin" ] && [ -f "$STATE/$origin.meta" ]; then
@@ -1225,6 +1294,9 @@ command_hold() {
   publish_parent_hold "$id" "$occurrence" needs-decision "$reason" "$until"
   if [ -n "$origin" ]; then
     write_hold_origin "$id" "$(show_field "$show" body)" "$origin" || exit $?
+  fi
+  if [ "$idle_handoff" -eq 1 ]; then
+    write_idle_handoff "$id" "$show" || fail "task $id is held but its idle handoff could not be recorded"
   fi
   printf '%s\n' "$id"
 }
@@ -2226,11 +2298,12 @@ EOF
 # exist holds nothing. Every read failure over a record that DOES exist is a 2,
 # printed to stderr, because a mechanical closer must never read "cannot tell"
 # as permission to close.
-command_open() {  # <task-id> [--identity] [--distinguish-absent]
-  local id='' identity=0 distinguish_absent=0 data state root file backend show shown_body
+command_open() {  # <task-id> [--identity | --idle-state] [--distinguish-absent]
+  local id='' identity=0 idle_state=0 distinguish_absent=0 data state root file backend show shown_body receipt fingerprint
   while [ "$#" -gt 0 ]; do
     case "$1" in
       --identity) identity=1 ;;
+      --idle-state) idle_state=1 ;;
       --distinguish-absent) distinguish_absent=1 ;;
       -*) usage >&2; exit 2 ;;
       *)
@@ -2246,6 +2319,7 @@ command_open() {  # <task-id> [--identity] [--distinguish-absent]
       exit 2
       ;;
   esac
+  [ "$identity$idle_state" != 11 ] || { usage >&2; exit 2; }
   data=$(fm_backlog_data_absolute "$DATA") \
     || { printf 'fm-captain-hold: data directory cannot be resolved: %s\n' "$DATA" >&2; exit 2; }
   root=$(fm_backlog_root "$data") \
@@ -2279,6 +2353,16 @@ command_open() {  # <task-id> [--identity] [--distinguish-absent]
         printf '%s#%s\n' \
           "$(body_hold_set_timestamp "$(decode_shown_value "$shown_body")")" \
           "$(resolution_record_count "$shown_body")"
+      elif [ "$idle_state" -eq 1 ]; then
+        if [ -f "$STATE/$id.idle-decision-handoff" ] \
+          && IFS= read -r receipt < "$STATE/$id.idle-decision-handoff" \
+          && [ -n "$receipt" ] && task_show "$id" \
+          && fingerprint=$(idle_handoff_fingerprint "$id" "$TASK_SHOW_OUTPUT") \
+          && [ "$fingerprint" = "$receipt" ]; then
+          printf 'handed-off\n'
+        else
+          printf 'held\n'
+        fi
       fi
       return 0
     fi

@@ -153,6 +153,18 @@ test_branch_prompt_routes_completed_scouts_through_guarded_cleanup() {
   pass "emitted branch prompt routes completed scouts through existing policies and leased cleanup, preserving unfinished work"
 }
 
+test_branch_prompt_records_finished_ship_decision_before_reporting() {
+  local prompt home
+  home="$TMP_ROOT/prompt-decision-home"
+  prompt=$(FM_HOME="$home" bash "$ROOT/bin/fm-branch-prompt.sh") || fail "branch prompt generator failed"
+
+  case "$prompt" in
+    *"finished its turn and cannot proceed without a specific captain decision"*"\`bin/fm-captain-hold.sh hold <task> --reason \"<decision>\" --open-ended --idle-handoff\`"*"before reporting the escalation"*) ;;
+    *) fail "branch prompt lets a finished ship's decision be reported without a durable handoff" ;;
+  esac
+  pass "emitted branch prompt requires a same-task captain hold before reporting a finished ship's decision"
+}
+
 # --- append-only outcome store ------------------------------------------------
 
 test_outcome_store_is_append_only_with_cursor_reads() {
@@ -1658,6 +1670,7 @@ WRAPPER
 test_branch_prompt_is_byte_stable_and_above_cache_floor
 test_branch_prompt_home_include_is_appended_last
 test_branch_prompt_routes_completed_scouts_through_guarded_cleanup
+test_branch_prompt_records_finished_ship_decision_before_reporting
 test_outcome_store_is_append_only_with_cursor_reads
 test_outcome_append_keeps_a_bounded_display_tail
 test_outcome_tail_keeps_whole_newest_rows_within_its_byte_budget

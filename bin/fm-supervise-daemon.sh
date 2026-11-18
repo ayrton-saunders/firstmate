@@ -815,6 +815,19 @@ stale_window_is_busy() {  # <window> <state>
   esac
 }
 
+idle_handoff_silences_window() {  # <window> <state>
+  local win=$1 state=$2 task dialog tail40
+  task=$(window_to_task "$win" "$state")
+  [ -n "$task" ] && [ -f "$state/$task.idle-decision-handoff" ] || return 1
+  dialog=$(cat "$state/.subsuper-dialog-$(_stale_key "$task")" 2>/dev/null || true)
+  [ -z "$dialog" ] || return 1
+  [ "$(FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$state" "$FM_DAEMON_DIR/fm-captain-hold.sh" open "$task" --idle-state 2>/dev/null)" = handed-off ] || return 1
+  tail40=$(fm_backend_capture "$(task_window_backend "$win" "$state")" "$win" 40 "fm-$task" 2>/dev/null) || return 1
+  if fm_composer_blocking_dialog "$tail40" >/dev/null; then return 1; fi
+  stale_window_is_busy "$win" "$state"
+  [ "$?" -eq 1 ]
+}
+
 escalate_add() {  # <state> <distilled-item>
   local state=$1 item=$2 buf line
   if line=$(unknown_wake_line "$item"); then
@@ -1347,7 +1360,8 @@ _oldest_line_age() {  # <buf> -> seconds since the oldest buffered item first ar
 #     attempt one normal delivery; if it cannot confirm, raise the wedge alarm.
 #     Never silently defer forever.
 #  2) stale recheck: for each pending stale marker past STALE_ESCALATE_SECS,
-#     re-peek the pane; still idle -> escalate (wedge); resumed -> clear marker;
+#     re-peek the pane; still idle -> escalate (wedge) unless its unchanged
+#     finished-worker decision was handed off; resumed -> clear marker;
 #     T3 unknown -> escalate while retaining the pending recheck.
 #  2b) pause re-surface: for each declared-wait marker past PAUSE_RESURFACE_SECS,
 #     re-peek; gone -> clear; still declaring the wait, on an idle OR a busy pane
@@ -1461,6 +1475,10 @@ housekeeping() {  # <state>
       stale_marker_remove_key "$key" "$state"; continue
     fi
     task=$(window_to_task "$win" "$state")
+    if idle_handoff_silences_window "$win" "$state"; then
+      printf '%s\n' "$now" > "$marker"
+      continue
+    fi
     last=$(status_declared_wait_line "$state/$task.status")
     if [ -n "$last" ] && status_is_paused_or_captain_held "$last"; then
       reconcile_pause_tracking "$win" "$state" "$last"
@@ -1485,6 +1503,7 @@ housekeeping() {  # <state>
           persisted="stale persisted ${age}s (possible wedge, blocked-on-prompt: $dialog_name): $win"
         else
           persisted="stale persisted ${age}s (possible wedge): $win"
+          persisted+='; if inspection confirms a finished ship awaiting a still-open captain decision, record it on the existing task before reporting (see --idle-handoff in bin/fm-captain-hold.sh --help); do not replace a different hold'
         fi
         if escalate_add "$state" "$persisted"; then
           stale_marker_remove_key "$key" "$state"
@@ -1517,6 +1536,7 @@ housekeeping() {  # <state>
       rm -f "$marker"; continue
     fi
     task=$(window_to_task "$win" "$state")
+    idle_handoff_silences_window "$win" "$state" && continue
     if fm_pause_ceiling_enabled; then
       if [ "$(uname)" = Darwin ]; then
         pause_identity=$(/usr/bin/stat -f '%d %i' "$state/$task.status" 2>/dev/null) || continue
