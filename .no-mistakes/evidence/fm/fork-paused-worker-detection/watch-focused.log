@@ -1,0 +1,4 @@
+1..2
+ok - a model safeguard stop overrides stale busy evidence and surfaces once with a durable decision
+ok - a model safeguard stop overrides stale busy evidence and surfaces once with a durable decision
+FM_TEST_COMPLETE

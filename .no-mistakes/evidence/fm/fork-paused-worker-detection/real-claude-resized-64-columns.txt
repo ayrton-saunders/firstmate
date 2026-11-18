@@ -1,0 +1,40 @@
+
+ ▐▛███▛█   Claude Code v2.1.327
+▝▜██████▀  Sonnet 4.6 · API Usage Billing
+ ▝▝   ▝▝   /…/5611073f0314/01M7NZH34JWP0S3V7B0RG0W11E/.t
+
+▎ Auto mode is now Claude Code's default permission mode.
+▎ Auto mode lets Claude handle permission prompts automatically.
+▎ Claude checks each tool call for risky actions and prompt
+▎ injection before executing, runs the ones it assesses as
+▎ lower-risk, and blocks the rest.
+▎ https://code.claude.com/docs/en/permission-modes
+
+❯ say hi
+
+⏺ Streaming response ended before any complete data was
+  received. Retrying without streaming. If this keeps
+  happening, check any proxy or gateway between Claude
+  Code and your model provider.
+
+⏺ Sonnet 4.6's safeguards stopped the response above ·
+  continuing once with that noted
+
+⏺ API Error: Sonnet 4.6's safeguards flagged this
+  message. Our intentionally broad safeguards allow us
+  to deliver more capabilities faster, but can sometimes
+  flag legitimate cybersecurity work. Learn more:
+  https://support.claude.com/en/articles/14604842-real-t
+  ime-cyber-safeguards-on-claude
+
+  Details: `[cyber]`
+
+  Message ID: msg_refusal_fixture
+
+
+
+  tmux focus-events off · add 'set -g focus-events on' to ~/.…
+────────────────────────────────────────────────────────────────
+❯ 
+────────────────────────────────────────────────────────────────
+  ⏵⏵ auto mode on (shift+tab to cycle)

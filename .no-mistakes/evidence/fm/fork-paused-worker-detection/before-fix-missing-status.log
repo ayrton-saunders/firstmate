@@ -1,0 +1,8 @@
+Traceback (most recent call last):
+  File "~/.no-mistakes/evidence/01M7NZH34JWP0S3V7B0RG0W11E/drive-live.py", line 90, in <module>
+    launch_watch('first-stop'); await_stop('first-stop'); acknowledge(); quiet_cycle('same-stop')
+                                                                         ~~~~~~~~~~~^^^^^^^^^^^^^
+  File "~/.no-mistakes/evidence/01M7NZH34JWP0S3V7B0RG0W11E/drive-live.py", line 53, in quiet_cycle
+    assert watch.poll() is None, (label, (ev/(label+'.log')).read_text())
+           ^^^^^^^^^^^^^^^^^^^^
+AssertionError: ('same-stop', 'signal: {run-worktree}/.t/home/state/refused.status\n')

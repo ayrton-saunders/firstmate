@@ -1,0 +1,9 @@
+real Claude narrow refusal with retained busy: state: parked · source: pane · model safeguard stopped worker; decision required
+first-stop: stale: lab:fm-refused (model safeguard stopped worker; decision required)
+same-stop: watcher completed multiple real polls without another notification
+same-stop-after-resize: watcher completed multiple real polls without another notification
+new-generation: stale: lab:fm-refused (model safeguard stopped worker; decision required)
+synthetic terminal: real refusal after unmatched closing fence: state: parked · source: pane · model safeguard stopped worker; decision required
+synthetic terminal: quoted refusal is not a stop: state: working · source: pane · harness busy (fm-spawn)
+synthetic terminal: newer assistant turn cancels old stop: state: working · source: pane · harness busy (fm-spawn)
+synthetic terminal: automatic retry is not a terminal stop: state: working · source: pane · harness busy (fm-spawn)

@@ -1,0 +1,8 @@
+1794961134	2	stale	lab:fm-refused	stale: lab:fm-refused (model safeguard stopped worker; decision required)
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+refused [key=model-safeguard-refused] needs-decision: model safeguard stopped worker; decision required
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+OPEN DECISIONS: <key> is the [key=...] printed before the verb; a token inside a note is prose, not a key.
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 2 --recovery-generation 45053.1794961134.0BapFh
+WARNING: watcher still down (same stale episode; last beat: 2s ago, grace 300s) - full banner already printed this episode.
+WARNING: queued wakes pending - drain them with bin/fm-wake-drain.sh before anything else.
