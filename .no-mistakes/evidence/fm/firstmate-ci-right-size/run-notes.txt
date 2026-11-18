@@ -1,0 +1,13 @@
+Local validation scope and outcomes
+
+Direct product CLI verification passed: all eleven serial assignments matched executable base-commit output exactly; parallel lanes retained all 26 scripts exactly once with Pi typecheck in lane 1. Coverage CLI exited 0 and reported unchanged 1200000 ms serial budget. Failed-sorter output and invalid shard totals were rejected. Inventory-only lint CLI partitions covered the canonical inventory deterministically and exactly once for both two and four partitions.
+
+Seven existing focused runner contracts were executed by a disposable copy containing their original function bodies and only their selected invocations. All exited successfully, including exact-budget acceptance and one-millisecond-over rejection. No permanent tests changed.
+
+The initial `bin/fm-test-run.sh tests/fm-test-run.test.sh` invocation exceeded the 650-second command limit after emitting successful focused packing/budget checks, while proceeding into unrelated scheduler coverage. Its overall completion was not established; the full contract is NOT reported as passing. The relevant seven contracts were subsequently rerun independently to completion.
+
+Driver setup retries: the initial coverage-failure assertion incorrectly required a particular diagnostic, though injected sort failure correctly exited 42 before packing. The oracle was corrected to require nonzero exit with no success marker. The inventory driver initially supplied unsupported --full, which was interpreted as an explicit file and caused ShellCheck to run briefly on nonexistent flag-named files (exit 2). Corrected to CI=true with --list-files; subsequent inventory-only invocations exit before linter resolution. No lint result is claimed, and no further lint/static analysis was run.
+
+Hosted prerequisite removal, depth-one execution of the complete parallel lane, and wall-time improvements were not validated here. Hosted CI belongs to the outer executor; this phase prohibits lint/typechecking and full-suite execution. No hosted timing was remeasured, no primary/backend lifecycle was driven, and no credentials or operator state were touched.
+
+All disposable workspace files were removed. No owned processes remained in the process listing before cleanup. Final git status was clean. Reviewer-visible evidence is CLI output; there is no UI-facing change requiring a screenshot.

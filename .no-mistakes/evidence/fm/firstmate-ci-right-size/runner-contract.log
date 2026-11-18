@@ -1,4 +1,4 @@
-FM_TEST_BEGIN 2026-11-18T10:31:14Z tests/fm-test-run.test.sh family=pure-contract-unit expected_gate_skip=none
+FM_TEST_BEGIN 2026-11-18T18:35:52Z tests/fm-test-run.test.sh family=pure-contract-unit expected_gate_skip=none
 ok - exact suite coverage: --all lists every tests/*.test.sh once
 ok - family selection returns a proper subset of the suite
 ok - single-script selection lists exactly that path
@@ -38,14 +38,3 @@ ok - --jobs admits and schedules a family with a recorded concurrent proof
 ok - an unclassified new test stays serial while the proven residual family runs concurrently
 ok - a changed shared test fixture selects its readers while an unread tests/ path still refuses
 ok - a changed T3 fake or adapter selects the suites that read it beyond backend-dispatch
-ok - a concurrent run starts the longest-hint script first
-ok - --per-script-timeout-secs turns a hung script into a bounded failure
-ok - the automatic --changed bound gives the slow watcher suite at least 1500s
-ok - --max-wall-ms fails an over-budget run and refuses a malformed budget
-ok - jobs scheduler runs proven scripts; failure propagates; non-proven refused
-ok - Herdr CI family-run step times out at 20 min under a 75 min job backstop
-ok - aggregate-json merges lane timing artifacts
-FM_TEST_END 2026-11-18T10:39:51Z tests/fm-test-run.test.sh exit=0 duration_ms=517013 gate_skip=false
-FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=517161
-FM_TEST_SUMMARY_FAMILY family=pure-contract-unit count=1 duration_ms=517013 failed=0
-FM_TEST_SLOWEST rank=1 script=tests/fm-test-run.test.sh duration_ms=517013
