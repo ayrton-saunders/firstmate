@@ -25,13 +25,14 @@ On `ayrton-saunders/firstmate` PRs targeting `main`, the statement is required i
 - Changes more than two files, including test files.
 - Changes more than sixty non-test lines, counting additions plus deletions; changes entirely under `tests/` or `.claude/mods/firstmate-calm/tests/` do not contribute to that line count.
 
-The [base-checkout verifier](.github/verify-focused-upstream.py) classifies the diff from GitHub's base-repository PR metadata and changed-file data for the event's base and head, not from PR text or rules supplied by the PR.
+The [base-checkout verifier](.github/verify-focused-upstream.py) runs from the event's trusted base checkout and classifies the live diff from GitHub's base-repository PR metadata and changed-file data, not from PR text or rules supplied by the PR.
+The head must still match the event; the live base may have advanced before classification, but the base and file count must remain stable around the changed-file read.
 At or below both size limits and outside shared machinery, the usual required checks suffice without a statement.
 Missing or inconsistent classification data does not grant an exemption.
 
-Canonical integrations are exempt regardless of size or conflicts: the verifier checks GitHub commit ancestry for a canonical fast-forward or a fork merge head whose first parent is the current fork base and whose second parent brings in new canonical default-branch ancestry.
+Canonical integrations are exempt regardless of size or conflicts: the verifier checks GitHub commit ancestry for a canonical fast-forward from the event's fork base or a fork merge head whose first parent is that event base and whose second parent brings in canonical default-branch ancestry not already in that base.
 A later repair commit is not automatically exempt merely because it descends from such a merge.
-A qualifying clean integration with unchanged personal paths can still request fresh focused evidence.
+A qualifying clean integration with unchanged personal paths can still request fresh focused evidence, but this qualification additionally requires the live fork base to match the event base.
 If a canonical integration requests focused evidence, an invalid request fails the check rather than certifying a conflict, repair, or personal-path overlap.
 For a conflicted integration, use the ancestry exemption without requesting clean focused evidence.
 Ancestry establishes what was integrated, not the correctness of the resolved tree.
