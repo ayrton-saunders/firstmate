@@ -76,7 +76,10 @@ Its scheduling regressions also check stored parallel lane order and preserve se
 These checks do not detect a script outgrowing an existing hint or establish measured job headroom.
 Refresh `portable_parallel_weight_hints` with the slowest completed `duration_ms` per script from several green CI runs' `fm-test-timing-portable-parallel-*` artifacts whenever the parallel set gains scripts or a member grows materially.
 
-The remote-secondmate lifecycle hint is 1005249 ms, its completed, passing `FM_TEST_END` sample from Ubuntu run [41289019354](https://github.com/kunchenguid/firstmate/actions/runs/41289019354). Rex lifecycle coverage outgrew the previous 345655 ms hint; serial shard 9 then reached the 30-minute job cap while running later tests. Eleven serial shards accommodate the refreshed weight within the unchanged modeled budget and timeout policy. This is a completed-script measurement from a partial run, not a successful whole-shard timing or a guarantee of future headroom.
+The remote-secondmate lifecycle suite uses five serial hints for provisioning and replies, recovery, backends and retirement, naming, and migration.
+These provisional weights come from local scenario intervals and standalone measurements, not Ubuntu shard durations.
+Replace them only with the slowest completed, unskipped Ubuntu sample for each path, then rerun the packing guard.
+The [remote lifecycle verification command](remote-secondmates.md#verification) names all five scripts explicitly.
 
 ## Portable serial remainder
 
@@ -152,7 +155,7 @@ No fast mode, path skips, or paid runner provisioning is part of this layout.
 
 The longer-term performance objective remains a complete green run under fifteen minutes including start delay, but the three watch-triage members still sum to about 26 minutes of CI test time.
 The immediate packing target is the runner's modeled script budget, not a claim that more shards alone can make an indivisible script faster.
-The layout uses eighteen long-lived Linux jobs (eleven serial, two parallel, Herdr, four lint), plus herdr-core, short checks, two required lint verdicts and macOS; insufficient shared account capacity can erase the packing gain.
+The layout uses twelve serial jobs, two parallel jobs, Herdr, four lint jobs, and the remaining core and verdict checks; insufficient shared account capacity can erase the packing gain.
 Compare complete before/after runs, preserve cancelled and partial-run evidence, and measure a representative normal-run sample before claiming a P95 improvement.
 The workflow retains per-PR supersession and keeps only the newest of close main pushes' runs, without changing the compliance workflow's event semantics.
 

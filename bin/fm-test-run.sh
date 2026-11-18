@@ -200,7 +200,7 @@ CHANGED_DEFAULT_TIMEOUT_SECS=1500
 
 # How many separate-runner shards the portable serial remainder splits into.
 # One owner: CI lane names carry this count and are refused when they disagree.
-PORTABLE_SERIAL_SHARDS=11
+PORTABLE_SERIAL_SHARDS=12
 
 # Conservative balance hint for a portable-serial script with no measurement.
 # Rounded above the current CI mean, including the capability-skipped scripts.
@@ -342,6 +342,8 @@ family_for_basename() {
     fm-remote-doctor.test.sh|fm-remote-herdr-guard.test.sh|fm-remote-job.test.sh|fm-remote-job-orphan-reap.test.sh|fm-remote-job-process-start.test.sh|\
     fm-remote-job-per-root.test.sh|fm-remote-job-launchagent.test.sh|fm-remote-transport-lanes.test.sh|\
     fm-remote-reply.test.sh|fm-remote-secondmate-lifecycle-e2e.test.sh|\
+    fm-remote-secondmate-lifecycle-backends-e2e.test.sh|fm-remote-secondmate-lifecycle-recovery-e2e.test.sh|\
+    fm-remote-secondmate-lifecycle-naming-e2e.test.sh|fm-remote-secondmate-lifecycle-migration-e2e.test.sh|\
     fm-remote-secondmate-trace-context.test.sh|\
     fm-secondmate-harness.test.sh|fm-secondmate-lifecycle-e2e.test.sh|\
     fm-secondmate-liveness.test.sh|fm-secondmate-reconcile.test.sh|\
@@ -896,7 +898,11 @@ tests/fm-remote-job-orphan-reap.test.sh 2985
 tests/fm-remote-job-process-start.test.sh 11871
 tests/fm-remote-job.test.sh 81046
 tests/fm-remote-reply.test.sh 140887
-tests/fm-remote-secondmate-lifecycle-e2e.test.sh 1005249
+tests/fm-remote-secondmate-lifecycle-backends-e2e.test.sh 775127
+tests/fm-remote-secondmate-lifecycle-e2e.test.sh 776428
+tests/fm-remote-secondmate-lifecycle-migration-e2e.test.sh 356054
+tests/fm-remote-secondmate-lifecycle-naming-e2e.test.sh 365210
+tests/fm-remote-secondmate-lifecycle-recovery-e2e.test.sh 190297
 tests/fm-remote-secondmate-parent-binding.test.sh 42294
 tests/fm-remote-secondmate-relaunch.test.sh 879
 tests/fm-remote-secondmate-trace-context.test.sh 74870

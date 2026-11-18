@@ -831,7 +831,12 @@ bin/fm-test-run.sh tests/fm-project-origin.test.sh
 bin/fm-test-run.sh tests/fm-secondmate-sync.test.sh
 bin/fm-test-run.sh tests/fm-remote-reply.test.sh
 bin/fm-test-run.sh tests/fm-remote-backlog-handoff.test.sh
-bin/fm-test-run.sh tests/fm-remote-secondmate-lifecycle-e2e.test.sh
+bash bin/fm-test-run.sh --jobs 4 --per-script-timeout-secs 0 --max-wall-ms 1200000 \
+  tests/fm-remote-secondmate-lifecycle-e2e.test.sh \
+  tests/fm-remote-secondmate-lifecycle-recovery-e2e.test.sh \
+  tests/fm-remote-secondmate-lifecycle-backends-e2e.test.sh \
+  tests/fm-remote-secondmate-lifecycle-naming-e2e.test.sh \
+  tests/fm-remote-secondmate-lifecycle-migration-e2e.test.sh
 bin/fm-test-run.sh tests/fm-remote-secondmate-omp.test.sh
 bin/fm-test-run.sh tests/fm-remote-secondmate-trace-context.test.sh
 ```
