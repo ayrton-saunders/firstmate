@@ -49,10 +49,23 @@ run_apply() {
     "$@" "$BIN/fm-approval-failover.sh" apply task
 }
 
-for harness in codex claude; do
-  home="$TMP_ROOT/$harness"
+test_codex_refuses_failover() {
+  local home="$TMP_ROOT/codex-refused" rc=0
   mkdir -p "$home/state" "$home/config"
-  if [ "$harness" = codex ]; then setting=codex-approval-mode; fallback=approve-for-me; else setting=claude-permission-mode; fallback=auto; fi
+  printf 'harness=codex\napproval_mode=bypass\nbackend=tmux\n' > "$home/state/task.meta"
+  run_apply > "$home/refused.out" 2>&1 || rc=$?
+  [ "$rc" -eq 1 ] || fail "Codex failover must refuse before changing configuration or calling lifecycle control (exit $rc)"
+  assert_grep 'managed approval failover supports only Claude' "$home/refused.out" 'refusal did not name the supported harness'
+  [ -z "$(find "$home/config" -mindepth 1 -print)" ] || fail 'Codex refusal changed configuration'
+  [ ! -e "$home/control.log" ] || fail 'Codex refusal reached lifecycle control'
+  pass 'codex failover refuses without writing configuration or calling lifecycle control'
+}
+test_codex_refuses_failover
+
+test_claude_failover() {
+  local harness=claude home="$TMP_ROOT/claude" setting=claude-permission-mode fallback=auto
+  local lab rc before explicit race actor var
+  mkdir -p "$home/state" "$home/config"
   printf 'harness=%s\napproval_mode=bypass\n' "$harness" > "$home/state/task.meta"
   printf 'branch\t0\t1\n' > "$home/state/.lease-task"
   printf 'blocked: existing task event\n' > "$home/state/task.status"
@@ -178,7 +191,8 @@ for harness in codex claude; do
   [ "$(cat "$home/config/$setting")" = "$fallback" ] || fail 'lifecycle failure lost saved remedy'
   assert_grep 'fallback saved, but worker recovery failed' "$home/failure.out" 'lifecycle failure was not reported'
   pass "$harness keeps the setting while reporting incomplete recovery"
-done
+}
+test_claude_failover
 
 . "$ROOT/bin/fm-config-inherit-lib.sh"
 primary="$TMP_ROOT/primary/config"
@@ -187,23 +201,21 @@ remote_home="$TMP_ROOT/remote"
 mkdir -p "$primary" "$local_config" "$remote_home/config"
 empty_hash=$(printf '' | shasum -a 256 | awk '{print $1}')
 bypass_hash=$(printf 'bypass\n' | shasum -a 256 | awk '{print $1}')
-for setting in codex-approval-mode claude-permission-mode; do
-  if [ "$setting" = codex-approval-mode ]; then fallback=approve-for-me; else fallback=auto; fi
-  printf '%s\n' "$fallback" > "$local_config/$setting"
-  printf '%s\n' "$fallback" > "$remote_home/config/$setting"
-  propagate_inheritable_config "$primary" "$local_config" || fail 'local inheritance failed'
-  [ ! -e "$local_config/$setting" ] || fail 'primary absence did not clear local fallback'
-  FM_HOME="$remote_home" "$ROOT/bin/fm-remote-inherit.sh" absent "config/$setting" 0 "$empty_hash" 1 >/dev/null || fail 'remote absence transfer failed'
-  [ ! -e "$remote_home/config/$setting" ] || fail 'primary absence did not clear remote fallback'
-  printf 'bypass\n' > "$primary/$setting"
-  propagate_inheritable_config "$primary" "$local_config" || fail 'explicit primary inheritance failed'
-  [ "$(cat "$local_config/$setting")" = bypass ] || fail 'explicit primary did not replace local fallback'
-  printf 'bypass\n' | FM_HOME="$remote_home" "$ROOT/bin/fm-remote-inherit.sh" put "config/$setting" 7 "$bypass_hash" 2 >/dev/null || fail 'explicit remote transfer failed'
-  [ "$(cat "$remote_home/config/$setting")" = bypass ] || fail 'explicit primary did not replace remote fallback'
-  rm "$primary/$setting"
-  propagate_inheritable_config "$primary" "$local_config" || fail 'local primary removal failed'
-  FM_HOME="$remote_home" "$ROOT/bin/fm-remote-inherit.sh" absent "config/$setting" 0 "$empty_hash" 3 >/dev/null || fail 'remote primary removal failed'
-  [ ! -e "$local_config/$setting" ] && [ ! -e "$remote_home/config/$setting" ] || fail 'primary removal did not clear inherited modes'
-  pass "$setting follows primary values and absence locally and remotely"
-done
+setting=claude-permission-mode
+printf 'auto\n' > "$local_config/$setting"
+printf 'auto\n' > "$remote_home/config/$setting"
+propagate_inheritable_config "$primary" "$local_config" || fail 'local inheritance failed'
+[ ! -e "$local_config/$setting" ] || fail 'primary absence did not clear local fallback'
+FM_HOME="$remote_home" "$ROOT/bin/fm-remote-inherit.sh" absent "config/$setting" 0 "$empty_hash" 1 >/dev/null || fail 'remote absence transfer failed'
+[ ! -e "$remote_home/config/$setting" ] || fail 'primary absence did not clear remote fallback'
+printf 'bypass\n' > "$primary/$setting"
+propagate_inheritable_config "$primary" "$local_config" || fail 'explicit primary inheritance failed'
+[ "$(cat "$local_config/$setting")" = bypass ] || fail 'explicit primary did not replace local fallback'
+printf 'bypass\n' | FM_HOME="$remote_home" "$ROOT/bin/fm-remote-inherit.sh" put "config/$setting" 7 "$bypass_hash" 2 >/dev/null || fail 'explicit remote transfer failed'
+[ "$(cat "$remote_home/config/$setting")" = bypass ] || fail 'explicit primary did not replace remote fallback'
+rm "$primary/$setting"
+propagate_inheritable_config "$primary" "$local_config" || fail 'local primary removal failed'
+FM_HOME="$remote_home" "$ROOT/bin/fm-remote-inherit.sh" absent "config/$setting" 0 "$empty_hash" 3 >/dev/null || fail 'remote primary removal failed'
+[ ! -e "$local_config/$setting" ] && [ ! -e "$remote_home/config/$setting" ] || fail 'primary removal did not clear inherited modes'
+pass "$setting follows primary values and absence locally and remotely"
 echo '# all fm-approval-failover tests passed'

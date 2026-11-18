@@ -934,7 +934,6 @@ test_codex_crewmate_launch_disables_the_hook_layer() {
   id=profile-codex-hooks-z4c
   rec=$(make_spawn_case profile-codex-hooks codex "$id")
   read_case_record "$rec"
-  printf 'approve-for-me\n' > "$HOME_DIR/config/codex-approval-mode"
 
   out=$(run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR")
   status=$?
@@ -946,10 +945,6 @@ test_codex_crewmate_launch_disables_the_hook_layer() {
   # disabling them, so a launch must never reach for it.
   assert_not_contains "$launch" "--dangerously-bypass-hook-trust" \
     "codex crewmate launch ran the operator's untrusted hooks instead of disabling them"
-  assert_contains "$launch" "--approve-for-me" \
-    "codex crewmate launch did not use automatic approval review"
-  assert_not_contains "$launch" "--dangerously-bypass-approvals-and-sandbox" \
-    "codex crewmate launch retained the managed-settings-fragile complete-bypass posture"
   # Firstmate goes blind without the turn-end signal, which rides this same
   # launch rather than any hook.
   assert_contains "$launch" "notify=" \
@@ -962,7 +957,6 @@ test_codex_secondmate_launch_keeps_the_hook_layer() {
   id=profile-codex-secondmate-hooks-z4d
   rec=$(make_spawn_case profile-codex-secondmate-hooks codex "$id")
   read_case_record "$rec"
-  printf 'approve-for-me\n' > "$HOME_DIR/config/codex-approval-mode"
   sm="$CASE_DIR/secondmate-home"
   make_seeded_secondmate_home "$sm" "$id"
 
@@ -972,50 +966,7 @@ test_codex_secondmate_launch_keeps_the_hook_layer() {
   launch=$(fm_test_launch_unframe "$(cat "$LAUNCH_LOG")")
   assert_not_contains "$launch" "--disable hooks" \
     "codex secondmate launch disabled the project hooks its own primary supervision depends on"
-  assert_contains "$launch" "--approve-for-me" \
-    "codex secondmate launch did not use automatic approval review"
-  assert_not_contains "$launch" "--dangerously-bypass-approvals-and-sandbox" \
-    "codex secondmate launch retained the managed-settings-fragile complete-bypass posture"
-  pass "a codex secondmate keeps its project hooks and uses automatic approval review"
-}
-
-test_codex_approval_mode_contract() {
-  local value kind rec id out launch status
-  for value in absent bypass approve-for-me invalid split; do
-    for kind in ship scout; do
-      id="approval-$value-$kind"
-      rec=$(make_spawn_case "$id" codex "$id")
-      read_case_record "$rec"
-      case "$value" in
-        absent) ;;
-        split) printf 'approve -for-me\n' > "$HOME_DIR/config/codex-approval-mode" ;;
-        *) printf '%s\n' "$value" > "$HOME_DIR/config/codex-approval-mode" ;;
-      esac
-      if [ "$kind" = ship ]; then
-        out=$(run_ship_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR" 2>&1)
-      else
-        out=$(run_spawn "$HOME_DIR" "$WT_DIR" "$FAKEBIN_DIR" "$LAUNCH_LOG" "$id" "$PROJ_DIR" --scout 2>&1)
-      fi
-      status=$?
-      if [ "$value" = invalid ] || [ "$value" = split ]; then
-        expect_code 1 "$status" "invalid Codex approval setting must refuse"
-        assert_contains "$out" 'config/codex-approval-mode' 'refusal must name setting'
-        assert_absent "$HOME_DIR/state/$id.meta" 'invalid setting published metadata'
-        [ ! -s "$LAUNCH_LOG" ] || fail 'invalid setting launched a worker'
-        continue
-      fi
-      expect_code 0 "$status" "$id spawn failed: $out"
-      launch=$(fm_test_launch_unframe "$(cat "$LAUNCH_LOG")")
-      if [ "$value" = approve-for-me ]; then
-        assert_contains "$launch" '--approve-for-me' 'persistent fallback was not used directly'
-        assert_not_contains "$launch" '--dangerously-bypass-approvals-and-sandbox' 'fallback retried bypass'
-      else
-        assert_contains "$launch" '--dangerously-bypass-approvals-and-sandbox' 'Codex bypass default changed'
-        assert_not_contains "$launch" '--approve-for-me' 'unconfigured launch opted into fallback'
-      fi
-    done
-  done
-  pass 'Codex defaults remain bypass; persistent fallback is direct and invalid values refuse'
+  pass "a codex secondmate keeps its project hooks"
 }
 
 test_grok_threads_model_and_reasoning_effort() {
@@ -3069,7 +3020,6 @@ test_codex_threads_model_and_max_effort
 test_codex_omits_max_effort_for_unsupported_model
 test_codex_crewmate_launch_disables_the_hook_layer
 test_codex_secondmate_launch_keeps_the_hook_layer
-test_codex_approval_mode_contract
 test_grok_threads_model_and_reasoning_effort
 test_grok_omits_invalid_max_reasoning_effort
 test_grok_omits_invalid_xhigh_reasoning_effort

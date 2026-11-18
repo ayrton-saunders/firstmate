@@ -1864,21 +1864,6 @@ test_spawn_refuses_launch_settings_t3_cannot_honor() {  # <config-file> <content
   pass "fm-spawn.sh --backend t3code $harness: refuses config/$file=$content it cannot honor before any mutation"
 }
 
-# The default posture is T3's own full-access mode, so an explicit bypass file
-# changes nothing and the codex worker still launches.
-test_spawn_codex_accepts_bypass_approval_mode() {
-  local id out rc mode
-  id=$(t3_uid t3cfgzcodexbypass)
-  t3_case spawn-codex-approval-bypass
-  printf 'bypass\n' > "$CONFIG/codex-approval-mode"
-  t3_worker_setup "$id"
-  out=$(t3_worker_spawn "$id" codex --model gpt-5.6-sol); rc=$?
-  expect_code 0 "$rc" "a t3code codex spawn with config/codex-approval-mode=bypass should launch"$'\n'"$out"
-  mode=$(sed -n 's/^approval_mode=//p' "$CASE_DIR/state/$id.meta")
-  [ "$mode" = bypass ] || fail "the launched codex worker records approval_mode=bypass, got '$mode'"
-  pass "fm-spawn.sh --backend t3code codex: config/codex-approval-mode=bypass still launches"
-}
-
 test_spawn_refuses_raw_launch_command() {
   local id out rc
   id=$(t3_uid t3rawz)
@@ -2800,9 +2785,7 @@ test_secondmate_teardown_archives_thread_before_home_removal_without_project_del
 test_pooled_t3_secondmate_home_returned_only_after_provider_exits
 test_teardown_refuses_when_t3_is_unreachable
 test_spawn_refuses_launch_settings_t3_cannot_honor claude-permission-mode auto "config/claude-permission-mode=auto"
-test_spawn_refuses_launch_settings_t3_cannot_honor codex-approval-mode approve-for-me "config/codex-approval-mode=approve-for-me" codex
 test_spawn_refuses_launch_settings_t3_cannot_honor codex-permission-mode restricted "config/codex-permission-mode=restricted" codex
-test_spawn_codex_accepts_bypass_approval_mode
 test_spawn_refuses_launch_settings_t3_cannot_honor launch-env-allowlist HOME "config/launch-env-allowlist"
 test_spawn_refuses_raw_launch_command
 test_spawn_abort_returns_lease_only_after_archive ok

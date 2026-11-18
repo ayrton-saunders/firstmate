@@ -950,52 +950,44 @@ SH
 }
 
 test_codex_modes_refuse_before_worker_shutdown() {
-  local dir setting kind target file out rc pair approval permission expected
-  for setting in codex-approval-mode codex-permission-mode; do
-    for target in claude codex; do
-      dir=$(new_case "codex-admission-$setting-$target" rl-codex)
-      add_ship_task "$dir" rl-codex claude
-      mkdir -p "$dir/home/config"
-      cp "$dir/home/state/rl-codex.meta" "$dir/prior.meta"
-      file="$dir/home/config/$setting"
-      for kind in invalid directory dangling unreadable; do
-        case "$kind" in
-          invalid) printf 'invalid\n' > "$file" ;;
-          directory) rm "$file"; mkdir "$file" ;;
-          dangling) rmdir "$file"; ln -s "$dir/missing" "$file" ;;
-          unreadable)
-            rm "$file"
-            printf 'bypass\n' > "$file"
-            chmod 000 "$file"
-            if [ -r "$file" ]; then chmod 600 "$file"; continue; fi ;;
-        esac
-        out=$(run_control "$dir" rl-codex relaunch --harness "$target" --note "replace worker"); rc=$?
-        [ "$rc" -ne 0 ] || fail "$setting $kind accepted on $target relaunch"
-        assert_contains "$out" "$setting" "mode admission must identify the setting"
-        [ -z "$(cat "$dir/fake/literal")" ] || fail "mode refusal sent worker input"
-        [ "$(cat "$dir/fake/command")" = claude ] || fail "mode refusal stopped the worker"
-        cmp "$dir/prior.meta" "$dir/home/state/rl-codex.meta" || fail "mode refusal changed the record"
-      done
-      chmod 600 "$file"
-    done
-  done
-  for pair in 'bypass bypass' 'approve-for-me bypass' 'approve-for-me restricted'; do
-    read -r approval permission <<EOF
-$pair
-EOF
-    dir=$(new_case "codex-valid-$approval-$permission" rl-codex)
+  local dir kind target file out rc mode
+  for target in claude codex; do
+    dir=$(new_case "codex-admission-$target" rl-codex)
     add_ship_task "$dir" rl-codex claude
     mkdir -p "$dir/home/config"
-    printf '%s\n' "$approval" > "$dir/home/config/codex-approval-mode"
-    printf '%s\n' "$permission" > "$dir/home/config/codex-permission-mode"
+    cp "$dir/home/state/rl-codex.meta" "$dir/prior.meta"
+    file="$dir/home/config/codex-permission-mode"
+    for kind in invalid directory dangling unreadable; do
+      case "$kind" in
+        invalid) printf 'invalid\n' > "$file" ;;
+        directory) rm "$file"; mkdir "$file" ;;
+        dangling) rmdir "$file"; ln -s "$dir/missing" "$file" ;;
+        unreadable)
+          rm "$file"
+          printf 'bypass\n' > "$file"
+          chmod 000 "$file"
+          if [ -r "$file" ]; then chmod 600 "$file"; continue; fi ;;
+      esac
+      out=$(run_control "$dir" rl-codex relaunch --harness "$target" --note "replace worker"); rc=$?
+      [ "$rc" -ne 0 ] || fail "Codex permission mode $kind accepted on $target relaunch"
+      assert_contains "$out" "config/codex-permission-mode" "mode admission must identify the setting"
+      [ -z "$(cat "$dir/fake/literal")" ] || fail "mode refusal sent worker input"
+      [ "$(cat "$dir/fake/command")" = claude ] || fail "mode refusal stopped the worker"
+      cmp "$dir/prior.meta" "$dir/home/state/rl-codex.meta" || fail "mode refusal changed the record"
+    done
+    chmod 600 "$file"
+  done
+  for mode in bypass restricted; do
+    dir=$(new_case "codex-valid-$mode" rl-codex)
+    add_ship_task "$dir" rl-codex claude
+    mkdir -p "$dir/home/config"
+    printf '%s\n' "$mode" > "$dir/home/config/codex-permission-mode"
     printf codex > "$dir/fake/becomes"
     out=$(run_control "$dir" rl-codex relaunch --harness codex --note "replace worker"); rc=$?
-    expect_code 0 "$rc" "valid Codex modes must relaunch successfully: $out"
-    expected=$approval
-    [ "$permission" != restricted ] || expected=restricted
-    assert_equals "$expected" "$(meta_field "$dir" rl-codex approval_mode)" "replacement records the resolved approval mode"
+    expect_code 0 "$rc" "valid Codex permission modes must relaunch successfully: $out"
+    assert_equals "$mode" "$(meta_field "$dir" rl-codex approval_mode)" "replacement records the resolved permission mode"
   done
-  pass "Codex modes share launch/relaunch admission and preserve valid replacement modes"
+  pass "Codex permission modes share launch/relaunch admission and preserve valid replacement modes"
 }
 
 test_relaunch_off_opencode_removes_tracked_wiring() {

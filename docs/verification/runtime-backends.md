@@ -879,22 +879,12 @@ The live parser accepts both empty output and `{}`, rejects mixed diagnostics/JS
 The real copied supervision guard blocks once with its stderr reason, then allows the continuation's Stop; the fixture asserts both native hook verdicts and the two-request bound.
 These checks refresh the Codex adapter evidence; [the integration owner](../turnend-guard.md#harness-integrations) describes its current behavior.
 
-## Codex automatic approval review
+## Claude managed-policy failover
 
-Verified 2026-10-06 with codex-cli 0.160.1.
-`codex --help` describes `--approve-for-me` as `Route approval requests through automatic review using the workspace-write sandbox`.
-A managed-settings reproduction showed that `--dangerously-bypass-approvals-and-sandbox --disable hooks` could leave user-reviewed approvals active even while the sandbox bypass applied.
-Replacing that flag with `--approve-for-me --disable hooks` selected automatic approval review and the workspace-write sandbox.
-
-A real worker in that posture appended its authorized Firstmate status channel, inspected its steering channel, queried the no-mistakes service, completed `git push --dry-run`, and completed a GitHub read.
-The networked operations initially required automatic review because the workspace-write sandbox begins with network access disabled, then completed after that review.
-This confirms unattended progress through the reviewer, not unrestricted network or external-write access.
-
-`tests/fm-spawn-dispatch-profile.test.sh` pins unchanged bypass defaults and explicit `approve-for-me` launches for ships and scouts, plus hook and secondmate launch wiring.
-`tests/fm-approval-failover.test.sh` exercises the firstmate-invoked command through real filesystem publication and the existing lease owner, substituting lifecycle control to avoid touching real workers.
+`tests/fm-approval-failover.test.sh` exercises [the Claude failover command](../configuration.md#persistent-managed-policy-failover) through real filesystem publication and the existing lease owner, substituting lifecycle control to avoid touching real workers.
 It covers writing once, preserving explicit and concurrent settings, invoking guarded relaunch, retaining the remedy on recovery failure, refusing a `backend=t3code` task before any change, and local/remote inheritance precedence.
-These behavior tests do not verify an actual vendor-refusal recovery or live relaunch; the prior live automatic-review probe verifies the fallback's capabilities, not that complete recovery path.
-There is no automatic detector or harness-output classifier to verify, and a generic login error does not establish a defeated bypass.
+It verifies that attempting Claude failover on a Codex worker neither writes a setting nor reaches lifecycle control.
+These behavior tests do not verify an actual vendor-refusal recovery or live relaunch.
 
 ## Composer classification matrix
 
