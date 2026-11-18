@@ -193,6 +193,7 @@ test_finished_worker_decision_does_not_wake_away_daemon_twice() (
   printf 'Release prepared; waiting for approval to proceed.\n' > "$pane"
   printf '❯\n' > "$dir/supervisor-pane"
   test_now=$(date +%s)
+  # shellcheck disable=SC2329 # Invoked indirectly by the sourced daemon functions.
   _now() { printf '%s\n' "$test_now"; }
 
   run_watcher_once "$state" "$fakebin" "$out" || fail 'watcher did not report the first idle observation'
