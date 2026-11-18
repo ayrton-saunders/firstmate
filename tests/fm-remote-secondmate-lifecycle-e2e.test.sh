@@ -20,6 +20,8 @@ PARENT="$TMP_ROOT/parent"
 REMOTE_ROOT="$TMP_ROOT/remote-root"
 REMOTE_HOME="$TMP_ROOT/remote-home"
 LOCAL_HOME="$TMP_ROOT/local-home"
+REMOTE_ACCOUNT="$TMP_ROOT/remote-account"
+REMOTE_TOOLS="$REMOTE_ACCOUNT/.local/bin"
 FAKEBIN=$(fm_fakebin "$TMP_ROOT/fake")
 SSH_COUNT="$TMP_ROOT/ssh.count"
 DOCTOR_LOG="$TMP_ROOT/doctor.log"
@@ -54,9 +56,73 @@ cleanup() {
     . "$ROOT/bin/fm-remote-job-lib.sh"
     fm_remote_job_stop_worker_tree "$worker_pid" || true
   fi
+  if [ -s "$TMP_ROOT/unexpected-tools" ]; then
+    printf 'Unexpected fixture tool calls:\n' >&2
+    cat "$TMP_ROOT/unexpected-tools" >&2
+    fm_test_remove_tree "$TMP_ROOT"
+    exit 1
+  fi
   fm_test_remove_tree "$TMP_ROOT"
 }
 trap cleanup EXIT
+
+# The entrypoint deliberately clears HOME before resolving the login home.
+# Simulate that lookup in the entrypoint shell only, not in the job payload.
+mkdir -p "$REMOTE_TOOLS" "$TMP_ROOT/local-account" || fail 'could not create fixture login homes'
+cat > "$TMP_ROOT/fake-login.bash" <<'SH'
+unset BASH_ENV
+cd() {
+  if [ -z "${HOME+x}" ] && [ "$#" -eq 1 ] && [ "$1" = ~ ]; then
+    builtin cd -- "${FM_FIXTURE_LOGIN_HOME:?}"
+  else
+    builtin cd "$@"
+  fi
+}
+SH
+cat > "$FAKEBIN/remote-entrypoint" <<SH
+#!/usr/bin/env bash
+export HOME='$REMOTE_ACCOUNT' FM_FIXTURE_LOGIN_HOME='$REMOTE_ACCOUNT'
+BASH_ENV='$TMP_ROOT/fake-login.bash' exec '$BASH' '$REMOTE_ROOT/bin/fm-remote-entrypoint.sh' "\$@"
+SH
+chmod +x "$FAKEBIN/remote-entrypoint" || fail 'could not install the fake login wrapper'
+
+# The worker rebuilds PATH from the login home and clears its environment.
+# Keep Git offline there too, and refuse fallback to any real service tool.
+REAL_GIT=$(command -v git) || fail 'git not found'
+# Claude trust registration executes Node inside the queued command, including
+# when the runner's Node is installed outside the worker's system PATH.
+if node_bin=$(command -v node); then
+  ln -s "$node_bin" "$REMOTE_TOOLS/node" || fail 'could not expose fixture Node'
+fi
+cat > "$REMOTE_TOOLS/git" <<SH
+#!/usr/bin/env bash
+if [ "\${FM_REMOTE_JOB_ACTIVE:-}" = 1 ] && [ "\${HOME:-}" != '$REMOTE_ACCOUNT' ]; then
+  printf '%s\n' 'git: remote job escaped its fixture account' >> '$TMP_ROOT/unexpected-tools'
+  exit 99
+fi
+export GIT_ALLOW_PROTOCOL=file GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+exec '$REAL_GIT' "\$@"
+SH
+cat > "$REMOTE_TOOLS/launchctl" <<SH
+#!/usr/bin/env bash
+# The migration doctor checks for macOS launch-agent labels even with a Linux
+# worker. There are no loaded agents in the fake account.
+case "\${1:-}:\${2:-}" in print:gui/"\$(id -u)") exit 1 ;; esac
+printf '%s\n' launchctl >> '$TMP_ROOT/unexpected-tools'
+exit 99
+SH
+cat > "$REMOTE_TOOLS/refuse-tool" <<SH
+#!/usr/bin/env bash
+printf '%s\n' "\${0##*/}" >> '$TMP_ROOT/unexpected-tools'
+exit 99
+SH
+for tool in ssh scp sftp curl wget gh gh-axi herdr tmux rex treehouse no-mistakes; do
+  ln -s refuse-tool "$REMOTE_TOOLS/$tool" || fail "could not guard $tool"
+done
+chmod +x "$REMOTE_TOOLS/git" "$REMOTE_TOOLS/launchctl" "$REMOTE_TOOLS/refuse-tool" \
+  || fail 'could not install fixture tool guards'
+export HOME="$TMP_ROOT/local-account" PATH="$REMOTE_TOOLS:$PATH" GIT_ALLOW_PROTOCOL=file
+unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME SSH_AUTH_SOCK
 
 # Materialize the current branch as the remote host's tracked code root. The
 # fixture is a real git repository because provisioning and guarded sync exercise
@@ -350,7 +416,7 @@ remote_env() {
   FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" \
   FM_SSH_BIN="$FAKEBIN/fake-ssh" \
   FM_FAKE_SSH_COUNT="$SSH_COUNT" \
-  FM_FAKE_REMOTE_ENTRYPOINT="$REMOTE_ROOT/bin/fm-remote-entrypoint.sh" \
+  FM_FAKE_REMOTE_ENTRYPOINT="$FAKEBIN/remote-entrypoint" \
   FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux \
   FM_REMOTE_JOB_STATE_ROOT="$TMP_ROOT/remote-jobs" \
   FM_FAKE_SSH_MODE="${FM_FAKE_SSH_MODE:-normal}" \
@@ -404,7 +470,7 @@ seed_env() {
   FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" \
   FM_SSH_BIN="$FAKEBIN/fake-ssh" \
   FM_FAKE_SSH_COUNT="$SSH_COUNT" \
-  FM_FAKE_REMOTE_ENTRYPOINT="$REMOTE_ROOT/bin/fm-remote-entrypoint.sh" \
+  FM_FAKE_REMOTE_ENTRYPOINT="$FAKEBIN/remote-entrypoint" \
   FM_REMOTE_JOB_PLATFORM_OVERRIDE=Linux \
   FM_REMOTE_JOB_STATE_ROOT="$TMP_ROOT/remote-jobs" \
   FM_FAKE_SSH_MODE="${FM_FAKE_SSH_MODE:-normal}" \
@@ -806,9 +872,9 @@ if [ "\${1:-}" = clone ]; then
     replacement=\$(awk -v k="\$arg" -F'\t' '\$1 == k { print \$2; exit }' '$FORGE_ORIGIN_MAP' 2>/dev/null)
     if [ -n "\$replacement" ]; then args+=("\$replacement"); else args+=("\$arg"); fi
   done
-  exec '$REAL_GIT' "\${args[@]}"
+  exec '$REMOTE_TOOLS/git' "\${args[@]}"
 fi
-exec '$REAL_GIT' "\$@"
+exec '$REMOTE_TOOLS/git' "\$@"
 SH
 chmod +x "$REMOTE_ROOT/bin/git"
 
