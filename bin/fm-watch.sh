@@ -21,7 +21,12 @@
 #   signal: <file>...      status/turn-end signals, surfaced when a listed status
 #                          span has a captain-relevant event OR a no-verb signal lacks
 #                          positive execution evidence, unless afk is active
-#   stale: <window>        a provably-working stale is ALWAYS absorbed (with a wedge
+#   stale: <window>        a stable verified model refusal instead opens a keyed
+#                          model-safeguard decision and surfaces once per visible
+#                          stop and busy generation, in every posture. The shared
+#                          fm_busy_safeguard_pause matcher owns vendor signatures;
+#                          no retry or relaunch is attempted. Other provably-working
+#                          stale panes are absorbed (with a wedge
 #                          timer) regardless of what the status log says - an active
 #                          run-step or busy pane outranks even a captain-relevant log
 #                          line, since the crew's own log gets no new entry once
@@ -4514,6 +4519,36 @@ EOF
     ewf="$STATE/.wedge-escalations-$key"
     pf="$STATE/.paused-$key"   # flag: this key's stale is using the bounded pause cadence
     prev=$(cat "$hf" 2>/dev/null || true)
+    # A stable vendor refusal is a stopped turn, even if its lifecycle record
+    # still says busy. Keep one durable decision and one notification per
+    # visible stop episode, independent of incidental pane hash changes. Queue
+    # before recording suppression so interruption cannot lose the notification.
+    if fm_busy_safeguard_pause "$(window_harness "$w")" "$tail40"; then
+      safeguard_scope="$task:$(cat "$STATE/$task.busy-gen" 2>/dev/null || true)"
+      if [ "$(cat "$STATE/.safeguard-$key" 2>/dev/null || true)" != "$safeguard_scope" ]; then
+        if [ "$h" != "$prev" ]; then
+          printf '%s' "$h" > "$hf"
+          printf '1\n' > "$cf"
+          continue
+        fi
+        safeguard_line="needs-decision [at=$(date +%s)] [key=model-safeguard-$task]: model safeguard stopped worker; decision required"
+        if ! status_open_decisions "$STATE/$task.status" | cut -f1 | grep -Fxq "model-safeguard-$task"; then
+          # The worker may not have emitted any status yet. Establish an
+          # empty log so the self-announced append can own its initial range
+          # rather than surfacing our own decision again on the next poll.
+          touch "$STATE/$task.status" || exit 1
+          safeguard_rc=0
+          fm_wake_status_append_self_announced "$STATE" "$STATE/$task.status" "$safeguard_line" || safeguard_rc=$?
+          [ "$safeguard_rc" -le 1 ] || exit 1
+        fi
+        safeguard_reason="stale: $w (model safeguard stopped worker; decision required)"
+        fm_wake_append stale "$w" "$safeguard_reason" || exit 1
+        printf '%s\n' "$safeguard_scope" > "$STATE/.safeguard-$key" || exit 1
+        wake "$safeguard_reason"
+      fi
+      continue
+    fi
+    rm -f "$STATE/.safeguard-$key"
     # Busy match: a backend's native semantic state when available (herdr, rex), else
     # the last 6 non-blank lines only (the TUI footer area, where every verified
     # harness renders its busy indicator) so busy-looking strings in displayed

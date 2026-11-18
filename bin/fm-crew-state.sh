@@ -10,6 +10,8 @@
 # current state from a tail of the log: it reads the authoritative source (a
 # no-mistakes run-step attributed under bin/fm-nm-run-lib.sh's contract, else
 # the pane busy-signature) and reconciles the possibly-stale log against it.
+# A current verified model-refusal banner overrides a working verdict, including
+# a retained running run record; terminal delivery outcomes keep precedence.
 # A ship `done:` is current-state done only when bin/fm-dod-lib.sh accepts the
 # named head as reachable outside the worker's disposable copy; otherwise blocked.
 #
@@ -286,6 +288,12 @@ emit() {  # <state> <source> [detail]
 
 emit_run() {  # <state> <detail> [pr]
   local detail=$2
+  # A run may keep its last running record after the owning CLI has refused.
+  # Preserve the run detail, but do not describe that worker as still working.
+  # Terminal delivery results remain authoritative over historical pane text.
+  if [ "$1" = working ] && crew_pane_safeguard_pause; then
+    emit parked pane "model safeguard stopped worker; decision required${SEP}$detail"
+  fi
   case "$1" in
     done|failed) [ -z "${3:-}" ] || detail="$detail${SEP}pr=$3" ;;
   esac
@@ -423,6 +431,14 @@ crew_busy_verdict() {  # <target>
   local tail40
   tail40=$(fm_backend_capture "$TASK_BACKEND" "$1" 40 "$EXPECTED_LABEL" 2>/dev/null) || tail40=''
   fm_busy_classify "$TASK_BACKEND" "$1" "$HARNESS" "$ID" "$STATE" "$tail40"
+}
+
+crew_pane_safeguard_pause() {
+  local tail40
+  case "$HARNESS" in claude|claude-*) ;; *) return 1 ;; esac
+  [ -n "$BACKEND_TARGET" ] || return 1
+  tail40=$(fm_backend_capture "$TASK_BACKEND" "$BACKEND_TARGET" 40 "$EXPECTED_LABEL" 2>/dev/null) || return 1
+  fm_busy_safeguard_pause "$HARNESS" "$tail40"
 }
 
 # --- no-mistakes run lookup (authoritative when a run matches this branch) --
@@ -1582,6 +1598,9 @@ fi
 # unverified semantic state remains unknown.
 if [ "$KIND" != secondmate ]; then
   BUSY_VERDICT=$(crew_busy_verdict "$BACKEND_TARGET")
+  if [ "$BUSY_VERDICT" = 'unknown safeguard-pause' ]; then
+    emit parked pane "model safeguard stopped worker; decision required"
+  fi
   case "${BUSY_VERDICT%% *}" in
     busy) emit working pane "harness busy (${BUSY_VERDICT#* })" ;;
     idle) ;;

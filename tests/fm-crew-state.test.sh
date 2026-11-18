@@ -2714,6 +2714,39 @@ test_external_review_done_reads_ready() {
 }
 
 # (f) no run for this crew + a busy pane -> working via pane
+test_no_run_safeguard_pause() {
+  reset_fakes
+  local d gen out
+  d=$(new_case safeguard-stop)
+  make_repo_on_branch "$d/wt" fm/refused
+  make_fakebin "$d" >/dev/null
+  fm_write_meta "$d/state/refused.meta" "window=fm:fm-refused" "worktree=$d/wt" "kind=ship" "harness=claude"
+  FM_FAKE_AXI_STATUS=''
+  FM_FAKE_RUNS_LIST=''
+  FM_FAKE_BUSY=1
+  FM_FAKE_BUSY_TEXT="API Error: Sonnet 4.6's safeguards flagged this message. Our intentionally broad safeguards allow us to deliver more capabilities faster, but can sometimes flag legitimate cybersecurity work. Learn more: https://support.claude.com/en/articles/14604842-real-time-cyber-safeguards-on-claude"
+  export FM_FAKE_BUSY_TEXT
+  gen=$("$ROOT/bin/fm-busy-event.sh" arm "$d/state" refused)
+  "$ROOT/bin/fm-busy-event.sh" apply "$d/state" refused busy --gen "$gen" \
+    --source claude-hook --event user-prompt-submit
+  printf 'working: reviewing\n' > "$d/state/refused.status"
+  out=$(run_crew_state "$d" refused)
+  assert_contains "$out" 'state: parked' 'a model safeguard stop needs a decision, not a working verdict'
+  assert_contains "$out" 'source: pane' 'the observed safeguard stop is attributed to its pane'
+  assert_contains "$out" 'model safeguard stopped worker; decision required' 'the stopped-turn reason is explicit'
+  # A persisted running validation record must not conceal this positive stop.
+  FM_FAKE_AXI_STATUS="$(run_running fm/refused)"
+  out=$(run_crew_state "$d" refused)
+  assert_contains "$out" 'state: parked' 'a running run record cannot absorb a current model stop'
+  assert_contains "$out" 'validating (running)' 'the underlying run evidence remains visible'
+  FM_FAKE_BUSY_TEXT+=$'\n● Continuing the review now.'
+  out=$(run_crew_state "$d" refused)
+  assert_contains "$out" 'state: working' 'a resumed turn cancels the historical refusal'
+  assert_contains "$out" 'source: run-step' 'a resumed turn restores run precedence'
+  unset FM_FAKE_BUSY_TEXT
+  pass 'crew-state reports a safeguard-stopped worker as parked despite retained busy evidence'
+}
+
 test_no_run_busy_pane() {
   reset_fakes
   local d; d=$(new_case busy)
@@ -6882,6 +6915,7 @@ test_merged_pr_reads_done_under_captured_meta
 test_no_mistakes_prevalidation_done_stays_done
 test_moved_remote_branch_without_named_head_is_blocked
 test_external_review_done_reads_ready
+test_no_run_safeguard_pause
 test_no_run_busy_pane
 test_no_run_overview_zero_branch_falls_through
 test_no_run_launch_prompt_parked_is_not_working

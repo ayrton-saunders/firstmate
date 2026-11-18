@@ -28,6 +28,71 @@ new_state_dir() {  # <name>
 
 # --- writer: arm and apply ---------------------------------------------------
 
+test_safeguard_pause_beats_retained_busy() {
+  local state gen out backend harness banner tail refusal split
+  state=$(new_state_dir safeguard)
+  gen=$("$EV" arm "$state" t1)
+  "$EV" apply "$state" t1 busy --gen "$gen" --source claude-hook --event user-prompt-submit
+  banner="API Error: Sonnet 4.6's safeguards flagged this message. Our intentionally broad safeguards allow us to deliver more capabilities faster, but can sometimes flag legitimate cybersecurity work. Learn more: https://support.claude.com/en/articles/14604842-real-time-cyber-safeguards-on-claude"
+  for backend in tmux herdr rex tern t3code zellij cmux paseo hc orca; do
+    out=$(fm_busy_classify "$backend" w1 claude t1 "$state" "$banner")
+    [ "$out" = 'unknown safeguard-pause' ] || fail "$backend: refusal was reported as $out"
+  done
+  # Keep the two signals apart: neither a vendor URL alone nor a quoted
+  # mention of safeguards may turn an otherwise busy worker into a stop.
+  for tail in \
+    "Sonnet 4.6's safeguards flagged this message. See https://support.claude.com/en/articles/14604842" \
+    "API Error: Sonnet 4.6's safeguards flagged this message." \
+    'API Error: network unreachable; see https://www.anthropic.com/legal/aup' \
+    "Reviewing how safeguards flagged this message; https://www.anthropic.com/legal/aup" \
+    "Sonnet 4.6's safeguards stopped the response above · continuing once with that noted" \
+    "$banner"$'\n● Continuing the review now.' \
+    "$banner"$'\n⏺ Continuing the review now.' \
+    "$banner"$'\nSonnet 4.6\047s safeguards stopped the response above · continuing once with that noted' \
+    "$banner"$'\n❯ Continue the review'; do
+    out=$(fm_busy_classify tmux w1 claude t1 "$state" "$tail")
+    [ "$out" = 'busy claude-hook' ] || fail "ordinary or historical output classified as $out: $tail"
+  done
+  tail=$(printf '\140\140\140\n%s\n\140\140\140\n' "$banner")
+  out=$(fm_busy_classify tmux w1 claude t1 "$state" "$tail")
+  [ "$out" = 'busy claude-hook' ] || fail 'a quoted banner in a code block was treated as a stop'
+  for tail in \
+    "$banner"$'\n```\n    ⏺ '"$banner"$'\n```' \
+    $'```\n    ⏺ '"$banner"$'\n```'; do
+    out=$(fm_busy_classify tmux w1 claude t1 "$state" "$tail")
+    [ "$out" = 'busy claude-hook' ] || fail 'an indented quoted banner was treated as a stop'
+  done
+  for refusal in \
+    "$banner" \
+    "API Error: Claude can't help with this. Start a new session to continue. https://www.anthropic.com/legal/aup/" \
+    "API Error: Claude's safeguards flagged this message. https://support.claude.com/en/articles/15363606" \
+    "API Error: Claude's safeguards flagged this message. https://support.claude.com/en/articles/8106465"; do
+    for ((split=11; split<${#refusal}; split++)); do
+      tail="⏺ ${refusal:0:split}"$'\n    '"${refusal:split}"
+      fm_busy_safeguard_pause claude "$tail" || fail "refusal lost at wrap column $split: $tail"
+    done
+    for tail in \
+      $'truncated tool output\n```\n⏺ '"$refusal" \
+      $'truncated tool output\n```\n● New response\n  ⎿  '"$refusal" \
+      $'truncated tool output\n```\n❯ Retry\n  ⎿  '"$refusal"; do
+      out=$(fm_busy_classify tmux w1 claude t1 "$state" "$tail")
+      [ "$out" = 'unknown safeguard-pause' ] || fail "truncated fence hid refusal: $out"
+    done
+  done
+  # Renderer wrapping, ANSI styling and the actual error tree prefix survive.
+  tail=$(printf '\033[31m  ⎿  %s\033[0m\n' "$banner" | fold -s -w 100)
+  fm_busy_safeguard_pause claude "$tail" || fail 'styled/wrapped refusal was missed'
+  fm_busy_safeguard_pause claude "⏺ $banner" || fail 'the observed interactive Claude error prefix was missed'
+  tail=$(printf '⏺ %s\n%160s● high · /effort\n❯\302\240\n' "$banner" '')
+  fm_busy_safeguard_pause claude "$tail" || fail 'the right-aligned effort footer was mistaken for a newer assistant turn'
+  for harness in codex opencode pi pi-signed grok kimi cursor omp agy muse gemini rovo devin commandcode polytoken cortex kiro hermes; do
+    if fm_busy_safeguard_pause "$harness" "$banner"; then
+      fail "unverified $harness rendering was classified as a Claude refusal"
+    fi
+  done
+  pass 'only current verified Claude refusal banners override retained busy evidence across backends'
+}
+
 test_arm_seeds_busy_spawn() {
   local state gen out
   state=$(new_state_dir arm-seed)
@@ -887,6 +952,7 @@ test_model_stream_lifecycle_is_fenced
 test_progress_is_generation_bound_and_not_semantic_state
 test_turn_ended_notification_is_generation_bound
 
+test_safeguard_pause_beats_retained_busy
 test_arm_seeds_busy_spawn
 test_apply_advances_seq_and_source
 test_conditional_apply_checks_sequence_under_writer_lock
