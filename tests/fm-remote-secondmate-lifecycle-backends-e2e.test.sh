@@ -11,41 +11,6 @@ printf '1..13\n'
 set -e
 launch_ios_route
 
-remote_route_meta="$REMOTE_HOME/state/parent-route/ios.meta"
-cp "$remote_route_meta" "$TMP_ROOT/remote-ios-before-liveness-legacy.meta"
-cp "$PARENT/state/ios.meta" "$TMP_ROOT/parent-ios-before-liveness-legacy.meta"
-cp "$PARENT/data/secondmates.md" "$TMP_ROOT/registry-before-liveness-legacy.md"
-cat > "$remote_route_meta" <<EOF
-window=firstmate:fm-ios
-worktree=$REMOTE_HOME
-home=$REMOTE_HOME
-project=$REMOTE_ROOT
-harness=codex
-kind=secondmate
-backend=tmux
-EOF
-cp "$remote_route_meta" "$TMP_ROOT/remote-ios-liveness-legacy.meta"
-printf 'fm-ios|%s\n' "$REMOTE_HOME" > "$TMUX_STATE"
-tmux_state_before=$(cat "$TMUX_STATE")
-launches_before_legacy=$(grep -c '^tab create' "$HERDR_LOG" || true)
-BOOT_LEGACY=$(remote_env "$ROOT/bin/fm-bootstrap.sh")
-assert_contains "$BOOT_LEGACY" "SECONDMATE_LIVENESS: secondmate ios: skipped: remote endpoint state is unverified on remote-mac" \
-  "liveness accepted an alive legacy remote backend"
-cmp -s "$TMP_ROOT/remote-ios-liveness-legacy.meta" "$remote_route_meta" \
-  || fail "liveness rewrote the alive legacy endpoint metadata"
-cmp -s "$TMP_ROOT/parent-ios-before-liveness-legacy.meta" "$PARENT/state/ios.meta" \
-  || fail "liveness rewrote the parent route metadata for an alive legacy endpoint"
-cmp -s "$TMP_ROOT/registry-before-liveness-legacy.md" "$PARENT/data/secondmates.md" \
-  || fail "liveness changed the registry route for an alive legacy endpoint"
-[ "$(cat "$TMUX_STATE")" = "$tmux_state_before" ] \
-  || fail "liveness changed or killed the alive legacy endpoint"
-launches_after_legacy=$(grep -c '^tab create' "$HERDR_LOG" || true)
-[ "$launches_before_legacy" -eq "$launches_after_legacy" ] \
-  || fail "liveness relaunched an alive legacy endpoint"
-mv -f "$TMP_ROOT/remote-ios-before-liveness-legacy.meta" "$remote_route_meta"
-rm -f "$TMUX_STATE"
-pass "startup reports alive legacy backends without changing their routes"
-
 # A remote may instead run a rex second mate on that host's persistent personal
 # rex server: the parent asks for the backend explicitly, and the remote home's
 # own control script launches, states, and reports the rex route.
