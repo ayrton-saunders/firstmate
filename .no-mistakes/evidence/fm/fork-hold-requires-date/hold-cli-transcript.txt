@@ -1,0 +1,209 @@
+REAL CLI + tasks-axi 0.2.6; synthetic isolated markdown home
+
+=== 1. Invalid holds refuse without changing the backlog ===
+
+$ fm-captain-hold.sh hold new-call --title New\ decision --reason Awaiting\ a\ choice
+fm-captain-hold: refusing hold for new-call: use --until YYYY-MM-DD to set a date, or add --open-ended if the stated reason needs no date
+exit=1
+Backlog byte-for-byte unchanged.
+
+$ fm-captain-hold.sh hold existing --reason Awaiting\ a\ choice
+fm-captain-hold: refusing hold for existing: use --until YYYY-MM-DD to set a date, or add --open-ended if the stated reason needs no date
+exit=1
+Backlog byte-for-byte unchanged.
+
+$ fm-captain-hold.sh hold existing --reason Awaiting\ a\ choice --until ''
+fm-captain-hold: --until requires a YYYY-MM-DD date; omit it and use --open-ended for an intentionally undated hold
+exit=1
+Backlog byte-for-byte unchanged.
+
+$ fm-captain-hold.sh hold existing --reason Awaiting\ a\ choice --until
+fm-captain-hold: --until requires a YYYY-MM-DD date; omit it and use --open-ended for an intentionally undated hold
+exit=1
+Backlog byte-for-byte unchanged.
+
+$ fm-captain-hold.sh hold existing --reason Awaiting\ a\ choice --until tomorrow
+fm-captain-hold: --until must be a YYYY-MM-DD date: tomorrow
+exit=1
+Backlog byte-for-byte unchanged.
+
+$ fm-captain-hold.sh hold existing --reason Awaiting\ a\ choice --until 2099-01-01 --open-ended
+fm-captain-hold: --until and --open-ended cannot be combined; choose one
+exit=1
+Backlog byte-for-byte unchanged.
+
+$ fm-captain-hold.sh hold existing --open-ended
+fm-captain-hold: provide a non-blank --reason explaining why the hold is needed
+exit=1
+Backlog byte-for-byte unchanged.
+
+$ fm-captain-hold.sh hold existing --open-ended --reason $' \t\n'
+fm-captain-hold: provide a non-blank --reason explaining why the hold is needed
+exit=1
+Backlog byte-for-byte unchanged.
+
+=== 2. Explicit modes persist dates and reasons; unsafe re-hold refuses ===
+
+$ fm-captain-hold.sh hold new-call --title New\ decision --open-ended --reason Awaiting\ a\ choice\ with\ no\ known\ deadline
+new-call
+
+$ tasks-axi show new-call --full
+task:
+  id: new-call
+  title: New decision
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: yes
+  hold_reason: "fm-hold-v1:QXdhaXRpbmcgYSBjaG9pY2Ugd2l0aCBubyBrbm93biBkZWFkbGluZQ=="
+  hold_kind: captain
+  hold_until: "-"
+  kind: captain
+  repo: firstmate
+  priority: "-"
+  created: 2026-11-18
+  closed: "-"
+  deps: none
+  links: none
+  body: "Captain hold set: 2026-11-18T11:03:41Z"
+Persisted reason independently base64-decoded: Awaiting a choice with no known deadline
+
+$ fm-captain-hold.sh hold existing --until 2099-01-01 --reason Revisit\ on\ the\ agreed\ date
+existing
+
+$ tasks-axi show existing --full
+task:
+  id: existing
+  title: Existing decision
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: yes
+  hold_reason: "fm-hold-v1:UmV2aXNpdCBvbiB0aGUgYWdyZWVkIGRhdGU="
+  hold_kind: captain
+  hold_until: 2099-01-01
+  kind: task
+  repo: sample
+  priority: "-"
+  created: 2026-11-18
+  closed: "-"
+  deps: none
+  links: none
+  body: "Captain hold set: 2026-11-18T11:03:43Z"
+
+$ fm-captain-hold.sh hold existing --reason Unintentional\ removal\ of\ the\ date
+fm-captain-hold: refusing hold for existing: use --until YYYY-MM-DD to set a date, or add --open-ended if the stated reason needs no date
+exit=1
+Backlog byte-for-byte unchanged.
+
+$ fm-captain-hold.sh hold existing --open-ended --reason External\ approval\ has\ no\ known\ deadline
+existing
+
+$ tasks-axi show existing --full
+task:
+  id: existing
+  title: Existing decision
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: yes
+  hold_reason: "fm-hold-v1:RXh0ZXJuYWwgYXBwcm92YWwgaGFzIG5vIGtub3duIGRlYWRsaW5l"
+  hold_kind: captain
+  hold_until: "-"
+  kind: task
+  repo: sample
+  priority: "-"
+  created: 2026-11-18
+  closed: "-"
+  deps: none
+  links: none
+  body: "Captain hold set: 2026-11-18T11:03:43Z"
+
+=== 3. Legacy wrapper enforces same guard and forwards explicit choice ===
+
+$ fm-decision-hold.sh hold legacy-origin pick --title Legacy --reason Waiting
+fm-captain-hold: refusing hold for legacy-origin-decision-pick: use --until YYYY-MM-DD to set a date, or add --open-ended if the stated reason needs no date
+exit=1
+Backlog byte-for-byte unchanged.
+
+$ fm-decision-hold.sh hold legacy-origin pick --title Legacy --open-ended --reason "Approval has no deadline"
+legacy-origin-decision-pick
+
+$ tasks-axi show legacy-origin-decision-pick --full
+task:
+  id: legacy-origin-decision-pick
+  title: Legacy
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: yes
+  hold_reason: "fm-hold-v1:QXBwcm92YWwgaGFzIG5vIGRlYWRsaW5l"
+  hold_kind: captain
+  hold_until: "-"
+  kind: captain
+  repo: firstmate
+  priority: "-"
+  created: 2026-11-18
+  closed: "-"
+  deps: none
+  links: none
+  body: "Captain hold set: 2026-11-18T11:03:46Z\nCaptain hold origin: legacy-origin\n\nOrigin: legacy-origin"
+
+=== 4. Historical undated row remains discoverable and answerable without migration ===
+
+$ tasks-axi show legacy-call --full
+task:
+  id: legacy-call
+  title: Historical undated decision
+  state: queued
+  blocked: no
+  blocked_by: none
+  held: yes
+  hold_reason: Awaiting a historical choice
+  hold_kind: captain
+  hold_until: "-"
+  kind: task
+  repo: sample
+  priority: "-"
+  created: 2026-11-18
+  closed: "-"
+  deps: none
+  links: none
+  body: ""
+
+$ fm-tasks-axi.sh list --state held --fields held,hold_kind,hold_until
+count: 4
+tasks[4]{id,state,kind,repo,title,held,hold_kind,hold_until}:
+  existing,queued,task,sample,Existing decision,yes,captain,"-"
+  new-call,queued,captain,firstmate,New decision,yes,captain,"-"
+  legacy-origin-decision-pick,queued,captain,firstmate,Legacy,yes,captain,"-"
+  legacy-call,queued,task,sample,Historical undated decision,yes,captain,"-"
+help[1]:
+  - Run `tasks-axi show <id>` for full notes on a task
+
+$ fm-captain-hold.sh open legacy-call
+
+$ fm-captain-hold.sh answer legacy-call --decision-file {run-worktree}/.hold-live.ZZrfz8/answer.txt
+answered: legacy-call
+
+$ tasks-axi show legacy-call --full
+task:
+  id: legacy-call
+  title: Historical undated decision
+  state: done
+  blocked: no
+  blocked_by: none
+  held: no
+  hold_reason: Awaiting a historical choice
+  hold_kind: captain
+  hold_until: "-"
+  kind: task
+  repo: sample
+  priority: "-"
+  created: "-"
+  closed: 2026-11-18
+  deps: none
+  links: none
+  body: "Resolution recorded by fm-captain-hold.\nDecision digest: 55bf70688081d26ff24e42904e1653ca38da87e81cd3f59245121f4cd458a46e\nResolution mode: answered\n\nCaptain decision:\nProceed with the rollout."
+
+All four live scenario groups completed successfully. Disposable home removed on exit.
