@@ -1,0 +1,11 @@
+$ bin/fm-approval-failover.sh apply retired-failover (marked disposable lab, synthetic Codex task record)
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.nm-lab.unTr8L
+error: managed approval failover supports only Claude
+exit=1
+Persisted task metadata is unchanged:
+harness=codex
+approval_mode=bypass
+backend=tmux
+Persisted configuration entries: []
+$ command -v codex
+exit=1 (CLI unavailable on PATH; no host search or substitute CLI used)

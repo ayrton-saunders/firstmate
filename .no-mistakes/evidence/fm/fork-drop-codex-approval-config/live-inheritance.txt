@@ -1,0 +1,12 @@
+$ fm-remote-inherit.sh put config/codex-approval-mode 7 <sha256> 1 (local receiver, synthetic payload)
+error: path is not inherited material: config/codex-approval-mode
+exit=1
+Retired configuration was not created.
+$ fm-remote-inherit.sh absent config/codex-approval-mode 0 <empty-sha256> 2
+error: path is not inherited material: config/codex-approval-mode
+exit=1
+Pre-existing local retired setting was not removed: local-sentinel
+$ fm-remote-inherit.sh put config/claude-permission-mode 7 <sha256> 1 (positive control)
+pushed: config/claude-permission-mode
+exit=0
+Unchanged Claude setting persisted: bypass
