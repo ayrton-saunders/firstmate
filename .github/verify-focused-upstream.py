@@ -244,24 +244,28 @@ def github_json(path):
         raise Refusal("fresh GitHub API read unavailable") from error
 
 
-def fork_pr_snapshot(read_json, number, expected_head, expected_base):
+def fork_pr_snapshot(read_json, number, expected_head):
     require(type(number) is int and number > 0 and
-            all(isinstance(sha, str) and SHA.fullmatch(sha)
-                for sha in (expected_head, expected_base)), "invalid PR event")
+            isinstance(expected_head, str) and SHA.fullmatch(expected_head),
+            "invalid PR event")
     pr = read_json(f"/repos/{FORK}/pulls/{number}")
     require(isinstance(pr, dict) and type(pr.get("number")) is int and
             pr["number"] == number, "wrong live PR request")
     base, head = pr.get("base"), pr.get("head")
     require(isinstance(base, dict) and base.get("ref") == "main" and
-            base.get("sha") == expected_base and isinstance(head, dict) and
-            head.get("sha") == expected_head, "PR base or head no longer matches event")
+            isinstance(base.get("sha"), str) and SHA.fullmatch(base["sha"]) and
+            isinstance(head, dict) and head.get("sha") == expected_head,
+            "invalid PR base or head no longer matches event")
     return pr
 
 
 def is_canonical_integration(number, expected_head, expected_base, read_json=github_json):
     """Prove new canonical ancestry, not the correctness of the resolved tree."""
+    require(isinstance(expected_base, str) and SHA.fullmatch(expected_base),
+            "invalid PR event base")
+
     def publication():
-        pr = fork_pr_snapshot(read_json, number, expected_head, expected_base)
+        pr = fork_pr_snapshot(read_json, number, expected_head)
         base, head = pr["base"].get("repo"), pr["head"].get("repo")
         require(pr.get("state") == "open" and isinstance(base, dict) and
                 base.get("full_name") == FORK, "not an open PR into the fork")
@@ -320,15 +324,15 @@ def is_canonical_integration(number, expected_head, expected_base, read_json=git
     return integration
 
 
-def requires_no_mistakes(number, expected_head, expected_base, read_json=github_json):
+def requires_no_mistakes(number, expected_head, read_json=github_json):
     """Classify the fork's PR diff, independently of claims or authorship."""
-    def changed_file_count():
-        pr = fork_pr_snapshot(read_json, number, expected_head, expected_base)
+    def diff_snapshot():
+        pr = fork_pr_snapshot(read_json, number, expected_head)
         count = pr.get("changed_files")
         require(type(count) is int and count >= 0, "invalid changed-file count")
-        return count
+        return count, pr["base"]["sha"]
 
-    count = changed_file_count()
+    count, base = diff_snapshot()
     if count > 2:
         return True
     # A small diff fits on GitHub's first page. Require agreement with the
@@ -336,7 +340,8 @@ def requires_no_mistakes(number, expected_head, expected_base, read_json=github_
     files = read_json(f"/repos/{FORK}/pulls/{number}/files")
     require(isinstance(files, list) and len(files) == count,
             "incomplete changed-file list")
-    require(changed_file_count() == count, "changed-file count moved during classification")
+    require(diff_snapshot() == (count, base),
+            "PR diff moved during classification")
     seen = set()
     protected = ("bin/", ".agents/", ".github/")
     test_roots = ("tests/", ".claude/mods/firstmate-calm/tests/")
@@ -625,11 +630,11 @@ def workflow_request(repository, number, expected_head, workspace,
     if repository != FORK:
         return {"route": "native"}
     if not is_canonical_integration(number, expected_head, expected_base, read_json):
-        if requires_no_mistakes(number, expected_head, expected_base, read_json):
+        if requires_no_mistakes(number, expected_head, read_json):
             return {"route": "native"}
         return {"route": "below-threshold"}
 
-    pr = fork_pr_snapshot(read_json, number, expected_head, expected_base)
+    pr = fork_pr_snapshot(read_json, number, expected_head)
     claim = focused_claim(repository, pr.get("body"))
     if claim is None:
         return {"route": "canonical-integration"}

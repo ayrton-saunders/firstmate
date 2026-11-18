@@ -38,7 +38,7 @@ class ThresholdTests(unittest.TestCase):
         }, self.PR_PATH + "/files": files}
 
     def classify(self, read_json):
-        return FOCUSED.requires_no_mistakes(23, self.HEAD, self.BASE,
+        return FOCUSED.requires_no_mistakes(23, self.HEAD,
                                             read_json=read_json)
 
     def test_threshold_boundaries(self):
@@ -115,8 +115,11 @@ class ThresholdTests(unittest.TestCase):
                     return copy.deepcopy(replies[path])
 
                 with self.subTest(side=side, during_read=change_during_read):
-                    with self.assertRaises(FOCUSED.Refusal):
-                        self.classify(read)
+                    if side == "base" and not change_during_read:
+                        self.assertFalse(self.classify(read))
+                    else:
+                        with self.assertRaises(FOCUSED.Refusal):
+                            self.classify(read)
 
 
 class CorrespondenceTests(unittest.TestCase):
@@ -344,7 +347,7 @@ class CorrespondenceTests(unittest.TestCase):
         with self.assertRaisesRegex(FOCUSED.Refusal, "conflict resolutions"):
             self.verify(claim, current)
         large = self.integration_reader(claim, changed_files=227, mergeable=None)
-        self.assertTrue(FOCUSED.requires_no_mistakes(23, head, base, read_json=large))
+        self.assertTrue(FOCUSED.requires_no_mistakes(23, head, read_json=large))
         # A resolved conflict can pass without a statement even when
         # mergeability is unknown. The classification also takes priority
         # over the below-threshold route and does not read the files list.
@@ -373,9 +376,8 @@ class CorrespondenceTests(unittest.TestCase):
     def test_integration_exemption_refuses_unbound_or_inconsistent_facts(self):
         claim, _ = self.fixture()
         read = self.integration_reader(claim)
-        for field in ("B", "H"):
-            with self.subTest(stale=field), self.assertRaisesRegex(FOCUSED.Refusal, "matches event"):
-                self.integration({**claim, field: self.common}, read)
+        with self.assertRaisesRegex(FOCUSED.Refusal, "matches event"):
+            self.integration({**claim, "H": self.common}, read)
 
         for side in ("base", "head"):
             reads = 0
@@ -389,8 +391,12 @@ class CorrespondenceTests(unittest.TestCase):
                         reply[side]["sha"] = self.common
                 return reply
 
-            with self.subTest(moved=side), self.assertRaisesRegex(FOCUSED.Refusal, "matches event"):
-                self.integration(claim, moved)
+            with self.subTest(moved=side):
+                if side == "base":
+                    self.assertTrue(self.integration(claim, moved))
+                else:
+                    with self.assertRaisesRegex(FOCUSED.Refusal, "matches event"):
+                        self.integration(claim, moved)
 
         def inconsistent(path):
             reply = read(path)
@@ -890,6 +896,23 @@ class CorrespondenceTests(unittest.TestCase):
                     route = self.invoke_workflow(read, "workflow-threshold", head, base)
                     self.assertEqual(route, expected)
         self.assertFalse((self.repo / "workflow-threshold").exists())
+
+    def test_workflow_classifies_unchanged_heads_after_base_advances(self):
+        claim, _ = self.fixture()
+        self.git("checkout", "-q", "--detach", claim["B"])
+        head = self.commit_file("README.md", "personal change\n")
+        self.git("checkout", "-q", "--detach", claim["B"])
+        advanced = self.commit_file("unrelated", "main advanced\n")
+        for path, expected in (("README.md", "below-threshold"), ("bin/run.sh", "native")):
+            with self.subTest(path=path):
+                read = self.integration_reader(
+                    {**claim, "H": head, "B": advanced},
+                    files=[{"filename": path, "additions": 1, "deletions": 0}])
+                self.assertEqual(self.invoke_workflow(read, "advanced-base", head, claim["B"]),
+                                 expected)
+        read = self.integration_reader({**claim, "B": advanced})
+        self.assertEqual(self.invoke_workflow(read, "advanced-integration", claim["H"], claim["B"]),
+                         "canonical-integration")
 
     def test_workflow_refuses_incomplete_or_stale_classification(self):
         claim, _ = self.fixture()
