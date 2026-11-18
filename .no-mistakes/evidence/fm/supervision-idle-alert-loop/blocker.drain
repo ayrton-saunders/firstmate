@@ -1,0 +1,7 @@
+1794998835	3	signal	finished.status	signal: {run-worktree}/.idle-live-home/state/finished.status
+wake annotation: unread wake-EVENT since last drain, not current state: finished.status: working: preparing release
+wake annotation: latest wake-EVENT observed at drain, not current state: finished.status: blocked [key=expired]: prepared release artifact expired
+OPEN DECISIONS (still open, folded from the durable status logs - not just the latest line):
+finished [key=expired] blocked: prepared release artifact expired
+OPEN DECISIONS: close one by answering it: bin/fm-send.sh <task> --resolve-key <key> '<answer>'
+OPEN DECISIONS: <key> is the [key=...] printed before the verb; a token inside a note is prose, not a key.

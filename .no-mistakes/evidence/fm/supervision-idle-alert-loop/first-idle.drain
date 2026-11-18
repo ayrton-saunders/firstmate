@@ -1,0 +1,3 @@
+1794998793	1	stale	primary:finished	stale: primary:finished
+
+Idle wake: if inspection confirms a finished ship awaiting a still-open captain decision, record it on the existing task before reporting (see --idle-handoff in bin/fm-captain-hold.sh --help); do not replace a different hold.

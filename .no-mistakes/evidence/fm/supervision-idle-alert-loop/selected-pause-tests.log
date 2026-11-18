@@ -1,0 +1,4 @@
+1..2
+ok - away: a held finished worker stays quiet through display churn, surfaces a new blocker, and resumes idle monitoring on release
+ok - attended: a held finished worker stays quiet through display churn, surfaces a new blocker, and resumes idle monitoring on release
+FM_TEST_COMPLETE

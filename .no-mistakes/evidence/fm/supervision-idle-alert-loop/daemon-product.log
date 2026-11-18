@@ -1,0 +1,5 @@
+[2026-11-18T10:48:29+0000] daemon starting (pid 27763); target=primary:finished; target_source=FM_SUPERVISOR_TARGET; backend=tmux; backend_source=FM_SUPERVISOR_BACKEND; afk=on; inject_skip='heartbeat'; stale_escalate=2s; batch=999999s
+[2026-11-18T10:48:35+0000] wake: stale: primary:finished
+[2026-11-18T10:48:37+0000] self-handle: stale: primary:finished -> transient stale (primary:finished): working: preparing release
+[2026-11-18T10:49:10+0000] wake: signal: {run-worktree}/.idle-daemon-home/state/finished.status
+[2026-11-18T10:49:11+0000] escalate: signal: {run-worktree}/.idle-daemon-home/state/finished.status -> finished.status: blocked [key=expired]: prepared release artifact expired

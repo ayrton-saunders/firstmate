@@ -1,0 +1,12 @@
+{run-worktree}/.idle-daemon-home
+SCENARIO task and backlog lease contention cannot record handoff
+error: record idle decision handoff refused - task 'finished' is leased to the main supervision actor (state/.lease-finished), which is handling that task right now; leave the lease alone (never remove or clear it) and retry after that actor releases it, which it does when its handling ends
+resource=finished refusal=6
+error: record idle decision handoff refused - task 'backlog' is leased to the main supervision actor (state/.lease-backlog), which is handling that task right now; leave the lease alone (never remove or clear it) and retry after that actor releases it, which it does when its handling ends
+resource=backlog refusal=6
+SCENARIO actual away daemon escalates initial idle once, suppresses repeat after handoff, then reports new blocker
+stale persisted 2s (possible wedge): primary:finished; if inspection confirms a finished ship awaiting a still-open captain decision, record it on the existing task before reporting (see --idle-handoff in bin/fm-captain-hold.sh --help); do not replace a different hold
+finished
+daemon remained running: initial stale escalation count=1 after 25s (>12 stale thresholds)
+finished.status: blocked [key=expired]: prepared release artifact expired
+ALL AWAY DAEMON AND LEASE SCENARIOS PASSED

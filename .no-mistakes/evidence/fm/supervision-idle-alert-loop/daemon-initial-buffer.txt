@@ -1,0 +1,1 @@
+stale persisted 2s (possible wedge): primary:finished; if inspection confirms a finished ship awaiting a still-open captain decision, record it on the existing task before reporting (see --idle-handoff in bin/fm-captain-hold.sh --help); do not replace a different hold

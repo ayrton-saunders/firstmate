@@ -1,0 +1,7 @@
+1..49
+ok - all four required captain-hold tests fail when tasks-axi is unavailable
+ok - away: a held finished worker stays quiet through display churn, surfaces a new blocker, and resumes idle monitoring on release
+ok - attended: a held finished worker stays quiet through display churn, surfaces a new blocker, and resumes idle monitoring on release
+ok - a not-provably-working non-terminal stale is surfaced immediately (never left to wait out the timer)
+ok - a declared pause is absorbed on first sight, then re-surfaced as a recheck past the threshold, never wedge-escalated
+ok - exited declared-pause and captain-held panes use bounded pause cadence while a live decision gate still surfaces once

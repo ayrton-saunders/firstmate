@@ -1,0 +1,28 @@
+{run-worktree}/.idle-live-home
+SCENARIO first idle alert from real tmux shell with synthetic working status
+watcher exit=0
+stale: primary:finished
+stale: primary:finished
+Idle wake: if inspection confirms a finished ship awaiting a still-open captain decision, record it on the existing task before reporting (see --idle-handoff in bin/fm-captain-hold.sh --help); do not replace a different hold.
+SCENARIO conflicting decision and dated deferral refuse without mutation
+finished
+fm-captain-hold: --idle-handoff cannot replace the existing hold on finished
+finished
+fm-captain-hold: --idle-handoff cannot replace the existing hold on finished
+SCENARIO recorded handoff stays quiet through unchanged pane and display-only resize
+finished
+unchanged: watcher remained running with no wake over 15s (>7 idle thresholds)
+display-refresh: watcher remained running with no wake over 15s (>7 idle thresholds)
+SCENARIO new blocker surfaces while decision stays open
+watcher exit=0
+signal: {run-worktree}/.idle-live-home/state/finished.status
+signal: {run-worktree}/.idle-live-home/state/finished.status
+wake annotation: latest wake-EVENT observed at drain, not current state: finished.status: blocked [key=expired]: prepared release artifact expired
+finished [key=expired] blocked: prepared release artifact expired
+SCENARIO answer invalidates handoff and restores idle monitoring
+finished
+released: finished
+watcher exit=0
+stale: primary:finished (idle 12s, agent dead - the endpoint is still there with no agent running in it, so this is not a wedge; reported once and not re-escalated while it stays that way - reconcile this record, and check for unlanded work before any cleanup)
+stale: primary:finished (idle 12s, agent dead - the endpoint is still there with no agent running in it, so this is not a wedge; reported once and not re-escalated while it stays that way - reconcile this record, and check for unlanded work before any cleanup)
+ALL LOCAL PRODUCT SCENARIOS PASSED

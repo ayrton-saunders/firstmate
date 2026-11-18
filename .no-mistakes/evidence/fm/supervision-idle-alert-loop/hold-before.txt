@@ -1,0 +1,18 @@
+task:
+  id: finished
+  title: Prepare release
+  state: in_flight
+  blocked: no
+  blocked_by: none
+  held: yes
+  hold_reason: "Approve prepared release?"
+  hold_kind: captain
+  hold_until: "-"
+  kind: task
+  repo: "-"
+  priority: "-"
+  created: 2026-11-18
+  closed: "-"
+  deps: none
+  links: none
+  body: "Captain hold set: 2026-11-18T10:46:35Z"
