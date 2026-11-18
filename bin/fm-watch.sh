@@ -1687,6 +1687,11 @@ wedge_wait_evidence() {  # <task> <idle|busy> -> one wait_record on stdout
   local task=$1 activity=$2 last until statusf run verb hold_state
   [ -n "$task" ] || return 1
   statusf="$STATE/$task.status"
+  if [ "$activity" = idle ] && task_idle_handoff_matches "$task"; then
+    wait_record "$WEDGE_IDLE_HANDOFF_KIND" 'awaiting the captain - decision handed off' \
+      captain 'answer the held decision or release the hold' ''
+    return 0
+  fi
   last=$(status_declared_wait_line "$statusf")
   if status_is_captain_held "$last"; then
     wait_record 'captain-held' 'awaiting the captain - verified hold transfer' \
@@ -1699,17 +1704,10 @@ wedge_wait_evidence() {  # <task> <idle|busy> -> one wait_record on stdout
       external 'confirm the wait still holds' "$statusf"
     return 0
   fi
-  if [ "$activity" = idle ] && [ -f "$STATE/$task.idle-decision-handoff" ]; then
-    hold_state=$(task_idle_hold_state "$task") || hold_state=''
-  elif task_captain_call_open "$task"; then
+  if task_captain_call_open "$task"; then
     hold_state=held
   fi
   case "${hold_state:-}" in
-    handed-off)
-      wait_record "$WEDGE_IDLE_HANDOFF_KIND" 'awaiting the captain - decision handed off' \
-        captain 'answer the held decision or release the hold' ''
-      return 0
-      ;;
     held)
       wait_record "$WEDGE_BACKLOG_HOLD_KIND" 'awaiting the captain - held in the backlog' \
         captain 'answer the held decision or release the hold' ''
@@ -2490,9 +2488,15 @@ paused_recheck_silent() {  # <window> <statusf> <key> <declaration> <status-age>
 # captain themself for a verified hold. Only the captain-held verb takes the second
 # wording; a caller that reached the bounded cadence off pause tracking alone, with
 # no declaring verb left on the log, keeps the external-wait wording it always had.
-handle_paused_stale() {  # <window> <task> <hash>
-  local win=$1 task=$2 h=$3 key statusf mtime age detail reason declaration last until now min_age rc snapshot pause_age silent=0
+handle_paused_stale() {  # <window> <task> <hash> [dialog-name] [idle|busy]
+  local win=$1 task=$2 h=$3 dialog=${4-} activity=${5-idle} key statusf mtime age detail reason declaration last until now min_age rc snapshot pause_age silent=0
   key=$(window_key "$win")
+  if [ "$activity" = idle ] && task_idle_handoff_matches "$task" "$dialog"; then
+    printf '%s' "$h" > "$STATE/.stale-$key"
+    wedge_episode_end "$key"
+    clear_write_tracking "$key"
+    return 0
+  fi
   pause_overdue_reconcile "$task" "$STATE/$task.status"; rc=$?
   if [ "$rc" -eq 0 ]; then
     triage_log "absorbed stale (overdue pause decision remains open): $win"
@@ -2625,7 +2629,7 @@ busy_turn_bound_check() {  # <window> <task> <hash> <since-file> <escalation-fil
       fi
       return 0
     fi
-    handle_paused_stale "$win" "$task" "$h"
+    handle_paused_stale "$win" "$task" "$h" "$dialog" busy
     return 0
   fi
   stream_episode="$STATE/.model-stream-episode-$(window_key "$win")"
@@ -2865,6 +2869,11 @@ task_captain_call_open() {  # <task>
   return 0
 }
 
+task_idle_handoff_matches() {  # <task> [dialog-name]
+  [ -z "${2-}" ] && [ -n "$1" ] && [ -f "$STATE/$1.idle-decision-handoff" ] \
+    && [ "$(task_idle_hold_state "$1")" = handed-off ]
+}
+
 task_idle_hold_state() {  # <task> with an idle handoff receipt
   FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
     "$SCRIPT_DIR/fm-captain-hold.sh" open "$1" --idle-state 2>/dev/null
@@ -3038,8 +3047,7 @@ stale_wait_record() {  # <window-key>
 captain_call_stale_bound() {  # <window-key> <task> [dialog-name]
   local key=$1 task=$2 dialog=${3-}
   STALE_WAIT_DECLARATION=
-  if [ -z "$dialog" ] && [ -n "$task" ] && [ -f "$STATE/$task.idle-decision-handoff" ] \
-    && [ "$(task_idle_hold_state "$task")" = handed-off ]; then
+  if task_idle_handoff_matches "$task" "$dialog"; then
     return 0
   fi
   task_captain_call_open "$task" || return 1
@@ -3073,7 +3081,10 @@ surface_nonterminal_stale() {  # <window> <hash> [dialog-name]
   task=$(window_to_task "$win" "$STATE")
   last=$(status_declared_wait_line "$STATE/$task.status")
   STALE_WAIT_DECLARATION=
-  if status_is_paused "$last"; then
+  if task_idle_handoff_matches "$task" "$dialog"; then
+    bounded=0
+    throttled=0
+  elif status_is_paused "$last"; then
     declared=0
     bounded=0
     STALE_WAIT_DECLARATION=$(stale_wait_declaration "$task")
@@ -4594,7 +4605,7 @@ EOF
         # firstmate. Detection itself is unchanged from above.
         if [ "$kind" = secondmate ]; then
           case "$(pause_state_class "$w" "$task")" in
-            paused) handle_paused_stale "$w" "$task" "$h" ;;
+            paused) handle_paused_stale "$w" "$task" "$h" "$dialog" ;;
             *)      clear_pause_tracking "$key" ;;
           esac
         elif afk_present; then
@@ -4712,7 +4723,7 @@ EOF
                 triage_log "absorbed non-terminal stale (provably working): $w"
                 ;;
               paused)
-                handle_paused_stale "$w" "$task" "$h"
+                handle_paused_stale "$w" "$task" "$h" "$dialog"
                 ;;
               *)
                 surface_nonterminal_stale "$w" "$h" "$dialog"
@@ -4722,12 +4733,12 @@ EOF
             task=$(window_to_task "$w" "$STATE")
             if [ -e "$pf" ] || status_is_paused_or_captain_held "$(status_declared_wait_line "$STATE/$task.status")"; then
               case "$(pause_state_class "$w" "$task")" in
-                paused)  handle_paused_stale "$w" "$task" "$h" ;;
+                paused)  handle_paused_stale "$w" "$task" "$h" "$dialog" ;;
                 working) clear_pause_state "$key"
                          printf '%s' "$h" > "$sf"
                          wedge_timer_check "$w" "$ssf" "non-terminal stale (provably working after a declared pause)" "$ewf" "$task" "$h" "$dialog"
                          triage_log "absorbed non-terminal stale (provably working): $w" ;;
-                *)       handle_paused_stale "$w" "$task" "$h" ;;
+                *)       handle_paused_stale "$w" "$task" "$h" "$dialog" ;;
               esac
             else
               wedge_timer_check "$w" "$ssf" "non-terminal stale" "$ewf" "$task" "$h" "$dialog"
@@ -4771,7 +4782,7 @@ EOF
       task=$(window_to_task "$w" "$STATE")
       if ! afk_present && status_is_paused_or_captain_held "$(status_declared_wait_line "$STATE/$task.status")" && [ "$busy_now" -ne 0 ]; then
         case "$(pause_state_class "$w" "$task")" in
-          paused) handle_paused_stale "$w" "$task" "$h" ;;
+          paused) handle_paused_stale "$w" "$task" "$h" "$dialog" ;;
           # Inconclusive, but the declared wait itself still stands, so only the
           # per-hash bookkeeping resets. The re-surface throttle bounds the
           # DECLARATION, not the pane hash: an idle parked pane whose display

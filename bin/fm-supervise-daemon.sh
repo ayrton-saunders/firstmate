@@ -815,6 +815,19 @@ stale_window_is_busy() {  # <window> <state>
   esac
 }
 
+idle_handoff_silences_window() {  # <window> <state>
+  local win=$1 state=$2 task dialog tail40
+  task=$(window_to_task "$win" "$state")
+  [ -n "$task" ] && [ -f "$state/$task.idle-decision-handoff" ] || return 1
+  dialog=$(cat "$state/.subsuper-dialog-$(_stale_key "$task")" 2>/dev/null || true)
+  [ -z "$dialog" ] || return 1
+  [ "$(FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$state" "$FM_DAEMON_DIR/fm-captain-hold.sh" open "$task" --idle-state 2>/dev/null)" = handed-off ] || return 1
+  tail40=$(fm_backend_capture "$(task_window_backend "$win" "$state")" "$win" 40 "fm-$task" 2>/dev/null) || return 1
+  if fm_composer_blocking_dialog "$tail40" >/dev/null; then return 1; fi
+  stale_window_is_busy "$win" "$state"
+  [ "$?" -eq 1 ]
+}
+
 escalate_add() {  # <state> <distilled-item>
   local state=$1 item=$2 buf line
   if line=$(unknown_wake_line "$item"); then
@@ -1462,6 +1475,10 @@ housekeeping() {  # <state>
       stale_marker_remove_key "$key" "$state"; continue
     fi
     task=$(window_to_task "$win" "$state")
+    if idle_handoff_silences_window "$win" "$state"; then
+      printf '%s\n' "$now" > "$marker"
+      continue
+    fi
     last=$(status_declared_wait_line "$state/$task.status")
     if [ -n "$last" ] && status_is_paused_or_captain_held "$last"; then
       reconcile_pause_tracking "$win" "$state" "$last"
@@ -1482,13 +1499,6 @@ housekeeping() {  # <state>
           continue
         fi
         dialog_name=$(cat "$state/.subsuper-dialog-$key" 2>/dev/null || true)
-        if [ -z "$dialog_name" ] && [ -n "$task" ] && [ -f "$state/$task.idle-decision-handoff" ] \
-          && [ "$(FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$state" "$FM_DAEMON_DIR/fm-captain-hold.sh" open "$task" --idle-state 2>/dev/null)" = handed-off ]; then
-          # Keep the pending recheck so an answer or task change restores monitoring
-          # even if the one-shot watcher sees no new pane hash.
-          printf '%s\n' "$now" > "$marker"
-          continue
-        fi
         if [ -n "$dialog_name" ]; then
           persisted="stale persisted ${age}s (possible wedge, blocked-on-prompt: $dialog_name): $win"
         else
@@ -1526,6 +1536,7 @@ housekeeping() {  # <state>
       rm -f "$marker"; continue
     fi
     task=$(window_to_task "$win" "$state")
+    idle_handoff_silences_window "$win" "$state" && continue
     if fm_pause_ceiling_enabled; then
       if [ "$(uname)" = Darwin ]; then
         pause_identity=$(/usr/bin/stat -f '%d %i' "$state/$task.status" 2>/dev/null) || continue

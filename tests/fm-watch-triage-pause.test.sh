@@ -62,9 +62,9 @@ test_nonterminal_stale_not_working_surfaced() {
 # Verify the direct supervisor is prompted at the first wake, then record the
 # hold and check silence, delivery of a new blocker, and monitoring on release.
 assert_finished_worker_decision_handoff() {  # <away|attended>
-  local posture=$1 dir state fakebin out capture window pid first_reason observation blocker drain_out held_row
+  local posture=$1 declaration=${2:-working} dir state fakebin out capture window pid first_reason observation blocker drain_out held_row
   local decision='Approve proceeding with the prepared release?' hold_cmd="$ROOT/bin/fm-captain-hold.sh"
-  dir=$(make_case "$posture-finished-ship"); state="$dir/state"; fakebin="$dir/fakebin"
+  dir=$(make_case "$posture-$declaration-finished-ship"); state="$dir/state"; fakebin="$dir/fakebin"
   out="$dir/watch.out"; capture="$dir/pane.txt"; window=test:fm-finished
   local FM_HOME="$dir"
   export FM_HOME
@@ -123,6 +123,11 @@ assert_finished_worker_decision_handoff() {  # <away|attended>
       FM_SUPERVISION_ACTOR=branch "$lease" claim "$resource" >/dev/null || fail "could not claim branch fixture lease"
     done
   fi
+  if [ "$declaration" != working ]; then
+    printf '%s: awaiting release approval\n' "$declaration" >> "$state/finished.status"
+    prime_status_seen "$state" "$state/finished.status" || fail "could not acknowledge the wait declaration"
+    FM_FAKE_CREW_STATE='state: unknown · source: none · no current-state source available'
+  fi
   FM_SUPERVISION_ACTOR="$hold_actor" "$hold_cmd" hold finished \
     --reason "$decision" --open-ended --idle-handoff >/dev/null || fail "could not hand off the decision"
   if [ "$posture" = away ]; then
@@ -159,6 +164,7 @@ assert_finished_worker_decision_handoff() {  # <away|attended>
     ack_stopped_cycle "$state" || fail "could not acknowledge the intentional watcher stop"
   done
 
+  FM_FAKE_CREW_STATE='state: working · source: status-log · preparing the release'
   # A real task change must still reach supervision through the status queue
   # even if the old decision remains open and the pane does not change.
   blocker='blocked [key=artifact-expired]: the prepared release artifact expired'
@@ -204,6 +210,12 @@ test_away_finished_worker_awaiting_decision_stays_quiet() {
 
 test_attended_finished_worker_awaiting_decision_stays_quiet() {
   assert_finished_worker_decision_handoff attended
+}
+
+test_declared_wait_idle_handoffs_stay_quiet() {
+  assert_finished_worker_decision_handoff attended paused
+  assert_finished_worker_decision_handoff attended captain-held
+  assert_finished_worker_decision_handoff away paused
 }
 
 # --- non-terminal stale, crew DECLARED a pause: absorbed, re-surfaced on a long
@@ -2021,6 +2033,7 @@ fm_test_run \
   test_required_captain_hold_tests_fail_without_tasks_axi \
   test_away_finished_worker_awaiting_decision_stays_quiet \
   test_attended_finished_worker_awaiting_decision_stays_quiet \
+  test_declared_wait_idle_handoffs_stay_quiet \
   test_nonterminal_stale_not_working_surfaced \
   test_nonterminal_stale_paused_absorbed_then_resurfaced \
   test_exited_declared_pause_is_bounded_but_live_gate_surfaces \

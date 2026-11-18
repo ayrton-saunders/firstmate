@@ -171,15 +171,15 @@ test_stale_pane_transient_persistent_resume() {
 }
 
 test_finished_worker_decision_does_not_wake_away_daemon_twice() (
-  local dir state fakebin win out pane sent buffer test_now delay blocker
+  local declaration=${1:-working} dir state fakebin win out pane sent buffer test_now delay blocker
   command -v tasks-axi >/dev/null 2>&1 || { echo 'skip: tasks-axi not found (finished worker decision)'; return 0; }
-  dir=$(make_supercase wd-finished); state="$dir/state"; fakebin="$dir/fakebin"
+  dir=$(make_supercase "wd-finished-$declaration"); state="$dir/state"; fakebin="$dir/fakebin"
   win=sess:fm-finished; out="$dir/watch.out"; pane="$dir/worker-pane"; sent="$dir/sent.log"
   buffer="$state/.subsuper-escalations"
   export FM_HOME="$dir" FM_STATE_OVERRIDE="$state" PATH="$fakebin:$PATH"
   export FM_FAKE_TMUX_WINDOW="$win" FM_FAKE_TMUX_CAPTURE="$pane" FM_FAKE_TMUX_SENT="$sent"
   export FM_SUPERVISOR_BACKEND=tmux FM_DAEMON_PRIMARY_HARNESS=grok
-  export FM_ESCALATE_BATCH_SECS=999999 FM_STALE_ESCALATE_SECS=5 FM_MAX_DEFER_SECS=0
+  export FM_ESCALATE_BATCH_SECS=999999 FM_STALE_ESCALATE_SECS=5 FM_MAX_DEFER_SECS=0 FM_PAUSE_RESURFACE_SECS=5
   mkdir -p "$dir/data"
   fm_test_tasks_toml "$dir/.tasks.toml" || fail 'could not configure fixture backlog'
   printf '## In flight\n\n## Queued\n\n## Done\n' > "$dir/data/backlog.md"
@@ -207,8 +207,16 @@ test_finished_worker_decision_does_not_wake_away_daemon_twice() (
   [ "$(grep -c '\[ENTER\]' "$sent")" -eq 1 ] || fail 'expected exactly one submission before the decision handoff'
   assert_contains "$(< "$sent")" '--idle-handoff' 'the delivered idle escalation does not tell the supervisor how to record the handoff'
   assert_contains "$(< "$sent")" 'if inspection confirms' 'the delivered handoff must be conditional on inspection'
+  if [ "$declaration" != working ]; then
+    printf '%s: pipeline awaits release approval\n' "$declaration" >> "$state/finished.status"
+    prime_status_seen "$state" "$state/finished.status" || fail 'could not acknowledge the wait declaration'
+  fi
   "$ROOT/bin/fm-captain-hold.sh" hold finished --reason 'Approve proceeding with the prepared release?' --open-ended --idle-handoff >/dev/null \
     || fail 'could not record the pending decision'
+  stale_marker_record "$win" "$state"
+  test_now=$((test_now + 10))
+  housekeeping "$state"
+  [ ! -s "$buffer" ] || fail "a declared wait bypassed the idle handoff: $(< "$buffer")"
 
   # A harmless display refresh is a distinct hash, not a new development.
   printf '\nContext remaining: 65%%\n' >> "$pane"
@@ -237,3 +245,4 @@ test_finished_worker_decision_does_not_wake_away_daemon_twice() (
 test_routine_then_terminal_after_restart
 test_stale_pane_transient_persistent_resume
 test_finished_worker_decision_does_not_wake_away_daemon_twice
+test_finished_worker_decision_does_not_wake_away_daemon_twice paused
