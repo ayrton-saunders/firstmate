@@ -3,29 +3,49 @@
 Thanks for wanting to contribute.
 One rule up front:
 
-**Human-authored pull requests targeting `main` must be raised through [`no-mistakes`](https://github.com/kunchenguid/no-mistakes), except for the personal-fork focused allowance below.**
+**Human-authored pull requests targeting `main` must be raised through [`no-mistakes`](https://github.com/kunchenguid/no-mistakes) unless exempt under the [personal-fork statement policy](#personal-fork-statement-policy).**
 We require this to reduce the maintainer's burden of reviewing and merging contributions.
 
 `no-mistakes` puts a local git proxy in front of your real remote.
 Pushing through it runs an AI-driven review/test/lint pipeline in an isolated worktree, forwards the push upstream only after every check passes, and opens a clean PR automatically.
 
-A GitHub Actions check (`Require no-mistakes`) runs on PRs targeting `main` and requires both the deterministic signature and a parseable structured attestation from no-mistakes v1.46.0 or newer.
+## Required no-mistakes check
+
+The GitHub Actions workflow `Require no-mistakes` runs on PRs targeting `main`.
+When the native statement is required, it must include both the deterministic signature and a parseable structured attestation from no-mistakes v1.46.0 or newer.
 The attestation must bind to the current PR head commit and report the review, test, and document steps as completed, so a stale attestation, a missing `head_sha`, or a skipped required step fails.
-It evaluates every PR opening and body edit independently, reruns after head synchronization or reopening, and prevents a later edit from replacing an earlier pending compliance check.
-GitHub Actions and Dependabot are exempt so their automation keeps working, but other contributor PRs that do not satisfy the attestation contract will not be reviewed or merged.
+The workflow evaluates every PR opening and body edit independently, reruns after head synchronization or reopening, and prevents a later edit from replacing an earlier pending compliance check.
+Existing author exemptions, including GitHub Actions and Dependabot, are unchanged.
 
-On the personal fork `ayrton-saunders/firstmate`, the same required context also accepts a fresh focused canonical integration qualified by the base-sourced [focused checker](.github/verify-focused-upstream.py).
-Its current supported boundary is a clean integration with unchanged personal paths; conflicts, repairs, and overlapping personal-path changes are refused rather than treated as reviewed.
-The original pull-request producer and native action remain in place for ordinary personal features, including the first installation when the base does not yet contain the focused checker.
-A focused declaration on that older base is refused, not redirected into native acceptance.
+### Personal fork statement policy
+
+On `ayrton-saunders/firstmate` PRs targeting `main`, the statement is required if a non-exempt PR meets any of these conditions:
+
+- Touches anything under `bin/`, `.agents/`, or `.github/`, counting both paths of a rename.
+- Changes more than two files, including test files.
+- Changes more than sixty non-test lines, counting additions plus deletions; changes entirely under `tests/` or `.claude/mods/firstmate-calm/tests/` do not contribute to that line count.
+
+The [base-checkout verifier](.github/verify-focused-upstream.py) classifies the diff from GitHub's base-repository PR metadata and changed-file data for the event's base and head, not from PR text or rules supplied by the PR.
+At or below both size limits and outside shared machinery, the usual required checks suffice without a statement.
+Missing or inconsistent classification data does not grant an exemption.
+
+Canonical integrations are exempt regardless of size or conflicts: the verifier checks GitHub commit ancestry for a canonical fast-forward or a fork merge head whose first parent is the current fork base and whose second parent brings in new canonical default-branch ancestry.
+A later repair commit is not automatically exempt merely because it descends from such a merge.
+A qualifying clean integration with unchanged personal paths can still request fresh focused evidence.
+If a canonical integration requests focused evidence, an invalid request fails the check rather than certifying a conflict, repair, or personal-path overlap.
+For a conflicted integration, use the ancestry exemption without requesting clean focused evidence.
+Ancestry establishes what was integrated, not the correctness of the resolved tree.
+The exemption does not change any other required check, the selected Firstmate delivery path, or merge authority.
+
+The policy takes effect once the PR base contains the updated verifier; the first-install bootstrap on a base with no verifier still uses the native action and refuses a focused declaration.
 Canonical and other repositories retain their existing native behavior.
-
-This accommodation retains the existing repository CI trust model, not independent authentication of the workflow producing an Actions context.
-Workflow/context substitution remains a pre-existing limitation, as does the native verifier's author-editable PR-body attestation; neither is fixed by the focused checker.
-Controlled executable fixtures verify the focused decision and sandbox boundaries, not actual hosted publication or universal malicious-workflow prevention.
-All other required contexts and their Actions app bindings remain unchanged.
+The check retains the existing CI trust model: the Actions context is not independent authentication of its producer, and the native attestation remains author-editable PR-body data.
+Local fixtures check the decision and sandbox boundaries, not hosted publication; all required contexts and their Actions app bindings remain unchanged.
 
 ## Workflow
+
+Follow these steps when the native statement is required.
+For exempt personal-fork changes, use the ordinary fork PR path and pass the usual required checks; for canonical integrations, follow the [`updatefirstmate` skill](.agents/skills/updatefirstmate/SKILL.md).
 
 1. Fork the repo, then clone the parent repo or set your local `origin` back to the parent (`git@github.com:kunchenguid/firstmate.git`).
 2. Create a branch and make your changes.
@@ -43,7 +63,7 @@ All other required contexts and their Actions app bindings remain unchanged.
 
 ### The `full-ci` label
 
-CI on a pull request from an author without write access runs only the quick checks at first: `Test coverage guard`, `Repo invariants`, and the no-mistakes body check.
+CI on a pull request from an author without write access runs only the quick checks at first: `Test coverage guard`, `Repo invariants`, and the no-mistakes compliance check.
 Lint and the behavior suites wait for a maintainer, or the maintainer's fleet, to add the `full-ci` label when the pull request is picked up for review.
 Until then the `Full suite` check fails with a message naming the label; that is expected and needs no action from you.
 Adding the label runs the full suite, and every later push to that pull request runs it again.
@@ -107,7 +127,7 @@ Coordinate any workflow rollback with its required-check names so a retired chec
 
 ## Development
 
-Tracked changes to firstmate itself - `AGENTS.md`, `README.md`, `CONTRIBUTING.md`, `.tasks.toml`, `.github/workflows/`, `bin/`, `.agents/skills/`, and `skills/` - ship through the `no-mistakes` pipeline on a feature branch and require an explicit merge approval, except for upstream integrations governed by the [`updatefirstmate` skill](.agents/skills/updatefirstmate/SKILL.md).
+Firstmate-managed changes to Firstmate itself ship through the `no-mistakes` pipeline on a feature branch and require explicit merge approval, except for upstream integrations governed by the [`updatefirstmate` skill](.agents/skills/updatefirstmate/SKILL.md).
 Before making any such change, load the agent-only `firstmate-coding-guidelines` skill (`.agents/skills/firstmate-coding-guidelines/SKILL.md`).
 It has the knowledge-placement rules that keep `AGENTS.md` from regrowing after each diet pass.
 Firstmate adds this skill's load line to firstmate-repo briefs by hand; the [coding-guidelines skill](.agents/skills/firstmate-coding-guidelines/SKILL.md#trigger-hygiene) owns the scaffold's detection limits.
