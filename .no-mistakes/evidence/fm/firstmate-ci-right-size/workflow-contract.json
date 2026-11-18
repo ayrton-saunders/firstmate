@@ -1,0 +1,24 @@
+{
+  "surface": "Normalized GitHub Actions YAML contract, not a hosted workflow execution",
+  "changed_jobs": [
+    "tests-portable-parallel-1",
+    "tests-portable-parallel-2"
+  ],
+  "unchanged_jobs": [
+    "lint",
+    "lint-partitions",
+    "test-coverage",
+    "tests-portable-serial",
+    "tests-herdr",
+    "tests-hc",
+    "tests-timing-aggregate",
+    "macos-stock-bash",
+    "invariants",
+    "full-suite"
+  ],
+  "lane_1_change": "Only redundant global Pi installation removed; strict SDK prerequisite gate-skip check retained",
+  "lane_2_change": "Only checkout depth changes from full history to action default",
+  "required_check_names_and_conditions": "unchanged",
+  "stock_macos_job": "semantically identical",
+  "hosted_execution": "Not performed: CI execution belongs to the outer executor, not this local test phase"
+}

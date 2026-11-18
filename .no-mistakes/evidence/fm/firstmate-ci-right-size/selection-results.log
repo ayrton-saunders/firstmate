@@ -1,0 +1,5 @@
+Complete inventory preserved; parallel union unchanged; Pi typecheck stays in lane 1; all serial assignments exactly match baseline.
+Adversarial packing failure emits no partial schedule; mismatched shard count and concurrent serial invocation refused.
+2-way lint selection: 619 canonical roots, documented byte-weight LPT membership; byte loads=[11233369, 11233575]
+4-way lint selection: 619 canonical roots, documented byte-weight LPT membership; byte loads=[5616560, 5616794, 5616807, 5616783]
+Partition selection rejects weakened fast mode. No linters or static analyzers were run.
