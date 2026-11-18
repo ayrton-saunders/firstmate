@@ -96,14 +96,14 @@ assert_finished_worker_decision_handoff() {  # <away|attended>
     # An existing decision or a dated deferral may have been recorded while this wake was pending.
     "$hold_cmd" hold finished --reason "$decision" --until 2099-01-01 >/dev/null || fail "could not record the deferral"
     held_row=$("$ROOT/bin/fm-tasks-axi.sh" show finished --full) || fail "could not read the deferral"
-    if "$hold_cmd" hold finished --reason "$decision" --idle-handoff > "$dir/conflict.out" 2>&1; then
+    if "$hold_cmd" hold finished --reason "$decision" --open-ended --idle-handoff > "$dir/conflict.out" 2>&1; then
       fail "idle handoff cleared a dated deferral for the same decision"
     fi
     [ "$("$ROOT/bin/fm-tasks-axi.sh" show finished --full)" = "$held_row" ] \
       || fail "refusing an idle handoff changed the deferral"
-    "$hold_cmd" hold finished --reason "$decision" >/dev/null || fail "could not record the undated hold"
+    "$hold_cmd" hold finished --reason "$decision" --open-ended >/dev/null || fail "could not record the undated hold"
     held_row=$("$ROOT/bin/fm-tasks-axi.sh" show finished --full) || fail "could not read the undated decision"
-    if "$hold_cmd" hold finished --reason 'Switch to the preview channel?' --idle-handoff > "$dir/conflict.out" 2>&1; then
+    if "$hold_cmd" hold finished --reason 'Switch to the preview channel?' --open-ended --idle-handoff > "$dir/conflict.out" 2>&1; then
       fail "idle handoff overwrote a different pending decision"
     fi
     [ "$("$ROOT/bin/fm-tasks-axi.sh" show finished --full)" = "$held_row" ] \
@@ -116,7 +116,7 @@ assert_finished_worker_decision_handoff() {  # <away|attended>
     for resource in finished backlog; do
       FM_SUPERVISION_ACTOR=main "$lease" claim "$resource" >/dev/null || fail "could not claim fixture lease"
       rc=0
-      FM_SUPERVISION_ACTOR=branch "$hold_cmd" hold finished --reason "$decision" --idle-handoff \
+      FM_SUPERVISION_ACTOR=branch "$hold_cmd" hold finished --reason "$decision" --open-ended --idle-handoff \
         > "$dir/conflict.out" 2>&1 || rc=$?
       [ "$rc" -eq 6 ] || fail "idle handoff did not respect main's $resource lease: $(< "$dir/conflict.out")"
       FM_SUPERVISION_ACTOR=main "$lease" release "$resource" >/dev/null || fail "could not release fixture lease"
@@ -124,7 +124,7 @@ assert_finished_worker_decision_handoff() {  # <away|attended>
     done
   fi
   FM_SUPERVISION_ACTOR="$hold_actor" "$hold_cmd" hold finished \
-    --reason "$decision" --idle-handoff >/dev/null || fail "could not hand off the decision"
+    --reason "$decision" --open-ended --idle-handoff >/dev/null || fail "could not hand off the decision"
   if [ "$posture" = away ]; then
     for resource in finished backlog; do
       FM_SUPERVISION_ACTOR=branch "$lease" release "$resource" >/dev/null || fail "could not release branch fixture lease"
@@ -185,7 +185,7 @@ assert_finished_worker_decision_handoff() {  # <away|attended>
     ack_stopped_cycle "$state" || fail "could not acknowledge the changed task's idle recheck"
   fi
   # Rebind to the changed status so the answer is the only invalidation here.
-  "$hold_cmd" hold finished --reason "$decision" --idle-handoff >/dev/null || fail "could not hand off the decision again"
+  "$hold_cmd" hold finished --reason "$decision" --open-ended --idle-handoff >/dev/null || fail "could not hand off the decision again"
   assert_equals handed-off "$("$hold_cmd" open finished --idle-state)" "the handoff matches before the answer"
   printf 'Proceed once the artifact is replaced.\n' > "$dir/decision.txt"
   "$hold_cmd" answer finished --decision-file "$dir/decision.txt" --release >/dev/null \

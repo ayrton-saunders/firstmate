@@ -159,7 +159,7 @@ test_branch_prompt_records_finished_ship_decision_before_reporting() {
   prompt=$(FM_HOME="$home" bash "$ROOT/bin/fm-branch-prompt.sh") || fail "branch prompt generator failed"
 
   case "$prompt" in
-    *"finished its turn and cannot proceed without a specific captain decision"*"\`bin/fm-captain-hold.sh hold <task> --reason \"<decision>\" --idle-handoff\`"*"before reporting the escalation"*) ;;
+    *"finished its turn and cannot proceed without a specific captain decision"*"\`bin/fm-captain-hold.sh hold <task> --reason \"<decision>\" --open-ended --idle-handoff\`"*"before reporting the escalation"*) ;;
     *) fail "branch prompt lets a finished ship's decision be reported without a durable handoff" ;;
   esac
   pass "emitted branch prompt requires a same-task captain hold before reporting a finished ship's decision"
