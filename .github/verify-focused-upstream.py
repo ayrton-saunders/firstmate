@@ -4,9 +4,9 @@
 Usage: verify-focused-upstream.py --workflow
 The library's qualify_request composes live correspondence, retained inspection,
 fresh sandbox execution and a final publication recheck. It accepts no prior
-receipts. --workflow is the trusted-base Actions entry for fresh object
-transport, workflow-owned image construction and qualification. Conflicted or
-repaired integrations are conservatively refused.
+receipts. --workflow is the trusted-base Actions entry for PR classification
+and any requested fresh focused qualification. Conflicted or repaired histories
+cannot earn focused evidence.
 """
 
 import hashlib
@@ -33,6 +33,10 @@ CLAIM_FIELDS = frozenset({
 
 
 class Refusal(ValueError):
+    pass
+
+
+class GitHubNotFound(Refusal):
     pass
 
 
@@ -133,6 +137,18 @@ class Git:
                         check=False).returncode == 0
 
 
+def advertised_commit(read_json, repository, ref):
+    encoded = urllib.parse.quote(ref, safe="")
+    value = read_json(f"/repos/{repository}/git/ref/heads/{encoded}")
+    require(isinstance(value, dict) and value.get("ref") == "refs/heads/" + ref,
+            "wrong live advertised ref")
+    obj = value.get("object")
+    require(isinstance(obj, dict) and obj.get("type") == "commit" and
+            isinstance(obj.get("sha"), str) and SHA.fullmatch(obj["sha"]),
+            "missing live advertised commit")
+    return obj["sha"]
+
+
 def current_facts(read_json, number):
     """Read live GitHub identities; no claim/body fields select repositories.
 
@@ -185,20 +201,9 @@ def current_facts(read_json, number):
     require(base["ref"] == defaults[1] and head["ref"] != base["ref"],
             "PR does not target fork default from an integration branch")
 
-    def advertised(repository, ref):
-        encoded = urllib.parse.quote(ref, safe="")
-        value = read_json(f"/repos/{repository}/git/ref/heads/{encoded}")
-        require(isinstance(value, dict) and value.get("ref") == "refs/heads/" + ref,
-                "wrong live advertised ref")
-        obj = value.get("object")
-        require(isinstance(obj, dict) and obj.get("type") == "commit" and
-                isinstance(obj.get("sha"), str) and SHA.fullmatch(obj["sha"]),
-                "missing live advertised commit")
-        return obj["sha"]
-
-    u = advertised(CANONICAL, defaults[0])
-    b = advertised(FORK, defaults[1])
-    h = advertised(FORK, head["ref"])
+    u = advertised_commit(read_json, CANONICAL, defaults[0])
+    b = advertised_commit(read_json, FORK, defaults[1])
+    h = advertised_commit(read_json, FORK, head["ref"])
     require(base.get("sha") == b and head.get("sha") == h,
             "PR and advertised publication disagree; retry fresh qualification")
     t = pr.get("merge_commit_sha")
@@ -231,8 +236,128 @@ def github_json(path):
     try:
         with urllib.request.build_opener(NoRedirect).open(request, timeout=30) as response:
             return json.load(response)
+    except urllib.error.HTTPError as error:
+        if error.code == 404:
+            raise GitHubNotFound("GitHub API object not found") from error
+        raise Refusal("fresh GitHub API read unavailable") from error
     except (OSError, ValueError) as error:
         raise Refusal("fresh GitHub API read unavailable") from error
+
+
+def fork_pr_snapshot(read_json, number, expected_head, expected_base):
+    require(type(number) is int and number > 0 and
+            all(isinstance(sha, str) and SHA.fullmatch(sha)
+                for sha in (expected_head, expected_base)), "invalid PR event")
+    pr = read_json(f"/repos/{FORK}/pulls/{number}")
+    require(isinstance(pr, dict) and type(pr.get("number")) is int and
+            pr["number"] == number, "wrong live PR request")
+    base, head = pr.get("base"), pr.get("head")
+    require(isinstance(base, dict) and base.get("ref") == "main" and
+            base.get("sha") == expected_base and isinstance(head, dict) and
+            head.get("sha") == expected_head, "PR base or head no longer matches event")
+    return pr
+
+
+def is_canonical_integration(number, expected_head, expected_base, read_json=github_json):
+    """Prove new canonical ancestry, not the correctness of the resolved tree."""
+    def publication():
+        pr = fork_pr_snapshot(read_json, number, expected_head, expected_base)
+        base, head = pr["base"].get("repo"), pr["head"].get("repo")
+        require(pr.get("state") == "open" and isinstance(base, dict) and
+                base.get("full_name") == FORK, "not an open PR into the fork")
+        return head.get("full_name") if isinstance(head, dict) else None
+
+    def ancestor(older, newer, *, missing_is_negative=False):
+        if older == newer:
+            return True
+        try:
+            # Compare immutable objects within the base repository's fork network.
+            comparison = read_json(f"/repos/{FORK}/compare/{older}...{newer}")
+        except GitHubNotFound:
+            if missing_is_negative:
+                return False
+            raise
+        require(isinstance(comparison, dict), "invalid GitHub ancestry comparison")
+        base = comparison.get("base_commit")
+        merge_base = comparison.get("merge_base_commit")
+        require(isinstance(base, dict) and base.get("sha") == older and
+                isinstance(merge_base, dict) and isinstance(merge_base.get("sha"), str) and
+                SHA.fullmatch(merge_base["sha"]), "invalid GitHub ancestry objects")
+        status = ("ahead" if merge_base["sha"] == older else
+                  "behind" if merge_base["sha"] == newer else "diverged")
+        require(comparison.get("status") == status, "inconsistent GitHub ancestry comparison")
+        return status == "ahead"
+
+    head_repo = publication()
+    if head_repo not in (FORK, CANONICAL) or expected_head == expected_base:
+        return False
+    source = read_json(f"/repos/{CANONICAL}")
+    require(isinstance(source, dict) and source.get("full_name") == CANONICAL and
+            source.get("fork") is False, "wrong live canonical identity")
+    default = source.get("default_branch")
+    require(isinstance(default, str) and default and not any(c in default for c in "\r\n"),
+            "missing live canonical default branch")
+    tip = advertised_commit(read_json, CANONICAL, default)
+    if ancestor(expected_head, tip, missing_is_negative=True):
+        # Fast-forward: the PR head itself is canonical, with no fork-only commits.
+        integration = ancestor(expected_base, expected_head)
+    elif head_repo == FORK:
+        commit = read_json(f"/repos/{FORK}/git/commits/{expected_head}")
+        require(isinstance(commit, dict) and commit.get("sha") == expected_head and
+                isinstance(commit.get("parents"), list), "invalid GitHub head commit")
+        parents = commit["parents"]
+        require(all(isinstance(parent, dict) and isinstance(parent.get("sha"), str) and
+                    SHA.fullmatch(parent["sha"]) for parent in parents), "invalid GitHub head parents")
+        if len(parents) != 2 or parents[0]["sha"] != expected_base:
+            return False
+        upstream = parents[1]["sha"]
+        integration = (ancestor(upstream, tip, missing_is_negative=True) and
+                       not ancestor(upstream, expected_base))
+    else:
+        return False
+    if integration:
+        require(publication() == head_repo, "PR repository changed during classification")
+    return integration
+
+
+def requires_no_mistakes(number, expected_head, expected_base, read_json=github_json):
+    """Classify the fork's PR diff, independently of claims or authorship."""
+    def changed_file_count():
+        pr = fork_pr_snapshot(read_json, number, expected_head, expected_base)
+        count = pr.get("changed_files")
+        require(type(count) is int and count >= 0, "invalid changed-file count")
+        return count
+
+    count = changed_file_count()
+    if count > 2:
+        return True
+    # A small diff fits on GitHub's first page. Require agreement with the
+    # aggregate and recheck the publication around the unversioned files read.
+    files = read_json(f"/repos/{FORK}/pulls/{number}/files")
+    require(isinstance(files, list) and len(files) == count,
+            "incomplete changed-file list")
+    require(changed_file_count() == count, "changed-file count moved during classification")
+    seen = set()
+    protected = ("bin/", ".agents/", ".github/")
+    test_roots = ("tests/", ".claude/mods/firstmate-calm/tests/")
+    lines = 0
+    for file in files:
+        require(isinstance(file, dict), "invalid changed-file entry")
+        filename = file.get("filename")
+        paths = [filename]
+        if file.get("status") == "renamed" or "previous_filename" in file:
+            paths.append(file.get("previous_filename"))
+        require(all(isinstance(name, str) and name for name in paths) and
+                filename not in seen, "invalid changed-file paths")
+        seen.add(filename)
+        if any(name.startswith(protected) for name in paths):
+            return True
+        if not all(name.startswith(test_roots) for name in paths):
+            for key in ("additions", "deletions"):
+                value = file.get(key)
+                require(type(value) is int and value >= 0, "invalid changed-file line count")
+                lines += value
+    return lines > 60
 
 
 def verify_correspondence(repository, claim, current):
@@ -491,26 +616,27 @@ def fetch_current_objects(repository, facts):
 
 
 def workflow_request(repository, number, expected_head, workspace,
-                     evidence_directory, read_json=github_json, expected_base=None):
-    """Actual trusted-base workflow entry, including fresh transport and image.
+                     evidence_directory, *, expected_base, read_json=github_json):
+    """Classify on base-owned facts before reading any author declaration.
 
-    workspace contains only the current trusted base, never PR source. The
-    execution environment is built from its Dockerfile and selected by image ID.
-    Native requests neither fetch candidate objects nor execute candidate code.
+    Only a proven canonical integration can request focused evidence. That
+    route builds an execution image from the trusted base, never the PR source.
     """
     if repository != FORK:
         return {"route": "native"}
-    pr = read_json(f"/repos/{FORK}/pulls/{number}")
-    require(isinstance(pr, dict) and pr.get("number") == number,
-            "wrong live PR request")
+    if not is_canonical_integration(number, expected_head, expected_base, read_json):
+        if requires_no_mistakes(number, expected_head, expected_base, read_json):
+            return {"route": "native"}
+        return {"route": "below-threshold"}
+
+    pr = fork_pr_snapshot(read_json, number, expected_head, expected_base)
     claim = focused_claim(repository, pr.get("body"))
     if claim is None:
-        return {"route": "native"}
+        return {"route": "canonical-integration"}
     facts = current_facts(read_json, number)
     require(facts["H"] == expected_head, "event head is no longer current")
-    if expected_base is not None:
-        require(facts["B"] == expected_base,
-                "qualification code is not from the current PR base")
+    require(facts["B"] == expected_base,
+            "qualification code is not from the current PR base")
     for name in ("source_repository", "fork_repository", "head_repository",
                  "source_ref", "base_ref", "head_ref", "U", "B", "H", "T"):
         require(claim[name] == facts[name], "declaration differs from live facts")
@@ -554,10 +680,11 @@ def workflow_main(read_json=github_json):
             read_json=read_json, expected_base=base)
         with open(os.environ["GITHUB_OUTPUT"], "a", encoding="utf-8") as stream:
             stream.write("route=" + result["route"] + "\n")
+        print("PR compliance route: " + result["route"])
         return 0
     except (Refusal, OSError, ValueError, KeyError,
             subprocess.SubprocessError):
-        print("Focused workflow qualification refused; native fallback prohibited.",
+        print("PR compliance decision refused; native fallback prohibited.",
               file=sys.stderr)
         return 1
 
