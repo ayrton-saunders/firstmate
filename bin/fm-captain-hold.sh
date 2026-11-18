@@ -21,7 +21,7 @@
 #
 # Usage:
 #   fm-captain-hold.sh hold <task-id> --reason <reason> \
-#     [--title <title>] [--repo <repo>] [--origin <origin-id>] [--until YYYY-MM-DD]
+#     (--until YYYY-MM-DD | --open-ended) [--title <title>] [--repo <repo>] [--origin <origin-id>]
 #   fm-captain-hold.sh answer <task-id> --decision-file <path> [--release]
 #   fm-captain-hold.sh answers [<legacy-origin> | --any-origin] --source <provenance>   (keyed answers on stdin)
 #   fm-captain-hold.sh reconcile-requests --source-id <source-id> --source <provenance>   (task ids on stdin)
@@ -55,7 +55,9 @@
 # readers decode them (bin/fm-hold-reason-lib.sh owns the encoding).
 # `--until` records the captain's own deferral date through `tasks-axi hold
 # --until`, so a "revisit later" answer is stored as a date instead of a live
-# card.
+# card. Use `--open-ended` only when the stated reason warrants a hold without
+# a date. Both modes require non-blank `--reason` text, and the same choice is
+# required when re-holding. `--open-ended` does not add a new backlog field.
 #
 # `answer` records the captain's exact words and resolves the call in the same
 # act. It requires a non-empty captain decision file of at most 8192 bytes and
@@ -1105,7 +1107,7 @@ verify_entry_durable() {  # <origin-or-empty> <entry>; prints "<id> <how> <origi
 
 command_hold() {
   local id=${1:-} title='' reason='' repo='' origin='' until='' show state existing_title body='' hold_kind hold_set occurrence
-  local existing_hold_kind='' existing_held='' preserve_hold_set=0 stored_reason original_body='' hold_status=0
+  local existing_hold_kind='' existing_held='' preserve_hold_set=0 stored_reason original_body='' hold_status=0 open_ended=0
   [ "$#" -ge 1 ] || { usage >&2; exit 2; }
   shift
   while [ "$#" -gt 0 ]; do
@@ -1114,23 +1116,34 @@ command_hold() {
       --reason) shift; reason=${1:-} ;;
       --repo) shift; repo=${1:-} ;;
       --origin) shift; origin=${1:-} ;;
-      --until) shift; until=${1:-} ;;
+      --until)
+        shift
+        until=${1:-}
+        [ -n "$until" ] || fail "--until requires a YYYY-MM-DD date; omit it and use --open-ended for an intentionally undated hold"
+        ;;
+      --open-ended) open_ended=1 ;;
       *) usage >&2; exit 2 ;;
     esac
     shift
   done
   validate_slug task-id "$id"
-  [ -n "$reason" ] || fail "reason must not be empty"
-  # bin/fm-hold-reason-lib.sh owns the storage constraint and reversible encoding.
-  stored_reason=$(fm_hold_reason_encode "$reason") || fail "could not encode the hold reason"
-  if [ -n "$origin" ]; then
-    validate_slug origin-id "$origin"
-  fi
+  case "$reason" in
+    *[![:space:]]*) : ;;
+    *) fail "provide a non-blank --reason explaining why the hold is needed" ;;
+  esac
   if [ -n "$until" ]; then
+    [ "$open_ended" = 0 ] || fail "--until and --open-ended cannot be combined; choose one"
     case "$until" in
       [0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]) : ;;
       *) fail "--until must be a YYYY-MM-DD date: $until" ;;
     esac
+  elif [ "$open_ended" = 0 ]; then
+    fail "refusing hold for $id: use --until YYYY-MM-DD to set a date, or add --open-ended if the stated reason needs no date"
+  fi
+  # bin/fm-hold-reason-lib.sh owns the storage constraint and reversible encoding.
+  stored_reason=$(fm_hold_reason_encode "$reason") || fail "could not encode the hold reason"
+  if [ -n "$origin" ]; then
+    validate_slug origin-id "$origin"
   fi
   hold_set=${FM_CAPTAIN_HOLD_NOW:-$(date -u +%Y-%m-%dT%H:%M:%SZ)}
   case "$hold_set" in
