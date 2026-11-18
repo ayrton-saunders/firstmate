@@ -1,0 +1,7 @@
+ok - Codex absent, bypass, and restricted modes preserve flags for ships, scouts, and secondmates
+ok - invalid Codex permission files refuse spawns and relaunches before mutation
+ok - Codex restricted mode leaves other harness launch flags unchanged
+ok - codex receives --model and model_reasoning_effort profile flags
+ok - a codex crewmate requests no hook layer and keeps its turn-end signal
+ok - a codex secondmate keeps its project hooks
+Focused selectors completed

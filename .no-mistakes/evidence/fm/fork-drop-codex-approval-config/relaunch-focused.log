@@ -1,0 +1,4 @@
+ok - Codex permission modes share launch/relaunch admission and preserve valid replacement modes
+ok - fm-control relaunch: a same-harness relaunch keeps the profile axes it was running with
+ok - fm-control relaunch: a Pi replacement keeps the home's tool exclusions
+Focused selectors completed

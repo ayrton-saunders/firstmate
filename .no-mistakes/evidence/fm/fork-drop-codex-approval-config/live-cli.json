@@ -1,0 +1,36 @@
+[
+  {
+    "command": "bin/fm-lab-home.sh create {run-worktree}/.fm-test-lab-5nsw9mlh",
+    "exit": 0,
+    "output": "{run-worktree}/.fm-test-lab-5nsw9mlh\n"
+  },
+  {
+    "command": "bin/fm-approval-failover.sh apply task",
+    "exit": 1,
+    "output": "fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.fm-test-lab-5nsw9mlh\nerror: managed approval failover supports only Claude\n"
+  },
+  {
+    "observed": "Codex failover refused; configuration and task metadata unchanged."
+  },
+  {
+    "command": "bin/fm-spawn.sh task --relaunch",
+    "exit": 1,
+    "output": "error: config/codex-permission-mode must contain bypass or restricted\n"
+  },
+  {
+    "observed": "Relaunch spawn refused invalid permission configuration before task metadata or project changes."
+  },
+  {
+    "command": "bin/fm-spawn.sh new-task {run-worktree}/.fm-test-lab-5nsw9mlh/projects/example --mode no-mistakes --yolo off",
+    "exit": 1,
+    "output": "error: config/codex-permission-mode must contain bypass or restricted\n"
+  },
+  {
+    "observed": "Fresh spawn refused invalid permission configuration without creating a task record."
+  },
+  {
+    "command": "command -v codex",
+    "exit": 1,
+    "observed": "No real Codex executable on PATH; no substitute CLI used."
+  }
+]
