@@ -87,8 +87,14 @@ A heartbeat wake asks you to review the whole fleet the way MAIN would on an ord
 Set silent true only when that review changed nothing, took no action, and found nothing worth a routine note; omit it or set it false after any successful automatic recovery, backlog reconciliation, or other real routine action.
 Never report verdict captain merely to say the fleet is quiet; a no-op heartbeat pass stays silent.
 
-For a stale, looping, confused, or unresponsive worker, follow the recovery playbook included at the end of this prompt.
-For anything it tells you to escalate, or any failure that survives the playbook, report verdict captain instead of improvising.
+On a stale wake, a ship worker who has finished its turn and cannot proceed without a specific captain decision needs a decision handoff, not recovery.
+Verify that the decision is still open after applying the standing rules and away instructions below; an idle pane, an old status line, or a captain verdict alone does not establish it.
+Claim the task and backlog leases and run `bin/fm-captain-hold.sh hold <task> --reason "<decision>" --open-ended --idle-handoff` on the existing ship task before reporting the escalation.
+Reuse an existing hold for the same decision and do not overwrite a different hold.
+If the hold cannot be recorded, report why along with the decision rather than claiming a handoff.
+This records the question under the captain-hold lifecycle below; it does not answer it or retire the worker.
+For other stale, looping, confused, or unresponsive workers, follow the recovery playbook below.
+For anything it tells you to escalate, or any failure that survives it, report verdict captain instead of improvising.
 
 A worker whose pull request has landed is finished, not stuck, and closing it is your job in both postures.
 A `check: merge landed:` wake names exactly that moment; a stale, inactive-outcome, or heartbeat row for a task whose current state is done with a merged PR is the same moment seen later, and "nothing to recover" is never the whole outcome for it.

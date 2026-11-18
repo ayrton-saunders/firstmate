@@ -58,6 +58,154 @@ test_nonterminal_stale_not_working_surfaced() {
   pass "a not-provably-working non-terminal stale is surfaced immediately (never left to wait out the timer)"
 }
 
+# Exercise the decision handoff on an idle ship with a stale working status.
+# Verify the direct supervisor is prompted at the first wake, then record the
+# hold and check silence, delivery of a new blocker, and monitoring on release.
+assert_finished_worker_decision_handoff() {  # <away|attended>
+  local posture=$1 dir state fakebin out capture window pid first_reason observation blocker drain_out held_row
+  local decision='Approve proceeding with the prepared release?' hold_cmd="$ROOT/bin/fm-captain-hold.sh"
+  dir=$(make_case "$posture-finished-ship"); state="$dir/state"; fakebin="$dir/fakebin"
+  out="$dir/watch.out"; capture="$dir/pane.txt"; window=test:fm-finished
+  local FM_HOME="$dir"
+  export FM_HOME
+  mkdir -p "$dir/config" "$dir/data"
+  fm_test_tasks_toml "$dir/.tasks.toml" || fail "could not configure fixture backlog"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$dir/data/backlog.md"
+  "$ROOT/bin/fm-tasks-axi.sh" add finished 'Prepare the release' >/dev/null || fail "could not add the release task"
+  printf 'window=%s\nkind=ship\nharness=grok\nbackend=tmux\n' "$window" > "$state/finished.meta"
+  printf 'working: preparing the release\n' > "$state/finished.status"
+  "$ROOT/bin/fm-tasks-axi.sh" start finished >/dev/null || fail "could not start the release task"
+  prime_status_seen "$state" "$state/finished.status" || fail "could not acknowledge the old progress update"
+  if [ "$posture" = away ]; then write_away_record "$state"; fi
+  printf 'Release prepared; waiting for approval to proceed.\n' > "$capture"
+
+  local FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$capture" FM_FAKE_TMUX_CURRENT_COMMAND=grok
+  local FM_FAKE_CREW_STATE='state: working · source: status-log · preparing the release'
+  export FM_FAKE_TMUX_WINDOW FM_FAKE_TMUX_CAPTURE FM_FAKE_TMUX_CURRENT_COMMAND FM_FAKE_CREW_STATE
+  watch_bg "$state" "$fakebin" "$out" env FM_STALE_ESCALATE_SECS=1
+  pid=$!
+  wait_for_exit "$pid" 100 || { reap "$pid"; fail "the first idle wake did not surface: $(< "$out")"; }
+  first_reason=$(< "$out")
+  assert_contains "$first_reason" "stale: $window" "expected a first idle wake"
+  [ "$(wedge_stale_wakes "$state" "$window")" -eq 1 ] || fail "expected exactly one queued idle wake on first sight"
+  if [ "$posture" = attended ]; then
+    drain_out=$(FM_SUPERVISION_ACTOR=main FM_STATE_OVERRIDE="$state" "$DRAIN" 2> "$dir/drain.err") \
+      || fail "could not drain the first idle wake: $(< "$dir/drain.err")"
+    assert_contains "$drain_out" "$first_reason" "expected the first idle wake in the direct supervisor's drain"
+    assert_contains "$drain_out" '--idle-handoff' "the direct supervisor was not told how to record the handoff"
+    # An existing decision or a dated deferral may have been recorded while this wake was pending.
+    "$hold_cmd" hold finished --reason "$decision" --until 2099-01-01 >/dev/null || fail "could not record the deferral"
+    held_row=$("$ROOT/bin/fm-tasks-axi.sh" show finished --full) || fail "could not read the deferral"
+    if "$hold_cmd" hold finished --reason "$decision" --idle-handoff > "$dir/conflict.out" 2>&1; then
+      fail "idle handoff cleared a dated deferral for the same decision"
+    fi
+    [ "$("$ROOT/bin/fm-tasks-axi.sh" show finished --full)" = "$held_row" ] \
+      || fail "refusing an idle handoff changed the deferral"
+    "$hold_cmd" hold finished --reason "$decision" >/dev/null || fail "could not record the undated hold"
+    held_row=$("$ROOT/bin/fm-tasks-axi.sh" show finished --full) || fail "could not read the undated decision"
+    if "$hold_cmd" hold finished --reason 'Switch to the preview channel?' --idle-handoff > "$dir/conflict.out" 2>&1; then
+      fail "idle handoff overwrote a different pending decision"
+    fi
+    [ "$("$ROOT/bin/fm-tasks-axi.sh" show finished --full)" = "$held_row" ] \
+      || fail "refusing an idle handoff changed the original decision"
+  fi
+  local hold_actor=main lease="$ROOT/bin/fm-lease.sh" resource rc
+  if [ "$posture" = away ]; then
+    hold_actor=branch
+    printf '%s\n' "$$" > "$state/.lock"
+    for resource in finished backlog; do
+      FM_SUPERVISION_ACTOR=main "$lease" claim "$resource" >/dev/null || fail "could not claim fixture lease"
+      rc=0
+      FM_SUPERVISION_ACTOR=branch "$hold_cmd" hold finished --reason "$decision" --idle-handoff \
+        > "$dir/conflict.out" 2>&1 || rc=$?
+      [ "$rc" -eq 6 ] || fail "idle handoff did not respect main's $resource lease: $(< "$dir/conflict.out")"
+      FM_SUPERVISION_ACTOR=main "$lease" release "$resource" >/dev/null || fail "could not release fixture lease"
+      FM_SUPERVISION_ACTOR=branch "$lease" claim "$resource" >/dev/null || fail "could not claim branch fixture lease"
+    done
+  fi
+  FM_SUPERVISION_ACTOR="$hold_actor" "$hold_cmd" hold finished \
+    --reason "$decision" --idle-handoff >/dev/null || fail "could not hand off the decision"
+  if [ "$posture" = away ]; then
+    for resource in finished backlog; do
+      FM_SUPERVISION_ACTOR=branch "$lease" release "$resource" >/dev/null || fail "could not release branch fixture lease"
+    done
+    rm -f "$state/.lock"
+  fi
+  if [ "$posture" = attended ]; then
+    [ "$("$ROOT/bin/fm-tasks-axi.sh" show finished --full)" = "$held_row" ] \
+      || fail "reusing the same decision changed the original decision"
+  fi
+  if [ "$posture" = away ]; then
+    "$ROOT/bin/fm-branch-outcome.sh" append --task finished --wake "$first_reason" --verdict captain \
+      --summary 'The release is prepared and is waiting for the decision to proceed.' >/dev/null \
+      || fail "could not report the decision from the first idle wake"
+  fi
+  ack_stopped_cycle "$state" || fail "could not acknowledge the first idle wake"
+
+  for observation in unchanged display-only; do
+    if [ "$observation" = display-only ]; then
+      # A refreshed footer changes the capture, not the task, hold, or turn.
+      printf '\nContext remaining: 65%%\n' >> "$capture"
+    fi
+    watch_bg "$state" "$fakebin" "$out" env FM_STALE_ESCALATE_SECS=1 FM_PAUSE_RESURFACE_SECS=1
+    pid=$!
+    if ! wait_poll_cycle "$state" "$pid" || ! wait_poll_cycle "$state" "$pid" || ! wait_poll_cycle "$state" "$pid"; then
+      reap "$pid"
+      fail "$observation pane for the finished worker woke $posture supervision again: $(< "$out")"
+    fi
+    reap "$pid"
+    [ ! -s "$out" ] || fail "$observation pane printed another wake: $(< "$out")"
+    [ "$(wedge_stale_wakes "$state" "$window")" -eq 0 ] || fail "$observation pane queued another idle wake"
+    ack_stopped_cycle "$state" || fail "could not acknowledge the intentional watcher stop"
+  done
+
+  # A real task change must still reach supervision through the status queue
+  # even if the old decision remains open and the pane does not change.
+  blocker='blocked [key=artifact-expired]: the prepared release artifact expired'
+  printf '%s\nworking: checking for a replacement artifact\n' "$blocker" >> "$state/finished.status"
+  watch_bg "$state" "$fakebin" "$out" env FM_STALE_ESCALATE_SECS=1
+  pid=$!
+  wait_for_exit "$pid" 100 || { reap "$pid"; fail "the held task's new blocker did not surface: $(< "$out")"; }
+  assert_contains "$(< "$out")" "signal: $state/finished.status" "expected a status wake for the new blocker"
+  drain_out=$(FM_STATE_OVERRIDE="$state" "$DRAIN" 2> "$dir/drain.err") \
+    || fail "could not drain the new status wake: $(< "$dir/drain.err")"
+  assert_contains "$drain_out" "$blocker" "the pending decision hid the new blocker from the wake drain"
+  case "$drain_out" in *--idle-handoff*) fail "a status-only wake prompted an idle handoff" ;; esac
+  [ "$(wedge_stale_wakes "$state" "$window")" -eq 0 ] || fail "the new blocker was accompanied by a duplicate idle wake"
+  assert_equals held "$("$hold_cmd" open finished --idle-state)" "the task change invalidates the handoff but not the decision"
+  ack_stopped_cycle "$state" || fail "could not acknowledge the new status wake"
+
+  if [ "$posture" = away ]; then
+    archive_away_record "$state"
+  else
+    watch_bg "$state" "$fakebin" "$out" env FM_STALE_ESCALATE_SECS=1 FM_PAUSE_RESURFACE_SECS=1
+    pid=$!
+    wait_for_exit "$pid" 100 || { reap "$pid"; fail "a changed task stayed idle without a recheck: $(< "$out")"; }
+    assert_contains "$(< "$out")" 'captain hold, awaiting the captain' "expected a recheck, not a wedge, for the changed held task"
+    ack_stopped_cycle "$state" || fail "could not acknowledge the changed task's idle recheck"
+  fi
+  # Rebind to the changed status so the answer is the only invalidation here.
+  "$hold_cmd" hold finished --reason "$decision" --idle-handoff >/dev/null || fail "could not hand off the decision again"
+  assert_equals handed-off "$("$hold_cmd" open finished --idle-state)" "the handoff matches before the answer"
+  printf 'Proceed once the artifact is replaced.\n' > "$dir/decision.txt"
+  "$hold_cmd" answer finished --decision-file "$dir/decision.txt" --release >/dev/null \
+    || fail "could not record the captain's answer and release the hold"
+  watch_bg "$state" "$fakebin" "$out" env FM_STALE_ESCALATE_SECS=1
+  pid=$!
+  wait_for_exit "$pid" 100 || { reap "$pid"; fail "the same pane stayed stale without a wake after release: $(< "$out")"; }
+  assert_contains "$(< "$out")" 'possible wedge' "expected the ordinary idle escalation after release"
+  [ "$(wedge_stale_wakes "$state" "$window")" -eq 1 ] || fail "expected one queued idle wake after release"
+  pass "$posture: a held finished worker stays quiet through display churn, surfaces a new blocker, and resumes idle monitoring on release"
+}
+
+test_away_finished_worker_awaiting_decision_stays_quiet() {
+  assert_finished_worker_decision_handoff away
+}
+
+test_attended_finished_worker_awaiting_decision_stays_quiet() {
+  assert_finished_worker_decision_handoff attended
+}
+
 # --- non-terminal stale, crew DECLARED a pause: absorbed, re-surfaced on a long
 #     cadence, never wedge-escalated ------------------------------------------
 # The live 2026-07-09/10 case: a crew intentionally held awaiting an upstream tool
@@ -1871,6 +2019,8 @@ fi
 
 fm_test_run \
   test_required_captain_hold_tests_fail_without_tasks_axi \
+  test_away_finished_worker_awaiting_decision_stays_quiet \
+  test_attended_finished_worker_awaiting_decision_stays_quiet \
   test_nonterminal_stale_not_working_surfaced \
   test_nonterminal_stale_paused_absorbed_then_resurfaced \
   test_exited_declared_pause_is_bounded_but_live_gate_surfaces \

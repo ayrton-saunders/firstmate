@@ -1682,8 +1682,9 @@ wait_record() {  # <kind> <subject> <whom> <action> <age-record>
 # `needs-decision` at all, and only in the at-threshold branch - at most once per
 # window per STALE_ESCALATE_SECS, never on an ordinary poll.
 WEDGE_BACKLOG_HOLD_KIND='captain hold'
-wedge_wait_evidence() {  # <task> -> one wait_record on stdout
-  local task=$1 last until statusf run verb
+WEDGE_IDLE_HANDOFF_KIND='finished worker decision'
+wedge_wait_evidence() {  # <task> <idle|busy> -> one wait_record on stdout
+  local task=$1 activity=$2 last until statusf run verb hold_state
   [ -n "$task" ] || return 1
   statusf="$STATE/$task.status"
   last=$(status_declared_wait_line "$statusf")
@@ -1698,11 +1699,23 @@ wedge_wait_evidence() {  # <task> -> one wait_record on stdout
       external 'confirm the wait still holds' "$statusf"
     return 0
   fi
-  if task_captain_call_open "$task"; then
-    wait_record "$WEDGE_BACKLOG_HOLD_KIND" 'awaiting the captain - held in the backlog' \
-      captain 'answer the held decision or release the hold' ''
-    return 0
+  if [ "$activity" = idle ] && [ -f "$STATE/$task.idle-decision-handoff" ]; then
+    hold_state=$(task_idle_hold_state "$task") || hold_state=''
+  elif task_captain_call_open "$task"; then
+    hold_state=held
   fi
+  case "${hold_state:-}" in
+    handed-off)
+      wait_record "$WEDGE_IDLE_HANDOFF_KIND" 'awaiting the captain - decision handed off' \
+        captain 'answer the held decision or release the hold' ''
+      return 0
+      ;;
+    held)
+      wait_record "$WEDGE_BACKLOG_HOLD_KIND" 'awaiting the captain - held in the backlog' \
+        captain 'answer the held decision or release the hold' ''
+      return 0
+      ;;
+  esac
   if [ -e "$CONFIG/wedge-defer-worker-wait" ] && verb=$(status_worker_wait_verb "$statusf"); then
     if [ "$verb" = blocked ]; then
       wait_record 'declared blocker' 'awaiting firstmate - its own newest line reports a blocker' \
@@ -1790,6 +1803,12 @@ EOF
     return 1
   fi
   key=$(window_key "$win")
+  if [ "$kind" = "$WEDGE_IDLE_HANDOFF_KIND" ]; then
+    clear_write_tracking "$key"
+    date +%s > "$since_file"
+    triage_log "absorbed $label ($kind, unchanged since handoff): $win"
+    return 0
+  fi
   if [ "$whom" = captain ] && away_record_present; then
     # The backlog hold alone costs a backlog read to prove, so restart its idle
     # timer to keep that read at one per STALE_ESCALATE_SECS instead of every poll.
@@ -2112,9 +2131,10 @@ wedge_write_escalation_count() {  # <window> <window-key> <escalation-file> <sin
 # above, immediately before the wake it authorized is published: a close, a
 # fresh progress write, or a replacement request during those reads cancels
 # that wake and its count instead of surfacing an obsolete observation.
-wedge_timer_check() {  # <window> <since-file> <triage-label> <escalation-count-file> <task> <pane-hash> [dialog-name] [stream snapshot]
+wedge_timer_check() {  # <window> <since-file> <triage-label> <escalation-count-file> <task> <pane-hash> [dialog-name] [stream snapshot] [idle|busy]
   local win=$1 since_file=$2 label=$3 escalation_file=$4 task=$5 hash=$6 dialog=${7-} since age n prev reason evidence guard guard_note
-  local stream_snapshot=${8:-} stream_ts stream_detail='' append_status
+  local stream_snapshot=${8:-} stream_ts stream_detail='' append_status activity=${9:-idle}
+  [ -z "$dialog" ] || activity=busy
   local _wkey _wrollback_sentinel _wrb_ts _wrb_cap_reason _wrb_cap_status _wrb_rm_status
   local _wrb_since _wrb_now _wrb_age _wrb_cap_ts _wrb_gate
   _wkey=$(window_key "$win")
@@ -2210,7 +2230,7 @@ wedge_timer_check() {  # <window> <since-file> <triage-label> <escalation-count-
             || { fm_epoch_seconds_to _wrb_now; printf '%s\n' "$_wrb_now" > "$since_file"; }
           return 0
         fi
-        if evidence=$(wedge_wait_evidence "$task") &&
+        if evidence=$(wedge_wait_evidence "$task" "$activity") &&
            wedge_defer_wait "$win" "$since_file" "$label" "$age" "$evidence"; then
           return 0
         fi
@@ -2623,7 +2643,7 @@ busy_turn_bound_check() {  # <window> <task> <hash> <since-file> <escalation-fil
     fi
     rm -f "$stream_episode"
   fi
-  wedge_timer_check "$win" "$since_file" "$label" "$escalation_file" "$task" "$h" "$dialog" "$stream_snapshot"
+  wedge_timer_check "$win" "$since_file" "$label" "$escalation_file" "$task" "$h" "$dialog" "$stream_snapshot" busy
   return 1
 }
 
@@ -2845,6 +2865,11 @@ task_captain_call_open() {  # <task>
   return 0
 }
 
+task_idle_hold_state() {  # <task> with an idle handoff receipt
+  FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$STATE" \
+    "$SCRIPT_DIR/fm-captain-hold.sh" open "$1" --idle-state 2>/dev/null
+}
+
 # 0 while a relayed captain hold stays exempt: undated (`-`), or before 00:00
 # UTC on its well-formed [until=] date. A malformed (`?`) or unreadable date
 # re-arms the key, so a bad field never silences it.
@@ -3008,9 +3033,15 @@ stale_wait_record() {  # <window-key>
 # While the away-posture record exists the bound is absolute: an open captain
 # call is never rechecked, whatever the throttle says, because nobody is there
 # to answer it and the return brief lists it.
-captain_call_stale_bound() {  # <window-key> <task>
-  local key=$1 task=$2
+# A new pane hash alone does not invalidate a reported idle handoff. A named
+# blocking dialog is not display-only churn; leave that to the ordinary bound.
+captain_call_stale_bound() {  # <window-key> <task> [dialog-name]
+  local key=$1 task=$2 dialog=${3-}
   STALE_WAIT_DECLARATION=
+  if [ -z "$dialog" ] && [ -n "$task" ] && [ -f "$STATE/$task.idle-decision-handoff" ] \
+    && [ "$(task_idle_hold_state "$task")" = handed-off ]; then
+    return 0
+  fi
   task_captain_call_open "$task" || return 1
   STALE_WAIT_DECLARATION=$(captain_call_declaration "$task" "$CAPTAIN_CALL_IDENTITY")
   away_record_present && return 0
@@ -3068,7 +3099,7 @@ surface_nonterminal_stale() {  # <window> <hash> [dialog-name]
     else
       stale_wait_throttled "$key" "$STALE_WAIT_DECLARATION" && throttled=0
     fi
-  elif captain_call_stale_bound "$key" "$task"; then
+  elif captain_call_stale_bound "$key" "$task" "$dialog"; then
     bounded=0
     throttled=0
   elif [ -z "$STALE_WAIT_DECLARATION" ] && unknown_alive_stale_bound "$win" "$task"; then
@@ -3102,7 +3133,7 @@ surface_nonterminal_stale() {  # <window> <hash> [dialog-name]
     clear_pause_state "$key"
   fi
   if [ "$throttled" -eq 0 ]; then
-    triage_log "absorbed non-terminal stale (declared wait or open captain call already re-surfaced this window): $win"
+    triage_log "absorbed non-terminal stale (declared wait or open captain call already surfaced): $win"
     return 0
   fi
   wake "$reason"
@@ -4605,14 +4636,10 @@ EOF
               date +%s > "$ssf"
               clear_write_tracking "$key"
               triage_log "absorbed stale (provably working, overriding a stale captain-relevant status): $w"
-            elif captain_call_stale_bound "$key" "$task"; then
-              # The line is captain-relevant and stays so, but the backlog says
-              # the captain already holds this work: further NEW pane hashes with
-              # the same status-log state have nothing to add while they are
-              # deciding. Only that new-hash repetition is bounded - the first
-              # sight already alarmed, a new hash inside the window is absorbed,
-              # and a new hash after it alarms again. A stable hash stays as inert
-              # here as it already was after a first terminal alarm.
+            elif captain_call_stale_bound "$key" "$task" "$dialog"; then
+              # New idle hashes add nothing while the bound for the same call
+              # and task stands. A stable hash stays as inert here as it was
+              # after a first terminal alarm.
               printf '%s' "$h" > "$sf"
               # Pre-cap shape kept the count here (keep-count contract).
               wedge_episode_end "$key" 0 1

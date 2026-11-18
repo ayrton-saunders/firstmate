@@ -1347,7 +1347,8 @@ _oldest_line_age() {  # <buf> -> seconds since the oldest buffered item first ar
 #     attempt one normal delivery; if it cannot confirm, raise the wedge alarm.
 #     Never silently defer forever.
 #  2) stale recheck: for each pending stale marker past STALE_ESCALATE_SECS,
-#     re-peek the pane; still idle -> escalate (wedge); resumed -> clear marker;
+#     re-peek the pane; still idle -> escalate (wedge) unless its unchanged
+#     finished-worker decision was handed off; resumed -> clear marker;
 #     T3 unknown -> escalate while retaining the pending recheck.
 #  2b) pause re-surface: for each declared-wait marker past PAUSE_RESURFACE_SECS,
 #     re-peek; gone -> clear; still declaring the wait, on an idle OR a busy pane
@@ -1481,10 +1482,18 @@ housekeeping() {  # <state>
           continue
         fi
         dialog_name=$(cat "$state/.subsuper-dialog-$key" 2>/dev/null || true)
+        if [ -z "$dialog_name" ] && [ -n "$task" ] && [ -f "$state/$task.idle-decision-handoff" ] \
+          && [ "$(FM_HOME="$FM_HOME" FM_STATE_OVERRIDE="$state" "$FM_DAEMON_DIR/fm-captain-hold.sh" open "$task" --idle-state 2>/dev/null)" = handed-off ]; then
+          # Keep the pending recheck so an answer or task change restores monitoring
+          # even if the one-shot watcher sees no new pane hash.
+          printf '%s\n' "$now" > "$marker"
+          continue
+        fi
         if [ -n "$dialog_name" ]; then
           persisted="stale persisted ${age}s (possible wedge, blocked-on-prompt: $dialog_name): $win"
         else
           persisted="stale persisted ${age}s (possible wedge): $win"
+          persisted+='; if inspection confirms a finished ship awaiting a still-open captain decision, record it on the existing task before reporting (see --idle-handoff in bin/fm-captain-hold.sh --help); do not replace a different hold'
         fi
         if escalate_add "$state" "$persisted"; then
           stale_marker_remove_key "$key" "$state"
