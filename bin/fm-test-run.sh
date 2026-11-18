@@ -701,15 +701,17 @@ is_proven_isolated_script() {
 # and other unproven work stays here. Derived rather than enumerated so a newly added test
 # lands here by default instead of falling out of every lane.
 list_portable_serial() {
-  local s base fam
+  local s fam proven_paths
+  # Load the portable exclusions once, with delimiters for exact path matches.
+  proven_paths=$(list_proven_isolated) || return 1
+  proven_paths=$'\n'$proven_paths$'\n'
   while IFS= read -r s; do
     [ -n "$s" ] || continue
-    base=$(basename "$s")
-    fam=$(family_for_basename "$base")
+    case "$proven_paths" in
+      *$'\n'"$s"$'\n'*) continue ;;
+    esac
+    fam=$(family_for_basename "${s##*/}")
     if [ "$fam" = "real-herdr-gated" ]; then
-      continue
-    fi
-    if is_proven_isolated_script "$s"; then
       continue
     fi
     printf '%s\n' "$s"
@@ -1073,35 +1075,29 @@ portable_serial_weight_for() {
 # PORTABLE_SERIAL_SHARDS bins, printing "<shard>\t<script>" for every script.
 # Deterministic: candidates are ordered by hint descending then path, and ties
 # between equally loaded bins always take the lowest bin index.
-portable_serial_assignments() {
-  local ms script i best best_load
-  local -a loads=()
-  i=1
-  while [ "$i" -le "$PORTABLE_SERIAL_SHARDS" ]; do
-    loads[i]=0
-    i=$((i + 1))
-  done
-  while IFS=$'\t' read -r ms script; do
-    [ -n "$script" ] || continue
-    best=1
-    best_load=${loads[1]}
-    i=2
-    while [ "$i" -le "$PORTABLE_SERIAL_SHARDS" ]; do
-      if [ "${loads[i]}" -lt "$best_load" ]; then
-        best_load=${loads[i]}
-        best=$i
-      fi
-      i=$((i + 1))
-    done
-    loads[best]=$((best_load + ms))
-    printf '%s\t%s\n' "$best" "$script"
-  done < <(
-    while IFS= read -r script; do
-      [ -n "$script" ] || continue
-      printf '%s\t%s\n' "$(portable_serial_weight_for "$script")" "$script"
-    done < <(list_portable_serial) | LC_ALL=C sort -t$'\t' -k1,1nr -k2,2
-  )
-}
+portable_serial_assignments() (
+  local paths
+  paths=$(list_portable_serial) || return
+  set -o pipefail
+  # Resolve all paths against one copy of the hints, keeping the first hint
+  # per path just as the individual lookup does.
+  {
+    portable_serial_weight_hints && printf '%s\n' -- "$paths"
+  } | LC_ALL=C awk -v fallback="$PORTABLE_SERIAL_DEFAULT_WEIGHT_MS" '
+    $0 == "--" { paths = 1; next }
+    !paths { if (NF && !($1 in hint)) hint[$1] = $2; next }
+    NF { printf "%s\t%s\n", ($0 in hint) ? hint[$0] : fallback, $0 }
+  ' | LC_ALL=C sort -t$'\t' -k1,1nr -k2,2 | LC_ALL=C awk -F '\t' -v shards="$PORTABLE_SERIAL_SHARDS" '
+    {
+      best = 1
+      for (i = 2; i <= shards; i++) {
+        if (load[i] + 0 < load[best] + 0) best = i
+      }
+      load[best] += $1
+      printf "%d\t%s\n", best, substr($0, index($0, FS) + 1)
+    }
+  '
+)
 
 # Parse "<k>of<n>" from a portable-serial shard lane and echo <k>, refusing when
 # <n> disagrees with this script's configured count so a CI matrix built for a
@@ -1139,7 +1135,7 @@ select_proven_isolated() {
 }
 
 select_lane() {
-  local want=$1 s shard idx found=0
+  local want=$1 assignments=${2:-} s shard idx found=0
   case "$want" in
     portable-parallel-1)
       while IFS= read -r s; do
@@ -1165,13 +1161,16 @@ select_lane() {
     portable-serial-*)
       # One separate-runner shard of the same remainder, still serial in itself.
       shard=$(portable_serial_shard_index "$want")
+      if [ "$#" -lt 2 ]; then
+        assignments=$(portable_serial_assignments) || die 'could not pack portable serial shards'
+      fi
       while IFS=$'\t' read -r idx s; do
         [ -n "$s" ] || continue
         if [ "$idx" = "$shard" ]; then
           add_script "$s"
           found=1
         fi
-      done < <(portable_serial_assignments)
+      done <<< "$assignments"
       ;;
     real-herdr-gated)
       select_family real-herdr-gated
@@ -1185,7 +1184,7 @@ select_lane() {
 }
 
 run_coverage_guard() {
-  local tmp missing extra a b shard unhinted serial_total serial_ms serial_max_ms=0
+  local tmp missing extra a b shard assignments unhinted serial_total serial_ms serial_max_ms=0
   local p1_ms p1_unhinted p2_ms p2_unhinted parallel_max_ms parallel_imbalance_ms
   local -a saved_scripts=()
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-coverage.XXXXXX")
@@ -1219,11 +1218,18 @@ run_coverage_guard() {
   SCRIPTS=()
   select_lane portable-serial
   printf '%s\n' "${SCRIPTS[@]+"${SCRIPTS[@]}"}" | LC_ALL=C sort -u >"$tmp/serial"
+  # Reuse one packing across all shard selections in this guard invocation.
+  if ! assignments=$(portable_serial_assignments); then
+    log 'coverage guard: could not pack portable serial shards'
+    SCRIPTS=("${saved_scripts[@]+"${saved_scripts[@]}"}")
+    rm -rf "$tmp"
+    return 1
+  fi
   : >"$tmp/serial_shards_raw"
   shard=1
   while [ "$shard" -le "$PORTABLE_SERIAL_SHARDS" ]; do
     SCRIPTS=()
-    select_lane "portable-serial-${shard}of${PORTABLE_SERIAL_SHARDS}"
+    select_lane "portable-serial-${shard}of${PORTABLE_SERIAL_SHARDS}" "$assignments"
     if [ "${#SCRIPTS[@]}" -eq 0 ]; then
       log "coverage guard: portable serial shard $shard of $PORTABLE_SERIAL_SHARDS is empty"
       SCRIPTS=("${saved_scripts[@]+"${saved_scripts[@]}"}")
