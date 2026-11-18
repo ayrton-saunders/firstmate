@@ -65,9 +65,13 @@
 # (pass its recorded reason verbatim); otherwise the handoff refuses to change it.
 # It writes a private fingerprint to state/<id>.idle-decision-handoff after
 # holding the task, respecting both supervision leases. It changes only repeat
-# idle checks, not wake acknowledgement
-# or delivery of the first decision. A matching receipt requires the same
-# active hold occurrence, reason, date, backlog state and worker records.
+# idle checks, not wake acknowledgement or delivery of the first decision.
+# A matching receipt requires the same active hold occurrence, reason, date,
+# backlog state and worker records. While it matches, repeat idle checks stay
+# quiet in both postures, including across display-only pane changes.
+# An answer or changed fingerprint restores ordinary monitoring; new status
+# signals still surface. Busy bounds and named blocking dialogs do not use
+# this receipt to silence their checks.
 # Teardown removes the receipt; ordinary holds never create one.
 #
 # `answer` records the captain's exact words and resolves the call in the same
