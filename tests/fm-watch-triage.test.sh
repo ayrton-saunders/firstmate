@@ -2240,16 +2240,61 @@ test_terminal_stale_surfaced() {
   pass "a stale pane sitting on a terminal status is surfaced (queue + exit)"
 }
 
+# --- model safeguard stop: one decision, never a busy absorb or stale loop ---
+test_safeguard_pause_surfaces_once() {
+  local dir state fakebin out capture_file window key pane_hash pid
+  dir=$(make_case safeguard-pause); state="$dir/state"; fakebin="$dir/fakebin"
+  out="$dir/watch.out"; capture_file="$dir/pane.txt"; window="test:fm-refused"
+  # Captured from installed Claude Code 2.1.327 in a private tmux session with
+  # a loopback API returning stop_reason=refusal, category=cyber to 'say hi'.
+  printf '%s\n' "⏺ API Error: Sonnet 4.6's safeguards flagged this message. Our intentionally broad safeguards allow us to deliver more capabilities faster, but can sometimes flag" \
+    '  legitimate cybersecurity work. Learn more: https://support.claude.com/en/articles/14604842-real-time-cyber-safeguards-on-claude' > "$capture_file"
+  printf 'window=%s\nkind=ship\nharness=claude\n' "$window" > "$state/refused.meta"
+  printf 'working: reviewing\n' > "$state/refused.status"
+  prime_status_seen "$state" "$state/refused.status"
+  key=$(watch_window_key "$window")
+  pane_hash=$(hash_text "$(cat "$capture_file")")
+  printf '%s' "$pane_hash" > "$state/.hash-$key"
+  printf '1\n' > "$state/.count-$key"
+  PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$capture_file" \
+    FM_FAKE_CREW_STATE='state: working · source: pane · harness busy (busy-record)' \
+    watch_bg "$state" "$fakebin" "$out" env FM_STALE_ESCALATE_SECS=999
+  pid=$!
+  if ! wait_for_exit "$pid" 100; then
+    reap "$pid"; fail "a safeguard-stopped worker was absorbed as still working"
+  fi
+  grep -F 'model safeguard stopped worker; decision required' "$out" >/dev/null \
+    || fail "the safeguard stop was not named: $(cat "$out")"
+  status_open_decisions "$state/refused.status" | cut -f1 | grep -Fx 'model-safeguard-refused' >/dev/null \
+    || fail "the safeguard stop did not open a durable decision"
+  ack_stopped_cycle "$state" || fail "could not acknowledge the safeguard notification"
+  : > "$out"
+  # Incidental pane churn must not create another alert for the same stop.
+  printf '\nDetails: \140[cyber]\140\nMessage ID: msg_fixture\n' >> "$capture_file"
+  PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$capture_file" \
+    FM_FAKE_CREW_STATE='state: working · source: pane · harness busy (busy-record)' \
+    watch_bg "$state" "$fakebin" "$out" env FM_STALE_ESCALATE_SECS=1
+  pid=$!
+  wait_poll_cycle "$state" "$pid" || { reap "$pid"; fail "same safeguard stop surfaced again"; }
+  [ ! -s "$out" ] || fail "the same stop emitted another notification"
+  reap "$pid"
+  ack_stopped_cycle "$state" || fail "could not acknowledge the intentionally stopped repeat cycle"
+  # A new worker generation at the same endpoint must not inherit suppression.
+  printf 'replacement-generation\n' > "$state/refused.busy-gen"
+  PATH="$fakebin:$PATH" FM_FAKE_TMUX_WINDOW="$window" FM_FAKE_TMUX_CAPTURE="$capture_file" \
+    watch_bg "$state" "$fakebin" "$out" env FM_STALE_ESCALATE_SECS=999
+  pid=$!
+  wait_for_exit "$pid" 100 || { reap "$pid"; fail "a replacement worker inherited stop suppression"; }
+  grep -F 'model safeguard stopped worker; decision required' "$out" >/dev/null \
+    || fail "the replacement worker stop was not surfaced"
+  [ "$(grep -c '^needs-decision .*key=model-safeguard-refused' "$state/refused.status")" = 1 ] \
+    || fail "the safeguard decision was duplicated"
+  pass "a model safeguard stop overrides stale busy evidence and surfaces once with a durable decision"
+}
+
 # --- stale pane, STALE terminal status overridden by an active run: absorbed ---
-# Regression for the 2026-07 herdr false-surface incidents: a crew's own status
-# log gets no new entry once firstmate hands it to a no-mistakes validation
-# (AGENTS.md's sparse status-reporting contract), so the log keeps showing its
-# pre-validation "done:" line as the LAST line for the run's entire (possibly
-# many-minutes) duration. stale_is_terminal alone has no run-step awareness and
-# would treat that leftover as still-current every time the pane goes quiet,
-# immediately surfacing a crew that is actively validating. crew_is_provably_working
-# must get a chance to override a captain-relevant-but-stale status line, exactly
-# as it already does for a plain non-terminal one.
+# A pre-validation done line is not current evidence against an executing run.
+# Unlike a vendor safeguard stop, this leftover must yield to active validation.
 test_stale_terminal_status_overridden_by_active_run() {
   local dir state fakebin out drain_out capture_file window key pane_hash sig pid
   dir=$(make_case terminal-stale-overridden); state="$dir/state"; fakebin="$dir/fakebin"
@@ -5511,6 +5556,7 @@ fm_test_run \
   test_unreadable_status_reports_once_per_file_state \
   test_permission_recovery_surfaces_preserved_status \
   test_terminal_stale_surfaced \
+  test_safeguard_pause_surfaces_once \
   test_stale_terminal_status_overridden_by_active_run \
   test_nonterminal_stale_provably_working_absorbed_then_escalated \
   test_wedge_escalation_marks_demand_deep_inspection_after_threshold \

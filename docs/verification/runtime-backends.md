@@ -6,6 +6,31 @@ This record contains reusable version-scoped evidence for active runtime guarant
 The backend guides own current setup, safety boundaries, and limitations.
 Exact task chronology, branch names, temporary homes, local paths, process ids, thread ids, and delivery transcripts remain in private reports or PR evidence.
 
+## Model safeguard stops
+
+Verified on 2026-11-17 with Claude Code 2.1.327 on macOS arm64; the print-mode guard also passed on 2.1.326.
+The token-free guard starts the installed CLI with an isolated environment, a synthetic API key, and a loopback-only API that returns `stop_reason: refusal` to the harmless prompt `say hi`.
+It checks both print-mode output and actual pane captures from an interactive CLI in a private tmux server, for structured cyber refusals and refusals without category details.
+This proves vendor rendering and pane classification, not the remote safeguard's decision; no real model is asked to refuse.
+
+```sh
+bash bin/fm-test-run.sh tests/fm-claude-safeguard-live.test.sh
+```
+
+```text
+ok - Claude Code 2.1.327 (Claude Code): cyber refusal renders a recognized terminal safeguard stop
+ok - Claude Code 2.1.327 (Claude Code): interactive cyber refusal is recognized from a real pane capture
+ok - Claude Code 2.1.327 (Claude Code): none refusal renders a recognized terminal safeguard stop
+ok - Claude Code 2.1.327 (Claude Code): interactive none refusal is recognized from a real pane capture
+```
+
+The observed interactive cyber error starts with `⏺ API Error: Sonnet 4.6's safeguards flagged this message.` and includes the vendor recovery URL `https://support.claude.com/en/articles/14604842-real-time-cyber-safeguards-on-claude`.
+The uncategorized refusal instead says `Sonnet 4.6 can't help with this. Start a new session to continue.` and includes `https://www.anthropic.com/legal/aup`.
+`tests/fm-busy-state.test.sh`, `tests/fm-crew-state.test.sh`, and `tests/fm-watch-triage.test.sh` pin the retained-busy and retained-running-record overrides, decision classification, one notification per visible stop, and rejection of ordinary safeguard discussion and historical errors followed by a newer turn.
+The classifier consumes the shared plain capture interface, independent of the session backend; its portable regression covers tmux, Herdr, Rex, tern, T3 Code, Zellij, cmux, Paseo, hc, and Orca without driving their lifecycle.
+Only Claude-family rendered refusals are verified; Codex, OpenCode, Pi/Pi-signed, Grok, Kimi, Cursor, omp, agy, Muse, Gemini, Rovo, Devin, Command Code, Polytoken, Cortex, Kiro, and Hermes have no verified equivalent signature and are deliberately not inferred from prose.
+The model-stop response policy belongs to [`stuck-crewmate-recovery`](../../.agents/skills/stuck-crewmate-recovery/SKILL.md#model-safeguard-stops).
+
 ## Polytoken worker lifecycle
 
 Verified on 2026-10-14 with Polytoken 0.9.0 on macOS arm64 using the tmux worker path.
