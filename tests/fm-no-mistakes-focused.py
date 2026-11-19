@@ -12,6 +12,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest.mock import patch
 
 # Keep dynamically imported production code from writing into the source copy.
 sys.dont_write_bytecode = True
@@ -359,8 +360,8 @@ class CorrespondenceTests(unittest.TestCase):
                 "url." + (self.repo / ".git").as_uri() + ".insteadOf")
             os.environ[f"GIT_CONFIG_VALUE_{index}"] = "https://github.com/" + origin + ".git"
 
-        def route(b, h, live=None, **fields):
-            read = self.integration_reader({**claim, "B": live or b, "H": h},
+        def route(b, h, live=None, tip=claim["U"], **fields):
+            read = self.integration_reader({**claim, "B": live or b, "H": h, "U": tip},
                                            canonical_default="trunk", changed_files=100, **fields)
             reads = 0
 
@@ -420,6 +421,12 @@ class CorrespondenceTests(unittest.TestCase):
         required = route(base, personal)
         self.assertEqual(required, "native")
         self.assertTrue(native_action_runs(FOCUSED.FORK, required))
+        later_tip = self.commit_tree(claim["U"] + "^{tree}", claim["U"])
+        for index, origin in enumerate((FOCUSED.CANONICAL, FOCUSED.FORK)):
+            unavailable = "url." + (self.repo / "missing.git").as_uri() + ".insteadOf"
+            with self.subTest(unavailable=origin), patch.dict(os.environ, {f"GIT_CONFIG_KEY_{index}": unavailable}):
+                self.assertEqual(route(base, personal, tip=later_tip), "native")
+                self.assertEqual(route(base, rebuilt, tip=later_tip), "native")
         # Even changing the candidate's approval file cannot authorize it.
         forged = self.commit_file(FOCUSED.REPAIR_RECORD, json.dumps({
             "schema": 1, "integrations": [FOCUSED.repair_record(
@@ -447,6 +454,9 @@ class CorrespondenceTests(unittest.TestCase):
         self.git("checkout", "-q", "--detach", base)
         retained = self.commit_file(FOCUSED.REPAIR_RECORD, json.dumps(records, indent=2))
         self.assertEqual(route(base, rebuilt, live=retained), "repaired-integration")
+        ambiguous = json.dumps(records).replace('"upstream":', '"upstream": null, "upstream":')
+        duplicate = self.commit_file(FOCUSED.REPAIR_RECORD, ambiguous)
+        self.assertEqual(route(base, rebuilt, live=duplicate), "native")
         withdrawn = self.commit_file(FOCUSED.REPAIR_RECORD, '{"schema":1,"integrations":[]}')
         self.assertEqual(route(base, rebuilt, live=withdrawn), "native")
         (self.repo / FOCUSED.REPAIR_RECORD).write_bytes(b"\xff")
@@ -699,7 +709,7 @@ class CorrespondenceTests(unittest.TestCase):
         bad_bodies = ["firstmate-focused-upstream", self.declaration(claim) * 2,
                       self.declaration(claim).replace(":v1 ", ":v2 "),
                       '<!-- firstmate-focused-upstream:v1 {invalid} -->',
-                      '<!-- firstmate-focused-upstream:v1 {"O":"a","O":"b"} -->',
+                      self.declaration(claim).replace('"O":', '"O": null, "O":'),
                       '<!-- firstmate-focused-upstream:v1 ' + ' ' * 16385 + ' -->']
         bad_bodies.extend(self.declaration(value) for value in bad_claims)
         for body in bad_bodies:

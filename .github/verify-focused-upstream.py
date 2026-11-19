@@ -49,6 +49,14 @@ def require(condition, reason):
         raise Refusal(reason)
 
 
+def unique_object(pairs):
+    result = {}
+    for key, value in pairs:
+        require(key not in result, "duplicate JSON key")
+        result[key] = value
+    return result
+
+
 def focused_claim(repository, body):
     """Select the fork-only alternative, never fall back on a bad declaration.
 
@@ -67,13 +75,6 @@ def focused_claim(repository, body):
                       re.DOTALL)
     require(match is not None, "malformed or unsupported focused declaration")
     require(len(match[1]) <= 16384, "oversized focused declaration")
-
-    def unique_object(pairs):
-        result = {}
-        for key, value in pairs:
-            require(key not in result, "duplicate focused declaration field")
-            result[key] = value
-        return result
 
     try:
         claim = json.loads(match[1], object_pairs_hook=unique_object)
@@ -413,21 +414,13 @@ def approved_entries(records):
     return records["integrations"]
 
 
-def unique_repair_object(pairs):
-    result = {}
-    for key, value in pairs:
-        require(key not in result, "duplicate repair approval key")
-        result[key] = value
-    return result
-
-
 def read_repair_approvals(git, base):
     record = git.run("cat-file", "blob", base + ":" + REPAIR_RECORD, check=False, binary=True)
     if record.returncode:
         return []
     try:
         return approved_entries(json.loads(record.stdout.decode("utf-8"),
-                                           object_pairs_hook=unique_repair_object))
+                                           object_pairs_hook=unique_object))
     except (ValueError, RecursionError):
         return []
 
@@ -449,25 +442,26 @@ def verify_repaired_integration(repository, base, head, canonical_tip, entries, 
 
 
 def is_repaired_integration(head, base, live_base, tip, workspace):
-    git = Git(workspace)
-    entries = read_repair_approvals(git, base)
-    if not entries:
+    try:
+        git = Git(workspace)
+        entries = read_repair_approvals(git, base)
+        if not entries:
+            return False
+        fork_tree = repair_fingerprint(git, base)
+        entries = [entry for entry in entries if entry["fork_tree"] == fork_tree]
+        if not entries:
+            return False
+        with tempfile.TemporaryDirectory(prefix="fm-repaired-integration-") as objects:
+            fetched = Git(objects)
+            fetched.run("init", "--bare", "--quiet")
+            for name, origin, shas in (("fork", FORK, (head, live_base)), ("canonical", CANONICAL, (tip,))):
+                fetched.run("remote", "add", name, "https://github.com/" + origin + ".git")
+                fetched.run("-c", "credential.helper=", "-c", "core.hooksPath=/dev/null",
+                            "fetch", "--quiet", "--no-tags", "--no-recurse-submodules",
+                            "--filter=blob:none", name, *(sha + ":refs/proof/" + sha for sha in shas))
+            return verify_repaired_integration(objects, base, head, tip, entries, live_base)
+    except (OSError, Refusal, UnicodeError):
         return False
-    fork_tree = repair_fingerprint(git, base)
-    entries = [entry for entry in entries if entry["fork_tree"] == fork_tree]
-    if not entries:
-        return False
-    with tempfile.TemporaryDirectory(prefix="fm-repaired-integration-") as scratch:
-        objects = os.path.join(scratch, "objects.git")
-        os.mkdir(objects)
-        subprocess.run(["git", "init", "--bare", "--quiet", objects], check=True)
-        fetched = Git(objects)
-        for name, origin, shas in (("fork", FORK, (head, live_base)), ("canonical", CANONICAL, (tip,))):
-            fetched.run("remote", "add", name, "https://github.com/" + origin + ".git")
-            fetched.run("-c", "credential.helper=", "-c", "core.hooksPath=/dev/null",
-                        "fetch", "--quiet", "--no-tags", "--no-recurse-submodules",
-                        "--filter=blob:none", name, *(sha + ":refs/proof/" + sha for sha in shas))
-        return verify_repaired_integration(objects, base, head, tip, entries, live_base)
 
 
 def requires_no_mistakes(number, expected_head, read_json=github_json):
