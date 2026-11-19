@@ -49,8 +49,8 @@ A real conflict alone does not require another merge approval; materially ambigu
 For prose-only behavior, retain real evaluation evidence; file/source-string presence does not prove the instruction is obeyed.
 
 Before first publication, select the applicable [personal-fork statement policy](../../../CONTRIBUTING.md#personal-fork-statement-policy) route.
-For locally known repairs, draft the exact approval with `python3 .github/verify-focused-upstream.py --draft-repairs <isolated-copy> <O> <H>` after focused inspection/tests, retaining the draft in the task evidence.
-Route that record alone into a separate ordinary no-mistakes PR changing `.github/upstream-repairs.json`, with the resolved paths/diff/rationale as review evidence and normal explicit merge approval; private updater evidence or reviewer declarations cannot substitute for landing it in the trusted base.
+After focused inspection/tests, use the verifier from a clean trusted fork checkout at O: `python3 <checkout-at-O>/.github/verify-focused-upstream.py --draft-repairs <isolated-copy> <O> <H>`. Retain its output in the task evidence.
+In a separate ordinary no-mistakes PR changing only `.github/upstream-repairs.json`, compare the proposed entry with the retained draft and require an exact match. Supply the resolved paths/diff/rationale as review evidence and obtain normal explicit merge approval.
 After approval lands, start a fresh task branch at the approval-bearing O and run `--prepare-upstream` with a new preparation record and the same U. Reproduce the approved merge resolution, replay the exact repair deltas, and repeat local inspection/tests before publishing the rebuilt H.
 If other base changes invalidate the exact approval, preserve the attempt and obtain a newly validated approval rather than weakening the record.
 

@@ -138,6 +138,13 @@ class CorrespondenceTests(unittest.TestCase):
         self.git("config", "user.name", "Controlled fixture")
         self.git("config", "user.email", "fixture@example.invalid")
         self.git("config", "commit.gpgsign", "false")
+        self.git("config", "uploadpack.allowFilter", "true")
+        self.git("config", "uploadpack.allowAnySHA1InWant", "true")
+        os.environ["GIT_CONFIG_COUNT"] = "2"
+        for index, origin in enumerate((FOCUSED.CANONICAL, FOCUSED.FORK)):
+            os.environ[f"GIT_CONFIG_KEY_{index}"] = (
+                "url." + (self.repo / ".git").as_uri() + ".insteadOf")
+            os.environ[f"GIT_CONFIG_VALUE_{index}"] = "https://github.com/" + origin + ".git"
         (self.repo / "shared").write_text("base\n")
         self.git("add", ".")
         self.git("commit", "-qm", "common ancestor")
@@ -352,15 +359,8 @@ class CorrespondenceTests(unittest.TestCase):
         for index in range(3):
             rebuilt = self.commit_file("personal", f"integration repair {index}\n")
         self.assertTrue(verify(base, rebuilt, records))
-        self.git("config", "uploadpack.allowFilter", "true")
-        self.git("config", "uploadpack.allowAnySHA1InWant", "true")
-        os.environ["GIT_CONFIG_COUNT"] = "2"
-        for index, origin in enumerate((FOCUSED.CANONICAL, FOCUSED.FORK)):
-            os.environ[f"GIT_CONFIG_KEY_{index}"] = (
-                "url." + (self.repo / ".git").as_uri() + ".insteadOf")
-            os.environ[f"GIT_CONFIG_VALUE_{index}"] = "https://github.com/" + origin + ".git"
 
-        def route(b, h, live=None, tip=claim["U"], **fields):
+        def route(b, h, live=None, tip=claim["U"], recheck_unavailable=False, **fields):
             read = self.integration_reader({**claim, "B": live or b, "H": h, "U": tip},
                                            canonical_default="trunk", changed_files=100, **fields)
             reads = 0
@@ -370,6 +370,8 @@ class CorrespondenceTests(unittest.TestCase):
                 reply = read(path)
                 if path.endswith("/pulls/23"):
                     reads += 1
+                    if recheck_unavailable and reads == 2:
+                        raise FOCUSED.GitHubUnavailable("temporary API outage")
                     reply.update(labels=[{"name": f"label-{reads}"}], comments=reads,
                                  mergeable=None if reads == 1 else True)
                 return reply
@@ -416,6 +418,18 @@ class CorrespondenceTests(unittest.TestCase):
                          "repairs": list(reversed(records["integrations"][0]["repairs"]))}]}):
             with self.subTest(invalid=invalid):
                 self.assertFalse(verify(base, rebuilt, invalid))
+        self.assertEqual(route(base, rebuilt, recheck_unavailable=True), "native")
+        for change in ("bytes", "mode"):
+            with self.subTest(last_repair=change):
+                self.git("checkout", "-q", "--detach", rebuilt)
+                if change == "bytes":
+                    (self.repo / "personal").write_text("different final behavior\n")
+                    self.git("add", "personal")
+                else:
+                    self.git("update-index", "--chmod=+x", "personal")
+                alternate = self.commit_tree(self.git("write-tree"), self.git("rev-parse", rebuilt + "^"))
+                self.assertEqual(route(base, alternate), "native")
+                self.git("restore", "--source=HEAD", "--staged", "--worktree", "personal")
         personal = self.commit_file("unrelated", "unapproved feature\n")
         self.assertFalse(verify(base, personal, records))
         required = route(base, personal)
@@ -511,6 +525,31 @@ class CorrespondenceTests(unittest.TestCase):
                 advertised = {**claim, "U": tip}
                 self.assertTrue(self.integration(claim, self.integration_reader(advertised)))
                 self.git("checkout", "-q", "--detach", self.common)
+
+    def test_approval_changes_require_native_for_both_canonical_shapes(self):
+        (self.repo / ".github").mkdir()
+        seeded = self.commit_file(FOCUSED.REPAIR_RECORD, "original approval\n")
+        for change in ("add", "modify", "remove", "chmod"):
+            base = self.common if change == "add" else seeded
+            self.git("checkout", "-q", "--detach", base)
+            path = self.repo / FOCUSED.REPAIR_RECORD
+            path.parent.mkdir(exist_ok=True)
+            if change == "remove":
+                self.git("rm", FOCUSED.REPAIR_RECORD)
+            elif change == "chmod":
+                self.git("update-index", "--chmod=+x", FOCUSED.REPAIR_RECORD)
+            else:
+                path.write_text("new approval\n")
+                self.git("add", FOCUSED.REPAIR_RECORD)
+            upstream = self.commit_tree(self.git("write-tree"), base)
+            self.git("checkout", "-q", "-f", "--detach", base)
+            fork = self.commit_file("personal", "fork behavior\n")
+            merge = self.commit_tree(self.git("merge-tree", "--write-tree", fork, upstream), fork, upstream)
+            for b, h in ((base, upstream), (fork, merge)):
+                with self.subTest(change=change, shape="ff" if h == upstream else "merge"):
+                    read = self.integration_reader({"B": b, "H": h, "U": upstream, "T": h},
+                                                   body="firstmate-focused-upstream")
+                    self.assertEqual(self.invoke_workflow(read, "approval-change", h, b), "native")
 
     def test_conflicted_integration_exemption_does_not_depend_on_size_or_body(self):
         base = self.commit_file("shared", "personal conflict\n")
@@ -1188,12 +1227,6 @@ class CorrespondenceTests(unittest.TestCase):
         # Only transport is redirected to real local Git object stores. The
         # production fetch/init, correspondence, Dockerfile build, sandbox and
         # final live-read decision all execute without success mocks.
-        os.environ["GIT_CONFIG_COUNT"] = "2"
-        for i, origin in enumerate((FOCUSED.CANONICAL, FOCUSED.FORK)):
-            os.environ[f"GIT_CONFIG_KEY_{i}"] = (
-                "url." + (self.repo / ".git").as_uri() + ".insteadOf")
-            os.environ[f"GIT_CONFIG_VALUE_{i}"] = "https://github.com/" + origin + ".git"
-
         def invoke(replies, name, head=None, read=None, base=None):
             ancestry = self.integration_reader(claim)
 

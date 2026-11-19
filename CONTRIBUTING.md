@@ -31,6 +31,7 @@ At or below both size limits and outside shared machinery, the usual required ch
 Missing or inconsistent classification data does not grant an exemption.
 
 Canonical integrations are exempt regardless of size or conflicts: the verifier checks GitHub commit ancestry for a canonical fast-forward from the event's fork base or a fork merge head whose first parent is that event base and whose second parent brings in canonical default-branch ancestry not already in that base.
+Any PR that adds, changes, or removes `.github/upstream-repairs.json` takes the native no-mistakes path, including a canonical fast-forward or merge.
 A later repair commit is not automatically exempt merely because it descends from such a merge.
 The `repaired-integration` route requires a separately landed base-owned approval of the fork tree before the merge, the resolved integration tree, and the ordered repair deltas in [`.github/upstream-repairs.json`](.github/upstream-repairs.json).
 The [verifier's `--draft-repairs` interface](.github/verify-focused-upstream.py) owns the record format and construction: draft from the inspected integration, land that approval through normal no-mistakes validation and merge approval, then rebuild the integration on the resulting fork base.

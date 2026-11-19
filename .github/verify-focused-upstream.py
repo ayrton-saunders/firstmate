@@ -40,7 +40,11 @@ class Refusal(ValueError):
     pass
 
 
-class GitHubNotFound(Refusal):
+class GitHubUnavailable(Refusal):
+    pass
+
+
+class GitHubNotFound(GitHubUnavailable):
     pass
 
 
@@ -245,9 +249,11 @@ def github_json(path):
     except urllib.error.HTTPError as error:
         if error.code == 404:
             raise GitHubNotFound("GitHub API object not found") from error
-        raise Refusal("fresh GitHub API read unavailable") from error
-    except (OSError, ValueError) as error:
-        raise Refusal("fresh GitHub API read unavailable") from error
+        raise GitHubUnavailable("fresh GitHub API read unavailable") from error
+    except OSError as error:
+        raise GitHubUnavailable("fresh GitHub API read unavailable") from error
+    except ValueError as error:
+        raise Refusal("invalid GitHub API response") from error
 
 
 def fork_pr_snapshot(read_json, number, expected_head):
@@ -320,9 +326,12 @@ def integration_route(number, expected_head, expected_base, workspace, read_json
                     SHA.fullmatch(parent["sha"]) for parent in parents), "invalid GitHub head parents")
         if len(parents) == 1:
             if (parents[0]["sha"] != expected_base and expected_head != live_base and
-                    is_repaired_integration(expected_head, expected_base, live_base, tip, workspace)
-                    and publication() == (head_repo, live_base)):
-                return "repaired-integration"
+                    is_repaired_integration(expected_head, expected_base, live_base, tip, workspace)):
+                try:
+                    if publication() == (head_repo, live_base):
+                        return "repaired-integration"
+                except GitHubUnavailable:
+                    return None
             return None
         integration = (len(parents) == 2 and parents[0]["sha"] == expected_base and
                        ancestor(parents[1]["sha"], tip, missing_is_negative=True) and
@@ -330,9 +339,24 @@ def integration_route(number, expected_head, expected_base, workspace, read_json
     else:
         return None
     if integration:
+        unchanged = canonical_keeps_approval(expected_base, expected_head)
         require(publication()[0] == head_repo, "PR repository changed during classification")
-        return "canonical-integration"
+        return "canonical-integration" if unchanged else "native"
     return None
+
+
+def approval_entry(git, revision):
+    return git.run("ls-tree", "--full-tree", "-z", revision, "--", REPAIR_RECORD, binary=True).stdout
+
+
+def canonical_keeps_approval(base, head):
+    with tempfile.TemporaryDirectory(prefix="fm-approval-entry-") as objects:
+        git = Git(objects)
+        git.run("init", "--bare", "--quiet")
+        git.run("-c", "credential.helper=", "-c", "core.hooksPath=/dev/null",
+                "fetch", "--quiet", "--depth=1", "--filter=blob:none", "--no-tags",
+                "--no-recurse-submodules", "https://github.com/" + FORK + ".git", base, head)
+        return approval_entry(git, base) == approval_entry(git, head)
 
 
 def repair_fingerprint(git, revision):
@@ -370,11 +394,10 @@ def repair_record(repository, base, head, *, limit=None):
     require(all(isinstance(sha, str) and SHA.fullmatch(sha) for sha in (base, head)),
             "invalid repair endpoints")
     git = Git(repository)
-    approval = git.run("ls-tree", "--full-tree", "-z", base, "--", REPAIR_RECORD, binary=True).stdout
+    approval = approval_entry(git, base)
     cursor, repairs = head, []
     while True:
-        require(git.run("ls-tree", "--full-tree", "-z", cursor, "--", REPAIR_RECORD,
-                        binary=True).stdout == approval,
+        require(approval_entry(git, cursor) == approval,
                 "integration or repair changed its approval file")
         parents = git.text("rev-list", "-1", "--parents", cursor).split()[1:]
         if len(parents) != 1:
@@ -770,7 +793,7 @@ def workflow_request(repository, number, expected_head, workspace,
     if repository != FORK:
         return {"route": "native"}
     route = integration_route(number, expected_head, expected_base, workspace, read_json)
-    if route == "repaired-integration":
+    if route in ("native", "repaired-integration"):
         return {"route": route}
     if route is None:
         if requires_no_mistakes(number, expected_head, read_json):
