@@ -281,7 +281,8 @@ def integration_route(number, expected_head, expected_base, workspace, read_json
         base, head = pr["base"].get("repo"), pr["head"].get("repo")
         require(pr.get("state") == "open" and isinstance(base, dict) and
                 base.get("full_name") == FORK, "not an open PR into the fork")
-        return (head.get("full_name") if isinstance(head, dict) else None, pr["base"]["sha"])
+        return (head.get("full_name") if isinstance(head, dict) else None,
+                pr["base"]["sha"], pr.get("body"))
 
     def ancestor(older, newer, *, missing_is_negative=False):
         if older == newer:
@@ -304,7 +305,8 @@ def integration_route(number, expected_head, expected_base, workspace, read_json
         require(comparison.get("status") == status, "inconsistent GitHub ancestry comparison")
         return status == "ahead"
 
-    head_repo, live_base = publication()
+    head_repo, live_base, _ = publication()
+    route = "canonical-integration"
     if head_repo not in (FORK, CANONICAL) or expected_head == expected_base:
         return None
     source = read_json(f"/repos/{CANONICAL}")
@@ -325,37 +327,51 @@ def integration_route(number, expected_head, expected_base, workspace, read_json
         require(all(isinstance(parent, dict) and isinstance(parent.get("sha"), str) and
                     SHA.fullmatch(parent["sha"]) for parent in parents), "invalid GitHub head parents")
         if len(parents) == 1:
-            if (parents[0]["sha"] != expected_base and expected_head != live_base and
-                    is_repaired_integration(expected_head, expected_base, live_base, tip, workspace)):
-                try:
-                    if publication() == (head_repo, live_base):
-                        return "repaired-integration"
-                except GitHubUnavailable:
-                    return None
-            return None
-        integration = (len(parents) == 2 and parents[0]["sha"] == expected_base and
-                       ancestor(parents[1]["sha"], tip, missing_is_negative=True) and
-                       not ancestor(parents[1]["sha"], expected_base))
+            route = "repaired-integration"
+            integration = (parents[0]["sha"] != expected_base and expected_head != live_base and
+                           is_repaired_integration(expected_head, expected_base, live_base, tip, workspace))
+        else:
+            integration = (len(parents) == 2 and parents[0]["sha"] == expected_base and
+                           ancestor(parents[1]["sha"], tip, missing_is_negative=True) and
+                           not ancestor(parents[1]["sha"], expected_base))
     else:
         return None
-    if integration:
-        unchanged = canonical_keeps_approval(expected_base, expected_head)
-        require(publication()[0] == head_repo, "PR repository changed during classification")
-        return "canonical-integration" if unchanged else "native"
-    return None
+    if not integration:
+        return None
+    try:
+        unchanged = (route == "repaired-integration" and live_base == expected_base or
+                     pr_keeps_approval(live_base, expected_head, known_ancestor=live_base == expected_base))
+    except (OSError, Refusal, UnicodeError):
+        unchanged = None
+    try:
+        current_repo, current_base, body = publication()
+    except GitHubUnavailable:
+        if route == "repaired-integration":
+            return None
+        raise
+    require(current_repo == head_repo, "PR repository changed during classification")
+    if current_base == live_base and unchanged is not None:
+        return route if unchanged else "native"
+    if route == "canonical-integration":
+        require(focused_claim(FORK, body) is None, "cannot verify approval entry for focused request")
+    return "native"
 
 
 def approval_entry(git, revision):
     return git.run("ls-tree", "--full-tree", "-z", revision, "--", REPAIR_RECORD, binary=True).stdout
 
 
-def canonical_keeps_approval(base, head):
+def pr_keeps_approval(base, head, *, known_ancestor):
     with tempfile.TemporaryDirectory(prefix="fm-approval-entry-") as objects:
         git = Git(objects)
         git.run("init", "--bare", "--quiet")
         git.run("-c", "credential.helper=", "-c", "core.hooksPath=/dev/null",
-                "fetch", "--quiet", "--depth=1", "--filter=blob:none", "--no-tags",
+                "fetch", "--quiet", *(["--depth=1"] if known_ancestor else []), "--filter=blob:none", "--no-tags",
                 "--no-recurse-submodules", "https://github.com/" + FORK + ".git", base, head)
+        if not known_ancestor:
+            bases = git.text("merge-base", "--all", base, head).split()
+            require(len(bases) == 1, "no unique PR merge base")
+            base = bases[0]
         return approval_entry(git, base) == approval_entry(git, head)
 
 

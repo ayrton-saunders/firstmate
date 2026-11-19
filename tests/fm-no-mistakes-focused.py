@@ -468,6 +468,8 @@ class CorrespondenceTests(unittest.TestCase):
         self.git("checkout", "-q", "--detach", base)
         retained = self.commit_file(FOCUSED.REPAIR_RECORD, json.dumps(records, indent=2))
         self.assertEqual(route(base, rebuilt, live=retained), "repaired-integration")
+        independent_approval = self.commit_tree(retained + "^{tree}", claim["B"])
+        self.assertEqual(route(base, rebuilt, live=independent_approval), "native")
         ambiguous = json.dumps(records).replace('"upstream":', '"upstream": null, "upstream":')
         duplicate = self.commit_file(FOCUSED.REPAIR_RECORD, ambiguous)
         self.assertEqual(route(base, rebuilt, live=duplicate), "native")
@@ -551,6 +553,31 @@ class CorrespondenceTests(unittest.TestCase):
                                                    body="firstmate-focused-upstream")
                     self.assertEqual(self.invoke_workflow(read, "approval-change", h, b), "native")
 
+    def test_live_approval_revert_requires_native_for_both_canonical_shapes(self):
+        (self.repo / ".github").mkdir()
+        live = self.commit_file(FOCUSED.REPAIR_RECORD, "intervening approval\n")
+        upstream = self.commit_tree(self.common + "^{tree}", live)
+        merge = self.commit_tree(upstream + "^{tree}", self.common, upstream)
+        for head in (upstream, merge):
+            with self.subTest(head=head):
+                read = self.integration_reader({"B": live, "H": head, "U": upstream, "T": head})
+                self.assertEqual(self.invoke_workflow(read, "approval-revert", head, self.common), "native")
+
+    def test_unavailable_approval_diff_withholds_canonical_exemptions(self):
+        unavailable = "url." + (self.repo / "missing.git").as_uri() + ".insteadOf"
+        for mode in ("ff", "divergent"):
+            self.git("checkout", "-q", "--detach", self.common)
+            claim, _ = self.fixture(mode)
+            with self.subTest(mode=mode), patch.dict(os.environ, {"GIT_CONFIG_KEY_1": unavailable}):
+                for body in (None, self.declaration(claim), "firstmate-focused-upstream"):
+                    read = self.integration_reader(claim, body=body)
+                    if body is None:
+                        self.assertEqual(self.invoke_workflow(read, "unavailable", claim["H"], claim["B"]),
+                                         "native")
+                    else:
+                        with self.assertRaises(FOCUSED.Refusal):
+                            self.invoke_workflow(read, "unavailable", claim["H"], claim["B"])
+
     def test_conflicted_integration_exemption_does_not_depend_on_size_or_body(self):
         base = self.commit_file("shared", "personal conflict\n")
         self.git("checkout", "-q", "--detach", self.common)
@@ -612,7 +639,7 @@ class CorrespondenceTests(unittest.TestCase):
 
             with self.subTest(moved=side):
                 if side == "base":
-                    self.assertTrue(self.integration(claim, moved))
+                    self.assertFalse(self.integration(claim, moved))
                 else:
                     with self.assertRaisesRegex(FOCUSED.Refusal, "matches event"):
                         self.integration(claim, moved)
