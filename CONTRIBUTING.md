@@ -30,22 +30,22 @@ The head must still match the event; the live base may have advanced before clas
 At or below both size limits and outside shared machinery, the usual required checks suffice without a statement.
 Missing or inconsistent classification data does not grant an exemption.
 
-Canonical integrations are exempt regardless of size or conflicts: the verifier checks GitHub commit ancestry for a canonical fast-forward from the event's fork base or a fork merge head whose first parent is that event base and whose second parent brings in canonical default-branch ancestry not already in that base.
-Any PR that adds, changes, or removes `.github/upstream-repairs.json` takes the native no-mistakes path, including a canonical fast-forward or merge.
-A later repair commit is not automatically exempt merely because it descends from such a merge.
-The `repaired-integration` route requires a separately landed base-owned approval of the fork tree before the merge, the resolved integration tree, and the ordered repair deltas in [`.github/upstream-repairs.json`](.github/upstream-repairs.json).
-The [verifier's `--draft-repairs` interface](.github/verify-focused-upstream.py) owns the record format and construction: draft from the inspected integration, land that approval through normal no-mistakes validation and merge approval, then rebuild the integration on the resulting fork base.
-Only the approval file itself is excluded from both tree fingerprints to avoid self-reference, and it must remain identical to the base throughout the merge and every repair.
-All other paths, modes and objects are bound, and each nonempty repair must match its complete approved raw Git delta in order.
-The merge must have the event base as first parent and new canonical default-branch ancestry as second parent, followed by exactly the recorded single-parent repairs.
-The approval must still be present and applicable on the observed live base; withdrawing it prevents pending classifications from using it.
-This is exact base approval of code, not a semantic claim inferred from paths or private updater evidence; absent, mismatched or ambiguous approvals retain the native statement requirement when the ordinary size/path policy requires it.
-No candidate file, PR text, label, comment or review input can approve a repair.
-A qualifying clean integration with unchanged personal paths can still request fresh focused evidence, but this qualification additionally requires the live fork base to match the event base.
-If a canonical integration requests focused evidence, an invalid request fails the check rather than certifying a conflict, repair, or personal-path overlap.
-For a conflicted integration, use the ancestry exemption without requesting clean focused evidence.
+Any PR that adds, changes, or removes [`.github/upstream-repairs.json`](.github/upstream-repairs.json) takes the native no-mistakes path, even on a canonical fast-forward or merge.
+Both integration exemptions require the verifier to confirm that the PR leaves this file unchanged against a stable live base.
+
+Without post-merge repairs, a canonical integration is exempt regardless of size or conflicts if its head is a canonical fast-forward from the event's fork base or a fork merge whose first parent is that base and whose second parent brings in new canonical default-branch ancestry.
 Ancestry establishes what was integrated, not the correctness of the resolved tree.
-The exemption does not change any other required check, the selected Firstmate delivery path, or merge authority.
+Only a clean canonical integration with unchanged personal paths and a live base matching the event base can qualify for fresh focused evidence.
+If an eligible canonical PR requests focused evidence, an invalid request fails the check; for a conflicted merge, use the ancestry exemption without requesting clean focused evidence.
+
+With post-merge repairs, ancestry alone does not suffice: the `repaired-integration` route requires a separate no-mistakes PR to land the approval on the personal fork before the merge is rebuilt.
+The merge must have the event base as its first parent and bring in new canonical default-branch ancestry through its second parent.
+The approval binds that second parent, the fork tree before the merge, the resolved merge tree, and the complete Git delta of each subsequent nonempty, single-parent repair in order.
+Only the approval file is excluded from the two tree fingerprints so the approval can land without invalidating itself; the merge and every repair must leave that file identical to the event base.
+The approval must still be present and applicable on the live base; withdrawing it prevents a pending check from using it.
+No candidate file, PR text, label, comment, review or private updater evidence can substitute for that approval.
+If the repairs cannot be verified, the ordinary size and path rules still apply.
+Neither exemption changes the other required checks, delivery path or merge authority.
 
 The policy takes effect once the PR base contains the updated verifier; the first-install bootstrap on a base with no verifier still uses the native action and refuses a focused declaration.
 Canonical and other repositories retain their existing native behavior.
@@ -55,7 +55,8 @@ Local fixtures check the decision and sandbox boundaries, not hosted publication
 ## Workflow
 
 Follow these steps when the native statement is required.
-For exempt personal-fork changes, use the ordinary fork PR path and pass the usual required checks; for canonical integrations, follow the [`updatefirstmate` skill](.agents/skills/updatefirstmate/SKILL.md).
+For upstream integrations on the personal fork, follow the [`updatefirstmate` workflow](.agents/skills/updatefirstmate/SKILL.md), including its draft, approval and rebuild steps when there are post-merge repairs.
+For other exempt personal-fork changes, use the ordinary fork PR path and pass the usual required checks.
 
 1. Fork the repo, then clone the parent repo or set your local `origin` back to the parent (`git@github.com:kunchenguid/firstmate.git`).
 2. Create a branch and make your changes.

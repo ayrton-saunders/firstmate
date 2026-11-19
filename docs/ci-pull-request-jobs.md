@@ -59,7 +59,7 @@ Each serial row is a distinct, disjoint assignment exposed by `fm-test-run.sh --
 | CI / macos-stock-bash | `Stock macOS Bash snapshot compatibility` | yes | Real Bash 3.2 parse sweep and snapshot/helper regressions with BSD tools; Linux assertions are not a substitute. | Successful execution 317-439s, median 387s; failed acquisitions execute nothing and wait 901s. | Keep, unchanged runner/pool and conditions. |
 | CI / invariants | `Repo invariants` | yes | Broken CLAUDE pointer/skill symlink or tracked private fleet paths; some local verification overlaps, but behavioral test success alone does not establish these invariants. | 6.1s. | Merge into another job as a future proposal, retaining every assertion. |
 | CI / full-suite | `Full suite` | yes | Missing outside-PR go-ahead or failed/cancelled dependencies; individual skipped jobs can otherwise look acceptable. | 3.4s. | Keep. |
-| Require no-mistakes / check | `PR must be raised via no-mistakes` | yes | Missing or stale attestation where required, or invalid requested focused evidence; canonical and exact base-approved repaired integrations are exempt under the [personal-fork statement policy](../CONTRIBUTING.md#personal-fork-statement-policy). | Unmeasured; base classification with verification where applicable. | Keep the required context. |
+| Require no-mistakes / check | `PR must be raised via no-mistakes` | yes | Missing or stale attestation where required, or invalid requested focused evidence; see the [personal-fork statement policy](../CONTRIBUTING.md#personal-fork-statement-policy). | Unmeasured; base classification with verification where applicable. | Keep the required context. |
 
 ## What actually overlaps, and what removal costs
 
