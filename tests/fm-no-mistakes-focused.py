@@ -12,6 +12,7 @@ import sys
 import tempfile
 import textwrap
 import unittest
+from unittest.mock import patch
 
 # Keep dynamically imported production code from writing into the source copy.
 sys.dont_write_bytecode = True
@@ -137,6 +138,13 @@ class CorrespondenceTests(unittest.TestCase):
         self.git("config", "user.name", "Controlled fixture")
         self.git("config", "user.email", "fixture@example.invalid")
         self.git("config", "commit.gpgsign", "false")
+        self.git("config", "uploadpack.allowFilter", "true")
+        self.git("config", "uploadpack.allowAnySHA1InWant", "true")
+        os.environ["GIT_CONFIG_COUNT"] = "2"
+        for index, origin in enumerate((FOCUSED.CANONICAL, FOCUSED.FORK)):
+            os.environ[f"GIT_CONFIG_KEY_{index}"] = (
+                "url." + (self.repo / ".git").as_uri() + ".insteadOf")
+            os.environ[f"GIT_CONFIG_VALUE_{index}"] = "https://github.com/" + origin + ".git"
         (self.repo / "shared").write_text("base\n")
         self.git("add", ".")
         self.git("commit", "-qm", "common ancestor")
@@ -272,9 +280,9 @@ class CorrespondenceTests(unittest.TestCase):
         with self.assertRaisesRegex(FOCUSED.Refusal, "conflict resolutions"):
             self.verify(claim, current)
 
-    def live_api(self, claim):
+    def live_api(self, claim, canonical_default="main"):
         source = {"id": 100, "full_name": FOCUSED.CANONICAL, "fork": False,
-                  "default_branch": "main"}
+                  "default_branch": canonical_default}
         fork = {"id": 200, "full_name": FOCUSED.FORK, "fork": True,
                 "default_branch": "main", "parent": source, "source": source}
         replies = {
@@ -287,7 +295,7 @@ class CorrespondenceTests(unittest.TestCase):
                 "head": {"repo": fork, "ref": "intake/upstream", "sha": claim["H"]},
             },
         }
-        for repo, ref, sha in ((FOCUSED.CANONICAL, "main", claim["U"]),
+        for repo, ref, sha in ((FOCUSED.CANONICAL, canonical_default, claim["U"]),
                                (FOCUSED.FORK, "main", claim["B"]),
                                (FOCUSED.FORK, "intake%2Fupstream", claim["H"])):
             replies[f"/repos/{repo}/git/ref/heads/{ref}"] = {
@@ -295,8 +303,8 @@ class CorrespondenceTests(unittest.TestCase):
                 "object": {"type": "commit", "sha": sha}}
         return replies
 
-    def integration_reader(self, claim, files=(), **pr_fields):
-        replies = self.live_api(claim)
+    def integration_reader(self, claim, files=(), canonical_default="main", **pr_fields):
+        replies = self.live_api(claim, canonical_default)
         pr_path = f"/repos/{FOCUSED.FORK}/pulls/23"
         replies[pr_path].update(pr_fields)
         replies[pr_path].setdefault("changed_files", len(files))
@@ -319,8 +327,197 @@ class CorrespondenceTests(unittest.TestCase):
         return read
 
     def integration(self, claim, read=None):
-        return FOCUSED.is_canonical_integration(23, claim["H"], claim["B"],
-                                               read_json=read or self.integration_reader(claim))
+        route, _ = FOCUSED.integration_route(23, claim["H"], claim["B"], str(self.repo),
+                                             read or self.integration_reader(claim))
+        return route == "canonical-integration"
+
+    def test_base_approved_three_repair_integration(self):
+        claim, _ = self.fixture()
+        self.git("checkout", "-q", "--detach", claim["H"])
+        for index in range(3):
+            head = self.commit_file("personal", f"integration repair {index}\n")
+        draft = subprocess.run(
+            [sys.executable, str(ROOT / ".github/verify-focused-upstream.py"),
+             "--draft-repairs", str(self.repo), claim["B"], head],
+            check=True, text=True, stdout=subprocess.PIPE)
+        records = json.loads(draft.stdout)
+        self.assertFalse(self.integration({**claim, "H": head}))
+
+        def verify(b, h, r, tip=claim["U"]):
+            return FOCUSED.verify_repaired_integration(
+                str(self.repo), b, h, tip, FOCUSED.approved_entries(r), b)
+
+        self.assertTrue(verify(claim["B"], head, records))
+
+        # Approval must land separately. Rebuild the merge on the new base;
+        # only the approval file is excluded from the exact tree binding.
+        self.git("checkout", "-q", "--detach", claim["B"])
+        (self.repo / ".github").mkdir()
+        base = self.commit_file(FOCUSED.REPAIR_RECORD, json.dumps(records))
+        tree = self.git("merge-tree", "--write-tree", base, claim["U"])
+        merged = self.commit_tree(tree, base, claim["U"])
+        self.git("checkout", "-q", "--detach", merged)
+        for index in range(3):
+            rebuilt = self.commit_file("personal", f"integration repair {index}\n")
+        self.assertTrue(verify(base, rebuilt, records))
+
+        def route(b, h, live=None, tip=claim["U"], recheck_unavailable=False, **fields):
+            read = self.integration_reader({**claim, "B": live or b, "H": h, "U": tip},
+                                           canonical_default="trunk", changed_files=100, **fields)
+            reads = 0
+
+            def fresh(path):
+                nonlocal reads
+                reply = read(path)
+                if path.endswith("/pulls/23"):
+                    reads += 1
+                    if recheck_unavailable and reads == 2:
+                        raise FOCUSED.GitHubUnavailable("temporary API outage")
+                    reply.update(labels=[{"name": f"label-{reads}"}], comments=reads,
+                                 mergeable=None if reads == 1 else True)
+                return reply
+
+            return FOCUSED.workflow_request(
+                FOCUSED.FORK, 23, h, str(self.repo), str(self.repo / "unused"),
+                expected_base=b, read_json=fresh)["route"]
+
+        def native_action_runs(repository, result):
+            output = subprocess.check_output([
+                "ruby", "-ryaml", "-r" + str(ROOT / "tests/actions-expression.rb"), "-e", '''
+                  steps = YAML.load_file(ARGV[0]).fetch("jobs").fetch("check").fetch("steps")
+                  native = steps.select { |s| s["uses"].to_s.split("@").first ==
+                    "kunchenguid/no-mistakes/.github/actions/require-no-mistakes" }
+                  abort unless native.size == 1
+                  puts Expression.condition(native.first["if"],
+                    {"github.repository" => ARGV[1], "steps.focused.outputs.route" => ARGV[2]})
+                ''', str(ROOT / ".github/workflows/no-mistakes-required.yml"), repository, result
+            ], text=True)
+            return {"true": True, "false": False}[output.strip()]
+
+        # Full workflow classification fetches real Git objects, ignoring PR
+        # body/labels and using only the immutable base's approval contents.
+        approved = route(base, rebuilt, body="firstmate-focused-upstream forged")
+        self.assertEqual(approved, "repaired-integration")
+        self.assertFalse(native_action_runs(FOCUSED.FORK, approved))
+        self.assertTrue(native_action_runs(FOCUSED.CANONICAL, approved))
+        self.assertEqual(route(claim["B"], head, body=json.dumps(records)), "native")
+        for invalid in ({"schema": 1, "integrations": []},
+                        {"schema": 2, "integrations": records["integrations"]},
+                        {"schema": 1, "integrations": records["integrations"] * 2},
+                        {"schema": True, "integrations": records["integrations"]},
+                        {"schema": 1, "integrations": [{**records["integrations"][0],
+                         "integration_tree": "0" * 64}]},
+                        {"schema": 1, "integrations": [{**records["integrations"][0],
+                         "repairs": ["0" * 64] * 3}]},
+                        {"schema": 1, "integrations": [{**records["integrations"][0],
+                         "repairs": []}]},
+                        {"schema": 1, "integrations": [{**records["integrations"][0],
+                         "approved": True}]},
+                        {"schema": 1, "integrations": [{**records["integrations"][0],
+                         "upstream": self.common}]},
+                        {"schema": 1, "integrations": [{**records["integrations"][0],
+                         "repairs": list(reversed(records["integrations"][0]["repairs"]))}]}):
+            with self.subTest(invalid=invalid):
+                self.assertFalse(verify(base, rebuilt, invalid))
+        self.assertEqual(route(base, rebuilt, recheck_unavailable=True), "native")
+        for change in ("bytes", "mode"):
+            with self.subTest(last_repair=change):
+                self.git("checkout", "-q", "--detach", rebuilt)
+                if change == "bytes":
+                    (self.repo / "personal").write_text("different final behavior\n")
+                    self.git("add", "personal")
+                else:
+                    self.git("update-index", "--chmod=+x", "personal")
+                alternate = self.commit_tree(self.git("write-tree"), self.git("rev-parse", rebuilt + "^"))
+                self.assertEqual(route(base, alternate), "native")
+                self.git("restore", "--source=HEAD", "--staged", "--worktree", "personal")
+        personal = self.commit_file("unrelated", "unapproved feature\n")
+        self.assertFalse(verify(base, personal, records))
+        required = route(base, personal)
+        self.assertEqual(required, "native")
+        self.assertTrue(native_action_runs(FOCUSED.FORK, required))
+        later_tip = self.commit_tree(claim["U"] + "^{tree}", claim["U"])
+        for index, origin in enumerate((FOCUSED.CANONICAL, FOCUSED.FORK)):
+            unavailable = "url." + (self.repo / "missing.git").as_uri() + ".insteadOf"
+            with self.subTest(unavailable=origin), patch.dict(os.environ, {f"GIT_CONFIG_KEY_{index}": unavailable}):
+                self.assertEqual(route(base, personal, tip=later_tip), "native")
+                self.assertEqual(route(base, rebuilt, tip=later_tip), "native")
+        # Even changing the candidate's approval file cannot authorize it.
+        forged = self.commit_file(FOCUSED.REPAIR_RECORD, json.dumps({
+            "schema": 1, "integrations": [FOCUSED.repair_record(
+                str(self.repo), base, personal)]}))
+        self.assertEqual(route(base, forged, body="approved"), "native")
+        extra_merge = self.commit_tree(personal + "^{tree}", rebuilt, self.common)
+        self.assertFalse(verify(base, extra_merge, records))
+        reversed_merge = self.commit_tree(merged + "^{tree}", claim["U"], base)
+        self.assertFalse(verify(base, self.commit_tree(rebuilt + "^{tree}", reversed_merge), records))
+        wrong_merge = self.commit_tree(personal + "^{tree}", base, claim["U"])
+        self.assertFalse(verify(base, self.commit_tree(rebuilt + "^{tree}", wrong_merge), records))
+        self.assertFalse(verify(claim["B"], rebuilt, records))
+        # Excluding the approval file from the fingerprint must not allow a
+        # merge to smuggle new approvals into the next trusted base.
+        self.git("checkout", "-q", "--detach", merged)
+        altered = self.commit_file(FOCUSED.REPAIR_RECORD, '{"schema":1,"integrations":[]}')
+        smuggled = self.commit_tree(altered + "^{tree}", base, claim["U"])
+        self.git("checkout", "-q", "--detach", smuggled)
+        for index in range(3):
+            smuggled = self.commit_file("personal", f"integration repair {index}\n")
+        self.assertFalse(verify(base, smuggled, records))
+        self.assertEqual(route(base, smuggled), "native")
+        self.assertFalse(verify(base, rebuilt, records, self.common))
+
+        self.git("checkout", "-q", "--detach", base)
+        retained = self.commit_file(FOCUSED.REPAIR_RECORD, json.dumps(records, indent=2))
+        self.assertEqual(route(base, rebuilt, live=retained), "repaired-integration")
+        independent_approval = self.commit_tree(retained + "^{tree}", claim["B"])
+        self.assertEqual(route(base, rebuilt, live=independent_approval), "native")
+        ambiguous = json.dumps(records).replace('"upstream":', '"upstream": null, "upstream":')
+        duplicate = self.commit_file(FOCUSED.REPAIR_RECORD, ambiguous)
+        self.assertEqual(route(base, rebuilt, live=duplicate), "native")
+        withdrawn = self.commit_file(FOCUSED.REPAIR_RECORD, '{"schema":1,"integrations":[]}')
+        self.assertEqual(route(base, rebuilt, live=withdrawn), "native")
+        (self.repo / FOCUSED.REPAIR_RECORD).write_bytes(b"\xff")
+        self.git("commit", "-qam", "invalid approval encoding")
+        invalid = self.git("rev-parse", "HEAD")
+        self.commit_file("personal", "fix approval next\n")
+        fixed = self.commit_file(FOCUSED.REPAIR_RECORD, json.dumps(records))
+        self.assertEqual(route(invalid, fixed), "native")
+        self.assertEqual(route(base, rebuilt, live=invalid), "native")
+
+        self.git("checkout", "-q", "--detach", base)
+        conflicting = self.commit_file("canonical", "intervening fork fix\n")
+        self.assertEqual(route(base, rebuilt, live=conflicting), "native")
+        stale = self.commit_tree(merged + "^{tree}", conflicting, claim["U"])
+        for repair in self.git("rev-list", "--reverse", merged + ".." + rebuilt).split():
+            stale = self.commit_tree(repair + "^{tree}", stale)
+        self.assertEqual(route(conflicting, stale), "native")
+
+    def test_repair_binding_is_byte_exact_and_bounded(self):
+        claim, _ = self.fixture()
+        self.git("checkout", "-q", "--detach", claim["H"])
+        first = self.commit_file("odd\r\nname", "same bytes\n")
+        self.git("checkout", "-q", "--detach", claim["H"])
+        second = self.commit_file("odd\nname", "same bytes\n")
+        git = FOCUSED.Git(str(self.repo))
+        self.assertNotEqual(FOCUSED.repair_fingerprint(git, first),
+                            FOCUSED.repair_fingerprint(git, second))
+        self.assertNotEqual(FOCUSED.repair_delta(git, claim["H"], first),
+                            FOCUSED.repair_delta(git, claim["H"], second))
+        empty = self.commit_tree(second + "^{tree}", second)
+        with self.assertRaises(FOCUSED.Refusal):
+            FOCUSED.repair_record(str(self.repo), claim["B"], empty)
+        for index in range(8):
+            (self.repo / "z").write_text(f"paired repair {index}\n")
+            self.git("add", "z")
+            head = self.commit_file("personal", f"repair {index}\n")
+        order = self.repo / ".git/order"
+        order.write_text("z\n")
+        self.git("config", "diff.orderFile", str(order))
+        record = FOCUSED.repair_record(str(self.repo), claim["B"], head)
+        self.assertEqual(len(record["repairs"]), 9)
+        self.git("config", "--unset", "diff.orderFile")
+        self.assertTrue(FOCUSED.verify_repaired_integration(
+            str(self.repo), claim["B"], head, claim["U"], [record], claim["B"]))
 
     def test_canonical_integration_includes_clean_and_fast_forward_histories(self):
         for mode in ("ff", "divergent", "ancestry-only"):
@@ -331,6 +528,77 @@ class CorrespondenceTests(unittest.TestCase):
                 advertised = {**claim, "U": tip}
                 self.assertTrue(self.integration(claim, self.integration_reader(advertised)))
                 self.git("checkout", "-q", "--detach", self.common)
+
+    def test_approval_changes_require_native_for_both_canonical_shapes(self):
+        (self.repo / ".github").mkdir()
+        seeded = self.commit_file(FOCUSED.REPAIR_RECORD, "original approval\n")
+        for change in ("add", "modify", "remove", "chmod"):
+            base = self.common if change == "add" else seeded
+            self.git("checkout", "-q", "--detach", base)
+            path = self.repo / FOCUSED.REPAIR_RECORD
+            path.parent.mkdir(exist_ok=True)
+            if change == "remove":
+                self.git("rm", FOCUSED.REPAIR_RECORD)
+            elif change == "chmod":
+                self.git("update-index", "--chmod=+x", FOCUSED.REPAIR_RECORD)
+            else:
+                path.write_text("new approval\n")
+                self.git("add", FOCUSED.REPAIR_RECORD)
+            upstream = self.commit_tree(self.git("write-tree"), base)
+            self.git("checkout", "-q", "-f", "--detach", base)
+            fork = self.commit_file("personal", "fork behavior\n")
+            merge = self.commit_tree(self.git("merge-tree", "--write-tree", fork, upstream), fork, upstream)
+            for b, h in ((base, upstream), (fork, merge)):
+                with self.subTest(change=change, shape="ff" if h == upstream else "merge"):
+                    read = self.integration_reader({"B": b, "H": h, "U": upstream, "T": h},
+                                                   body="firstmate-focused-upstream")
+                    self.assertEqual(self.invoke_workflow(read, "approval-change", h, b), "native")
+
+    def test_canonical_route_uses_the_confirmed_publication_body(self):
+        for mode in ("ff", "divergent"):
+            self.git("checkout", "-q", "--detach", self.common)
+            claim, _ = self.fixture(mode)
+            read = self.integration_reader(claim)
+            publications = 0
+
+            def changed(path):
+                nonlocal publications
+                reply = read(path)
+                if path.endswith("/pulls/23"):
+                    publications += 1
+                    if publications == 2:
+                        reply["body"] = "firstmate-focused-upstream"
+                    elif publications > 2:
+                        reply["base"]["sha"] = claim["H"]
+                return reply
+
+            with self.subTest(mode=mode), self.assertRaises(FOCUSED.Refusal):
+                self.invoke_workflow(changed, "confirmed-body", claim["H"], claim["B"])
+
+    def test_live_approval_revert_requires_native_for_both_canonical_shapes(self):
+        (self.repo / ".github").mkdir()
+        live = self.commit_file(FOCUSED.REPAIR_RECORD, "intervening approval\n")
+        upstream = self.commit_tree(self.common + "^{tree}", live)
+        merge = self.commit_tree(upstream + "^{tree}", self.common, upstream)
+        for head in (upstream, merge):
+            with self.subTest(head=head):
+                read = self.integration_reader({"B": live, "H": head, "U": upstream, "T": head})
+                self.assertEqual(self.invoke_workflow(read, "approval-revert", head, self.common), "native")
+
+    def test_unavailable_approval_diff_withholds_canonical_exemptions(self):
+        unavailable = "url." + (self.repo / "missing.git").as_uri() + ".insteadOf"
+        for mode in ("ff", "divergent"):
+            self.git("checkout", "-q", "--detach", self.common)
+            claim, _ = self.fixture(mode)
+            with self.subTest(mode=mode), patch.dict(os.environ, {"GIT_CONFIG_KEY_1": unavailable}):
+                for body in (None, self.declaration(claim), "firstmate-focused-upstream"):
+                    read = self.integration_reader(claim, body=body)
+                    if body is None:
+                        self.assertEqual(self.invoke_workflow(read, "unavailable", claim["H"], claim["B"]),
+                                         "native")
+                    else:
+                        with self.assertRaises(FOCUSED.Refusal):
+                            self.invoke_workflow(read, "unavailable", claim["H"], claim["B"])
 
     def test_conflicted_integration_exemption_does_not_depend_on_size_or_body(self):
         base = self.commit_file("shared", "personal conflict\n")
@@ -393,7 +661,7 @@ class CorrespondenceTests(unittest.TestCase):
 
             with self.subTest(moved=side):
                 if side == "base":
-                    self.assertTrue(self.integration(claim, moved))
+                    self.assertFalse(self.integration(claim, moved))
                 else:
                     with self.assertRaisesRegex(FOCUSED.Refusal, "matches event"):
                         self.integration(claim, moved)
@@ -529,7 +797,7 @@ class CorrespondenceTests(unittest.TestCase):
         bad_bodies = ["firstmate-focused-upstream", self.declaration(claim) * 2,
                       self.declaration(claim).replace(":v1 ", ":v2 "),
                       '<!-- firstmate-focused-upstream:v1 {invalid} -->',
-                      '<!-- firstmate-focused-upstream:v1 {"O":"a","O":"b"} -->',
+                      self.declaration(claim).replace('"O":', '"O": null, "O":'),
                       '<!-- firstmate-focused-upstream:v1 ' + ' ' * 16385 + ' -->']
         bad_bodies.extend(self.declaration(value) for value in bad_claims)
         for body in bad_bodies:
@@ -1008,12 +1276,6 @@ class CorrespondenceTests(unittest.TestCase):
         # Only transport is redirected to real local Git object stores. The
         # production fetch/init, correspondence, Dockerfile build, sandbox and
         # final live-read decision all execute without success mocks.
-        os.environ["GIT_CONFIG_COUNT"] = "2"
-        for i, origin in enumerate((FOCUSED.CANONICAL, FOCUSED.FORK)):
-            os.environ[f"GIT_CONFIG_KEY_{i}"] = (
-                "url." + (self.repo / ".git").as_uri() + ".insteadOf")
-            os.environ[f"GIT_CONFIG_VALUE_{i}"] = "https://github.com/" + origin + ".git"
-
         def invoke(replies, name, head=None, read=None, base=None):
             ancestry = self.integration_reader(claim)
 

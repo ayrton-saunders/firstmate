@@ -48,12 +48,17 @@ Real conflicts or demonstrated interoperability failures justify focused in-scop
 A real conflict alone does not require another merge approval; materially ambiguous behavior, changes to deliberate behavior, scope expansion, destructive changes and security-sensitive choices still escalate.
 For prose-only behavior, retain real evaluation evidence; file/source-string presence does not prove the instruction is obeyed.
 
+Before first publication, select the applicable [personal-fork statement policy](../../../CONTRIBUTING.md#personal-fork-statement-policy) route. A plain catch-up with no post-merge repair commits proceeds directly to step 3.
+
+For a chain with post-merge repairs, complete the following approval sequence. After focused inspection/tests, use the verifier from a clean trusted fork checkout at O: `python3 <checkout-at-O>/.github/verify-focused-upstream.py --draft-repairs <isolated-copy> <O> <H>`. Retain its output in the task evidence.
+In a separate ordinary no-mistakes PR changing only `.github/upstream-repairs.json`, compare the proposed entry with the retained draft and require an exact match. Supply the resolved paths/diff/rationale as review evidence and obtain normal explicit merge approval.
+After approval lands, start a fresh task branch at the approval-bearing O and run `--prepare-upstream` with a new preparation record and the same U. Reproduce the approved merge resolution, replay the exact repair deltas, and repeat local inspection/tests before publishing the rebuilt H.
+If other base changes invalidate the exact approval, preserve the attempt and obtain a newly validated approval rather than weakening the record.
 
 ## 3. Qualify the actual published head
 
-Publish the integration branch and open a genuine fork-only PR through the ordinary forge path, then require every applicable original forge check and verify its actual producer at final H.
-Recheck actual fork-only destinations immediately before publication.
-Before qualifying the published head, consult the [personal-fork statement policy](../../../CONTRIBUTING.md#personal-fork-statement-policy) for the canonical integration exemption and the separate clean focused evidence route.
+Recheck the fork-only destinations, publish the integration branch and open a genuine fork-only PR through the ordinary forge path. Require every applicable original forge check and verify its actual producer at final H.
+If hosted checks require a post-merge repair commit, preserve the published branch, PR and preparation record. Inspect and test the corrected candidate locally, then follow step 2's approval and rebuild sequence for the complete chain. Publish the fresh branch as a new PR; do not force-push the earlier attempt.
 If required compliance rejects the integration, preserve the local result and report the concrete blocker rather than fabricating native attestation, changing workflow exemptions/rules or borrowing another PR's waiver.
 Personal feature validation remains owned by its normal no-mistakes pipeline, not this integration path.
 
