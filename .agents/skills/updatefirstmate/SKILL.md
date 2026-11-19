@@ -53,7 +53,11 @@ For prose-only behavior, retain real evaluation evidence; file/source-string pre
 
 Publish the integration branch and open a genuine fork-only PR through the ordinary forge path, then require every applicable original forge check and verify its actual producer at final H.
 Recheck actual fork-only destinations immediately before publication.
-Before qualifying the published head, consult the [personal-fork statement policy](../../../CONTRIBUTING.md#personal-fork-statement-policy) for the canonical integration exemption and the separate clean focused evidence route.
+Before qualifying the published head, consult the [personal-fork statement policy](../../../CONTRIBUTING.md#personal-fork-statement-policy) for canonical and exact base-approved repaired integrations and the separate clean focused evidence route.
+For a repaired integration, draft the exact approval with `.github/verify-focused-upstream.py --draft-repairs <isolated-copy> <O> <H>` after focused inspection/tests, retaining the draft in the task evidence.
+Route that record alone into a separate ordinary no-mistakes PR changing `.github/upstream-repairs.json`, with the resolved paths/diff/rationale as review evidence and normal explicit merge approval; private updater evidence or reviewer declarations cannot substitute for landing it in the trusted base.
+After that approval lands, rebuild the merge from the new fork base and the same U, replay exactly the approved repair deltas, and repeat final-head qualification.
+If other base changes invalidate the exact approval, preserve the attempt and obtain a newly validated approval rather than weakening the record.
 If required compliance rejects the integration, preserve the local result and report the concrete blocker rather than fabricating native attestation, changing workflow exemptions/rules or borrowing another PR's waiver.
 Personal feature validation remains owned by its normal no-mistakes pipeline, not this integration path.
 

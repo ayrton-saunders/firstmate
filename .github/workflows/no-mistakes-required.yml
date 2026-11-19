@@ -71,6 +71,7 @@ jobs:
           github.repository != 'ayrton-saunders/firstmate' ||
           (steps.focused.outputs.route != 'below-threshold' &&
            steps.focused.outputs.route != 'canonical-integration' &&
+           steps.focused.outputs.route != 'repaired-integration' &&
            steps.focused.outputs.route != 'focused')
         uses: kunchenguid/no-mistakes/.github/actions/require-no-mistakes@f6441c96c352a18b9cadcaef6b6c7017e9ac3970 # v1.80.1
         with:

@@ -2,6 +2,9 @@
 """Focused-upstream proof components for a trusted workflow caller.
 
 Usage: verify-focused-upstream.py --workflow
+       verify-focused-upstream.py --draft-repairs <repository> <fork-base> <repaired-head>
+Draft output is untrusted until separately landed in the fork base's
+.github/upstream-repairs.json through normal no-mistakes validation/approval.
 The library's qualify_request composes live correspondence, retained inspection,
 fresh sandbox execution and a final publication recheck. It accepts no prior
 receipts. --workflow is the trusted-base Actions entry for PR classification
@@ -26,6 +29,8 @@ CANONICAL = "kunchenguid/firstmate"
 FORK = "ayrton-saunders/firstmate"
 SHA = re.compile(r"[0-9a-f]{40}\Z")
 FOCUSED_MARKER = "firstmate-focused-upstream"
+REPAIR_RECORD = ".github/upstream-repairs.json"
+MAX_REPAIRS = 8
 CLAIM_FIELDS = frozenset({
     "source_repository", "fork_repository", "head_repository", "source_ref",
     "base_ref", "head_ref", "O", "U", "H", "B", "T", "conflict_history",
@@ -115,14 +120,14 @@ class Git:
     def __init__(self, repository):
         self.repository = repository
 
-    def run(self, *arguments, check=True):
+    def run(self, *arguments, check=True, binary=False):
         # Replace refs must not rewrite the history being proved. Objects are
         # fetched by the trusted caller, never by a PR-supplied .git directory.
         env = {**os.environ, "GIT_NO_REPLACE_OBJECTS": "1",
                "GIT_LITERAL_PATHSPECS": "1"}
         result = subprocess.run(
             ["git", "-C", self.repository, "--no-replace-objects", *arguments],
-            env=env, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+            env=env, text=not binary, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
             check=False,
         )
         if check:
@@ -322,6 +327,139 @@ def is_canonical_integration(number, expected_head, expected_base, read_json=git
     if integration:
         require(publication() == head_repo, "PR repository changed during classification")
     return integration
+
+
+def repair_fingerprint(git, revision):
+    """Bind the complete integration tree except its base-owned approval file.
+
+    Excluding only that file permits approval to land before rebuilding the
+    merge on the new base, without a self-referential commit/tree hash.
+    Everything else, including modes and paths, is bound byte-for-byte.
+    """
+    inventory = git.run("ls-tree", "-r", "-z", revision, binary=True).stdout
+    entries = [entry for entry in inventory.split(b"\0") if entry and
+               entry.split(b"\t", 1)[1] != REPAIR_RECORD.encode()]
+    return hashlib.sha256(b"\0".join(entries) + b"\0").hexdigest()
+
+
+def repair_delta(git, parent, child):
+    # Exact raw deltas bind every path, old/new blob and mode, not just a
+    # patch-id (which can discard whitespace). No diff drivers are executed.
+    delta = git.run("diff-tree", "--no-commit-id", "--raw", "--no-renames",
+                    "--no-ext-diff", "--ignore-submodules=none", "--abbrev=40",
+                    "-r", "-z", parent, child, binary=True).stdout
+    require(delta, "empty repair is not an integration repair")
+    return hashlib.sha256(delta).hexdigest()
+
+
+def repair_record(repository, base, head):
+    """Construct an UNTRUSTED draft; only a separately landed base approves it.
+
+    upstream-repairs.json schema 1 contains an integrations array of exact
+    records returned here: upstream SHA, integration tree fingerprint, ordered
+    repair delta digests. These are approvals of exact code, not claims that a
+    path glob, commit message, or reviewer declaration makes code in scope.
+    At most eight nonempty, single-parent repairs may follow the one merge.
+    """
+    require(all(isinstance(sha, str) and SHA.fullmatch(sha) for sha in (base, head)),
+            "invalid repair endpoints")
+    git = Git(repository)
+    approval = git.run("ls-tree", "-z", base, "--", REPAIR_RECORD, binary=True).stdout
+    cursor, repairs = head, []
+    while True:
+        require(git.run("ls-tree", "-z", cursor, "--", REPAIR_RECORD,
+                        binary=True).stdout == approval,
+                "integration or repair changed its approval file")
+        parents = git.text("show", "-s", "--format=%P", cursor).split()
+        if len(parents) != 1:
+            break
+        require(len(repairs) < MAX_REPAIRS, "too many repairs")
+        repairs.append(repair_delta(git, parents[0], cursor))
+        cursor = parents[0]
+    require(repairs and len(parents) == 2 and parents[0] == base,
+            "repairs must follow exactly one merge from the event base")
+    upstream = parents[1]
+    require(not git.ancestor(upstream, base), "no new canonical ancestry")
+    return {"upstream": upstream, "integration_tree": repair_fingerprint(git, cursor),
+            "repairs": list(reversed(repairs))}
+
+
+def valid_repair_records(records):
+    if not (isinstance(records, dict) and set(records) == {"schema", "integrations"}
+            and type(records["schema"]) is int and records["schema"] == 1
+            and isinstance(records["integrations"], list)):
+        return False
+    seen = set()
+    for entry in records["integrations"]:
+        if not (isinstance(entry, dict) and
+                set(entry) == {"upstream", "integration_tree", "repairs"} and
+                isinstance(entry["upstream"], str) and SHA.fullmatch(entry["upstream"]) and
+                isinstance(entry["repairs"], list) and
+                1 <= len(entry["repairs"]) <= MAX_REPAIRS and
+                all(isinstance(digest, str) and re.fullmatch(r"[0-9a-f]{64}", digest)
+                    for digest in [entry["integration_tree"], *entry["repairs"]])):
+            return False
+        key = json.dumps(entry, sort_keys=True)
+        if key in seen:
+            return False
+        seen.add(key)
+    return True
+
+
+def unique_repair_object(pairs):
+    result = {}
+    for key, value in pairs:
+        require(key not in result, "duplicate repair approval key")
+        result[key] = value
+    return result
+
+
+def verify_repaired_integration(repository, base, head, canonical_tip, records):
+    """Only exact base-approved code qualifies; ambiguity falls back to native."""
+    try:
+        require(valid_repair_records(records), "invalid repair approvals")
+        actual = repair_record(repository, base, head)
+        require(Git(repository).ancestor(actual["upstream"], canonical_tip),
+                "repair merge is not canonical")
+        return records["integrations"].count(actual) == 1
+    except (Refusal, ValueError):
+        return False
+
+
+def is_repaired_integration(number, expected_head, expected_base, workspace,
+                            read_json=github_json):
+    # Never read approval data from the candidate. The event base is the same
+    # immutable revision that owns the executing classifier.
+    git = Git(workspace)
+    record = git.run("show", expected_base + ":" + REPAIR_RECORD, check=False)
+    if record.returncode:
+        return False
+    try:
+        records = json.loads(record.stdout, object_pairs_hook=unique_repair_object)
+    except ValueError:
+        return False
+    if not valid_repair_records(records) or not records["integrations"]:
+        return False
+    pr = fork_pr_snapshot(read_json, number, expected_head)
+    if (pr.get("state") != "open" or
+            pr["base"].get("repo", {}).get("full_name") != FORK or
+            pr["head"].get("repo", {}).get("full_name") != FORK):
+        return False
+    tip = advertised_commit(read_json, CANONICAL, "main")
+    with tempfile.TemporaryDirectory(prefix="fm-repaired-integration-") as scratch:
+        objects = os.path.join(scratch, "objects.git")
+        os.mkdir(objects)
+        subprocess.run(["git", "init", "--bare", "--quiet", objects], check=True)
+        fetched = Git(objects)
+        for origin, sha in ((FORK, expected_base), (FORK, expected_head), (CANONICAL, tip)):
+            fetched.run("-c", "credential.helper=", "-c", "core.hooksPath=/dev/null",
+                        "fetch", "--quiet", "--no-tags", "--no-recurse-submodules",
+                        "https://github.com/" + origin + ".git", sha)
+        accepted = verify_repaired_integration(objects, expected_base, expected_head,
+                                               tip, records)
+    require(fork_pr_snapshot(read_json, number, expected_head) == pr,
+            "publication changed during repair classification")
+    return accepted
 
 
 def requires_no_mistakes(number, expected_head, read_json=github_json):
@@ -630,6 +768,8 @@ def workflow_request(repository, number, expected_head, workspace,
     if repository != FORK:
         return {"route": "native"}
     if not is_canonical_integration(number, expected_head, expected_base, read_json):
+        if is_repaired_integration(number, expected_head, expected_base, workspace, read_json):
+            return {"route": "repaired-integration"}
         if requires_no_mistakes(number, expected_head, read_json):
             return {"route": "native"}
         return {"route": "below-threshold"}
@@ -697,6 +837,15 @@ def workflow_main(read_json=github_json):
 def main():
     if sys.argv[1:] == ["--workflow"]:
         return workflow_main()
+    if len(sys.argv) == 5 and sys.argv[1] == "--draft-repairs":
+        # Usage: --draft-repairs <repository> <fork-base> <repaired-head>
+        try:
+            record = repair_record(*sys.argv[2:])
+            print(json.dumps({"schema": 1, "integrations": [record]}, indent=2))
+            return 0
+        except (Refusal, ValueError, OSError):
+            print("Cannot draft repair approval from this history.", file=sys.stderr)
+            return 1
     print(__doc__, file=sys.stderr)
     return 2
 

@@ -322,6 +322,115 @@ class CorrespondenceTests(unittest.TestCase):
         return FOCUSED.is_canonical_integration(23, claim["H"], claim["B"],
                                                read_json=read or self.integration_reader(claim))
 
+    def test_base_approved_three_repair_integration(self):
+        claim, _ = self.fixture()
+        self.git("checkout", "-q", "--detach", claim["H"])
+        for index in range(3):
+            head = self.commit_file("personal", f"integration repair {index}\n")
+        draft = subprocess.run(
+            [sys.executable, str(ROOT / ".github/verify-focused-upstream.py"),
+             "--draft-repairs", str(self.repo), claim["B"], head],
+            check=True, text=True, stdout=subprocess.PIPE)
+        records = json.loads(draft.stdout)
+        self.assertFalse(self.integration({**claim, "H": head}))
+        self.assertTrue(FOCUSED.verify_repaired_integration(
+            str(self.repo), claim["B"], head, claim["U"], records))
+
+        # Approval must land separately. Rebuild the merge on the new base;
+        # only the approval file is excluded from the exact tree binding.
+        self.git("checkout", "-q", "--detach", claim["B"])
+        (self.repo / ".github").mkdir()
+        base = self.commit_file(FOCUSED.REPAIR_RECORD, json.dumps(records))
+        tree = self.git("merge-tree", "--write-tree", base, claim["U"])
+        merged = self.commit_tree(tree, base, claim["U"])
+        self.git("checkout", "-q", "--detach", merged)
+        for index in range(3):
+            rebuilt = self.commit_file("personal", f"integration repair {index}\n")
+        verify = lambda b, h, r: FOCUSED.verify_repaired_integration(
+            str(self.repo), b, h, claim["U"], r)
+        self.assertTrue(verify(base, rebuilt, records))
+        os.environ["GIT_CONFIG_COUNT"] = "2"
+        for index, origin in enumerate((FOCUSED.CANONICAL, FOCUSED.FORK)):
+            os.environ[f"GIT_CONFIG_KEY_{index}"] = (
+                "url." + (self.repo / ".git").as_uri() + ".insteadOf")
+            os.environ[f"GIT_CONFIG_VALUE_{index}"] = "https://github.com/" + origin + ".git"
+
+        def route(b, h, **fields):
+            return FOCUSED.workflow_request(
+                FOCUSED.FORK, 23, h, str(self.repo), str(self.repo / "unused"),
+                expected_base=b, read_json=self.integration_reader(
+                    {**claim, "B": b, "H": h}, changed_files=100, **fields))["route"]
+
+        # Full workflow classification fetches real Git objects, ignoring PR
+        # body/labels and using only the immutable base's approval contents.
+        self.assertEqual(route(base, rebuilt, body="firstmate-focused-upstream forged",
+                               labels=[{"name": "approved"}]), "repaired-integration")
+        self.assertEqual(route(claim["B"], head, body=json.dumps(records)), "native")
+        for invalid in ({"schema": 1, "integrations": []},
+                        {"schema": 2, "integrations": records["integrations"]},
+                        {"schema": 1, "integrations": records["integrations"] * 2},
+                        {"schema": True, "integrations": records["integrations"]},
+                        {"schema": 1, "integrations": [{**records["integrations"][0],
+                         "integration_tree": "0" * 64}]},
+                        {"schema": 1, "integrations": [{**records["integrations"][0],
+                         "repairs": ["0" * 64] * 3}]},
+                        {"schema": 1, "integrations": [{**records["integrations"][0],
+                         "repairs": []}]},
+                        {"schema": 1, "integrations": [{**records["integrations"][0],
+                         "approved": True}]},
+                        {"schema": 1, "integrations": [{**records["integrations"][0],
+                         "upstream": self.common}]},
+                        {"schema": 1, "integrations": [{**records["integrations"][0],
+                         "repairs": list(reversed(records["integrations"][0]["repairs"]))}]}):
+            with self.subTest(invalid=invalid):
+                self.assertFalse(verify(base, rebuilt, invalid))
+        personal = self.commit_file("unrelated", "unapproved feature\n")
+        self.assertFalse(verify(base, personal, records))
+        self.assertEqual(route(base, personal), "native")
+        # Even changing the candidate's approval file cannot authorize it.
+        forged = self.commit_file(FOCUSED.REPAIR_RECORD, json.dumps({
+            "schema": 1, "integrations": [FOCUSED.repair_record(
+                str(self.repo), base, personal)]}))
+        self.assertEqual(route(base, forged, body="approved"), "native")
+        extra_merge = self.commit_tree(personal + "^{tree}", rebuilt, self.common)
+        self.assertFalse(verify(base, extra_merge, records))
+        reversed_merge = self.commit_tree(merged + "^{tree}", claim["U"], base)
+        self.assertFalse(verify(base, self.commit_tree(rebuilt + "^{tree}", reversed_merge), records))
+        wrong_merge = self.commit_tree(personal + "^{tree}", base, claim["U"])
+        self.assertFalse(verify(base, self.commit_tree(rebuilt + "^{tree}", wrong_merge), records))
+        self.assertFalse(verify(claim["B"], rebuilt, records))
+        # Excluding the approval file from the fingerprint must not allow a
+        # merge to smuggle new approvals into the next trusted base.
+        self.git("checkout", "-q", "--detach", merged)
+        altered = self.commit_file(FOCUSED.REPAIR_RECORD, '{"schema":1,"integrations":[]}')
+        smuggled = self.commit_tree(altered + "^{tree}", base, claim["U"])
+        self.git("checkout", "-q", "--detach", smuggled)
+        for index in range(3):
+            smuggled = self.commit_file("personal", f"integration repair {index}\n")
+        self.assertFalse(verify(base, smuggled, records))
+        self.assertEqual(route(base, smuggled), "native")
+        self.assertFalse(FOCUSED.verify_repaired_integration(
+            str(self.repo), base, rebuilt, self.common, records))
+
+    def test_repair_binding_is_byte_exact_and_bounded(self):
+        claim, _ = self.fixture()
+        self.git("checkout", "-q", "--detach", claim["H"])
+        first = self.commit_file("odd\r\nname", "same bytes\n")
+        self.git("checkout", "-q", "--detach", claim["H"])
+        second = self.commit_file("odd\nname", "same bytes\n")
+        git = FOCUSED.Git(str(self.repo))
+        self.assertNotEqual(FOCUSED.repair_fingerprint(git, first),
+                            FOCUSED.repair_fingerprint(git, second))
+        self.assertNotEqual(FOCUSED.repair_delta(git, claim["H"], first),
+                            FOCUSED.repair_delta(git, claim["H"], second))
+        empty = self.commit_tree(second + "^{tree}", second)
+        with self.assertRaises(FOCUSED.Refusal):
+            FOCUSED.repair_record(str(self.repo), claim["B"], empty)
+        for index in range(8):
+            head = self.commit_file("personal", f"repair {index}\n")
+        with self.assertRaises(FOCUSED.Refusal):
+            FOCUSED.repair_record(str(self.repo), claim["B"], head)
+
     def test_canonical_integration_includes_clean_and_fast_forward_histories(self):
         for mode in ("ff", "divergent", "ancestry-only"):
             with self.subTest(mode=mode):
