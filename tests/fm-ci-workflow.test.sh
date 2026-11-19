@@ -35,139 +35,6 @@ assert_present "$CI_WORKFLOW" ".github/workflows/ci.yml is missing"
 command -v ruby >/dev/null 2>&1 \
   || fail "ruby is required to parse .github/workflows/ci.yml as YAML"
 
-# Evaluate the subset of GitHub's expression language that ci.yml uses -
-# string and integer literals, context lookups (including object filters such
-# as labels.*.name, simulated as arrays), the status functions, contains(), !,
-# ==, !=, &&, ||, and parentheses - against a simulated context hash, following the
-# documented operator precedence, the case-insensitive string comparison, and
-# the `a || b` fallback that returns the first truthy operand rather than a
-# boolean. The status functions read the simulated outcome of the needed jobs
-# from the context key "needs.status" (success, failure, or cancelled), which
-# defaults to success. Each ruby -e below prepends this so every resolver shares one
-# evaluator.
-# shellcheck disable=SC2016  # the ${{ }} below is Ruby text, not a shell expansion
-EXPRESSION_RUBY='
-require "strscan"
-class Expression
-  def self.evaluate(source, context)
-    new(source, context).parse
-  end
-
-  STATUS_FUNCTIONS = %w[always() success() failure() cancelled()].freeze
-
-  # A job or step `if` is a bare expression or one wrapped in ${{ }}, an
-  # absent condition means the job runs, and a condition that calls no status
-  # function gets the implicit success() check GitHub documents.
-  def self.condition(raw, context)
-    source = raw.to_s.strip
-    source = Regexp.last_match(1) if source =~ /\A\$\{\{(.*)\}\}\z/m
-    source = "success()" if source.empty?
-    source = "success() && (#{source})" unless new(source, context).status_check?
-    truthy?(evaluate(source, context))
-  end
-
-  # A result is truthy unless it is false, nil, or the empty string.
-  def self.truthy?(value)
-    value != false && !value.nil? && value != ""
-  end
-
-  def initialize(source, context)
-    @context = context
-    @tokens = []
-    scanner = StringScanner.new(source)
-    until scanner.eos?
-      next if scanner.skip(/\s+/)
-      if scanner.scan(/\x27([^\x27]*)\x27/) then @tokens << [:string, scanner[1]]
-      elsif scanner.scan(/\d+/) then @tokens << [:integer, scanner.matched.to_i]
-      elsif scanner.scan(/\|\||&&|==|!=|[()!,]/) then @tokens << [:operator, scanner.matched]
-      elsif scanner.scan(/[A-Za-z_][\w.\-*]*(?:\(\))?/) then @tokens << [:name, scanner.matched]
-      else raise "unsupported expression syntax at: #{scanner.rest}"
-      end
-    end
-  end
-
-  def status_check?
-    @tokens.any? { |kind, value| kind == :name && STATUS_FUNCTIONS.include?(value) }
-  end
-
-  def parse
-    result = parse_or
-    raise "unexpected trailing token: #{@tokens.first.inspect}" unless @tokens.empty?
-    result
-  end
-
-  private
-
-  def take?(operator)
-    return false unless @tokens.first == [:operator, operator]
-    @tokens.shift
-    true
-  end
-
-  def parse_or
-    left = parse_and
-    while take?("||")
-      right = parse_and
-      left = Expression.truthy?(left) ? left : right
-    end
-    left
-  end
-
-  def parse_and
-    left = parse_comparison
-    while take?("&&")
-      right = parse_comparison
-      left = Expression.truthy?(left) ? right : left
-    end
-    left
-  end
-
-  def parse_comparison
-    left = parse_unary
-    loop do
-      operator = ["==", "!="].find { |candidate| take?(candidate) } or break
-      right = parse_unary
-      unless left.class == right.class
-        raise "the resolver only compares operands of one type: #{left.inspect} #{operator} #{right.inspect}"
-      end
-      equal = left.is_a?(String) ? left.casecmp?(right) : left == right
-      left = operator == "==" ? equal : !equal
-    end
-    left
-  end
-
-  def parse_unary
-    return !Expression.truthy?(parse_unary) if take?("!")
-    parse_primary
-  end
-
-  def parse_primary
-    if take?("(")
-      inner = parse_or
-      raise "missing closing parenthesis" unless take?(")")
-      return inner
-    end
-    kind, value = @tokens.shift
-    raise "expected an operand, got #{kind.inspect}" unless [:string, :integer, :name].include?(kind)
-    return value if kind == :string || kind == :integer
-    if STATUS_FUNCTIONS.include?(value)
-      status = @context.fetch("needs.status", "success")
-      return value == "always()" || value == "#{status}()"
-    end
-    if value == "contains" && take?("(")
-      haystack = parse_or
-      raise "contains() takes two arguments" unless take?(",")
-      needle = parse_or
-      raise "missing closing parenthesis" unless take?(")")
-      return Array(haystack).any? { |item| item.to_s.casecmp?(needle.to_s) } if haystack.is_a?(Array)
-      return haystack.to_s.downcase.include?(needle.to_s.downcase)
-    end
-    raise "unresolvable context reference: #{value}" unless @context.key?(value)
-    @context.fetch(value)
-  end
-end
-'
-
 # Build a simulated GitHub context from KEY=VALUE overrides on top of an
 # outside contributor's fork PR synchronize event: no labels, no write access,
 # fork variables unset, and needed jobs successful. Short keys: event, action,
@@ -232,7 +99,7 @@ end
 # Resolve the workflow's concurrency contract under one simulated event and
 # print "<group><TAB><cancel-in-progress>".
 resolve_concurrency() {  # [KEY=VALUE]...
-  ruby -ryaml -e "$EXPRESSION_RUBY" -e "$CONTEXT_RUBY" -e '
+  ruby -ryaml -r"$ROOT/tests/actions-expression.rb" -e "$CONTEXT_RUBY" -e '
 doc = YAML.load_file(ARGV.shift)
 concurrency = doc.fetch("concurrency")
 context = simulated_context(doc.fetch("name"), ARGV)
@@ -245,7 +112,7 @@ puts [interpolate(concurrency.fetch("group"), context),
 # resolves true under one simulated context; an unset repository variable
 # reads as the empty string, as GitHub documents.
 jobs_running_under() {  # [KEY=VALUE]...
-  ruby -ryaml -e "$EXPRESSION_RUBY" -e "$CONTEXT_RUBY" -e '
+  ruby -ryaml -r"$ROOT/tests/actions-expression.rb" -e "$CONTEXT_RUBY" -e '
 doc = YAML.load_file(ARGV.shift)
 context = simulated_context(doc.fetch("name"), ARGV)
 exit unless triggered?(doc, context)
@@ -261,7 +128,7 @@ end
 # is the job's.
 run_full_suite_verdict() {  # [KEY=VALUE]...
   local script
-  script=$(ruby -ryaml -rshellwords -e "$EXPRESSION_RUBY" -e "$CONTEXT_RUBY" -e '
+  script=$(ruby -ryaml -rshellwords -r"$ROOT/tests/actions-expression.rb" -e "$CONTEXT_RUBY" -e '
 doc = YAML.load_file(ARGV.shift)
 context = simulated_context(doc.fetch("name"), ARGV)
 doc.fetch("jobs").fetch("full-suite").fetch("steps").each do |step|
@@ -284,7 +151,7 @@ published_checks() {  # [KEY=VALUE]...
   for arg in "$@"; do
     case $arg in outcome=*) outcome=${arg#outcome=} ;; esac
   done
-  rows=$(ruby -ryaml -e "$EXPRESSION_RUBY" -e "$CONTEXT_RUBY" -e '
+  rows=$(ruby -ryaml -r"$ROOT/tests/actions-expression.rb" -e "$CONTEXT_RUBY" -e '
 doc = YAML.load_file(ARGV.shift)
 context = simulated_context(doc.fetch("name"), ARGV)
 exit unless triggered?(doc, context)
@@ -323,7 +190,7 @@ checks_after_runs() {  # <run KEY=VALUE list>...
 }
 
 job_timeout() {  # <job> [serial shard, defaults to baseline shard 3]
-  ruby -ryaml -e "$EXPRESSION_RUBY" -e '
+  ruby -ryaml -r"$ROOT/tests/actions-expression.rb" -e '
 raw = YAML.load_file(ARGV[0]).fetch("jobs").fetch(ARGV[1]).fetch("timeout-minutes", "none")
 value = raw.is_a?(String) && raw.match(/\A\$\{\{(.*)\}\}\z/m)
 puts(value ? Expression.evaluate(value[1], {"matrix.shard" => Integer(ARGV[2])}) : raw)
@@ -543,7 +410,7 @@ TABLE
 
 test_every_job_has_a_finite_timeout() {
   local reported
-  reported=$(ruby -ryaml -e "$EXPRESSION_RUBY" -e '
+  reported=$(ruby -ryaml -r"$ROOT/tests/actions-expression.rb" -e '
 YAML.load_file(ARGV[0]).fetch("jobs").each do |name, job|
   shards = job.fetch("strategy", {}).fetch("matrix", {}).fetch("shard", [1])
   shards.each do |shard|
@@ -690,7 +557,7 @@ TABLE
 # Print true or false: whether one job's job-level `if` resolves true under
 # one simulated context.
 job_runs_under() {  # <job> [KEY=VALUE]...
-  ruby -ryaml -e "$EXPRESSION_RUBY" -e "$CONTEXT_RUBY" -e '
+  ruby -ryaml -r"$ROOT/tests/actions-expression.rb" -e "$CONTEXT_RUBY" -e '
 doc = YAML.load_file(ARGV.shift)
 job = ARGV.shift
 context = simulated_context(doc.fetch("name"), ARGV)
@@ -747,7 +614,7 @@ RUBY
 }
 
 test_required_lint_verdicts_preserve_coverage() {
-  ruby -ryaml -ropen3 -e "$EXPRESSION_RUBY" -e "$CONTEXT_RUBY" -e '
+  ruby -ryaml -ropen3 -r"$ROOT/tests/actions-expression.rb" -e "$CONTEXT_RUBY" -e '
 doc = YAML.load_file(ARGV[0])
 job = doc.fetch("jobs").fetch("lint")
 raise "required lint matrix changed" unless job.dig("strategy", "matrix", "partition") == [1, 2]

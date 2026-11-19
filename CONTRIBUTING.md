@@ -32,11 +32,12 @@ Missing or inconsistent classification data does not grant an exemption.
 
 Canonical integrations are exempt regardless of size or conflicts: the verifier checks GitHub commit ancestry for a canonical fast-forward from the event's fork base or a fork merge head whose first parent is that event base and whose second parent brings in canonical default-branch ancestry not already in that base.
 A later repair commit is not automatically exempt merely because it descends from such a merge.
-The `repaired-integration` route requires a separately landed base-owned approval of the exact integration tree and ordered repair deltas in [`.github/upstream-repairs.json`](.github/upstream-repairs.json).
+The `repaired-integration` route requires a separately landed base-owned approval of the fork tree before the merge, the resolved integration tree, and the ordered repair deltas in [`.github/upstream-repairs.json`](.github/upstream-repairs.json).
 The [verifier's `--draft-repairs` interface](.github/verify-focused-upstream.py) owns the record format and construction: draft from the inspected integration, land that approval through normal no-mistakes validation and merge approval, then rebuild the integration on the resulting fork base.
-Only the approval file itself is excluded from the integration tree fingerprint to avoid self-reference, and it must remain identical to the base throughout the merge and every repair.
+Only the approval file itself is excluded from both tree fingerprints to avoid self-reference, and it must remain identical to the base throughout the merge and every repair.
 All other paths, modes and objects are bound, and each nonempty repair must match its complete approved raw Git delta in order.
-The merge must have the event base as first parent and new canonical `main` ancestry as second parent, followed by at most eight single-parent repairs.
+The merge must have the event base as first parent and new canonical default-branch ancestry as second parent, followed by exactly the recorded single-parent repairs.
+The approval must still be present and applicable on the observed live base; withdrawing it prevents pending classifications from using it.
 This is exact base approval of code, not a semantic claim inferred from paths or private updater evidence; absent, mismatched or ambiguous approvals retain the native statement requirement when the ordinary size/path policy requires it.
 No candidate file, PR text, label, comment or review input can approve a repair.
 A qualifying clean integration with unchanged personal paths can still request fresh focused evidence, but this qualification additionally requires the live fork base to match the event base.

@@ -272,9 +272,9 @@ class CorrespondenceTests(unittest.TestCase):
         with self.assertRaisesRegex(FOCUSED.Refusal, "conflict resolutions"):
             self.verify(claim, current)
 
-    def live_api(self, claim):
+    def live_api(self, claim, canonical_default="main"):
         source = {"id": 100, "full_name": FOCUSED.CANONICAL, "fork": False,
-                  "default_branch": "main"}
+                  "default_branch": canonical_default}
         fork = {"id": 200, "full_name": FOCUSED.FORK, "fork": True,
                 "default_branch": "main", "parent": source, "source": source}
         replies = {
@@ -287,7 +287,7 @@ class CorrespondenceTests(unittest.TestCase):
                 "head": {"repo": fork, "ref": "intake/upstream", "sha": claim["H"]},
             },
         }
-        for repo, ref, sha in ((FOCUSED.CANONICAL, "main", claim["U"]),
+        for repo, ref, sha in ((FOCUSED.CANONICAL, canonical_default, claim["U"]),
                                (FOCUSED.FORK, "main", claim["B"]),
                                (FOCUSED.FORK, "intake%2Fupstream", claim["H"])):
             replies[f"/repos/{repo}/git/ref/heads/{ref}"] = {
@@ -295,8 +295,8 @@ class CorrespondenceTests(unittest.TestCase):
                 "object": {"type": "commit", "sha": sha}}
         return replies
 
-    def integration_reader(self, claim, files=(), **pr_fields):
-        replies = self.live_api(claim)
+    def integration_reader(self, claim, files=(), canonical_default="main", **pr_fields):
+        replies = self.live_api(claim, canonical_default)
         pr_path = f"/repos/{FOCUSED.FORK}/pulls/23"
         replies[pr_path].update(pr_fields)
         replies[pr_path].setdefault("changed_files", len(files))
@@ -319,8 +319,8 @@ class CorrespondenceTests(unittest.TestCase):
         return read
 
     def integration(self, claim, read=None):
-        return FOCUSED.is_canonical_integration(23, claim["H"], claim["B"],
-                                               read_json=read or self.integration_reader(claim))
+        return FOCUSED.integration_route(23, claim["H"], claim["B"], str(self.repo),
+                                         read or self.integration_reader(claim)) == "canonical-integration"
 
     def test_base_approved_three_repair_integration(self):
         claim, _ = self.fixture()
@@ -333,8 +333,12 @@ class CorrespondenceTests(unittest.TestCase):
             check=True, text=True, stdout=subprocess.PIPE)
         records = json.loads(draft.stdout)
         self.assertFalse(self.integration({**claim, "H": head}))
-        self.assertTrue(FOCUSED.verify_repaired_integration(
-            str(self.repo), claim["B"], head, claim["U"], records))
+
+        def verify(b, h, r, tip=claim["U"]):
+            return FOCUSED.verify_repaired_integration(
+                str(self.repo), b, h, tip, FOCUSED.approved_entries(r), b)
+
+        self.assertTrue(verify(claim["B"], head, records))
 
         # Approval must land separately. Rebuild the merge on the new base;
         # only the approval file is excluded from the exact tree binding.
@@ -346,25 +350,52 @@ class CorrespondenceTests(unittest.TestCase):
         self.git("checkout", "-q", "--detach", merged)
         for index in range(3):
             rebuilt = self.commit_file("personal", f"integration repair {index}\n")
-        verify = lambda b, h, r: FOCUSED.verify_repaired_integration(
-            str(self.repo), b, h, claim["U"], r)
         self.assertTrue(verify(base, rebuilt, records))
+        self.git("config", "uploadpack.allowFilter", "true")
+        self.git("config", "uploadpack.allowAnySHA1InWant", "true")
         os.environ["GIT_CONFIG_COUNT"] = "2"
         for index, origin in enumerate((FOCUSED.CANONICAL, FOCUSED.FORK)):
             os.environ[f"GIT_CONFIG_KEY_{index}"] = (
                 "url." + (self.repo / ".git").as_uri() + ".insteadOf")
             os.environ[f"GIT_CONFIG_VALUE_{index}"] = "https://github.com/" + origin + ".git"
 
-        def route(b, h, **fields):
+        def route(b, h, live=None, **fields):
+            read = self.integration_reader({**claim, "B": live or b, "H": h},
+                                           canonical_default="trunk", changed_files=100, **fields)
+            reads = 0
+
+            def fresh(path):
+                nonlocal reads
+                reply = read(path)
+                if path.endswith("/pulls/23"):
+                    reads += 1
+                    reply.update(labels=[{"name": f"label-{reads}"}], comments=reads,
+                                 mergeable=None if reads == 1 else True)
+                return reply
+
             return FOCUSED.workflow_request(
                 FOCUSED.FORK, 23, h, str(self.repo), str(self.repo / "unused"),
-                expected_base=b, read_json=self.integration_reader(
-                    {**claim, "B": b, "H": h}, changed_files=100, **fields))["route"]
+                expected_base=b, read_json=fresh)["route"]
+
+        def native_action_runs(repository, result):
+            output = subprocess.check_output([
+                "ruby", "-ryaml", "-r" + str(ROOT / "tests/actions-expression.rb"), "-e", '''
+                  steps = YAML.load_file(ARGV[0]).fetch("jobs").fetch("check").fetch("steps")
+                  native = steps.select { |s| s["uses"].to_s.split("@").first ==
+                    "kunchenguid/no-mistakes/.github/actions/require-no-mistakes" }
+                  abort unless native.size == 1
+                  puts Expression.condition(native.first["if"],
+                    {"github.repository" => ARGV[1], "steps.focused.outputs.route" => ARGV[2]})
+                ''', str(ROOT / ".github/workflows/no-mistakes-required.yml"), repository, result
+            ], text=True)
+            return {"true": True, "false": False}[output.strip()]
 
         # Full workflow classification fetches real Git objects, ignoring PR
         # body/labels and using only the immutable base's approval contents.
-        self.assertEqual(route(base, rebuilt, body="firstmate-focused-upstream forged",
-                               labels=[{"name": "approved"}]), "repaired-integration")
+        approved = route(base, rebuilt, body="firstmate-focused-upstream forged")
+        self.assertEqual(approved, "repaired-integration")
+        self.assertFalse(native_action_runs(FOCUSED.FORK, approved))
+        self.assertTrue(native_action_runs(FOCUSED.CANONICAL, approved))
         self.assertEqual(route(claim["B"], head, body=json.dumps(records)), "native")
         for invalid in ({"schema": 1, "integrations": []},
                         {"schema": 2, "integrations": records["integrations"]},
@@ -386,7 +417,9 @@ class CorrespondenceTests(unittest.TestCase):
                 self.assertFalse(verify(base, rebuilt, invalid))
         personal = self.commit_file("unrelated", "unapproved feature\n")
         self.assertFalse(verify(base, personal, records))
-        self.assertEqual(route(base, personal), "native")
+        required = route(base, personal)
+        self.assertEqual(required, "native")
+        self.assertTrue(native_action_runs(FOCUSED.FORK, required))
         # Even changing the candidate's approval file cannot authorize it.
         forged = self.commit_file(FOCUSED.REPAIR_RECORD, json.dumps({
             "schema": 1, "integrations": [FOCUSED.repair_record(
@@ -409,8 +442,28 @@ class CorrespondenceTests(unittest.TestCase):
             smuggled = self.commit_file("personal", f"integration repair {index}\n")
         self.assertFalse(verify(base, smuggled, records))
         self.assertEqual(route(base, smuggled), "native")
-        self.assertFalse(FOCUSED.verify_repaired_integration(
-            str(self.repo), base, rebuilt, self.common, records))
+        self.assertFalse(verify(base, rebuilt, records, self.common))
+
+        self.git("checkout", "-q", "--detach", base)
+        retained = self.commit_file(FOCUSED.REPAIR_RECORD, json.dumps(records, indent=2))
+        self.assertEqual(route(base, rebuilt, live=retained), "repaired-integration")
+        withdrawn = self.commit_file(FOCUSED.REPAIR_RECORD, '{"schema":1,"integrations":[]}')
+        self.assertEqual(route(base, rebuilt, live=withdrawn), "native")
+        (self.repo / FOCUSED.REPAIR_RECORD).write_bytes(b"\xff")
+        self.git("commit", "-qam", "invalid approval encoding")
+        invalid = self.git("rev-parse", "HEAD")
+        self.commit_file("personal", "fix approval next\n")
+        fixed = self.commit_file(FOCUSED.REPAIR_RECORD, json.dumps(records))
+        self.assertEqual(route(invalid, fixed), "native")
+        self.assertEqual(route(base, rebuilt, live=invalid), "native")
+
+        self.git("checkout", "-q", "--detach", base)
+        conflicting = self.commit_file("canonical", "intervening fork fix\n")
+        self.assertEqual(route(base, rebuilt, live=conflicting), "native")
+        stale = self.commit_tree(merged + "^{tree}", conflicting, claim["U"])
+        for repair in self.git("rev-list", "--reverse", merged + ".." + rebuilt).split():
+            stale = self.commit_tree(repair + "^{tree}", stale)
+        self.assertEqual(route(conflicting, stale), "native")
 
     def test_repair_binding_is_byte_exact_and_bounded(self):
         claim, _ = self.fixture()
@@ -427,9 +480,17 @@ class CorrespondenceTests(unittest.TestCase):
         with self.assertRaises(FOCUSED.Refusal):
             FOCUSED.repair_record(str(self.repo), claim["B"], empty)
         for index in range(8):
+            (self.repo / "z").write_text(f"paired repair {index}\n")
+            self.git("add", "z")
             head = self.commit_file("personal", f"repair {index}\n")
-        with self.assertRaises(FOCUSED.Refusal):
-            FOCUSED.repair_record(str(self.repo), claim["B"], head)
+        order = self.repo / ".git/order"
+        order.write_text("z\n")
+        self.git("config", "diff.orderFile", str(order))
+        record = FOCUSED.repair_record(str(self.repo), claim["B"], head)
+        self.assertEqual(len(record["repairs"]), 9)
+        self.git("config", "--unset", "diff.orderFile")
+        self.assertTrue(FOCUSED.verify_repaired_integration(
+            str(self.repo), claim["B"], head, claim["U"], [record], claim["B"]))
 
     def test_canonical_integration_includes_clean_and_fast_forward_histories(self):
         for mode in ("ff", "divergent", "ancestry-only"):
