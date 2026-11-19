@@ -26,9 +26,11 @@ make_spawn_case() {
 
 run_grok_spawn() {
   local home=$1 proj=$2 wt=$3 fakebin=$4 grok_home=$5 id=$6
+  # Hook authentication and cleanup do not publish; a shallow CI checkout
+  # cannot prove the unrelated lineage required for a publishing spawn.
   GROK_HOME="$grok_home" \
     fm_test_run_spawn "$home" "$wt" "$fakebin" \
-    "$id" "$proj" grok --mode no-mistakes --yolo off
+    "$id" "$proj" grok --mode local-only --yolo off
 }
 
 test_grok_hook_requires_registered_token() {
@@ -39,7 +41,7 @@ $rec
 EOF
   out=$(run_grok_spawn "$home" "$proj" "$wt" "$fakebin" "$grok_home" "$id")
   status=$?
-  expect_code 0 "$status" "grok spawn should succeed"
+  expect_code 0 "$status" "grok spawn should succeed: $out"
   assert_contains "$out" "spawned $id harness=grok" "grok spawn did not report success"
 
   hook="$grok_home/hooks/fm-turn-end.sh"
@@ -78,7 +80,7 @@ $rec
 EOF
   out=$(run_grok_spawn "$home" "$proj" "$wt" "$fakebin" "$grok_home" "$id")
   status=$?
-  expect_code 0 "$status" "grok spawn should succeed before teardown"
+  expect_code 0 "$status" "grok spawn should succeed before teardown: $out"
   token=$(sed -n 's/^token=//p' "$wt/.fm-grok-turnend")
 
   FM_ROOT_OVERRIDE="$ROOT" FM_HOME="$home" FM_STATE_OVERRIDE="$home/state" \
