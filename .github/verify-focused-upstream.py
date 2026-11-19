@@ -308,7 +308,7 @@ def integration_route(number, expected_head, expected_base, workspace, read_json
     head_repo, live_base, _ = publication()
     route = "canonical-integration"
     if head_repo not in (FORK, CANONICAL) or expected_head == expected_base:
-        return None
+        return None, None
     source = read_json(f"/repos/{CANONICAL}")
     require(isinstance(source, dict) and source.get("full_name") == CANONICAL and
             source.get("fork") is False, "wrong live canonical identity")
@@ -318,7 +318,8 @@ def integration_route(number, expected_head, expected_base, workspace, read_json
     tip = advertised_commit(read_json, CANONICAL, default)
     if ancestor(expected_head, tip, missing_is_negative=True):
         # Fast-forward: the PR head itself is canonical, with no fork-only commits.
-        integration = ancestor(expected_base, expected_head)
+        if not ancestor(expected_base, expected_head):
+            return None, None
     elif head_repo == FORK:
         commit = read_json(f"/repos/{FORK}/git/commits/{expected_head}")
         require(isinstance(commit, dict) and commit.get("sha") == expected_head and
@@ -327,52 +328,61 @@ def integration_route(number, expected_head, expected_base, workspace, read_json
         require(all(isinstance(parent, dict) and isinstance(parent.get("sha"), str) and
                     SHA.fullmatch(parent["sha"]) for parent in parents), "invalid GitHub head parents")
         if len(parents) == 1:
-            route = "repaired-integration"
-            integration = (parents[0]["sha"] != expected_base and expected_head != live_base and
-                           is_repaired_integration(expected_head, expected_base, live_base, tip, workspace))
-        else:
-            integration = (len(parents) == 2 and parents[0]["sha"] == expected_base and
-                           ancestor(parents[1]["sha"], tip, missing_is_negative=True) and
-                           not ancestor(parents[1]["sha"], expected_base))
+            if parents[0]["sha"] == expected_base or expected_head == live_base:
+                return None, None
+            route = repaired_route(expected_head, expected_base, live_base, tip, workspace)
+            if route is None:
+                return None, None
+        elif not (len(parents) == 2 and parents[0]["sha"] == expected_base and
+                  ancestor(parents[1]["sha"], tip, missing_is_negative=True) and
+                  not ancestor(parents[1]["sha"], expected_base)):
+            return None, None
     else:
-        return None
-    if not integration:
-        return None
-    try:
-        unchanged = (route == "repaired-integration" and live_base == expected_base or
-                     pr_keeps_approval(live_base, expected_head, known_ancestor=live_base == expected_base))
-    except (OSError, Refusal, UnicodeError):
-        unchanged = None
+        return None, None
+    if route == "canonical-integration":
+        try:
+            unchanged = canonical_keeps_approval(live_base, expected_head, known_ancestor=live_base == expected_base)
+        except (OSError, Refusal, UnicodeError):
+            unchanged = None
     try:
         current_repo, current_base, body = publication()
     except GitHubUnavailable:
         if route == "repaired-integration":
-            return None
+            return None, None
+        if route == "native":
+            return "native", None
         raise
     require(current_repo == head_repo, "PR repository changed during classification")
+    if route != "canonical-integration":
+        return (route if current_base == live_base else "native"), None
     if current_base == live_base and unchanged is not None:
-        return route if unchanged else "native"
-    if route == "canonical-integration":
-        require(focused_claim(FORK, body) is None, "cannot verify approval entry for focused request")
-    return "native"
+        if unchanged:
+            return route, focused_claim(FORK, body)
+        return "native", None
+    require(focused_claim(FORK, body) is None, "cannot verify approval entry for focused request")
+    return "native", None
 
 
 def approval_entry(git, revision):
     return git.run("ls-tree", "--full-tree", "-z", revision, "--", REPAIR_RECORD, binary=True).stdout
 
 
-def pr_keeps_approval(base, head, *, known_ancestor):
+def pr_keeps_approval(git, base, head, *, known_ancestor):
+    if not known_ancestor:
+        bases = git.text("merge-base", "--all", base, head).split()
+        require(len(bases) == 1, "no unique PR merge base")
+        base = bases[0]
+    return approval_entry(git, base) == approval_entry(git, head)
+
+
+def canonical_keeps_approval(base, head, *, known_ancestor):
     with tempfile.TemporaryDirectory(prefix="fm-approval-entry-") as objects:
         git = Git(objects)
         git.run("init", "--bare", "--quiet")
         git.run("-c", "credential.helper=", "-c", "core.hooksPath=/dev/null",
                 "fetch", "--quiet", *(["--depth=1"] if known_ancestor else []), "--filter=blob:none", "--no-tags",
                 "--no-recurse-submodules", "https://github.com/" + FORK + ".git", base, head)
-        if not known_ancestor:
-            bases = git.text("merge-base", "--all", base, head).split()
-            require(len(bases) == 1, "no unique PR merge base")
-            base = bases[0]
-        return approval_entry(git, base) == approval_entry(git, head)
+        return pr_keeps_approval(git, base, head, known_ancestor=known_ancestor)
 
 
 def repair_fingerprint(git, revision):
@@ -480,16 +490,16 @@ def verify_repaired_integration(repository, base, head, canonical_tip, entries, 
         return False
 
 
-def is_repaired_integration(head, base, live_base, tip, workspace):
+def repaired_route(head, base, live_base, tip, workspace):
     try:
         git = Git(workspace)
         entries = read_repair_approvals(git, base)
         if not entries:
-            return False
+            return None
         fork_tree = repair_fingerprint(git, base)
         entries = [entry for entry in entries if entry["fork_tree"] == fork_tree]
         if not entries:
-            return False
+            return None
         with tempfile.TemporaryDirectory(prefix="fm-repaired-integration-") as objects:
             fetched = Git(objects)
             fetched.run("init", "--bare", "--quiet")
@@ -498,9 +508,17 @@ def is_repaired_integration(head, base, live_base, tip, workspace):
                 fetched.run("-c", "credential.helper=", "-c", "core.hooksPath=/dev/null",
                             "fetch", "--quiet", "--no-tags", "--no-recurse-submodules",
                             "--filter=blob:none", name, *(sha + ":refs/proof/" + sha for sha in shas))
-            return verify_repaired_integration(objects, base, head, tip, entries, live_base)
+            if not verify_repaired_integration(objects, base, head, tip, entries, live_base):
+                return None
+            if live_base != base:
+                try:
+                    if not pr_keeps_approval(fetched, live_base, head, known_ancestor=False):
+                        return "native"
+                except (OSError, Refusal, UnicodeError):
+                    return "native"
+            return "repaired-integration"
     except (OSError, Refusal, UnicodeError):
-        return False
+        return None
 
 
 def requires_no_mistakes(number, expected_head, read_json=github_json):
@@ -808,18 +826,14 @@ def workflow_request(repository, number, expected_head, workspace,
     """
     if repository != FORK:
         return {"route": "native"}
-    route = integration_route(number, expected_head, expected_base, workspace, read_json)
-    if route in ("native", "repaired-integration"):
-        return {"route": route}
+    route, claim = integration_route(number, expected_head, expected_base, workspace, read_json)
     if route is None:
         if requires_no_mistakes(number, expected_head, read_json):
             return {"route": "native"}
         return {"route": "below-threshold"}
 
-    pr = fork_pr_snapshot(read_json, number, expected_head)
-    claim = focused_claim(repository, pr.get("body"))
     if claim is None:
-        return {"route": "canonical-integration"}
+        return {"route": route}
     facts = current_facts(read_json, number)
     require(facts["H"] == expected_head, "event head is no longer current")
     require(facts["B"] == expected_base,

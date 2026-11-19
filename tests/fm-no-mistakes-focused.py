@@ -327,8 +327,9 @@ class CorrespondenceTests(unittest.TestCase):
         return read
 
     def integration(self, claim, read=None):
-        return FOCUSED.integration_route(23, claim["H"], claim["B"], str(self.repo),
-                                         read or self.integration_reader(claim)) == "canonical-integration"
+        route, _ = FOCUSED.integration_route(23, claim["H"], claim["B"], str(self.repo),
+                                             read or self.integration_reader(claim))
+        return route == "canonical-integration"
 
     def test_base_approved_three_repair_integration(self):
         claim, _ = self.fixture()
@@ -552,6 +553,27 @@ class CorrespondenceTests(unittest.TestCase):
                     read = self.integration_reader({"B": b, "H": h, "U": upstream, "T": h},
                                                    body="firstmate-focused-upstream")
                     self.assertEqual(self.invoke_workflow(read, "approval-change", h, b), "native")
+
+    def test_canonical_route_uses_the_confirmed_publication_body(self):
+        for mode in ("ff", "divergent"):
+            self.git("checkout", "-q", "--detach", self.common)
+            claim, _ = self.fixture(mode)
+            read = self.integration_reader(claim)
+            publications = 0
+
+            def changed(path):
+                nonlocal publications
+                reply = read(path)
+                if path.endswith("/pulls/23"):
+                    publications += 1
+                    if publications == 2:
+                        reply["body"] = "firstmate-focused-upstream"
+                    elif publications > 2:
+                        reply["base"]["sha"] = claim["H"]
+                return reply
+
+            with self.subTest(mode=mode), self.assertRaises(FOCUSED.Refusal):
+                self.invoke_workflow(changed, "confirmed-body", claim["H"], claim["B"])
 
     def test_live_approval_revert_requires_native_for_both_canonical_shapes(self):
         (self.repo / ".github").mkdir()
