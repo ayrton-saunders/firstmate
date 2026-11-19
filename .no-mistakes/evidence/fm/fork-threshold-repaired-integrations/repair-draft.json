@@ -1,0 +1,15 @@
+{
+  "schema": 1,
+  "integrations": [
+    {
+      "upstream": "dbd388dfa56148aa8a1c4d0426c2d6fa07971931",
+      "fork_tree": "4786f1f64e7aba87b14816317de4ffd3c387038158caa1615136bbd60f3f4ff1",
+      "integration_tree": "2b2162b24716929d55fd97eda3822b6e3b76bcacb199b91a6604572b25c9867e",
+      "repairs": [
+        "73aa0b8867beb2ac5532a858576708f8ea51edd5936a466a866c93996d2c4d7c",
+        "e38383f8d9d913f2548e972f85328895f433f8ca4bfef704ef7f45a79b13e752",
+        "d2b6cc9747488319760024322c5fd29144f62b53828042efeef6e8e6e1f7a380"
+      ]
+    }
+  ]
+}

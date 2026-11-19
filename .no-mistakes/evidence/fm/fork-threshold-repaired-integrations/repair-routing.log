@@ -1,0 +1,154 @@
+Local CLI run. Git origins: disposable repositories. PR API: loopback TLS emulator backed by their Git objects. No hosted PR or ruleset operation.
+Original catch-up and rebuilt catch-up (oldest first):
+8a7f279 Integrate advertised trunk into fork main
+4eaf12c Adapt bin/launch for intake
+813cd03 Adapt tests/options for intake
+a6da9d8 Adapt docs/launch for intake
+e02cea8 Separate preparation: record exact inspected repairs
+151861b Integrate advertised trunk into fork main
+fb60c5e Adapt bin/launch for intake
+c607755 Adapt tests/options for intake
+a353c3b Adapt docs/launch for intake
+Draft interface: python3 .github/verify-focused-upstream.py --draft-repairs . cedb1403aef59468eaf67e90a2b8af5e1b8f1701 a6da9d81cd11f05457753c7356121542c02bd040
+Emitted: repair-draft.json
+
+1a. Pasting the draft into the PR before approval lands
+  event base cedb1403aef5 live base cedb1403aef5 canonical trunk dbd388dfa561 PR head a6da9d81cd11
+  PR diff: bin/launch, bin/options, docs/launch, tests/options
+  $ python3 .github/verify-focused-upstream.py --workflow
+  PR compliance route: native (exit 0)
+  Fresh local PR reads: 2 (labels/comments varied on every read)
+  Workflow native-step condition: true
+  Pinned native verifier (no statement): exit 1
+  ::error::This PR was not raised through no-mistakes.
+
+1b. Separate preparation PR changes only the approval file
+  event base cedb1403aef5 live base cedb1403aef5 canonical trunk dbd388dfa561 PR head e02cea859f86
+  PR diff: .github/upstream-repairs.json
+  $ python3 .github/verify-focused-upstream.py --workflow
+  PR compliance route: native (exit 0)
+  Fresh local PR reads: 3 (labels/comments varied on every read)
+  Workflow native-step condition: true
+  Pinned native verifier (no statement): exit 1
+  ::error::This PR was not raised through no-mistakes.
+
+1c. Rebuilt conflict resolution plus the three approved repairs; no statement
+  event base e02cea859f86 live base e02cea859f86 canonical trunk dbd388dfa561 PR head a353c3bce109
+  PR diff: bin/launch, bin/options, docs/launch, tests/options
+  $ python3 .github/verify-focused-upstream.py --workflow
+  PR compliance route: repaired-integration (exit 0)
+  Fresh local PR reads: 2 (labels/comments varied on every read)
+  Workflow native-step condition: false
+
+2a. Personal command appended to approved intake
+  event base e02cea859f86 live base e02cea859f86 canonical trunk dbd388dfa561 PR head 92b50a04852a
+  PR diff: bin/launch, bin/options, bin/personal, docs/launch, tests/options
+  $ python3 .github/verify-focused-upstream.py --workflow
+  PR compliance route: native (exit 0)
+  Fresh local PR reads: 2 (labels/comments varied on every read)
+  Workflow native-step condition: true
+  Pinned native verifier (no statement): exit 1
+  ::error::This PR was not raised through no-mistakes.
+
+2b. Candidate supplies a record covering its own extra commit
+  event base e02cea859f86 live base e02cea859f86 canonical trunk dbd388dfa561 PR head f8b1f6523d65
+  PR diff: .github/upstream-repairs.json, bin/launch, bin/options, bin/personal, docs/launch, tests/options
+  $ python3 .github/verify-focused-upstream.py --workflow
+  PR compliance route: native (exit 0)
+  Fresh local PR reads: 2 (labels/comments varied on every read)
+  Workflow native-step condition: true
+  Pinned native verifier (no statement): exit 1
+  ::error::This PR was not raised through no-mistakes.
+
+2c. Final repair changes content while keeping path and commit count
+  event base e02cea859f86 live base e02cea859f86 canonical trunk dbd388dfa561 PR head a1634e05303a
+  PR diff: bin/launch, bin/options, docs/launch, tests/options
+  $ python3 .github/verify-focused-upstream.py --workflow
+  PR compliance route: native (exit 0)
+  Fresh local PR reads: 2 (labels/comments varied on every read)
+  Workflow native-step condition: true
+  Pinned native verifier (no statement): exit 1
+  ::error::This PR was not raised through no-mistakes.
+
+3a. Approval withdrawn on main after PR event
+  event base e02cea859f86 live base 6ce6cf411443 canonical trunk dbd388dfa561 PR head a353c3bce109
+  PR diff: bin/launch, bin/options, docs/launch, tests/options
+  $ python3 .github/verify-focused-upstream.py --workflow
+  PR compliance route: native (exit 0)
+  Fresh local PR reads: 2 (labels/comments varied on every read)
+  Workflow native-step condition: true
+  Pinned native verifier (no statement): exit 1
+  ::error::This PR was not raised through no-mistakes.
+
+3b. Intervening fork fix invalidates reviewed fork tree
+  event base e02cea859f86 live base 13ae1e9aaa55 canonical trunk dbd388dfa561 PR head a353c3bce109
+  PR diff: bin/launch, bin/options, docs/launch, tests/options
+  $ python3 .github/verify-focused-upstream.py --workflow
+  PR compliance route: native (exit 0)
+  Fresh local PR reads: 2 (labels/comments varied on every read)
+  Workflow native-step condition: true
+  Pinned native verifier (no statement): exit 1
+  ::error::This PR was not raised through no-mistakes.
+
+4a. Unrepaired canonical fast-forward, approval unchanged
+  event base 02eb338a88fa live base 02eb338a88fa canonical trunk dbd388dfa561 PR head dbd388dfa561
+  PR diff: bin/launch, bin/options
+  $ python3 .github/verify-focused-upstream.py --workflow
+  PR compliance route: canonical-integration (exit 0)
+  Fresh local PR reads: 2 (labels/comments varied on every read)
+  Workflow native-step condition: false
+
+4b. Unrepaired canonical merge, approval unchanged
+  event base cedb1403aef5 live base cedb1403aef5 canonical trunk dbd388dfa561 PR head 8a7f279549d3
+  PR diff: bin/launch, bin/options
+  $ python3 .github/verify-focused-upstream.py --workflow
+  PR compliance route: canonical-integration (exit 0)
+  Fresh local PR reads: 2 (labels/comments varied on every read)
+  Workflow native-step condition: false
+
+4c. Canonical fast-forward introduces an approval
+  event base 02eb338a88fa live base 02eb338a88fa canonical trunk c68a528c0625 PR head c68a528c0625
+  PR diff: .github/upstream-repairs.json, bin/launch, bin/options
+  $ python3 .github/verify-focused-upstream.py --workflow
+  PR compliance route: native (exit 0)
+  Fresh local PR reads: 2 (labels/comments varied on every read)
+  Workflow native-step condition: true
+  Pinned native verifier (no statement): exit 1
+  ::error::This PR was not raised through no-mistakes.
+
+4d. Canonical merge introduces an approval
+  event base cedb1403aef5 live base cedb1403aef5 canonical trunk c68a528c0625 PR head e914ce8b4728
+  PR diff: .github/upstream-repairs.json, bin/launch, bin/options
+  $ python3 .github/verify-focused-upstream.py --workflow
+  PR compliance route: native (exit 0)
+  Fresh local PR reads: 2 (labels/comments varied on every read)
+  Workflow native-step condition: true
+  Pinned native verifier (no statement): exit 1
+  ::error::This PR was not raised through no-mistakes.
+
+5a. Git proof origin unavailable during repaired intake
+  event base e02cea859f86 live base e02cea859f86 canonical trunk dbd388dfa561 PR head a353c3bce109
+  PR diff: bin/launch, bin/options, docs/launch, tests/options
+  $ python3 .github/verify-focused-upstream.py --workflow
+  PR compliance route: native (exit 0)
+  Fresh local PR reads: 2 (labels/comments varied on every read)
+  Workflow native-step condition: true
+  Pinned native verifier (no statement): exit 1
+  ::error::This PR was not raised through no-mistakes.
+
+5b. Git proof origin unavailable during canonical intake
+  event base cedb1403aef5 live base cedb1403aef5 canonical trunk dbd388dfa561 PR head 8a7f279549d3
+  PR diff: bin/launch, bin/options
+  $ python3 .github/verify-focused-upstream.py --workflow
+  PR compliance route: native (exit 0)
+  Fresh local PR reads: 2 (labels/comments varied on every read)
+  Workflow native-step condition: true
+  Pinned native verifier (no statement): exit 1
+  ::error::This PR was not raised through no-mistakes.
+
+5c. Explicit bad focused request cannot use proof outage as fallback
+  event base cedb1403aef5 live base cedb1403aef5 canonical trunk dbd388dfa561 PR head 8a7f279549d3
+  PR diff: bin/launch, bin/options
+  $ python3 .github/verify-focused-upstream.py --workflow
+  PR compliance decision refused; native fallback prohibited. (exit 1)
+  Fresh local PR reads: 2 (labels/comments varied on every read)
