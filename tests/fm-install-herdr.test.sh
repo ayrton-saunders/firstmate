@@ -38,18 +38,23 @@ exit 99
 SH
   chmod +x "$TMP/no-effects/$tool"
 done
+check_hc_usage() {
+  local expected=$1 code=0 out
+  shift
+  out=$(FM_HC_EFFECTS="$TMP/effects" RUNNER_TEMP="$TMP/usage" \
+    PATH="$TMP/no-effects:$PATH" bash "$HC_INSTALLER" "$@" 2>&1) || code=$?
+  [ "$code" -eq "$expected" ] || fail "hc arguments ($*): expected exit $expected, got $code: $out"
+  assert_contains "$out" 'Usage: fm-install-hc.sh' "hc arguments ($*) report usage"
+}
 (
   cd "$TMP/usage"
-  for opt in --help -h --unknown; do
-    code=0
-    out=$(FM_HC_EFFECTS="$TMP/effects" RUNNER_TEMP="$TMP/usage" \
-      PATH="$TMP/no-effects:$PATH" bash "$HC_INSTALLER" "$opt" 2>&1) || code=$?
-    case "$opt" in
-      --unknown) [ "$code" -ne 0 ] || fail "unknown option unexpectedly succeeded" ;;
-      *) [ "$code" -eq 0 ] || fail "$opt failed: $out" ;;
-    esac
-    assert_contains "$out" 'Usage: fm-install-hc.sh' "$opt reports usage"
-  done
+  check_hc_usage 0 --help
+  check_hc_usage 0 -h
+  check_hc_usage 0 --help extra
+  check_hc_usage 0 -h extra
+  check_hc_usage 1 --unknown
+  check_hc_usage 1
+  check_hc_usage 1 '' extra
 )
 [ ! -e "$TMP/effects" ] || fail "usage invoked a side-effecting tool: $(cat "$TMP/effects")"
 [ -z "$(find "$TMP/usage" -mindepth 1 -print)" ] || fail 'usage created files'
@@ -62,8 +67,11 @@ printf '#!/bin/sh\nprintf "hc 0.1.21\\n"\n' > "$TMP/payload/herdr-core"
 tar -czf "$TMP/asset.tar.gz" -C "$TMP/payload" herdr-core
 cat > "$FAKEBIN/curl" <<'SH'
 #!/bin/sh
-while [ "$#" -gt 1 ]; do shift; done
-cp "$FM_HC_FIXTURE" "$1"
+while [ "$#" -gt 3 ]; do shift; done
+[ "$#" -eq 3 ] &&
+  [ "$1" = 'https://releases.herdr.dev/core/0.1.21/herdr-core-macos-aarch64.tar.gz' ] &&
+  [ "$2" = -o ] || exit 22
+cp "$FM_HC_FIXTURE" "$3"
 SH
 cat > "$FAKEBIN/uname" <<'SH'
 #!/bin/sh
@@ -89,7 +97,7 @@ chmod +x "$FAKEBIN/uname" "$FAKEBIN/sha256sum" "$FAKEBIN/mkdir"
 (
   cd "$TMP"
   FM_REAL_MKDIR=$(command -v mkdir) FM_HC_FIXTURE="$TMP/asset.tar.gz" \
-    PATH="$FAKEBIN:$PATH" RUNNER_TEMP="$TMP" bash "$HC_INSTALLER" './-hc prefix/bin'
+    PATH="$FAKEBIN:$PATH" RUNNER_TEMP="$TMP" bash "$HC_INSTALLER" './-hc prefix/bin' extra
 )
 [ -x "$TMP/-hc prefix/bin/herdr-core" ] || fail 'hc installer did not create the nested prefix and binary'
 pass 'hc installs into a nested relative prefix with BSD mkdir semantics'

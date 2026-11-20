@@ -35,11 +35,7 @@ usage() {
     '       fm-install-hc.sh --help | -h'
 }
 
-if [ "$#" -ne 1 ]; then
-  usage >&2
-  exit 1
-fi
-case "$1" in
+case "${1-}" in
   --help|-h) usage; exit 0 ;;
   -*|'') usage >&2; exit 1 ;;
   *) DESTINATION=$1 ;;
