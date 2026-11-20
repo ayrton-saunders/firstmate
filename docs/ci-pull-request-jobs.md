@@ -18,7 +18,7 @@ Their costs are explicitly unmeasured rather than inferred from the CI-only samp
 
 The effective `main` branch rules read on November 14, 2026 from `GET /repos/ayrton-saunders/firstmate/rules/branches/main` require 22 contexts, all bound to GitHub Actions integration 15368, with `strict_required_status_checks_policy` off.
 They are marked **yes** in the table below.
-The actual rule differs from the recommended list in CONTRIBUTING: it also requires `Behavior portable serial 11` and `Behavior tests (herdr-core)`, and does not require the timing aggregate.
+The recorded rule differs from the current recommended list in CONTRIBUTING: it also requires `Behavior tests (herdr-core)`, and does not require `Behavior portable serial 12` or the timing aggregate.
 Requiring `Full suite` matters because individual jobs can skip before an outside PR receives `full-ci`, and the required individual names alone do not enforce the go-ahead.
 
 Normal CI names below acquire the existing `Not run for label - ` prefix on an unrelated label event, so that event cannot replace a real failure under the required name.
@@ -53,6 +53,7 @@ Each serial row is a distinct, disjoint assignment exposed by `fm-test-run.sh --
 | CI / tests-portable-serial (9) | `Behavior portable serial 9` | yes | Disjoint stateful assignment 9. | 1549.4s. | Keep. |
 | CI / tests-portable-serial (10) | `Behavior portable serial 10` | yes | Disjoint stateful assignment 10. | 1296.3s. | Keep. |
 | CI / tests-portable-serial (11) | `Behavior portable serial 11` | yes | Disjoint stateful assignment 11. | 1555.9s. | Keep. |
+| CI / tests-portable-serial (12) | `Behavior portable serial 12` | no, absent from the recorded rule | Disjoint stateful assignment 12, enforced through Full suite. | New; unmeasured. | Keep. |
 | CI / tests-herdr | `Behavior tests (Herdr)` | yes | Pinned real Herdr protocol, focus, cleanup and default-session safety; fake/portable fixtures cannot prove these. | 548.2s. | Keep. |
 | CI / tests-hc | `Behavior tests (herdr-core)` | yes | Real hc backend and lab cleanup; some unit behavior overlaps portable tests but actual hc execution does not. | 47.6s. | Keep; removing it loses distinct backend coverage for negligible critical-path benefit. |
 | CI / tests-timing-aggregate | `Behavior timing aggregate` | no | Invalid aggregate inputs and artifact assembly; collects even after failed lanes and does not prove every lane passed. | 8.4s. | Make advisory if future rules add it: no need for a separate blocking context. |
@@ -114,15 +115,12 @@ No numeric end-to-end saving is claimed for the lint split.
 Replaying the same three Ubuntu samples with the new assignments cuts the slower parallel lane's script sum by 57-84s, with all 26 tests retained and no extra runner.
 This is a lane-only projection; if a serial shard finishes later, it saves no time on the overall run.
 
-**Serial repack is a recorded deferral:** the existing report sections 4 and 5 rank 3 put refreshed eleven-way serial packing at **24.10 minutes against the unchanged 1200-second guard**.
-The single remote lifecycle suite reaches **21m14.867s**, so adding runners alone cannot meet that guard.
-Joining Appendix D to the November 18 serial inventory also rules out fixing only that suite: the other measured paths sum to **14,623,697 ms** in per-script maxima, above the eleven-shard capacity of **13,200,000 ms**, even before adding the 16 paths with no timing record.
-Keeping that recorded workload and the current target requires at least 14 shards by total weight and a split of the over-budget suite; this lower bound is not evidence that 14 shards fit all current tests or that hosted capacity can run them concurrently.
-Serial timing hints, membership, budgets and lifecycle assertions stay unchanged; computing a packing once instead of once per shard selection reduces the guard's setup without changing what it checks.
-Future implementation needs current timing inputs and a choice between reducing work across suites, splitting the long suite and adding runner capacity, or explicitly re-deriving the modeled target without changing execution safeguards.
-Changes to test boundaries, runner count or the modeled target remain separate review decisions.
-The serial share of the originally combined optimization is **not delivered**, and no serial repack saving is claimed.
-Deferring serial repacking reduces speed gains, not coverage.
+The original lint-only delivery deferred serial repacking: the report's eleven-way projection was **24.10 minutes against the unchanged 1200-second guard**, with the unsplit remote lifecycle suite at **21m14.867s**.
+Joining Appendix D to the November 18 serial inventory also ruled out fixing only that suite: the other measured paths summed to **14,623,697 ms** in per-script maxima, above the eleven-shard capacity of **13,200,000 ms**, even before adding the 16 paths with no timing record.
+Keeping that recorded workload and target required at least 14 shards by total weight and a split of the over-budget suite; this lower bound was not evidence that 14 shards would fit all tests or that hosted capacity could run them concurrently.
+The lifecycle suite is now split and serial packing revised; [portable shard verification](fm-test-portable-shards.md#verification-inputs) owns current hint provenance, and the runner's `--check-coverage` owns current packing estimates.
+The earlier projection is not a measurement of the revised layout, and no measured repack saving is claimed.
+Audit proposals still require separate approval.
 The macOS pool question remains separate: existing cancellations are runner acquisition failures, not suite slowness; its required job is untouched.
 
 ## Verification entry points
