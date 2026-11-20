@@ -1,0 +1,51 @@
+Installed Core: hc 0.1.21
+Installed Treehouse: v2.0.1
+$ /bin/bash bin/fm-test-run.sh --family hc --fail-on-gate-skip "hc not found" --json <lab>/hc-timing.json
+
+FM_TEST_BEGIN 2026-11-20T21:07:51Z tests/fm-backend-hc-appdetect-smoke.test.sh family=hc expected_gate_skip=optional-binary
+lab core session fm-hclab-appdetect-17827-19527 ready (server pid 17902)
+ok - app-terminal: spawn env claiming a herdr.space-labeled terminal auto-selects hc, notices, records backend_detect=app-terminal, and labels the worker
+ok - app-window is not a signal: a live herdr-app.sock over a running spawn core keeps the default backend silently and records nothing
+ok - app-window is not a signal: a live window beside a session with no running core keeps the default silently and starts nothing
+ok - explicit: config/backend=hc wins over the app signals and records no detection provenance
+FM_TEST_COMPLETE
+FM_TEST_END 2026-11-20T21:08:27Z tests/fm-backend-hc-appdetect-smoke.test.sh exit=0 duration_ms=36412 gate_skip=false
+FM_TEST_BEGIN 2026-11-20T21:08:27Z tests/fm-backend-hc-smoke.test.sh family=hc expected_gate_skip=optional-binary
+lab core session fm-hclab-smoke-52183-23245 ready (server pid 52281)
+ok - hc smoke: create_task started fm-hclab-smoke-52183-23245:t1
+ok - hc smoke: current_path follows the shell's cwd
+ok - hc smoke: send_text_line ran the command and capture shows its output
+ok - hc smoke: send_text_submit delivers through send --wait (verdict unknown)
+ok - hc smoke: agent_state reads dead for a shell and alive for an agent-named foreground
+ok - hc smoke: kill closes and removes the terminal
+FM_TEST_COMPLETE
+FM_TEST_END 2026-11-20T21:08:34Z tests/fm-backend-hc-smoke.test.sh exit=0 duration_ms=6120 gate_skip=false
+FM_TEST_BEGIN 2026-11-20T21:08:34Z tests/fm-backend-hc.test.sh family=hc expected_gate_skip=optional-binary
+1..16
+ok - hc: spawn-capable, detects only on the Herdr app signals, with its tool set
+ok - hc: the bootstrap tool check resolves hc exactly as the adapter does
+ok - hc: create_task starts an independent labeled terminal and refuses a duplicate
+ok - hc: fm-control interrupt delivers the harness's interrupt key
+ok - hc: another task's, another home's, or an unlabeled terminal gets no input and no close
+ok - hc: an empty session never falls through to the ambient core
+ok - hc: an inherited HC_SOCKET never overrides the session pin
+ok - hc: agent_state maps foreground, finished, not_found and core errors onto the shared vocabulary
+ok - hc: agent_state reads a shell wrapper's process group before calling it dead
+ok - hc: kill ends and removes the terminal and refuses when it survives
+ok - hc: teardown's expected label refuses another task's terminal and closes the matching one
+ok - hc: capture, visible capture, and current path read the recorded terminal
+ok - hc: endpoint validation requires window to equal hc_session:hc_terminal
+ok - hc: container_ensure refuses a misnamed, old, or wrong-generation binary
+ok - hc: send_text_submit proves the turn through send --wait and never forces a blocked terminal
+ok - hc: send text is -- delimited, and FM_HC_BIN/FM_HC_SOCKET pin the call
+FM_TEST_COMPLETE
+FM_TEST_END 2026-11-20T21:08:38Z tests/fm-backend-hc.test.sh exit=0 duration_ms=4467 gate_skip=false
+FM_TEST_SUMMARY total=3 failed=0 skipped_gate=0 duration_ms=48140
+FM_TEST_SUMMARY_FAMILY family=hc count=3 duration_ms=46999 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-backend-hc-appdetect-smoke.test.sh duration_ms=36412
+FM_TEST_SLOWEST rank=2 script=tests/fm-backend-hc-smoke.test.sh duration_ms=6120
+FM_TEST_SLOWEST rank=3 script=tests/fm-backend-hc.test.sh duration_ms=4467
+fm-test-run: wrote timing artifact: {run-worktree}/.hc-validation/hc-timing.json
+
+Runner exit=0
+Private Core lab and socket roots were empty after teardown.

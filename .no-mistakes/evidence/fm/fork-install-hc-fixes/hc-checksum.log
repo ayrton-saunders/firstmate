@@ -1,0 +1,11 @@
+Release manifest: https://releases.herdr.dev/core/0.1.21/manifest.json
+linux-aarch64 SHA-256 e844a2bfab48a226097679d076bc83042fe57fccef5387ef802e5b24e78b529a (matches published manifest)
+linux-x86_64 SHA-256 78424755c10a40dde38a0bdb55c20ac19706e9ae05ed68fc2acf1fcff0d941c1 (matches published manifest)
+macos-aarch64 SHA-256 1ab38dd9270f63a8f794d6d60e8702eb0d1c85a72bda85d735e5eea43f05ffed (matches published manifest)
+macos-x86_64 SHA-256 e377e1d342cddce0346da5b2f3c281b9701e4731c00024c7c5028265e77a217f (matches published manifest)
+
+$ fm-install-hc.sh <new-prefix>  # curl delivers the real macOS download plus synthetic bytes
+fm-install-hc.sh: downloading herdr-core-macos-aarch64.tar.gz from https://releases.herdr.dev/core/0.1.21/herdr-core-macos-aarch64.tar.gz
+fm-install-hc.sh: checksum mismatch for herdr-core-macos-aarch64.tar.gz (expected 1ab38dd9270f63a8f794d6d60e8702eb0d1c85a72bda85d735e5eea43f05ffed, got bd1accad456409e23130d6e8d462b79174f7b1eee7ed0d58de296a8ba092b167)
+exit=1
+No destination created; temporary archive cleaned up.

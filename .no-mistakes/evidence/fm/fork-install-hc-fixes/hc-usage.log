@@ -1,0 +1,42 @@
+Platform: Darwin arm64
+Base 41b82f29 with download and mutation sentinels:
+$ fm-install-hc.sh --help
+exit=98; attempted tool(s): mktemp
+
+Target 9be19d1a with the same sentinels:
+$ fm-install-hc.sh --help
+Usage: fm-install-hc.sh <destination-directory>
+       fm-install-hc.sh --help | -h
+exit=0
+
+$ fm-install-hc.sh -h
+Usage: fm-install-hc.sh <destination-directory>
+       fm-install-hc.sh --help | -h
+exit=0
+
+$ fm-install-hc.sh --help extra
+Usage: fm-install-hc.sh <destination-directory>
+       fm-install-hc.sh --help | -h
+exit=0
+
+$ fm-install-hc.sh -h extra
+Usage: fm-install-hc.sh <destination-directory>
+       fm-install-hc.sh --help | -h
+exit=0
+
+$ fm-install-hc.sh --unknown
+Usage: fm-install-hc.sh <destination-directory>
+       fm-install-hc.sh --help | -h
+exit=1
+
+$ fm-install-hc.sh ''
+Usage: fm-install-hc.sh <destination-directory>
+       fm-install-hc.sh --help | -h
+exit=1
+
+$ fm-install-hc.sh '' extra
+Usage: fm-install-hc.sh <destination-directory>
+       fm-install-hc.sh --help | -h
+exit=1
+
+No curl, mkdir or mktemp invoked by target; working directory, home, XDG roots and temp stayed empty.

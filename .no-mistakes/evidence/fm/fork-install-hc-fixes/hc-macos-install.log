@@ -1,0 +1,10 @@
+Platform: Darwin arm64
+GNU bash, version 3.2.57(1)-release (arm64-apple-darwin26)
+Stock tools only: /usr/bin:/bin:/usr/sbin:/sbin
+$ fm-install-hc.sh "./-hc prefix/nested/bin" extra
+fm-install-hc.sh: downloading herdr-core-macos-aarch64.tar.gz from https://releases.herdr.dev/core/0.1.21/herdr-core-macos-aarch64.tar.gz
+fm-install-hc.sh: installed herdr-core 0.1.21 (protocol generation 1) to ./-hc prefix/nested/bin/herdr-core
+-rwxr-xr-x@ 1 ayrton  staff  6437760 Nov 20 21:06 ./-hc prefix/nested/bin/herdr-core
+$ herdr-core --version
+hc 0.1.21
+Installer scratch directory cleaned up.
