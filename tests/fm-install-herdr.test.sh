@@ -87,9 +87,10 @@ printf '1ab38dd9270f63a8f794d6d60e8702eb0d1c85a72bda85d735e5eea43f05ffed  %s\n' 
 SH
 cat > "$FAKEBIN/mkdir" <<'SH'
 #!/bin/sh
-# Emulate BSD mkdir's rejection of -- even on hosts with GNU mkdir.
 for arg do
-  [ "$arg" != -- ] || exit 64
+  case "$arg" in
+    --*|-*Z*) exit 64 ;;
+  esac
 done
 exec "$FM_REAL_MKDIR" "$@"
 SH
