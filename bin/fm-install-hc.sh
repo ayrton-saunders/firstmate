@@ -10,9 +10,11 @@
 # Usage:
 #   fm-install-hc.sh <destination-directory>
 #   fm-install-hc.sh --help | -h
+# Help exits before downloading or creating files. An empty or option-like
+# first argument other than help is rejected.
 #
-# Pins herdr-core 0.1.21 (protocol generation 1) using the official release
-# manifest at https://releases.herdr.dev/core/0.1.21/manifest.json.
+# The official manifest for these SHA-256 pins is
+# https://releases.herdr.dev/core/0.1.21/manifest.json (protocol generation 1).
 # Selects the official releases.herdr.dev tarball for the host OS/arch,
 # downloads with a bounded max size, verifies SHA-256 before install, extracts
 # the `herdr-core` binary, then refuses to finish unless the installed binary
@@ -88,12 +90,13 @@ fi
 tar -xzf "$TMP/$ASSET" -C "$TMP" || die "could not extract $ASSET"
 [ -f "$TMP/herdr-core" ] || die "$ASSET did not contain a herdr-core binary"
 
-# The parser rejects option-like destinations, so mkdir needs no delimiter.
+# Keep mkdir compatible with BSD: the parser rejects destinations that would
+# require an option delimiter.
 mkdir -p "$DESTINATION"
 install -m 0755 "$TMP/herdr-core" "$DESTINATION/herdr-core"
 
-# Post-install version and self-identity gates (no floating latest). The
-# binary self-identifies as `hc x.y.z`; anything else is not Herdr Core.
+# Check the installed binary's version field; the archive checksum above
+# identifies the official release asset.
 installed_version=$("$DESTINATION/herdr-core" --version 2>/dev/null | awk '{print $2; exit}')
 [ "$installed_version" = "$FM_HC_PIN_VERSION" ] \
   || die "installed herdr-core reports version '$installed_version', expected $FM_HC_PIN_VERSION"

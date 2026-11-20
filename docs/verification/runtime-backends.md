@@ -3707,6 +3707,7 @@ This verifies the primary-session park, not a worker busy-state classifier or a 
 
 ## hc
 
+[`tests/fm-install-herdr.test.sh`](../../tests/fm-install-herdr.test.sh) guards side-effect-free installer help and the Apple silicon install path with BSD-compatible `mkdir` offline.
 On 2026-11-20, the checksum-verified Herdr Core 0.1.21 build installed successfully on Apple silicon with stock macOS Bash 3.2.57 and BSD tools.
 With `FM_HC_BIN` pointing to that scratch install and private XDG and hc lab roots, `/bin/bash bin/fm-test-run.sh --family hc --fail-on-gate-skip 'hc not found'` passed both real-core smoke tests and the fake-CLI adapter suite.
 The real-core smoke tests tore down their own named lab sessions.
