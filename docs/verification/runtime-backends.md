@@ -3707,6 +3707,16 @@ This verifies the primary-session park, not a worker busy-state classifier or a 
 
 ## hc
 
+[`tests/fm-install-herdr.test.sh`](../../tests/fm-install-herdr.test.sh) guards side-effect-free installer help and the Apple silicon install path with BSD-compatible `mkdir` offline.
+On 2026-11-20, the checksum-verified Herdr Core 0.1.21 build installed successfully on Apple silicon with stock macOS Bash 3.2.57 and BSD tools.
+With `FM_HC_BIN` pointing to that scratch install and private XDG and hc lab roots, `/bin/bash bin/fm-test-run.sh --family hc --fail-on-gate-skip 'hc not found'` passed both real-core smoke tests and the fake-CLI adapter suite.
+The real-core smoke tests tore down their own named lab sessions.
+
+```text
+FM_TEST_SUMMARY total=3 failed=0 skipped_gate=0 duration_ms=49347
+FM_TEST_SUMMARY_FAMILY family=hc count=3 duration_ms=47902 failed=0
+```
+
 Measured on 2026-10-29 with `hc 0.1.13` on macOS (Darwin 27.0.0, `/bin/bash` 3.2.57), against private cores only: a unique `HC_SESSION`, `XDG_STATE_HOME` and `XDG_RUNTIME_DIR` under a short `/tmp/fmhc.*` directory, and `HC_TERMINAL_ID`, `HC_TERMINAL_SOCKET`, and `HC_SCOPE` unset.
 The default socket path under the scratchpad temp directory exceeded the 103-byte unix socket limit, which `hc` reports as a usage error, so the private root must be short.
 

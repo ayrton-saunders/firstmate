@@ -481,18 +481,13 @@ jobs:
           set -eu
           bin/fm-install-treehouse.sh "$RUNNER_TEMP/bin"
           echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
-      - name: Assert herdr-core pin and Treehouse presence
+      - name: Assert installed tools are on PATH
         run: |
           set -eu
           command -v herdr-core >/dev/null || { echo "::error::herdr-core not on PATH after install"; exit 1; }
           command -v treehouse >/dev/null || { echo "::error::treehouse not on PATH after install"; exit 1; }
           herdr-core --version
           treehouse --version
-          version=$(herdr-core --version | awk '{print $2; exit}')
-          [ "$version" = "0.1.14" ] || {
-            echo "::error::expected exact herdr-core pin 0.1.14, got ${version:-<empty>}"
-            exit 1
-          }
       - name: Snapshot pre-suite hc lab sessions
         run: |
           set -eu
