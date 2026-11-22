@@ -17,7 +17,7 @@ command -v jq >/dev/null 2>&1 || { echo "skip: jq not found (required by the her
 # route a call anywhere; every call here goes to the scripted fake.
 herdr_forget_inherited_pane
 
-TMP_ROOT=$(fm_test_tmproot fm-herdr-groups)
+TMP_ROOT=$(fm_test_tmproot fm-hg)
 TOKEN_A='AbCdEfGhIjKlMnOpQrStUv'
 
 # make_fake_herdr <dir>: a `herdr` stand-in that logs every call (one line,
@@ -457,7 +457,7 @@ PY
 test_agent_view_helper_sends_only_the_whitelisted_requests() {
   local dir sock server out status
   command -v python3 >/dev/null 2>&1 || { pass "agent view helper: skipped, python3 not found"; return 0; }
-  dir="$TMP_ROOT/view-helper"; mkdir -p "$dir"
+  dir="$TMP_ROOT/v"; mkdir -p "$dir"
   sock="$dir/s.sock"
   for action in set clear; do
     rm -f "$sock" "$dir/request.json"

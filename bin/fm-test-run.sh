@@ -77,15 +77,14 @@
 #                   after the run and so cannot catch a hang on its own.
 #   --scratch-base  print the validated scratch base for direct probes; allocate nothing
 #
-# Scratch is independent of inherited TMPDIR. The default is the OS per-user
-# temp area on macOS and /tmp elsewhere. FM_TEST_SCRATCH_PARENT may name an
-# existing absolute directory instead. Neither base nor run root may resolve
+# Scratch is independent of inherited TMPDIR and uses the OS per-user temp
+# area on macOS and /tmp elsewhere. Neither base nor run root may resolve
 # into the checkout, FM_HOME, preserved copies or a Treehouse pool. Using OS
 # temp keeps reproducible scratch out of backups without changing Time Machine.
 # Within the base, a private per-UID directory holds marked runs and wN/tmp
 # directories. EXIT, INT, HUP and TERM drain owned worker groups before removing
 # the run; a test that starts a separate session/group owns that group's cleanup.
-# A subsequent run recovers aged, marked roots when the original owner is gone.
+# A subsequent run recovers aged, marked roots when the runner and workers are gone.
 # Keep requested reports and redirected logs outside runner scratch.
 #   --max-wall-ms N fail the run when its measured invocation wall clock exceeds
 #                   N milliseconds, including an empty selection. It is
@@ -1952,6 +1951,10 @@ families_for_changed_path() {
     docs/configuration.md|docs/supervision-protocols/*)
       printf '%s\n' pure-contract-unit
       ;;
+    tests/remote-secondmate-source-copy-helpers.sh)
+      families_for_test_reference remote-secondmate-source-copy-helpers.sh remote-secondmate-lifecycle-fixture.sh \
+        || printf '%s\n' "__unmapped__:$path"
+      ;;
     tests/git-config-helpers.sh)
       # The reference scan is not transitive, so match the two helpers that
       # source this one as well: most suites inherit it only through them.
@@ -2415,10 +2418,8 @@ check_scratch_placement() {
 }
 
 scratch_base() {
-  local base=${FM_TEST_SCRATCH_PARENT:-}
-  if [ -z "$base" ]; then
-    base=$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null) || base=/tmp
-  fi
+  local base
+  base=$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null) || base=/tmp
   case "$base" in /*) ;; *) die "scratch base must be absolute: $base" ;; esac
   base=$(cd -P -- "$base" && pwd -P) || die 'cannot resolve scratch base'
   check_scratch_placement "$base"
@@ -2429,36 +2430,55 @@ scratch_base() {
 # distinguish an absent PID from a failed per-PID query. Unreadable snapshots
 # and malformed markers never authorize deletion.
 run_owner_snapshot() {
-  LC_ALL=C TZ=UTC0 ps -e -o pid= -o lstart=
+  LC_ALL=C TZ=UTC0 ps -e -o pid= -o pgid= -o stat= -o lstart=
 }
 
-run_owner_start() {
-  awk -v pid="$1" '$1 == pid { if (NF == 6) print $2, $3, $4, $5, $6; else print "unknown"; exit }'
+record_run_owner() {
+  local pid=$1 start
+  start=$(LC_ALL=C TZ=UTC0 ps -p "$pid" -o lstart= 2>/dev/null |
+    awk 'NF == 5 { print $1, $2, $3, $4, $5 }')
+  printf '%s|%s|%s\n' "$UID" "$pid" "${start:-unknown}" >>"$RUN_TMP/.fm-test-run-owner"
+}
+
+remove_run_tree() {
+  local dir=$1
+  if [ -d "$dir" ] && [ ! -L "$dir" ]; then
+    find "$dir" -type d -exec chmod u+rwx {} \; 2>/dev/null || true
+  fi
+  rm -rf -- "$dir"
+}
+
+run_owners_gone() {
+  local marker=$1 snapshot=$2 owner pid start extra worker=0
+  while IFS='|' read -r owner pid start extra; do
+    [ "$owner" = "$UID" ] && [ -z "$extra" ] || return 1
+    case "$pid" in ''|0*|*[!0-9]*) return 1 ;; esac
+    case "$start" in
+      [A-Za-z][A-Za-z][A-Za-z]\ [A-Za-z][A-Za-z][A-Za-z]\ [0-9]*\ [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\ [0-9][0-9][0-9][0-9]) ;;
+      *) return 1 ;;
+    esac
+    awk -v pid="$pid" -v start="$start" -v worker="$worker" '
+      $3 !~ /^Z/ && (($1 == pid && (NF != 8 || start == $4 FS $5 FS $6 FS $7 FS $8)) ||
+                       (worker && $2 == pid)) { live = 1 }
+      END { exit live }
+    ' <<<"$snapshot" || return 1
+    worker=1
+  done <"$marker"
+  [ "$worker" -eq 1 ] && [ -z "$owner$pid$start$extra" ]
 }
 
 reap_orphan_runs() {
-  local parent=$1 dir marker owner pid start extra snapshot='' current
-  for dir in "$parent"/fm-test-run.??????; do
+  local parent=$1 dir marker snapshot
+  for dir in "$parent"/r.??????; do
     marker="$dir/.fm-test-run-owner"
     [ -d "$dir" ] && [ ! -L "$dir" ] && [ -O "$dir" ] || continue
     [ -f "$marker" ] && [ ! -L "$marker" ] && [ -O "$marker" ] || continue
     [ -n "$(find "$marker" -prune -mmin +1 -print)" ] || continue
-    IFS='|' read -r owner pid start extra <"$marker" || continue
-    [ "$owner" = "$UID" ] && [ -z "$extra" ] || continue
-    case "$pid" in ''|0*|*[!0-9]*) continue ;; esac
-    case "$start" in
-      [A-Za-z][A-Za-z][A-Za-z]\ [A-Za-z][A-Za-z][A-Za-z]\ [0-9]*\ [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\ [0-9][0-9][0-9][0-9]) ;;
-      *) continue ;;
-    esac
-    if [ -z "$snapshot" ]; then
-      snapshot=$(run_owner_snapshot) || return 0
-      [ -n "$(run_owner_start "$$" <<<"$snapshot")" ] || return 0
+    snapshot=$(run_owner_snapshot) || return 0
+    awk -v pid="$$" '$1 == pid && NF == 8 { found = 1 } END { exit !found }' <<<"$snapshot" || return 0
+    if run_owners_gone "$marker" "$snapshot"; then
+      remove_run_tree "$dir" || true
     fi
-    current=$(run_owner_start "$pid" <<<"$snapshot")
-    [ "$start" != "$current" ] || continue
-    # If ps could see the PID but not its start time, we cannot prove reuse.
-    [ "$current" != unknown ] || continue
-    rm -rf -- "$dir"
   done
 }
 
@@ -2468,6 +2488,7 @@ RUN_CRITICAL=0
 WORKER_PIDS=()
 WORKER_SCRIPTS=()
 WORKER_DEADLINES=()
+WORKER_STARTED_MS=()
 
 # Traps defer exit only while publishing an allocation or a background PID.
 # shellcheck disable=SC2329
@@ -2492,13 +2513,13 @@ stop_worker_groups() {
 cleanup_run() {
   trap '' HUP INT TERM
   stop_worker_groups "${WORKER_PIDS[@]+"${WORKER_PIDS[@]}"}"
-  if [ -n "$RUN_TMP" ]; then rm -rf -- "$RUN_TMP"; RUN_TMP=; fi
+  if [ -n "$RUN_TMP" ]; then remove_run_tree "$RUN_TMP"; fi
 }
 
 prepare_run_scratch() {
-  local base parent mode start snapshot
+  local base parent mode
   base=$(scratch_base) || exit "$?"
-  parent="${base%/}/firstmate-test-scratch-$UID"
+  parent="${base%/}/fm$UID"
   check_scratch_placement "$parent"
   (umask 077; mkdir -- "$parent") 2>/dev/null || true
   [ -d "$parent" ] && [ ! -L "$parent" ] && [ -O "$parent" ] \
@@ -2513,12 +2534,10 @@ prepare_run_scratch() {
   trap 'interrupt_run 130' INT
   trap 'interrupt_run 143' TERM
   RUN_CRITICAL=1
-  RUN_TMP=$(mktemp -d "$parent/fm-test-run.XXXXXX") || die "cannot allocate test scratch under $parent"
+  RUN_TMP=$(mktemp -d "$parent/r.XXXXXX") || die "cannot allocate test scratch under $parent"
+  record_run_owner "$$"
   RUN_CRITICAL=0
   [ "$RUN_INTERRUPT" -eq 0 ] || exit "$RUN_INTERRUPT"
-  snapshot=$(LC_ALL=C TZ=UTC0 ps -p "$$" -o pid= -o lstart= 2>/dev/null) || snapshot=
-  start=$(run_owner_start "$$" <<<"$snapshot")
-  printf '%s|%s|%s\n' "$UID" "$$" "$start" >"$RUN_TMP/.fm-test-run-owner"
   # Also covers temporary files used by runner helpers rather than the tests.
   export TMPDIR="$RUN_TMP" TMP="$RUN_TMP" TEMP="$RUN_TMP"
 }
@@ -2567,6 +2586,10 @@ fi
 case "$PER_SCRIPT_TIMEOUT_SECS" in
   ''|*[!0-9]*) die "--per-script-timeout-secs requires a whole number of seconds (0 disables)" ;;
 esac
+PER_SCRIPT_TIMEOUT_SECS=${PER_SCRIPT_TIMEOUT_SECS#"${PER_SCRIPT_TIMEOUT_SECS%%[!0]*}"}
+PER_SCRIPT_TIMEOUT_SECS=${PER_SCRIPT_TIMEOUT_SECS:-0}
+[ "$PER_SCRIPT_TIMEOUT_SECS" -le "$((9223372036854775807 - SECONDS - 1))" ] 2>/dev/null \
+  || die '--per-script-timeout-secs is too large'
 
 # Refuse before any suite is selected or run. The inspection modes execute
 # nothing: --list-families, --list-concurrent-safe-families, --list-lanes,
@@ -2697,7 +2720,6 @@ AUTO_CONCURRENCY=0
 if { [ "$MODE" = changed ] || [ "$MODE" = scripts ]; } && [ "$JOBS_EXPLICIT" -eq 0 ]; then
   if [ "$MODE" = changed ] && [ "${#SCRIPTS[@]}" -gt 0 ] && [ "$PER_SCRIPT_TIMEOUT_SECS" -eq 0 ]; then
     PER_SCRIPT_TIMEOUT_SECS=$CHANGED_DEFAULT_TIMEOUT_SECS
-    log "per-script timeout: ${PER_SCRIPT_TIMEOUT_SECS}s (--changed default)"
   fi
   auto_admissible=0
   for s in "${SCRIPTS[@]}"; do
@@ -2863,7 +2885,7 @@ worker_n=0
 active_workers=0
 
 start_worker() {
-  local script=$1 stream=$2 work base family expected
+  local script=$1 stream=$2 terminal=$3 work base family expected pid
   worker_n=$((worker_n + 1))
   work="$RUN_TMP/w$worker_n"
   mkdir -p "$work/tmp"
@@ -2877,16 +2899,20 @@ start_worker() {
   # Turn it off inside the worker so the test and tee share the same group.
   # Deadlines live in this scheduler, not in nested timeout process groups.
   : >"$work/output"
+  WORKER_STARTED_MS[worker_n]=$(now_ms)
   WORKER_DEADLINES[worker_n]=0
   if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
     # SECONDS is coarse; rounding up never cuts the configured bound short.
-    WORKER_DEADLINES[worker_n]=$((SECONDS + 10#$PER_SCRIPT_TIMEOUT_SECS + 1))
+    WORKER_DEADLINES[worker_n]=$((SECONDS + PER_SCRIPT_TIMEOUT_SECS + 1))
   fi
   RUN_CRITICAL=1
   set -m
   (
     trap - EXIT HUP INT TERM
     set +m
+    pid=$(exec bash -c 'printf "%s\n" "$PPID"')
+    record_run_owner "$pid" || exit 1
+    kill -0 "$$" 2>/dev/null || exit 1
     export TMPDIR="$work/tmp" TMP="$work/tmp" TEMP="$work/tmp"
     if [ "$stream" -eq 0 ]; then
       unset FM_HOME FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_ROOT_OVERRIDE \
@@ -2895,6 +2921,16 @@ start_worker() {
     # shellcheck source=tests/git-config-helpers.sh
     . "$ROOT/tests/git-config-helpers.sh" || exit 1
     cd "$ROOT" || exit 1
+    if [ "$terminal" -eq 1 ] && [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
+      (
+        trap '' TERM
+        sleep "$PER_SCRIPT_TIMEOUT_SECS"
+        : >"$work/timed-out"
+        kill -TERM -- "-$pid" 2>/dev/null || exit 0
+        sleep 0.2
+        kill -KILL -- "-$pid" 2>/dev/null || true
+      ) &
+    fi
     set +e
     begin_ms=$(now_ms)
     if [ "$stream" -eq 1 ]; then
@@ -2911,7 +2947,7 @@ start_worker() {
     printf '%s\n' "$rc" >"$work/exit"
   ) <&0 &
   WORKER_PIDS[worker_n]=$!
-  set +m
+  [ "$terminal" -eq 1 ] || set +m
   WORKER_SCRIPTS[worker_n]=$script
   active_workers=$((active_workers + 1))
   RUN_CRITICAL=0
@@ -2919,7 +2955,20 @@ start_worker() {
 }
 
 run_one_serial() {
-  if [ -t 0 ]; then start_worker "$1" 1 </dev/null; else start_worker "$1" 1; fi
+  local rc=0 timed_out=0
+  if [ -t 0 ]; then
+    start_worker "$1" 1 1
+    fg > /dev/null || rc=$?
+    set +m
+    if [ -f "$RUN_TMP/w$worker_n/timed-out" ]; then
+      timed_out=1
+    elif [ "$rc" -eq 130 ]; then
+      exit "$rc"
+    fi
+    collect_worker "$worker_n" 1 "$timed_out"
+    return
+  fi
+  start_worker "$1" 1 0
   if [ "$PER_SCRIPT_TIMEOUT_SECS" -eq 0 ]; then
     # wait is interruptible: unlike a foreground pipeline it runs our signal
     # traps immediately. The collector still drains any leftover group members.
@@ -2940,11 +2989,11 @@ collect_worker() {
     wait "$pid" || true
   fi
   stop_worker_groups "$pid"
-  unset 'WORKER_PIDS[slot]' 'WORKER_SCRIPTS[slot]' 'WORKER_DEADLINES[slot]'
   active_workers=$((active_workers - 1))
   if [ "$timed_out" -eq 1 ]; then
     rc=124
-    duration=$((PER_SCRIPT_TIMEOUT_SECS * 1000))
+    duration=$(($(now_ms) - WORKER_STARTED_MS[slot]))
+    [ "$duration" -ge 0 ] || duration=0
     printf 'not ok - %s exceeded the per-script bound of %ss and was terminated\n' \
       "$script" "$PER_SCRIPT_TIMEOUT_SECS" >>"$out"
     [ "$stream" -eq 0 ] || tail -1 "$out"
@@ -2952,6 +3001,7 @@ collect_worker() {
     rc=$(cat "$work/exit" 2>/dev/null || echo 1)
     duration=$(cat "$work/duration_ms" 2>/dev/null || echo 0)
   fi
+  unset 'WORKER_PIDS[slot]' 'WORKER_SCRIPTS[slot]' 'WORKER_DEADLINES[slot]' 'WORKER_STARTED_MS[slot]'
   end_iso=$(now_iso)
   # Replay captured parallel output after the worker finishes, in one block.
   if [ "$stream" -eq 0 ] && [ -s "$out" ]; then
@@ -3005,7 +3055,7 @@ else
     while [ "$active_workers" -ge "$JOBS" ]; do
       wait_one_completed_job_worker 0
     done
-    start_worker "$script" 0 </dev/null
+    start_worker "$script" 0 0 </dev/null
   done
   while [ "$active_workers" -gt 0 ]; do
     wait_one_completed_job_worker 0

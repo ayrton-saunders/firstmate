@@ -1552,7 +1552,7 @@ SH
   began=$(date +%s)
   set +e
   GRANDCHILD_PID="$grandchild_pid" \
-    "$runner" --per-script-timeout-secs 3 "$hang" >"$tmp/out" 2>"$tmp/err"
+    "$runner" --per-script-timeout-secs 03 "$hang" >"$tmp/out" 2>"$tmp/err"
   rc=$?
   set -e
   ended=$(date +%s)
@@ -1600,18 +1600,37 @@ SH
 # 593s under CI load (pause and wedge-defer siblings are 467s and 527s), so the
 # automatic --changed bound must leave a slow but healthy watcher-wake-lock
 # script room while still bounding a genuinely hung one
-# (upstream issue #3869). Check the executing runner's effective-bound diagnostic.
+# (upstream issue #3869).
 test_changed_bound_gives_slow_watcher_suites_headroom() {
-  local tmp repo script bound rc
+  local tmp repo script rc
   tmp=$(mktemp -d)
   repo="$tmp/repo"
   script=tests/fm-watch-triage.test.sh
   mkdir -p "$repo/bin" "$repo/tests"
   cp "$RUNNER" "$repo/bin/fm-test-run.sh"
   cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
+  cat >"$tmp/clock" <<'SH'
+if [ "${0##*/}" = fm-test-run.sh ]; then
+  sleep() {
+    if [ -f "$CLOCK_DIR/ready" ]; then
+      elapsed=${elapsed:-0}
+      elapsed=$((elapsed + 100))
+      SECONDS=$((SECONDS + 100))
+      printf '%s\n' "$elapsed" >"$CLOCK_DIR/tick.next"
+      mv "$CLOCK_DIR/tick.next" "$CLOCK_DIR/tick"
+    fi
+    command sleep "$@"
+  }
+fi
+SH
   cat >"$repo/$script" <<'SH'
 #!/usr/bin/env bash
-echo "ok - healthy but slow watcher suite"
+touch "$CLOCK_DIR/ready"
+for ((i=0; i<60; i++)); do
+  if [ -s "$CLOCK_DIR/tick" ] && [ "$(<"$CLOCK_DIR/tick")" -ge "$FINISH_AT" ]; then exit 0; fi
+  sleep 0.05
+done
+exit 3
 SH
   chmod +x "$repo/bin/fm-test-run.sh" "$repo/$script"
   git -C "$repo" init -q
@@ -1619,14 +1638,17 @@ SH
   git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm baseline
   printf '\n' >>"$repo/$script"
   set +e
-  (cd "$repo" && bin/fm-test-run.sh --changed --base HEAD) >"$tmp/out" 2>"$tmp/err"
+  (cd "$repo" && BASH_ENV="$tmp/clock" CLOCK_DIR="$tmp" FINISH_AT=1500 bin/fm-test-run.sh --changed --base HEAD) >"$tmp/out" 2>"$tmp/err"
   rc=$?
   set -e
   [ "$rc" -eq 0 ] || fail "healthy changed watcher script must pass, got $rc: $(cat "$tmp/out" "$tmp/err")"
-  bound=$(awk '/per-script timeout: / { value=$(NF-2); sub(/s$/, "", value); print value }' "$tmp/err")
-  [ -n "$bound" ] || fail "changed watcher script did not report the automatic bound: $(cat "$tmp/err")"
-  [ "$bound" -ge 1500 ] \
-    || fail "automatic --changed bound for $script must be at least 1500s, got ${bound}s"
+  rm -f "$tmp/ready" "$tmp/tick"
+  set +e
+  (cd "$repo" && BASH_ENV="$tmp/clock" CLOCK_DIR="$tmp" FINISH_AT=10000 bin/fm-test-run.sh --changed --base HEAD) >"$tmp/out" 2>"$tmp/err"
+  rc=$?
+  set -e
+  [ "$rc" -eq 1 ] && grep -Eq 'FM_TEST_END .* exit=124 ' "$tmp/out" \
+    || fail "hung changed watcher script must time out: $(cat "$tmp/out" "$tmp/err")"
   rm -rf "$tmp"
   pass "the automatic --changed bound gives the slow watcher suite at least 1500s"
 }
@@ -1920,12 +1942,17 @@ set -eu
 . tests/remote-secondmate-source-copy-helpers.sh
 mktemp_dir=$(mktemp -d "$TMPDIR/copy.XXXXXX")
 fm_fixture_copy_remote_source "$PWD" "$mktemp_dir"
-[ -f "$mktemp_dir/tracked" ] && [ ! -e "$mktemp_dir/.test-phase-tmp" ]
+[ "$(cat "$mktemp_dir/tracked")" = 'tracked working-tree bytes' ]
+[ ! -e "$mktemp_dir/.test-phase-tmp/sentinel" ]
+mkdir "$TMPDIR/read-only"
+touch "$TMPDIR/read-only/entry"
+chmod 0500 "$TMPDIR/read-only"
+if [ "$PROBE_MODE" = hang ]; then printf '%s\\n' "$$" > "$PROOF.pid"; fi
 printf '%s\\n' "$TMPDIR" > "$PROOF"
 if [ "$PROBE_MODE" = hang ]; then exec sleep 300; fi
 [ "$PROBE_MODE" != fail ]
 ''')
-(repo / 'tracked').touch()
+(repo / 'tracked').write_text('tracked working-tree bytes\n')
 subprocess.run(['git', 'init', '-q', str(repo)], check=True)
 subprocess.run(['git', '-C', str(repo), 'add', 'tracked'], check=True)
 legacy = repo / '.test-phase-tmp'
@@ -1933,6 +1960,13 @@ legacy.mkdir()
 (legacy / 'sentinel').touch()
 base = tmp / 'dedicated'
 base.mkdir()
+fakebin = tmp / 'fakebin'
+fakebin.mkdir()
+getconf = fakebin / 'getconf'
+getconf.write_text('''#!/usr/bin/env bash
+[ "$1" = DARWIN_USER_TEMP_DIR ] && printf '%s\\n' "$OS_TEMP_FIXTURE"
+''')
+getconf.chmod(0o755)
 alias = tmp / 'alias'
 alias.symlink_to(legacy, target_is_directory=True)
 home = tmp / 'home'
@@ -1941,20 +1975,18 @@ for blocked in (home / '.firstmate-preserved', home / '.treehouse', home / '.tre
 env = dict(os.environ, HOME=str(home), FM_HOME=str(tmp / 'fm-home'),
            TREEHOUSE_ROOT=str(tmp / 'custom-treehouse'), TMPDIR=str(legacy),
            TMP=str(legacy), TEMP=str(legacy), PROBE_MODE='pass')
-for key in ('FM_TEST_SCRATCH_PARENT', 'FM_TASK_ID'):
-    env.pop(key, None)
+env.pop('FM_TASK_ID', None)
+fixture_env = dict(env, PATH=str(fakebin) + os.pathsep + env['PATH'], OS_TEMP_FIXTURE=str(base))
 cmd = [str(runner), str(script.relative_to(repo))]
 for blocked in (legacy, alias, home / '.firstmate-preserved', home / '.treehouse', home / '.treehouse-bdm', tmp / 'fm-home', tmp / 'custom-treehouse'):
-    result = subprocess.run([str(runner), '--scratch-base'], cwd=repo,
-                            env=dict(env, FM_TEST_SCRATCH_PARENT=str(blocked)), capture_output=True)
-    assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
-    assert not list(blocked.glob('firstmate-test-scratch-*')), blocked
+    for command in ([str(runner), '--scratch-base'], cmd):
+        result = subprocess.run(command, cwd=repo, env=dict(fixture_env, OS_TEMP_FIXTURE=str(blocked)),
+                                capture_output=True)
+        assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
 
-def launch(name, mode, explicit=True):
+def launch(name, mode, use_fixture=True):
     proof = tmp / name
-    case_env = dict(env, PROBE_MODE=mode, PROOF=str(proof))
-    if explicit:
-        case_env['FM_TEST_SCRATCH_PARENT'] = str(base)
+    case_env = dict(fixture_env if use_fixture else env, PROBE_MODE=mode, PROOF=str(proof))
     log = (tmp / (name + '.log')).open('w')
     with log:
         # A Bash-launched background test may inherit SIGINT ignored. Deliver
@@ -1967,26 +1999,29 @@ def scratch(proof):
     for _ in range(300):
         if proof.exists() and proof.read_text().endswith('\n'):
             worker_tmp = pathlib.Path(proof.read_text().strip())
-            assert worker_tmp.parts[-2:] == ('w1', 'tmp'), worker_tmp
-            return worker_tmp.parents[1]
+            assert repo.resolve() not in worker_tmp.resolve().parents, worker_tmp
+            return worker_tmp
         time.sleep(0.05)
     raise AssertionError(f'missing proof: {proof}')
 
 for mode, rc in [('pass', 0), ('fail', 1)]:
-    child, proof = launch(mode, mode, explicit=(mode == 'fail'))
-    assert child.wait(timeout=20) == rc
-    run = scratch(proof)
-    assert not run.exists() and repo not in run.parents, run
+    child, proof = launch(mode, mode, use_fixture=(mode == 'fail'))
+    assert child.wait(timeout=20) == rc, (tmp / (mode + '.log')).read_text()
+    worker_tmp = scratch(proof)
+    assert not worker_tmp.exists(), worker_tmp
+    if mode == 'fail':
+        assert base.resolve() in worker_tmp.resolve().parents
 assert sorted(p.name for p in legacy.iterdir()) == ['sentinel']
-private = base / f'firstmate-test-scratch-{os.getuid()}'
-result = subprocess.run(cmd, cwd=repo, env=dict(env, FM_HOME=str(private), FM_TEST_SCRATCH_PARENT=str(base)),
-                        capture_output=True)
+(private,) = base.iterdir()
+assert not list(private.iterdir())
+result = subprocess.run(cmd, cwd=repo, env=dict(fixture_env, FM_HOME=str(private)), capture_output=True)
 assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
 
 for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
     child, proof = launch(sig.name, 'hang')
     try:
-        run = scratch(proof)
+        worker_tmp = scratch(proof)
+        run = next(p for p in worker_tmp.parents if (p / '.fm-test-run-owner').is_file())
         child.send_signal(sig)
         assert child.wait(timeout=10) == 128 + sig, sig
         assert not run.exists(), run
@@ -1996,28 +2031,47 @@ for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             child.wait(timeout=10)
 
 live, proof = launch('live', 'hang')
+worker_group = None
 try:
-    live_root = scratch(proof)
+    worker_tmp = scratch(proof)
+    live_root = next(p for p in worker_tmp.parents if (p / '.fm-test-run-owner').is_file())
+    worker = int((tmp / 'live.pid').read_text())
+    worker_group = os.getpgid(worker)
     marker = live_root / '.fm-test-run-owner'
     old = time.time() - 600
     os.utime(marker, (old, old))
-    # A separate exited process supplies a real dead PID; otherwise use the
-    # live run's marker verbatim so the recovery schema is producer-owned.
-    exited = subprocess.Popen(['sleep', '0'])
-    exited.wait(timeout=5)
-    dead_root = live_root.with_name('fm-test-run.Dead01')
-    dead_root.mkdir()
-    dead_marker = dead_root / marker.name
-    dead_marker.write_text(marker.read_text().replace(f'|{live.pid}|', f'|{exited.pid}|'))
-    os.utime(dead_marker, (old, old))
-    unmarked = live_root.with_name('fm-test-run.Other1')
+    unmarked = live_root.with_name(live_root.name[:-6] + 'Other1')
     unmarked.mkdir()
-    other, proof = launch('reaper', 'pass')
+    other, _ = launch('reaper-live', 'pass')
     assert other.wait(timeout=20) == 0
-    assert not dead_root.exists() and live_root.exists() and unmarked.exists()
+    assert live_root.exists() and unmarked.exists()
+    live.kill()
+    assert live.wait(timeout=10) == -signal.SIGKILL
+    other, _ = launch('reaper-orphan-worker', 'pass')
+    assert other.wait(timeout=20) == 0
+    assert worker_tmp.is_dir() and unmarked.exists()
+    os.killpg(worker_group, signal.SIGKILL)
+    for _ in range(100):
+        states = subprocess.check_output(['ps', '-e', '-o', 'pgid=', '-o', 'stat='], text=True)
+        if not any(pgid == str(worker_group) and not state.startswith('Z')
+                   for pgid, state in map(str.split, states.splitlines())):
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError('worker group survived SIGKILL')
+    worker_group = None
+    other, _ = launch('reaper-dead', 'pass')
+    assert other.wait(timeout=20) == 0
+    assert not live_root.exists() and unmarked.exists()
 finally:
-    live.terminate()
-    live.wait(timeout=10)
+    if live.poll() is None:
+        live.terminate()
+        live.wait(timeout=10)
+    if worker_group is not None:
+        try:
+            os.killpg(worker_group, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
 PY
   pass 'runner scratch stays out of snapshots and is cleaned after results, signals and owner death'
 }
