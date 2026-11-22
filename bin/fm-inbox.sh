@@ -390,7 +390,11 @@ announce_note() {  # <id> <summary>
     return 1
   fi
   load_wake_lib || return 1
-  fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK" || return 1
+  if [[ "$id" = jarvis-* ]]; then
+    fm_lock_acquire_wait_max "$FM_WAKE_QUEUE_LOCK" 2 || return 1
+  else
+    fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK" || return 1
+  fi
   if note_announced "$id"; then
     fm_lock_release "$FM_WAKE_QUEUE_LOCK"
     return 0
@@ -407,7 +411,7 @@ announce_note() {  # <id> <summary>
     if fm_current_pid owner && inbox_store sync "$INBOX" "$INBOX/$id.note" &&
       fm_jarvis_locked_store "$FM_WAKE_QUEUE_LOCK" "$owner" separate-wake "$FM_WAKE_QUEUE" && {
       inbox_store check-wake "$FM_WAKE_QUEUE" "$key" || {
-        [ "$?" -eq 2 ] && fm_wake_append_locked check "$key" "$row" &&
+        [ "$?" -eq 2 ] && FM_JARVIS_WAKE_MARKER_BOUND=2 fm_wake_append_locked check "$key" "$row" &&
           inbox_store check-wake "$FM_WAKE_QUEUE" "$key"
       }
     }; then
@@ -756,7 +760,11 @@ cmd_reply() {
   [ -n "${body//[[:space:]]/}" ] || die "refusing to record an empty reply"
   mkdir -p "$REPLIES"
   load_wake_lib || die "the reply sequence needs $FM_ROOT/bin/fm-wake-lib.sh"
-  fm_lock_acquire_wait "$REPLY_SEQ_LOCK" || die "could not claim the reply sequence"
+  if [ "${FM_JARVIS_INTERNAL:-}" = 1 ]; then
+    fm_lock_acquire_wait_max "$REPLY_SEQ_LOCK" 2 || die "could not claim the reply sequence"
+  else
+    fm_lock_acquire_wait "$REPLY_SEQ_LOCK" || die "could not claim the reply sequence"
+  fi
   if [ -f "$REPLIES/$id" ]; then
     fm_lock_release "$REPLY_SEQ_LOCK"
     die "reply already recorded for $id"

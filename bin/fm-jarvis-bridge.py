@@ -263,9 +263,9 @@ class Bridge:
         note = receipt(req)
         b = self.binding(req)
         require(b, 'unknown')
-        out = dict(receipt=note, observed=int(time.time()))
+        out = dict(receipt=note)
         if not self.note(req, b[0]):
-            return result('not-saved', **out), None
+            return result('not-saved', observed=int(time.time()), **out), None
         observed = self.child('wait', note, '--timeout', '0', '--json', codes=(0, 2, 3, 4))
         release = self.released_hash(note) if observed['outcome'] == 'answered' else None
         if release:
@@ -285,13 +285,13 @@ class Bridge:
                             checksum.update(chunk)
                         require(stream.tell() == size and checksum.hexdigest() == f['sha256'], 'denied')
                         stream.seek(0)
-                        return result('attachment', **out, **f), stream
+                        return result('attachment', observed=int(time.time()), **out, **f), stream
                     # Only the explicit final commit releases the single inbox reply body.
                     raw = read(self.replies, note, 16*K + 1024)
                     body = raw.split(b'\n--\n', 1)[1][:m['text_bytes']].decode()
                     require(digest(body.encode()) == m['text_sha256'], 'denied')
                     out.update(text=body, files=m['files'])
-            return result('answered', **out), None
+            return result('answered', observed=int(time.time()), **out), None
         require(not selector, 'not-available')
         if observed['acknowledged']:
             state = 'handled-no-answer'
@@ -301,7 +301,7 @@ class Bridge:
             state = 'saved-not-announced'
         else:
             state = 'announced'
-        return result(state, **out), None
+        return result(state, observed=int(time.time()), **out), None
 
     def delivered(self, note, slot, flushed):
         with self.locked(), directory(self.spool, note, private=True) as side, directory(side, 'reply', private=True) as fd:
@@ -315,7 +315,7 @@ class Bridge:
         if regular(self.markers, '.jarvis-writing'):
             subprocess.run(['bash', '-c', '''set -euo pipefail
                 . "$1"
-                fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK"
+                fm_lock_acquire_wait_max "$FM_WAKE_QUEUE_LOCK" 2
                 fm_current_pid owner
                 fm_jarvis_locked_store "$FM_WAKE_QUEUE_LOCK" "$owner" mark "$2"
                 fm_lock_release "$FM_WAKE_QUEUE_LOCK"

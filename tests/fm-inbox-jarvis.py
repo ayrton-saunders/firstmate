@@ -148,7 +148,10 @@ failed_allocation.mkdir()
 mktemp = failed_allocation/'mktemp'
 mktemp.write_text(f'''#!/bin/sh
 case "$*" in
-    *.steal.owner.*) exit 1 ;;
+    *${{FM_FIXTURE_FAIL_LOCK:-.steal}}.owner.*)
+        if [ "${{FM_FIXTURE_ROLLBACK:-0}}" != 1 ] || grep -q '^pending:' {shlex.quote(str(state/'.watcher-down'))}; then
+            exit 1
+        fi ;;
 esac
 exec {shlex.quote(shutil.which('mktemp'))} "$@"
 ''')
@@ -161,6 +164,45 @@ finally:
     env['PATH'] = original_path
 assert (state/'.wake-queue').read_bytes() == b'123\t'
 assert not (state/'.wake-queue.lock').exists()
+marker = state/'.watcher-down'
+marker_before = marker.read_bytes() if marker.exists() else None
+seq = state/'.wake-queue.seq'
+marker_scratch = inbox/'.announced'/'.jarvis-writing'
+try:
+    env['PATH'] = f'{failed_allocation}:{original_path}'
+    for lock in ('.wake-queue.lock', '.watcher-down.lock'):
+        env['FM_FIXTURE_FAIL_LOCK'] = lock
+        call('bridge-submit', a, data=packet, want='saved-not-announced')
+        assert not (state/lock).exists()
+    env['FM_FIXTURE_ROLLBACK'] = '1'
+    marker.write_bytes(b'announced:downtime:fixture\n')
+    seq.mkdir()
+    try:
+        call('bridge-submit', a, data=packet, want='saved-not-announced')
+        assert marker.read_bytes().startswith(b'pending:downtime:')
+        assert not (state/'.watcher-down.lock').exists()
+    finally:
+        seq.rmdir()
+        env.pop('FM_FIXTURE_ROLLBACK')
+    env['FM_FIXTURE_FAIL_LOCK'] = '.replies.lock'
+    call('jarvis-release', a, data=envelope('allocation failure'), want='server-error')
+    assert not (inbox/'.replies'/first).exists() and not (spool/first/'reply').exists()
+    assert not (inbox/'.replies.lock').exists()
+    env['FM_FIXTURE_FAIL_LOCK'] = '.wake-queue.lock'
+    marker_scratch.touch()
+    call('jarvis-expire', want='server-error')
+    assert marker_scratch.exists()
+finally:
+    env['PATH'] = original_path
+    env.pop('FM_FIXTURE_FAIL_LOCK', None)
+    if marker_before is None:
+        marker.unlink(missing_ok=True)
+    else:
+        marker.write_bytes(marker_before)
+assert b'inbox:' not in (state/'.wake-queue').read_bytes()
+call('jarvis-expire', want='cleaned')
+assert not marker_scratch.exists()
+(state/'.wake-queue').write_bytes(b'123\t')
 with ThreadPoolExecutor(3) as pool:
     jobs = [pool.submit(call, 'bridge-submit', a, data=packet, want='announced') for _ in range(2)]
     pool.submit(call, 'jarvis-expire', want='cleaned').result()
@@ -322,8 +364,13 @@ poll_continue = home/'poll-continue'
 wait_child.write_text(f'''#!/usr/bin/env bash
 set -eu
 inbox={shlex.quote(str(script))}
-if [ "$1" = bridge-wait ]; then
+if [ "$1" = bridge-wait ] || [ "$1" = bridge-status ]; then
     exec python3 -IB {shlex.quote(str(copy/'fm-jarvis-bridge.py'))} {shlex.quote(str(inbox))} "$@"
+fi
+if [ "$1" = wait ] && [ "$4" = 0 ] && [ "${{FM_FIXTURE_ANNOUNCE:-0}}" = 1 ]; then
+    sleep 1.1
+    "$inbox" announce "$2" >/dev/null
+    date +%s > {shlex.quote(str(home/'announced-at'))}
 fi
 if [ "$1" = wait ] && [ "$4" = 20 ]; then
     if [ "$2" = {shlex.quote(cut_note)} ]; then
@@ -339,6 +386,13 @@ fi
 exec "$inbox" "$@"
 ''')
 assert call('bridge-wait', cut, binary=wait_child, want='handled-no-answer')['receipt'] == cut_note
+(inbox/'.announced'/first).unlink()
+try:
+    env['FM_FIXTURE_ANNOUNCE'] = '1'
+    status = call('bridge-status', a, binary=wait_child, want='announced')
+    assert status['observed'] >= int((home/'announced-at').read_text())
+finally:
+    env.pop('FM_FIXTURE_ANNOUNCE')
 call('bridge-submit', a, data=envelope('changed'), want='conflict')
 call('bridge-status', first, want='invalid')
 assert run('note', '--request-id', 'JARVIS-v1:'+a, 'no', check=False).returncode != 0
