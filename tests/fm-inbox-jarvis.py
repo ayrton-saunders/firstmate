@@ -1,6 +1,6 @@
 """Binary-protocol cases for fm-inbox.test.sh. All state belongs to this fixture."""
 import base64
-from concurrent.futures import ThreadPoolExecutor
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
 from hashlib import sha256
 import fcntl
 import io
@@ -78,6 +78,12 @@ with zipfile.ZipFile(mem, 'w') as archive:
     archive.writestr('example.txt', b'synthetic bytes')
 zip_file = ('packet.zip', 'application/zip', mem.getvalue())
 mem = io.BytesIO()
+newer = zipfile.ZipInfo('example.txt')
+newer.extract_version = 100
+with zipfile.ZipFile(mem, 'w') as archive:
+    archive.writestr(newer, b'synthetic bytes')
+unsupported_zip = ('newer.zip', 'application/zip', mem.getvalue())
+mem = io.BytesIO()
 with zipfile.ZipFile(mem, 'w', compression=zipfile.ZIP_BZIP2) as archive:
     archive.writestr('example.txt', b'synthetic bytes')
 bzip = ('compressed.zip', 'application/zip', mem.getvalue())
@@ -85,7 +91,8 @@ packet = envelope('Untrusted fixture content', pdf, zip_file)
 selector = lambda slot: json.dumps(dict(attachment=slot)).encode()
 
 # Invalid envelopes, including late failures, never leave a published unit.
-badframes = [packet[:-1], packet+b'!', packet[:-1]+b'!', struct.pack('>I', 24577),
+badframes = [envelope('unsupported ZIP version', unsupported_zip),
+             packet[:-1], packet+b'!', packet[:-1]+b'!', struct.pack('>I', 24577),
              frame(b'{"v":1,"text":"one","text":"two"}'), frame(b'{"v":1,"text":"\xff"}'),
              envelope('x'*16385), envelope('x', *([png]*5)),
              envelope('x', ('../x.pdf', *pdf[1:])), envelope('x', ('x.pdf', 'image/png', png[2])),
@@ -314,7 +321,8 @@ with subprocess.Popen([str(crash_child), 'bridge-submit', cut], env=env, stdin=s
 publisher_crashed.unlink()
 publisher_continue.unlink()
 with subprocess.Popen([str(crash_child), 'bridge-submit', cut], env=env, stdin=subprocess.PIPE,
-                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) as interrupted:
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+                      preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL)) as interrupted:
     try:
         interrupted.stdin.write(long_packet)
         interrupted.stdin.close()
@@ -801,7 +809,7 @@ with ThreadPoolExecutor(3) as pool:
         same = pool.submit(run, 'reply', interrupted_note, 'must not overwrite', check=False)
         try:
             ordinary.result(timeout=0.5)
-        except TimeoutError:
+        except FutureTimeoutError:
             assert not same.done() and not (inbox/'.replies'/ordinary_note).exists()
         else:
             raise AssertionError('ordinary reply passed an in-flight release commit')

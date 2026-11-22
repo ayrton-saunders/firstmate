@@ -93,7 +93,12 @@ def plain_zip(data):
     disk, cd_disk, here, count, size, offset, comment = struct.unpack_from('<4H2IH', data, end + 4)
     require(not disk and not cd_disk and here == count and offset + size == end
             and end + 22 + comment == len(data))
-    with zipfile.ZipFile(io.BytesIO(data)) as archive:
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(data))
+    except NotImplementedError:
+        # A member requiring a newer ZIP reader is unsupported input.
+        raise Refusal('invalid') from None
+    with archive:
         entries = archive.infolist()
         require(len(entries) == count and min((e.header_offset for e in entries), default=offset) == 0)
         entries.sort(key=lambda e: e.header_offset)
