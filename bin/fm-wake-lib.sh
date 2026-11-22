@@ -1818,10 +1818,10 @@ fm_lock_acquire_wait_bounded() {
 }
 
 fm_jarvis_locked_store() (
-  local lock=$1 owner=$2 steal="$1.steal" deadline=$((SECONDS + 2))
+  local lock=$1 owner=$2 steal="$1.steal" steal_deadline=$((SECONDS + 2))
   shift 2
   while ! fm_lock_try_acquire_steal_mutex "$steal"; do
-    [ "$SECONDS" -lt "$deadline" ] && [ "$(cat "$lock/pid" 2>/dev/null)" = "$owner" ] || exit 1
+    [ "$SECONDS" -lt "$steal_deadline" ] && [ "$(cat "$lock/pid" 2>/dev/null)" = "$owner" ] || exit 1
     sleep 0.05
   done
   trap 'fm_lock_release "$steal"' EXIT
