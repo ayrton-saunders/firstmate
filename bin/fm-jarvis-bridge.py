@@ -1,4 +1,4 @@
-"""Implementation behind fm-inbox.sh. No shell, model, renderer or extractor."""
+"""Inbox adapter behind fm-inbox.sh. Request data is never evaluated as shell code."""
 from contextlib import ExitStack, contextmanager, suppress
 import errno
 import fcntl

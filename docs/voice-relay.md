@@ -74,7 +74,9 @@ A private inbox reply does not grant approval to publish its words elsewhere.
 ## Restricted Jarvis channel
 
 A Jarvis note and all of its files are untrusted requests, not approval for any action.
-This adapter requires a trusted local POSIX filesystem and Python 3; it does not install an SSH endpoint or a preview server. Legacy shell-only inbox calls keep their existing requirements.
+This adapter requires a trusted local POSIX filesystem and Python 3, but no voice or model configuration.
+It does not install an SSH endpoint or a preview server.
+Legacy shell-only inbox calls keep their existing requirements.
 
 ### Forced-command admission contract (host owner)
 
@@ -104,22 +106,31 @@ A frame is a four-byte unsigned big-endian byte count followed immediately by th
 Submit consists of one framed UTF-8 JSON manifest then one frame per file in array order, then EOF.
 A manifest is `{"v":1,"text":"...","files":[{"name":"review.pdf","mime":"application/pdf","length":123,"sha256":"<64 lowercase hex>"}]}`; omit `files` or send `[]` for text only.
 Limits are 24 KiB for the manifest, 16 KiB for UTF-8 text, four files, 8 MiB each and 16 MiB total.
-Only signature-matching PNG, JPEG, WebP, PDF and classic (non-ZIP64), unencrypted single-volume ZIP are admitted; nothing is unpacked, rendered, executed, fetched or OCRed.
-Names are sanitized display metadata, never paths or caller-selected slots. Names longer than 128 characters are shortened while preserving the validated extension.
+The extension and declared MIME type must agree, and the bytes must pass the [format's signature and container checks](../bin/fm_jarvis_wire.py) for PNG, JPEG, WebP, PDF or classic (non-ZIP64), unencrypted single-volume ZIP.
+These checks are not full decoding or a safety assessment; nothing is unpacked, rendered, executed, fetched or OCRed.
+Names are sanitized display metadata, never paths or caller-selected slots.
+Names longer than 128 characters are shortened while preserving the validated extension.
 Status and lookup require immediate EOF; empty wait stdin means a normal wait, or send exactly one unframed JSON object `{"attachment":"<released slot>"}` (128 bytes maximum) and EOF.
 
 Read one UTF-8 JSON line with `v:1` and `result` even for errors; only `attachment` is followed by a single binary frame.
 Verify the slot, length and SHA-256 before using bytes; a missing/truncated response is a transport failure, never a receipt or successful download.
-`announced` means the wake was recorded. `saved-not-announced` means the note was committed but still needs a wake. `not-saved` means the request ID is reserved but the note was not committed. Retry either state with the same ID and exact submit bytes; `conflict` rejects changed bytes under that ID.
-Normal waits give every saved, nonterminal note a 20-second window, even if its wake was not announced. A `pending` timeout is not cancellation; `handled-no-answer` is terminal without a released answer.
-`answered` can precede acknowledgement; status gives only the receipt and observation time, while normal wait also returns released `text` and `files` with generated `slot` IDs.
+Use the original request ID, not the returned `receipt`, for subsequent bridge calls about that request.
+`announced` means the wake was recorded, not that the work was picked up.
+`saved-not-announced` means the note was committed but the announcement has not been confirmed.
+`not-saved` means the request ID is reserved but the note was not committed.
+Repair either incomplete state by retrying submit with the same ID and exact bytes; `conflict` rejects changed bytes under that ID.
+Normal waits poll saved, nonterminal notes for up to 20 seconds, even if their wake was not announced.
+A `pending` timeout is not cancellation; `handled-no-answer` is terminal without a released answer.
+`answered` can precede acknowledgement; status returns the disposition with the receipt and `observed` epoch seconds, while normal wait also returns released `text` and `files` with generated `slot` IDs.
+`observed` is sampled when the bridge builds the result, not atomically with every underlying read.
+Only slots on that request's released reply are downloadable; an unavailable slot returns `not-available`, and an expired one returns `expired`.
 `invalid`, `denied`, `unknown`, `overload` and `server-error` are distinct from success; retry transient failures with backoff, never with a replacement request ID.
 Only a parent-published lookup returns `available` with its text, opaque version, `as_of` epoch and nullable `expires` epoch; absent, foreign, withdrawn and expired releases all return `not-available`.
 
 ### Local parent operations
 
-Use `jarvis-release R` with the same framed envelope to import reviewed copies and record the single final reply **before acknowledgement**.
-Do not use the raw local `reply` slot for a draft or expect it to be exported by a later wait.
+Use `jarvis-release R` with the original client request ID and the same framed envelope to import reviewed copies and record the single final reply **before acknowledgement**.
+A raw local `reply` is private and already occupies the only reply slot, so it cannot subsequently be released or replaced with `jarvis-release`.
 Use `jarvis-publish S [expiry-epoch]` with at most 64 KiB of UTF-8 text on stdin to atomically publish or replace a projection, and `jarvis-withdraw S` with empty stdin to remove it.
 These are local `fm-inbox.sh` commands, never additional wire forms.
 Parent approval releases only to Jarvis on the bound receipt; it does not authorize another destination or posting the content.
@@ -130,10 +141,20 @@ The local receiver reserves `jarvis-v1:` request IDs and journals origin, payloa
 A crash mid-announce may produce a duplicate notification for the same request, but not a second note.
 The reply's private manifest digest is committed in the single final reply itself; neither release uses a client-supplied path or parses authority from text.
 The attachment tree uses `0700` directories and `0600` copied files. The 256 MiB budget covers attachment bytes in both directions, including staged files; it does not charge retained manifests, expiry markers, note/reply records or bindings. New attachments that would exceed the budget are refused rather than evicting pending requests. Text-only submissions and replies are not subject to this budget. Abandoned staging is collected under the commit lock. Expired files held open by in-flight transfers can temporarily retain up to 16 MiB above that budget (two waits at 8 MiB each).
-On write or local `jarvis-expire`, collect slots seven days after the first complete download response is successfully written and flushed to the channel, otherwise thirty days after an explicit Jarvis release or acknowledgement. A private reply alone does not start the clock for pending request files.
-Run `jarvis-expire` periodically locally for reclamation while idle; waits enforce expiry before serving bytes and report `expired` rather than returning empty data.
-The selector checks expiry when it opens the slot. A transfer already open may finish even if the slot expires while it is streaming; later fetches return `expired`, and the completed transfer does not revive the slot. A recorded timely flush starts the seven-day clock at its flush time. As an accepted limitation, lock order decides competing transitions: if a sweep or another wait commits expiry first, the slot stays expired, and concurrent successful transfers may record a later flush rather than the earliest one. A successful channel write does not confirm end-user delivery; a failed or interrupted write does not start the seven-day clock.
-Private rotated audit logs contain call metadata only, never names, bodies, selector contents or report text. Audit records count attachment payload bytes only after a complete channel flush. On a failed write, they report `write-failed` and count only input bytes. An unavailable audit sink does not change the wire result.
+Slots expire seven days after the recorded channel flush for that slot, or, without a recorded flush, thirty days after the earliest explicit Jarvis release or acknowledgement.
+A private reply alone does not start the clock for pending request files.
+Submit and release sweep the spool; run `jarvis-expire` periodically for reclamation while idle.
+Wait checks reply slots for expiry before opening the selected slot or returning the manifest; an expired entry remains in the manifest marked `expired`.
+A transfer that passes the expiry check may finish after the deadline, but a committed expiry is not reversed.
+The first delivery marker committed sets the seven-day clock using that transfer's flush time, which may not be the earliest flush if transfers race.
+If a sweep or another wait commits expiry first, the slot stays expired.
+A successful channel write does not confirm end-user delivery; a failed or interrupted write does not start the seven-day clock.
+Private rotated audit logs contain call metadata only, never names, bodies, selector contents or report text.
+Audit records count attachment payload bytes only after a complete channel flush.
+On a failed write, they report `write-failed` and count only input bytes.
+An unavailable audit sink does not change the wire result.
+
+The [synthetic inbox fixtures](../tests/fm-inbox.test.sh) exercise this adapter without a model call or an installed SSH endpoint.
 
 ## What it costs in time
 
