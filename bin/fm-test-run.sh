@@ -85,6 +85,7 @@
 # directories. EXIT, INT, HUP and TERM drain owned worker groups before removing
 # the run; a test that starts a separate session/group owns that group's cleanup.
 # A subsequent run recovers aged, marked roots when the runner and workers are gone.
+# If interruption cuts short a nested runner's cleanup, its scratch is recovered on a later run once those workers are gone.
 # Keep requested reports and redirected logs outside runner scratch.
 #   --max-wall-ms N fail the run when its measured invocation wall clock exceeds
 #                   N milliseconds, including an empty selection. It is
@@ -1518,12 +1519,13 @@ families_for_test_reference() {  # <needle>...
 # to each referencing test's whole family. A direct reference is per-script
 # evidence, so it selects per script: one real-Herdr E2E sourcing a shared
 # helper must not drag in every other script of that expensive family.
-scripts_for_test_reference() {
-  local needle=$1 s
-  local found=0
+scripts_for_test_reference() {  # <needle>...
+  local needle s found=0
+  local -a needles=()
+  for needle in "$@"; do needles+=(-e "$needle"); done
   while IFS= read -r s; do
     [ -n "$s" ] || continue
-    if grep -Fq "$needle" "$s"; then
+    if grep -Fq "${needles[@]}" "$s"; then
       printf '__script__:%s\n' "$(basename "$s")"
       found=1
     fi
@@ -1952,7 +1954,7 @@ families_for_changed_path() {
       printf '%s\n' pure-contract-unit
       ;;
     tests/remote-secondmate-source-copy-helpers.sh)
-      families_for_test_reference remote-secondmate-source-copy-helpers.sh remote-secondmate-lifecycle-fixture.sh \
+      scripts_for_test_reference remote-secondmate-source-copy-helpers.sh remote-secondmate-lifecycle-fixture.sh \
         || printf '%s\n' "__unmapped__:$path"
       ;;
     tests/git-config-helpers.sh)
@@ -2485,6 +2487,7 @@ reap_orphan_runs() {
 RUN_TMP=
 RUN_INTERRUPT=0
 RUN_CRITICAL=0
+TERMINAL_GROUP=
 WORKER_PIDS=()
 WORKER_SCRIPTS=()
 WORKER_DEADLINES=()
@@ -2509,10 +2512,34 @@ stop_worker_groups() {
   for pid in "$@"; do wait "$pid" 2>/dev/null || true; done
 }
 
+terminal_group() {
+  python3 -c '
+import os, signal, sys
+if len(sys.argv) > 1:
+    signal.signal(signal.SIGTTOU, signal.SIG_IGN)
+    os.tcsetpgrp(0, int(sys.argv[1]))
+else:
+    if hasattr(os, "tcgetpgrp"):
+        try:
+            group = os.tcgetpgrp(0)
+        except OSError:
+            group = None
+        if group == os.getpgrp():
+            print(group)
+' "$@"
+}
+
+restore_terminal() {
+  [ -n "$TERMINAL_GROUP" ] || return 0
+  terminal_group "$TERMINAL_GROUP" || return
+  TERMINAL_GROUP=
+}
+
 # shellcheck disable=SC2329
 cleanup_run() {
   trap '' HUP INT TERM
   stop_worker_groups "${WORKER_PIDS[@]+"${WORKER_PIDS[@]}"}"
+  restore_terminal || true
   if [ -n "$RUN_TMP" ]; then remove_run_tree "$RUN_TMP"; fi
 }
 
@@ -2885,7 +2912,7 @@ worker_n=0
 active_workers=0
 
 start_worker() {
-  local script=$1 stream=$2 terminal=$3 work base family expected pid
+  local script=$1 stream=$2 work base family expected pid
   worker_n=$((worker_n + 1))
   work="$RUN_TMP/w$worker_n"
   mkdir -p "$work/tmp"
@@ -2921,16 +2948,7 @@ start_worker() {
     # shellcheck source=tests/git-config-helpers.sh
     . "$ROOT/tests/git-config-helpers.sh" || exit 1
     cd "$ROOT" || exit 1
-    if [ "$terminal" -eq 1 ] && [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
-      (
-        trap '' TERM
-        sleep "$PER_SCRIPT_TIMEOUT_SECS"
-        : >"$work/timed-out"
-        kill -TERM -- "-$pid" 2>/dev/null || exit 0
-        sleep 0.2
-        kill -KILL -- "-$pid" 2>/dev/null || true
-      ) &
-    fi
+    [ -z "$TERMINAL_GROUP" ] || terminal_group "$pid" || exit 1
     set +e
     begin_ms=$(now_ms)
     if [ "$stream" -eq 1 ]; then
@@ -2947,7 +2965,7 @@ start_worker() {
     printf '%s\n' "$rc" >"$work/exit"
   ) <&0 &
   WORKER_PIDS[worker_n]=$!
-  [ "$terminal" -eq 1 ] || set +m
+  set +m
   WORKER_SCRIPTS[worker_n]=$script
   active_workers=$((active_workers + 1))
   RUN_CRITICAL=0
@@ -2955,24 +2973,13 @@ start_worker() {
 }
 
 run_one_serial() {
-  local rc=0 timed_out=0
   if [ -t 0 ]; then
-    start_worker "$1" 1 1
-    fg > /dev/null || rc=$?
-    set +m
-    if [ -f "$RUN_TMP/w$worker_n/timed-out" ]; then
-      timed_out=1
-    elif [ "$rc" -eq 130 ]; then
-      exit "$rc"
-    fi
-    collect_worker "$worker_n" 1 "$timed_out"
-    return
+    TERMINAL_GROUP=$(terminal_group) || die 'cannot inspect foreground terminal ownership'
   fi
-  start_worker "$1" 1 0
+  start_worker "$1" 1
   if [ "$PER_SCRIPT_TIMEOUT_SECS" -eq 0 ]; then
     # wait is interruptible: unlike a foreground pipeline it runs our signal
     # traps immediately. The collector still drains any leftover group members.
-    wait "${WORKER_PIDS[$worker_n]}" || true
     collect_worker "$worker_n" 1 0
   else
     wait_one_completed_job_worker 1
@@ -2980,15 +2987,17 @@ run_one_serial() {
 }
 
 collect_worker() {
-  local slot=$1 stream=$2 timed_out=$3 pid work script rc duration mode out end_iso
+  local slot=$1 stream=$2 timed_out=$3 pid work script rc duration mode out end_iso wait_rc=0
   pid=${WORKER_PIDS[$slot]}
   script=${WORKER_SCRIPTS[$slot]}
   work="$RUN_TMP/w$slot"
   out="$work/output"
   if [ "$timed_out" -eq 0 ]; then
-    wait "$pid" || true
+    wait "$pid" || wait_rc=$?
+    if [ -n "$TERMINAL_GROUP" ] && [ "$wait_rc" -eq 130 ]; then exit 130; fi
   fi
   stop_worker_groups "$pid"
+  restore_terminal
   active_workers=$((active_workers - 1))
   if [ "$timed_out" -eq 1 ]; then
     rc=124
@@ -3055,7 +3064,7 @@ else
     while [ "$active_workers" -ge "$JOBS" ]; do
       wait_one_completed_job_worker 0
     done
-    start_worker "$script" 0 0 </dev/null
+    start_worker "$script" 0 </dev/null
   done
   while [ "$active_workers" -gt 0 ]; do
     wait_one_completed_job_worker 0

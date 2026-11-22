@@ -1471,6 +1471,27 @@ test_changed_shared_fixture_selects_its_readers() {
   pass "a changed shared test fixture selects its readers while an unread tests/ path still refuses"
 }
 
+test_changed_copy_helper_selects_only_its_readers() {
+  local tmp repo listed expected name
+  tmp=$(fm_test_tmproot fm-run-copy-selection)
+  repo="$tmp/repo"
+  init_changed_fixture_repo "$repo"
+  for name in e2e backends-e2e migration-e2e naming-e2e recovery-e2e; do
+    printf '%s\n' '. tests/remote-secondmate-lifecycle-fixture.sh' >"$repo/tests/fm-remote-secondmate-lifecycle-$name.test.sh"
+  done
+  printf '%s\n' '. tests/remote-secondmate-source-copy-helpers.sh' >"$repo/tests/fm-test-run.test.sh"
+  printf '%s\n' '. tests/remote-secondmate-source-copy-helpers.sh' >"$repo/tests/remote-secondmate-lifecycle-fixture.sh"
+  touch "$repo/tests/remote-secondmate-source-copy-helpers.sh" "$repo/tests/fm-ask-user-authority.test.sh"
+  git -C "$repo" add tests
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm copy-helper-fixture
+  printf '# changed\n' >>"$repo/tests/remote-secondmate-source-copy-helpers.sh"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) || fail 'could not list copy-helper readers'
+  listed=$(printf '%s\n' "$listed" | LC_ALL=C sort)
+  expected=$(printf '%s\n' tests/fm-remote-secondmate-lifecycle-{backends-e2e,e2e,migration-e2e,naming-e2e,recovery-e2e}.test.sh tests/fm-test-run.test.sh)
+  assert_equals "$expected" "$listed" 'copy-helper edits select direct and indirect readers without family widening'
+  pass 'changed copy helper selects only its direct and indirect readers'
+}
+
 # Suites outside backend-dispatch source the T3 fake and the T3 adapter, so a
 # change to either selects the suites that read them as well.
 test_changed_t3_sources_select_their_readers() {
@@ -1952,9 +1973,10 @@ printf '%s\\n' "$TMPDIR" > "$PROOF"
 if [ "$PROBE_MODE" = hang ]; then exec sleep 300; fi
 [ "$PROBE_MODE" != fail ]
 ''')
-(repo / 'tracked').write_text('tracked working-tree bytes\n')
+(repo / 'tracked').write_text('staged index bytes\n')
 subprocess.run(['git', 'init', '-q', str(repo)], check=True)
 subprocess.run(['git', '-C', str(repo), 'add', 'tracked'], check=True)
+(repo / 'tracked').write_text('tracked working-tree bytes\n')
 legacy = repo / '.test-phase-tmp'
 legacy.mkdir()
 (legacy / 'sentinel').touch()
@@ -1991,7 +2013,7 @@ def launch(name, mode, use_fixture=True):
     with log:
         # A Bash-launched background test may inherit SIGINT ignored. Deliver
         # a catchable signal, as for a directly invoked foreground runner.
-        child = subprocess.Popen(cmd, cwd=repo, env=case_env, stdout=log, stderr=log,
+        child = subprocess.Popen(cmd, cwd=repo, env=case_env, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                                  preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
     return child, proof
 
@@ -2029,6 +2051,60 @@ for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
         if child.poll() is None:
             child.terminate()
             child.wait(timeout=10)
+
+if os.name == 'posix':
+    import errno, pty
+
+    tty_script = repo / 'tests/tty.test.sh'
+    tty_script.write_text('''#!/usr/bin/env bash
+set -eu
+IFS= read -r input
+[ "$input" = 'foreground input' ]
+printf '%s\\n' "$TMPDIR" > "$PROOF"
+if [ "$PROBE_MODE" = hang ]; then exec sleep 300; fi
+''')
+    for sig in (None, signal.SIGTERM, signal.SIGHUP):
+        proof = tmp / ('tty-' + (sig.name if sig else 'pass'))
+        case_env = dict(fixture_env, PROOF=str(proof), PROBE_MODE='hang' if sig else 'pass')
+        child, master = pty.fork()
+        if child == 0:
+            os.chdir(repo)
+            os.execve(runner, [str(runner), 'tests/tty.test.sh'], case_env)
+        waited = 0
+        try:
+            os.write(master, b'foreground input\n')
+            os.set_blocking(master, False)
+            worker_tmp = scratch(proof)
+            if sig:
+                run = next(p for p in worker_tmp.parents if (p / '.fm-test-run-owner').is_file())
+                os.kill(child, sig)
+            for _ in range(100):
+                try:
+                    os.read(master, 8192)
+                except BlockingIOError:
+                    pass
+                except OSError as exc:
+                    if exc.errno != errno.EIO:
+                        raise
+                waited, status = os.waitpid(child, os.WNOHANG)
+                if waited:
+                    break
+                time.sleep(0.05)
+            assert waited and os.waitstatus_to_exitcode(status) == (128 + sig if sig else 0), sig
+            assert not worker_tmp.exists(), worker_tmp
+            if sig:
+                assert not run.exists(), run
+        finally:
+            if not waited:
+                try:
+                    group = os.tcgetpgrp(master)
+                    if group > 0 and group != child:
+                        os.killpg(group, signal.SIGKILL)
+                except OSError:
+                    pass
+                os.kill(child, signal.SIGKILL)
+                os.waitpid(child, 0)
+            os.close(master)
 
 live, proof = launch('live', 'hang')
 worker_group = None
@@ -2114,6 +2190,7 @@ test_jobs_requires_proven_isolated
 test_jobs_admits_a_concurrent_safe_family
 test_unmapped_new_test_never_inherits_family_concurrency
 test_changed_shared_fixture_selects_its_readers
+test_changed_copy_helper_selects_only_its_readers
 test_changed_t3_sources_select_their_readers
 test_concurrent_runs_are_ordered_longest_first
 test_per_script_timeout_bounds_a_hang
