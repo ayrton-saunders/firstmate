@@ -202,6 +202,8 @@ assert not any(inbox.rglob('.jarvis-writing'))
 cut_note = call('bridge-submit', cut, data=long_packet, want='announced')['receipt']
 assert (inbox/(cut_note+'.note')).read_bytes().partition(b'\n--\n')[2] == b'x'*12000 + b'\n'
 wait_child = copy/script.name
+poll_entered = home/'poll-entered'
+poll_continue = home/'poll-continue'
 wait_child.write_text(f'''#!/usr/bin/env bash
 set -eu
 inbox={shlex.quote(str(script))}
@@ -209,11 +211,15 @@ if [ "$1" = bridge-wait ]; then
     exec python3 -IB {shlex.quote(str(copy/'fm-jarvis-bridge.py'))} {shlex.quote(str(inbox))} "$@"
 fi
 if [ "$1" = wait ] && [ "$4" = 20 ]; then
-    rc=0
-    "$inbox" wait "$2" --timeout 0 --json || rc=$?
-    [ "$rc" -eq 3 ]
-    "$inbox" drain --ack "$2" >/dev/null
-    exit 3
+    if [ "$2" = {shlex.quote(cut_note)} ]; then
+        rc=0
+        "$inbox" wait "$2" --timeout 0 --json || rc=$?
+        [ "$rc" -eq 3 ]
+        "$inbox" drain --ack "$2" >/dev/null
+        exit 3
+    fi
+    touch {shlex.quote(str(poll_entered))}
+    while [ ! -f {shlex.quote(str(poll_continue))} ]; do sleep 0.05; done
 fi
 exec "$inbox" "$@"
 ''')
@@ -233,9 +239,38 @@ call('bridge-wait', a, data=selector(f['slot']), want='not-available')
 # out the parent release; the reply is durable and visible before ack.
 call('bridge-wait', a, want='pending')
 reply = envelope('explicit final\n\n', png, pdf)
+hook_calls = home/'hook-calls'
+shim = home/'python-shim'
+shim.mkdir()
+python = shim/'python3'
+python.write_text(f'''#!/bin/sh
+case "${{2:-}}" in
+    */fm-discord-hook.py) printf '%s\\n' "$3 $4" >> {shlex.quote(str(hook_calls))}; exit 0 ;;
+esac
+exec {shlex.quote(sys.executable)} "$@"
+''')
+python.chmod(0o700)
+discord_config = home/'config'/'discord-integration.json'
+old_path = env['PATH']
 with ThreadPoolExecutor(1) as pool:
-    waiting = pool.submit(call, 'bridge-wait', a, want='answered')
-    call('jarvis-release', a, data=reply, want='answered')
+    waiting = pool.submit(call, 'bridge-wait', a, binary=wait_child, want='answered')
+    try:
+        deadline = time.monotonic() + 10
+        while not poll_entered.exists() and not waiting.done() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert poll_entered.exists() and not waiting.done()
+        discord_config.write_text('{}')
+        env['PATH'] = f'{shim}:{old_path}'
+        call('jarvis-release', a, data=reply, want='answered')
+        assert (inbox/'.replies'/first).exists() and not (inbox/'handled'/(first+'.note')).exists()
+        assert not waiting.done() and not hook_calls.exists()
+        control = json.loads(run('note', '--json', 'Discord hook control').stdout)['id']
+        run('reply', control, 'ordinary local reply')
+        assert hook_calls.read_text().splitlines() == [f'outcome {control}']
+    finally:
+        env['PATH'] = old_path
+        discord_config.unlink(missing_ok=True)
+        poll_continue.touch()
     final = waiting.result()
 assert final['text'] == 'explicit final\n\n'
 run('drain', '--ack', first)
@@ -455,3 +490,15 @@ assert call('bridge-lookup', 'fixture', want='not-available') == unavailable
 for row in (inbox/'.jarvis'/'audit.jsonl').read_bytes().splitlines():
     assert set(json.loads(row)) == {'at','principal','verb','result','correlation','bytes','duration_ms'}
     assert not any(word in row for word in (b'PRIVATE', b'fixture', b'.pdf', b'projection', slot.encode()))
+
+for group, folder in [('pending', inbox), ('handled', inbox/'handled')]:
+    receipt_id = json.loads(run('note', '--json', f'newer legacy {group}').stdout)['id']
+    if group == 'handled':
+        run('drain', '--ack', receipt_id)
+    old_ids = [f'jarvis-{i+100:032x}' for i in range(21)]
+    for old_id in old_ids:
+        (folder/(old_id+'.note')).write_text(f'id={old_id}\nat=2000-01-01T00:00:00Z\nsource=jarvis\n--\nOlder fixture\n')
+    bounded = json.loads(run('receipts').stdout)[group]
+    assert len(bounded) == 20 and receipt_id in {row['id'] for row in bounded}
+    rows = json.loads(run('receipts', f'--all-{group}').stdout)[group]
+    assert [row['id'] for row in rows[-21:]] == old_ids[::-1]

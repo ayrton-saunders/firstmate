@@ -693,9 +693,34 @@ write_reply_file() {
   } >"$path"
 }
 
-cmd_reply() {
-  local json=0 id body path staging seq reply_digest domain_header domain run_outcome=0
+reply_discord_outcome() {
+  local id=$1 path=$2 reply_digest domain_header domain run_outcome=0
   local -a outcome_env=(env -u FM_DISCORD_DOMAIN "FM_HOME=$FM_HOME")
+  # The trusted capture header owns the outcome binding; never infer it from
+  # the reply session, the note body or the mere existence of domain configs.
+  domain_header=$(awk '/^--$/ { exit } /^discord_domain=/ { print }' "$path")
+  if [ -n "$domain_header" ]; then
+    domain=${domain_header#discord_domain=}
+    if [[ "$domain" =~ ^[a-z][a-z0-9-]{0,47}$ ]]; then
+      outcome_env=(env "FM_HOME=$FM_HOME" "FM_DISCORD_DOMAIN=$domain")
+      run_outcome=1
+    else
+      echo 'warning: reply recorded; invalid stored Discord domain binding needs reconciliation, do not resend' >&2
+    fi
+  elif [ -e "$FM_HOME/config/discord-integration.json" ]; then
+    run_outcome=1
+  fi
+  # Record only the private reply digest; the parent approves any public final.
+  if [ "$run_outcome" -eq 1 ]; then
+    reply_digest=$(shasum -a 256 "$REPLIES/$id" | awk '{print $1}')
+    if ! printf '%s' "$reply_digest" | "${outcome_env[@]}" python3 -I "$SELF_DIR/fm-discord-hook.py" outcome "$id"; then
+      echo 'warning: reply recorded; Discord final needs reconciliation, do not resend' >&2
+    fi
+  fi
+}
+
+cmd_reply() {
+  local json=0 id body path staging seq
   if [ "${1:-}" = "--json" ]; then
     json=1
     shift
@@ -744,26 +769,8 @@ cmd_reply() {
     die 'could not publish reply'
   fi
   fm_lock_release "$REPLY_SEQ_LOCK"
-  # The trusted capture header owns the outcome binding; never infer it from
-  # the reply session, the note body or the mere existence of domain configs.
-  domain_header=$(awk '/^--$/ { exit } /^discord_domain=/ { print }' "$path")
-  if [ -n "$domain_header" ]; then
-    domain=${domain_header#discord_domain=}
-    if [[ "$domain" =~ ^[a-z][a-z0-9-]{0,47}$ ]]; then
-      outcome_env=(env "FM_HOME=$FM_HOME" "FM_DISCORD_DOMAIN=$domain")
-      run_outcome=1
-    else
-      echo 'warning: reply recorded; invalid stored Discord domain binding needs reconciliation, do not resend' >&2
-    fi
-  elif [ -e "$FM_HOME/config/discord-integration.json" ]; then
-    run_outcome=1
-  fi
-  # Record only the private reply digest; the parent approves any public final.
-  if [ "$run_outcome" -eq 1 ]; then
-    reply_digest=$(shasum -a 256 "$REPLIES/$id" | awk '{print $1}')
-    if ! printf '%s' "$reply_digest" | "${outcome_env[@]}" python3 -I "$SELF_DIR/fm-discord-hook.py" outcome "$id"; then
-      echo 'warning: reply recorded; Discord final needs reconciliation, do not resend' >&2
-    fi
+  if [[ "${FM_JARVIS_INTERNAL:-}" != 1 || ! "${FM_JARVIS_RELEASE:-}" =~ ^[0-9a-f]{64}$ ]]; then
+    reply_discord_outcome "$id" "$path"
   fi
   if [ "$json" -eq 1 ]; then
     need_python
@@ -847,7 +854,7 @@ def list_notes(folder):
     if not folder.is_dir():
         return []
     notes = []
-    for path in sorted(folder.glob("*.note"), key=lambda p: p.name, reverse=True):
+    for path in folder.glob("*.note"):
         if path.name.startswith("."):
             continue
         record = parse_record(path)
@@ -864,7 +871,7 @@ def list_notes(folder):
             "body": body,
             "path": str(path),
         })
-    return notes
+    return sorted(notes, key=lambda n: (n['at'] or '', n['path']), reverse=True)
 
 # The cursor is the reply sequence, a strict total order in creation order.
 # Every reply is recorded with one, so a reply without a valid sequence is

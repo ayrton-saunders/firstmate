@@ -379,6 +379,10 @@ def main():
             sys.stdout.buffer.flush()
             if stream is not None:
                 count += answer['length']
+                try:
+                    bridge.delivered(answer['receipt'], answer['slot'])
+                except (OSError, Refusal):
+                    sys.exit(1)
         except OSError:
             outcome = 'write-failed'
         finally:
@@ -387,11 +391,6 @@ def main():
                     bridge.audit(verb, outcome, count, time.monotonic()-started)
         if outcome == 'write-failed':
             os._exit(1)
-        if stream is not None:
-            try:
-                bridge.delivered(answer['receipt'], answer['slot'])
-            except (OSError, Refusal):
-                sys.exit(1)
 
 
 if __name__ == '__main__':
