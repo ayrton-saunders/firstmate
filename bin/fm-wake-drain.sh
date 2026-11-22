@@ -929,6 +929,22 @@ if [ -n "$ACK_THROUGH" ]; then
       exit 1
     }
   fi
+  JARVIS_ACKS=$(awk -F '\t' '
+    FILENAME == ARGV[1] { retained[$2] = 1; next }
+    NF >= 5 && $2 ~ /^[0-9]+$/ && !($2 in retained) && $3 == "check" &&
+      length($4) == 45 && $4 ~ /^inbox:jarvis-[0-9a-f]+$/ {
+        print substr($4, 7)
+      }
+  ' "$DRAIN_TMP" "$FM_WAKE_QUEUE") || exit 1
+  if [ -n "$JARVIS_ACKS" ]; then
+    jarvis_ids=()
+    while IFS= read -r jarvis_id; do
+      jarvis_ids+=("$jarvis_id")
+    done <<< "$JARVIS_ACKS"
+    jarvis_owner=
+    fm_current_pid jarvis_owner || exit 1
+    fm_jarvis_locked_store "$FM_WAKE_QUEUE_LOCK" "$jarvis_owner" mark "$STATE/inbox" "${jarvis_ids[@]}" || exit 1
+  fi
   HANDOFF_ACK=
   if [ "$ACTOR" = main ] && [ -f "$STATE/.supervision-handoff-pending" ]; then
     HANDOFF_TOKEN=$(cat "$STATE/.supervision-handoff-pending") || exit 1

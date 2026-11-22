@@ -38,7 +38,7 @@ out-of-band capture already uses, rather than a second queue.
 ## Outside callers: submit and wait for completion
 
 An outside assistant can use the same inbox without a voice session or a model call.
-Set `FM_HOME` to the running Firstmate's operational home and use that installation's `bin/fm-inbox.sh` (over SSH if needed).
+The following local interface is for already trusted callers; use the [restricted Jarvis channel](#restricted-jarvis-channel) instead for a principal authorized only to request work.
 The script's `--help` owns the flags, JSON schema and exit statuses, including the mandatory terminal-reply contract for work requests.
 
 ```bash
@@ -70,6 +70,95 @@ If no consumer is running yet, the saved request and notification remain for the
 Use `ready` to inspect availability, and do not interpret a timeout or an unknown readiness verdict as completion.
 The pickup recovery guarantees and regression entry points are owned by [watcher continuity](watcher-continuity.md#durable-queue-and-turn-end-backstop).
 A private inbox reply does not grant approval to publish its words elsewhere.
+
+## Restricted Jarvis channel
+
+A Jarvis note and all of its files are untrusted requests, not approval for any action.
+This adapter requires a trusted local POSIX filesystem and Python 3, but no voice or model configuration.
+It does not install an SSH endpoint or a preview server.
+Legacy shell-only inbox calls keep their existing requirements.
+
+### Forced-command admission contract (host owner)
+
+Pin `P` at install time to the absolute Personal installation, including its private non-synced state, never to anything in the command or environment.
+The no-argument forced executable must match all bytes of `SSH_ORIGINAL_COMMAND` against one of these ASCII forms, at most 128 bytes, exactly one literal space, no quotes, controls, newline, extra token, flag, subsystem or empty command.
+Here `R` matches `[0-9a-f]{32}` and `S` matches `[a-z][a-z0-9-]{0,47}`.
+
+| Wire bytes | Fixed `execve` argv (substitute only the validated operand) |
+| --- | --- |
+| `submit R` | `[P/bin/fm-inbox.sh, bridge-submit, R]` |
+| `status R` | `[P/bin/fm-inbox.sh, bridge-status, R]` |
+| `wait R` | `[P/bin/fm-inbox.sh, bridge-wait, R]` |
+| `lookup S` | `[P/bin/fm-inbox.sh, bridge-lookup, S]` |
+
+Use cwd `P`, umask `077`, and start with an empty environment, adding only fixed `FM_HOME=P`, `HOME` set to the local account's fixed home, `LC_ALL=C`, and `PATH=/usr/bin:/bin:/usr/sbin:/sbin` (qualify Bash, Python 3 and the inbox dependencies on that exact path before enabling).
+The bridge and its internal calls skip the normal toolbox and local-bin PATH augmentation.
+Require trusted, non-client-writable wrapper, scripts, interpreter, search directories, home and parent paths; do not pass through shell startup, Python, Git, loader, SSH or other `FM_*` settings.
+Never interpolate command text into a shell, pass through another inbox verb, allow a PTY or forwarding, or fall back to a login.
+Before spawning a child, the host must authenticate the single restricted Jarvis principal/source, enforce at most two concurrent waits, six submits per rolling hour (burst at most two), sixty other calls per rolling minute per principal, and a bounded global child count.
+Reject overload before allocating a reader; the bridge separately bounds reads to 60 seconds total and 10 seconds idle, and serializes spool commits.
+Use only metadata for admission/refusal logs; do not log original commands or stdin, and suppress interpreter/launch diagnostics on the wire.
+
+### Stdin and results
+
+Generate and persist a cryptographically random request ID and the exact submit bytes before the first send.
+A frame is a four-byte unsigned big-endian byte count followed immediately by that many bytes.
+Submit consists of one framed UTF-8 JSON manifest then one frame per file in array order, then EOF.
+A manifest is `{"v":1,"text":"...","files":[{"name":"review.pdf","mime":"application/pdf","length":123,"sha256":"<64 lowercase hex>"}]}`; omit `files` or send `[]` for text only.
+Limits are 24 KiB for the manifest, 16 KiB for UTF-8 text, four files, 8 MiB each and 16 MiB total.
+The extension and declared MIME type must agree, and the bytes must pass the [format's signature and container checks](../bin/fm_jarvis_wire.py) for PNG, JPEG, WebP, PDF or classic (non-ZIP64), unencrypted single-volume ZIP.
+For both submit and local release, a ZIP is `invalid` if a member's local header or central directory entry requires a newer ZIP reader than the receiver's Python supports.
+These checks are not full decoding or a safety assessment; nothing is unpacked, rendered, executed, fetched or OCRed.
+Names are sanitized display metadata, never paths or caller-selected slots.
+Names longer than 128 characters are shortened while preserving the validated extension.
+Status and lookup require empty stdin; send EOF without any bytes.
+Empty wait stdin means a normal wait; to retrieve an attachment, send exactly one unframed JSON object `{"attachment":"<released slot>"}` (128 bytes maximum) followed by EOF.
+Use the 32-character lowercase hexadecimal slot from this request's released manifest, not the display name.
+
+Read one UTF-8 JSON line with `v:1` and `result` even for errors; only `attachment` is followed by a single binary frame.
+Verify the slot, length and SHA-256 before using bytes; a missing/truncated response is a transport failure, never a receipt or successful download.
+Use the original request ID, not the returned `receipt`, for subsequent bridge calls about that request.
+`announced` means the wake was recorded, not that the work was picked up.
+`saved-not-announced` means the note was committed but the announcement has not been confirmed.
+`not-saved` means the request ID is reserved but the note was not committed.
+Repair either incomplete state by retrying submit with the same ID and exact bytes; `conflict` rejects changed bytes under that ID.
+Normal waits poll saved, nonterminal notes for up to 20 seconds, even if their wake was not announced.
+A `pending` timeout is not cancellation; `handled-no-answer` is terminal without a released answer.
+`answered` can precede acknowledgement; status returns the disposition with the receipt and `observed` epoch seconds, while normal wait also returns released `text` and `files` with generated `slot` IDs.
+`observed` is sampled when the bridge builds the result, not atomically with every underlying read.
+Only slots on that request's released reply are downloadable; an unavailable slot returns `not-available`, and an expired one returns `expired`.
+`invalid`, `denied`, `unknown`, `overload` and `server-error` are distinct from success; retry transient failures with backoff, never with a replacement request ID.
+Only a parent-published lookup returns `available` with its text, opaque version, `as_of` epoch and nullable `expires` epoch; absent, foreign, withdrawn and expired releases all return `not-available`.
+
+### Local parent operations
+
+Use `jarvis-release R` with the original client request ID and the same framed envelope to import reviewed copies and record the single final reply **before acknowledgement**.
+A raw local `reply` is private and already occupies the only reply slot, so it cannot subsequently be released or replaced with `jarvis-release`.
+Use `jarvis-publish S [expiry-epoch]` with at most 64 KiB of UTF-8 text on stdin to atomically publish or replace a projection, and `jarvis-withdraw S` with empty stdin to remove it.
+These are local `fm-inbox.sh` commands, never additional wire forms.
+Parent approval releases only to Jarvis on the bound receipt; it does not authorize another destination or posting the content.
+
+The parent can read `state/inbox/.attachments/<receipt>/request/manifest.json` and the slot files alongside it, including after acknowledgement moves the note to `handled/`.
+The local release, publish, withdraw and final reply commands are not isolated from other processes running as the same OS user, including Firstmate workers sharing the home. The parent must not delegate Jarvis releases; give workers only the selected private copies they need through normal dispatch, not access to the parent spool.
+The local receiver reserves `jarvis-v1:` request IDs and journals origin, payload and manifest digests with the note mapping before the usual note publisher wakes the parent.
+A crash mid-announce may produce a duplicate notification for the same request, but not a second note.
+If disk exhaustion prevents both the queue-sequence write and recovery rollback, one empty recovery notification can occur without a new inbox queue row.
+The reply's private manifest digest is committed in the single final reply itself; neither release uses a client-supplied path or parses authority from text.
+The attachment tree uses `0700` directories and `0600` copied files. The 256 MiB budget covers attachment bytes in both directions, including staged files; it does not charge retained manifests, expiry markers, note/reply records or bindings. New attachments that would exceed the budget are refused rather than evicting pending requests. Text-only submissions and replies are not subject to this budget. Abandoned staging is collected under the commit lock. Expired files held open by in-flight transfers can temporarily retain up to 16 MiB above that budget (two waits at 8 MiB each).
+Slots expire seven days after the recorded channel flush for that slot, or, without a recorded flush, thirty days after the earliest explicit Jarvis release or acknowledgement.
+A private reply alone does not start the clock for pending request files.
+Submit and release sweep the spool; run `jarvis-expire` periodically for reclamation while idle.
+Wait checks reply slots for expiry before opening the selected slot or returning the manifest; an expired entry remains in the manifest marked `expired`.
+A transfer that passes the expiry check may finish after the deadline, but a committed expiry is not reversed.
+The first delivery marker committed sets the seven-day clock using that transfer's flush time, which may not be the earliest flush if transfers race.
+If a sweep or another wait commits expiry first, the slot stays expired.
+A successful channel write does not confirm end-user delivery; a failed or interrupted write does not start the seven-day clock.
+Private rotated audit logs contain call metadata only, never names, bodies, selector contents or report text.
+Audit records count attachment payload bytes only after a complete channel flush.
+On a failed write, they report `write-failed` and count only input bytes.
+An unavailable audit sink does not change the wire result.
+
+The [synthetic inbox fixtures](../tests/fm-inbox.test.sh) exercise this adapter without a model call or an installed SSH endpoint.
 
 ## What it costs in time
 

@@ -1,0 +1,440 @@
+"""Inbox adapter behind fm-inbox.sh. Request data is never evaluated as shell code."""
+from contextlib import ExitStack, contextmanager, suppress
+import errno
+import fcntl
+import hashlib
+import os
+from pathlib import Path
+import re
+import secrets
+import shutil
+import struct
+import subprocess
+import sys
+import time
+import zipfile
+
+BIN = Path(__file__).resolve().parent
+sys.path.insert(0, str(BIN))  # -I: only trusted siblings
+from fm_jarvis_store import (
+    SAFE, atomic, clear_stage, create, directory, discard, durable_marker, handled_note, open_regular, read,
+    regular, remove, safe, stage,
+)
+from fm_jarvis_wire import FILE, K, M, MANIFEST, Reader, Refusal, digest, envelope, json_bytes, parse, require, text
+
+ID = r'[0-9a-f]{32}'
+SHA = r'[0-9a-f]{64}'
+SLUG = r'[a-z][a-z0-9-]{0,47}'
+DAY = 86400
+PRIVATE = dict(private=True, create=True)
+REPORT_VERBS = ('bridge-lookup', 'jarvis-publish', 'jarvis-withdraw')
+
+
+def receipt(req):
+    return 'jarvis-' + digest(('jarvis-v1:' + req).encode())[:32]
+
+
+def result(outcome, **fields):
+    return dict(v=1, result=outcome, **fields)
+
+
+def headers(fd, name):
+    return dict(line.split('=', 1) for line in read(fd, name, 1024, header=True).decode().split('\n') if '=' in line)
+
+
+class Bridge:
+    def __init__(self, stack, inbox, verb):
+        self.stack = stack
+        self.inbox_path = Path(inbox)
+        d = lambda parent, name, **kw: stack.enter_context(directory(parent, name, **kw))
+        state = d(None, str(Path(inbox).parent), create=True)
+        self.inbox = d(state, 'inbox', create=True)
+        self.control = d(self.inbox, '.jarvis', **PRIVATE)
+        if verb in REPORT_VERBS:
+            return
+        self.spool = d(self.inbox, '.attachments', **PRIVATE)
+        self.requests = d(self.inbox, '.requests', create=True)
+        self.handled = d(self.inbox, 'handled', create=True)
+        self.replies = d(self.inbox, '.replies', create=True)
+        self.markers = d(self.inbox, '.announced', create=True)
+
+    @contextmanager
+    def locked(self):
+        with directory(self.inbox, '.jarvis', private=True) as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            yield lock
+
+    def audit(self, verb, outcome, count, elapsed):
+        data = json_bytes(dict(at=int(time.time()), principal='jarvis' if verb.startswith('bridge-') else 'parent',
+                               verb=verb, result=outcome, correlation=secrets.token_hex(6), bytes=count,
+                               duration_ms=round(elapsed*1000))) + b'\n'
+        with self.locked():
+            name = 'audit.jsonl'
+            size = 0
+            if regular(self.control, name):
+                with os.fdopen(os.open(name, SAFE | os.O_RDWR, dir_fd=self.control), 'r+b') as f:
+                    safe(os.fstat(f.fileno()))
+                    size = end = f.seek(0, os.SEEK_END)
+                    while size:
+                        start = max(0, size - 4096)
+                        f.seek(start)
+                        newline = f.read(size - start).rfind(b'\n')
+                        if newline >= 0:
+                            size = start + newline + 1
+                            break
+                        size = start
+                    if size != end:
+                        f.truncate(size)
+            if size >= M:
+                os.rename(name, name+'.1', src_dir_fd=self.control, dst_dir_fd=self.control)
+            with os.fdopen(os.open(name, SAFE | os.O_CREAT | os.O_WRONLY | os.O_APPEND, 0o600, dir_fd=self.control), 'ab') as f:
+                safe(os.fstat(f.fileno()))
+                f.write(data)
+
+    def child(self, *args, body=b'', codes=(0,), lock=None, **env):
+        p = subprocess.run([str(BIN/'fm-inbox.sh'), *args], input=body, stdout=subprocess.PIPE,
+                           stderr=subprocess.PIPE if lock is not None else subprocess.DEVNULL,
+                           env=dict(os.environ, FM_JARVIS_INTERNAL='1', **env),
+                           pass_fds=(lock,) if lock is not None else ())
+        require(p.returncode in codes, 'server-error')
+        return parse(p.stdout)
+
+    def binding(self, req):
+        key = 'jarvis-v1:' + req
+        if not regular(self.requests, key):
+            return None
+        fields = read(self.requests, key, 512).decode().splitlines()
+        require(len(fields) == 5 and fields[:3] == [receipt(req), 'jarvis', req]
+                and all(re.fullmatch(SHA, h) for h in fields[3:]), 'denied')
+        os.fsync(self.requests)
+        return fields[3:]
+
+    def note(self, req, payload):
+        note = receipt(req)
+        for folder in (self.inbox, self.handled):
+            if folder == self.handled and not self.handled_entry(note):
+                continue
+            try:
+                h = headers(folder, note+'.note')
+            except FileNotFoundError:
+                continue
+            require(h.get('id') == note and h.get('origin') == 'jarvis' and h.get('payload_sha256') == payload
+                    and h.get('request_id') == 'jarvis-v1:'+req, 'denied')
+            os.fsync(folder)
+            return True
+        return False
+
+    def handled_entry(self, note):
+        return handled_note(self.inbox, self.handled, note+'.note')
+
+    def terminal(self, note, release):
+        # rename into handled updates ctime, not the note creation mtime.
+        r = regular(self.replies, note) if release else None
+        h = self.handled_entry(note)
+        return min([t for t in (r.st_mtime if r else None, h.st_ctime if h else None) if t is not None], default=None)
+
+    def slot_state(self, folder, slot, terminal, now):
+        require(re.fullmatch(ID, slot), 'denied')
+        delivered = durable_marker(folder, slot+'.delivered')
+        deadline = delivered.st_mtime + 7*DAY if delivered else terminal + 30*DAY if terminal else None
+        expired = durable_marker(folder, slot+'.expired')
+        if not expired and deadline and now >= deadline:
+            create(folder, slot+'.expired', b'')
+            os.fsync(folder)
+            expired = True
+        if expired:
+            if regular(folder, slot):
+                remove(folder, slot)
+            return 'expired'
+        return 'delivered' if delivered else 'undelivered'
+
+    def expire_slots(self, folder, files, terminal):
+        now = time.time()
+        for f in files:
+            if self.slot_state(folder, f['slot'], terminal, now) == 'expired':
+                f['expired'] = True
+
+    def manifest(self, fd, req, direction, expected):
+        raw = read(fd, 'manifest.json', MANIFEST + 4096)
+        require(digest(raw) == expected, 'denied')
+        m = parse(raw)
+        require((m.get('audience'), m.get('receipt'), m.get('request'), m.get('direction')) ==
+                ('jarvis', receipt(req), req, direction), 'denied')
+        return m
+
+    def sweep(self):
+        remove(self.replies, '.jarvis-seq')
+        for folder in (self.inbox, self.replies, self.requests):
+            remove(folder, '.jarvis-writing')
+        used = 0
+        for note in os.listdir(self.spool):
+            require(re.fullmatch('jarvis-'+ID, note), 'denied')
+            with directory(self.spool, note, private=True) as side:
+                dirs = set(os.listdir(side))
+                require(dirs <= {'request', 'reply', '.stage'}, 'denied')
+                if '.stage' in dirs:
+                    clear_stage(side)
+                if 'request' in dirs:
+                    with directory(side, 'request', private=True) as fd:
+                        req = parse(read(fd, 'manifest.json', MANIFEST + 4096))['request']
+                        require(re.fullmatch(ID, req) and receipt(req) == note, 'denied')
+                        binding = self.binding(req)
+                    if not binding:  # interrupted before reservation commit
+                        discard(side, 'request')
+                    else:
+                        release = self.released_hash(note)
+                        terminal = self.terminal(note, release)
+                        for direction in dirs & {'request', 'reply'}:
+                            expected = binding[1] if direction == 'request' else release
+                            if not expected:  # no final reply committed this staged manifest
+                                discard(side, direction)
+                                continue
+                            with directory(side, direction, private=True) as fd:
+                                if direction == 'reply':
+                                    remove(fd, '.jarvis-writing')
+                                m = self.manifest(fd, req, direction, expected)
+                                self.expire_slots(fd, m['files'], terminal)
+                                for f in m['files']:
+                                    s = regular(fd, f['slot'])
+                                    if s:
+                                        used += s.st_size
+                if not os.listdir(side):
+                    os.rmdir(note, dir_fd=self.spool)
+        return used
+
+    def released_hash(self, note):
+        if regular(self.replies, note):
+            release = headers(self.replies, note).get('jarvis_release')
+            if release:
+                os.fsync(self.replies)
+                return release
+        return None
+
+    def save(self, req, packet, reply, lock):
+        body, files, blobs, payload = packet
+        note = receipt(req)
+        key = 'jarvis-v1:' + req
+        direction = 'reply' if reply else 'request'
+        used = self.sweep()
+        binding = self.binding(req)
+        marker = durable_marker(self.markers, note)
+        if binding:
+            with directory(self.spool, note, private=True) as side, directory(side, 'request', private=True) as fd:
+                self.manifest(fd, req, 'request', binding[1])
+            exists = self.note(req, binding[0])
+            if reply:
+                require(exists and not self.handled_entry(note) and not regular(self.replies, note), 'conflict')
+            else:
+                require(binding[0] == payload, 'conflict')
+        else:
+            require(not reply, 'unknown')
+            require(not marker and not regular(self.inbox, note+'.note') and not self.handled_entry(note)
+                    and not regular(self.replies, note), 'denied')
+        if reply or not binding:
+            require(not blobs or used + sum(map(len, blobs)) <= 256*M, 'overload')
+            with directory(self.spool, note, **PRIVATE) as side:
+                meta = dict(audience='jarvis', request=req, receipt=note, direction=direction)
+                if reply:
+                    meta.update(text_bytes=len(body.encode()), text_sha256=digest(body.encode()))
+                mh = stage(side, direction, files, blobs, meta)
+                try:
+                    if reply:
+                        regular(self.replies, '.seq')
+                        self.child('reply', '--json', note, '-', body=body.encode(), lock=lock, FM_JARVIS_RELEASE=mh)
+                        return result('answered', receipt=note)
+                    atomic(self.requests, key, f'{note}\njarvis\n{req}\n{payload}\n{mh}\n'.encode())
+                except Exception:
+                    # Do not discard a commit that succeeded but lost its
+                    # response. An interrupted process leaves this to sweep.
+                    committed = self.released_hash(note) == mh if reply else self.binding(req)
+                    if reply and committed:
+                        return self.snapshot(req, None, False)[0]
+                    if not committed:
+                        discard(side, direction)
+                    raise
+        # The standard note publisher completes this reservation, including
+        # after a crash. Neither body nor display names become authority.
+        with suppress(Refusal, OSError):
+            self.child('note', '--request-id', key, '--json', '-', body=body.encode(),
+                       FM_JARVIS_DIGEST=payload, codes=(0, 3), lock=lock)
+        return self.snapshot(req, None, False)[0]
+
+    def snapshot(self, req, selector, wait):
+        note = receipt(req)
+        b = self.binding(req)
+        require(b, 'unknown')
+        out = dict(receipt=note)
+        if not self.note(req, b[0]):
+            return result('not-saved', observed=int(time.time()), **out), None
+        observed = self.child('wait', note, '--timeout', '0', '--json', codes=(0, 2, 3, 4))
+        release = self.released_hash(note) if observed['outcome'] == 'answered' else None
+        if release:
+            with directory(self.spool, note, private=True) as side, directory(side, 'reply', private=True) as fd:
+                m = self.manifest(fd, req, 'reply', release)
+                if wait:
+                    self.expire_slots(fd, m['files'], self.terminal(note, release))
+                    if selector:
+                        f = next((f for f in m['files'] if f['slot'] == selector), None)
+                        require(f, 'not-available')
+                        require(not f.get('expired'), 'expired')
+                        stream = self.stack.enter_context(open_regular(fd, selector))
+                        size = f['length']
+                        require(0 < size <= FILE and os.fstat(stream.fileno()).st_size == size, 'denied')
+                        checksum = hashlib.sha256()
+                        for chunk in iter(lambda: stream.read(64*K), b''):
+                            checksum.update(chunk)
+                        require(stream.tell() == size and checksum.hexdigest() == f['sha256'], 'denied')
+                        stream.seek(0)
+                        return result('attachment', observed=int(time.time()), **out, **f), stream
+                    # Only the explicit final commit releases the single inbox reply body.
+                    raw = read(self.replies, note, 16*K + 1024)
+                    body = raw.split(b'\n--\n', 1)[1][:m['text_bytes']].decode()
+                    require(digest(body.encode()) == m['text_sha256'], 'denied')
+                    out.update(text=body, files=m['files'])
+            return result('answered', observed=int(time.time()), **out), None
+        require(not selector, 'not-available')
+        if observed['acknowledged']:
+            state = 'handled-no-answer'
+        elif wait:
+            state = 'pending'
+        elif not durable_marker(self.markers, note):
+            state = 'saved-not-announced'
+        else:
+            state = 'announced'
+        return result(state, observed=int(time.time()), **out), None
+
+    def delivered(self, note, slot, flushed):
+        with self.locked(), directory(self.spool, note, private=True) as side, directory(side, 'reply', private=True) as fd:
+            terminal = self.terminal(note, self.released_hash(note))
+            if self.slot_state(fd, slot, terminal, flushed) == 'undelivered' and regular(fd, slot):
+                atomic(fd, slot+'.delivered', b'', mtime=flushed)
+
+    def clean_journal_scratch(self):
+        with suppress(FileNotFoundError), directory(self.control, 'releases', private=True) as fd:
+            remove(fd, '.jarvis-writing')
+        if regular(self.markers, '.jarvis-writing'):
+            subprocess.run(['bash', '-c', '''set -euo pipefail
+                . "$1"
+                fm_lock_acquire_wait_max "$FM_WAKE_QUEUE_LOCK" 2
+                fm_current_pid owner
+                fm_jarvis_locked_store "$FM_WAKE_QUEUE_LOCK" "$owner" mark "$2"
+                fm_lock_release "$FM_WAKE_QUEUE_LOCK"
+            ''', '_', str(BIN/'fm-wake-lib.sh'), str(self.inbox_path)],
+                env=dict(os.environ, FM_STATE_OVERRIDE=str(self.inbox_path.parent)),
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
+
+    def report(self, verb, slug, data, expiry):
+        name = digest(('jarvis:'+slug).encode())
+        with ExitStack() as stack:
+            try:
+                fd = stack.enter_context(directory(self.control, 'releases', private=True,
+                                                   create=verb == 'jarvis-publish'))
+            except FileNotFoundError:
+                if verb == 'jarvis-publish':
+                    raise
+                return result('withdrawn' if verb == 'jarvis-withdraw' else 'not-available')
+            if verb == 'jarvis-publish':
+                record = dict(audience='jarvis', slug=slug, version=secrets.token_hex(16),
+                              as_of=int(time.time()), expires=expiry, text=text(data.decode(), 64*K))
+                atomic(fd, name, json_bytes(record))
+                return result('published', version=record['version'])
+            if verb == 'jarvis-withdraw':
+                remove(fd, name)
+                os.fsync(fd)
+                return result('withdrawn')
+            os.fsync(self.control)
+            os.fsync(fd)
+            if regular(fd, name):
+                r = parse(read(fd, name, 6*64*K + 512))
+                if r.get('audience') == 'jarvis' and r.get('slug') == slug and (not r['expires'] or r['expires'] > time.time()):
+                    return result('available', **{k: r[k] for k in ('version', 'as_of', 'expires', 'text')})
+            return result('not-available')
+
+    def dispatch(self, verb, args, reader):
+        if verb == 'jarvis-expire':
+            require(not args)
+            reader.bounded(0)
+            with self.locked():
+                self.sweep()
+                self.clean_journal_scratch()
+            return result('cleaned'), None
+        if verb in REPORT_VERBS:
+            require(len(args) in ((1, 2) if verb == 'jarvis-publish' else (1,)) and re.fullmatch(SLUG, args[0]))
+            expiry = None
+            if len(args) == 2:
+                require(re.fullmatch('[1-9][0-9]{0,11}', args[1]))
+                expiry = int(args[1])
+            data = reader.bounded(64*K if verb == 'jarvis-publish' else 0)
+            with self.locked():
+                return self.report(verb, args[0], data, expiry), None
+        require(len(args) == 1 and re.fullmatch(ID, args[0]))
+        req = args[0]
+        if verb in ('bridge-submit', 'jarvis-release'):
+            packet = envelope(reader)
+            with self.locked() as lock:
+                return self.save(req, packet, verb == 'jarvis-release', lock), None
+        wait = verb == 'bridge-wait'
+        data = reader.bounded(128 if wait else 0)
+        selector = None
+        if data:
+            s = parse(data)
+            require(set(s) == {'attachment'} and type(s['attachment']) is str and re.fullmatch(ID, s['attachment']))
+            selector = s['attachment']
+        with self.locked():
+            answer = self.snapshot(req, selector, wait)
+        if wait and not selector and answer[0]['result'] == 'pending':
+            # No spool lock across the long poll: parent can publish a final.
+            self.child('wait', receipt(req), '--timeout', '20', '--json', codes=(0, 2, 3, 4))
+            with self.locked():
+                answer = self.snapshot(req, selector, wait)
+        return answer
+
+
+def main():
+    inbox, verb, *args = sys.argv[1:]
+    reader = Reader()
+    started = time.monotonic()
+    stream = None
+    with ExitStack() as stack:
+        bridge = None
+        try:
+            bridge = Bridge(stack, inbox, verb)
+            answer, stream = bridge.dispatch(verb, args, reader)
+        except Refusal as e:
+            answer = result(str(e))
+        except (UnicodeError, zipfile.BadZipFile, struct.error):
+            answer = result('invalid')
+        except OSError as e:
+            answer = result('overload' if e.errno in (errno.ENOSPC, errno.EDQUOT) else 'server-error')
+        except Exception:
+            answer = result('server-error')
+        outcome = answer['result']
+        count = reader.count
+        try:
+            sys.stdout.buffer.write(json_bytes(answer) + b'\n')
+            if stream is not None:
+                sys.stdout.buffer.write(struct.pack('>I', answer['length']))
+                shutil.copyfileobj(stream, sys.stdout.buffer, length=64*K)
+            sys.stdout.buffer.flush()
+            if stream is not None:
+                flushed = time.time()
+                count += answer['length']
+                try:
+                    bridge.delivered(answer['receipt'], answer['slot'], flushed)
+                except (OSError, Refusal):
+                    sys.exit(1)
+        except OSError:
+            outcome = 'write-failed'
+        finally:
+            if bridge is not None:
+                with suppress(OSError, Refusal):
+                    bridge.audit(verb, outcome, count, time.monotonic()-started)
+        if outcome == 'write-failed':
+            os._exit(1)
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except Exception:
+        print('{"v":1,"result":"server-error"}')

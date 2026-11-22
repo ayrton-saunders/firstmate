@@ -1053,10 +1053,14 @@ _fm_recovery_marker_restore_token_locked() {
 }
 
 _fm_wake_append_recovery_restore_locked() {
-  local marker="$STATE/.watcher-down" lock previous=$FM_WAKE_APPEND_RECOVERY_PREVIOUS_TOKEN
+  local marker="$STATE/.watcher-down" lock previous=$FM_WAKE_APPEND_RECOVERY_PREVIOUS_TOKEN bound=${1:-}
   [ -n "$previous" ] || return 0
   lock="${marker}.lock"
-  fm_lock_acquire_wait "$lock" || return 1
+  if [ -n "$bound" ]; then
+    fm_lock_acquire_wait_max "$lock" "$bound" || return 1
+  else
+    fm_lock_acquire_wait "$lock" || return 1
+  fi
   if ! fm_recovery_marker_read "$marker" \
     || [ "$FM_RECOVERY_MARKER_TOKEN" != "$FM_WAKE_APPEND_RECOVERY_PUBLISHED_TOKEN" ]; then
     fm_lock_release "$lock"
@@ -1812,6 +1816,18 @@ fm_lock_acquire_wait_bounded() {
   fi
   return "$rc"
 }
+
+fm_jarvis_locked_store() (
+  local lock=$1 owner=$2 steal="$1.steal" steal_deadline=$((SECONDS + 2))
+  shift 2
+  while ! fm_lock_try_acquire_steal_mutex "$steal"; do
+    [ "$SECONDS" -lt "$steal_deadline" ] && [ "$(cat "$lock/pid" 2>/dev/null)" = "$owner" ] || exit 1
+    sleep 0.05
+  done
+  trap 'fm_lock_release "$steal"' EXIT
+  [ "$(cat "$lock/pid" 2>/dev/null)" = "$owner" ] || exit 1
+  exec python3 -IB "$FM_WAKE_LIB_DIR/fm_jarvis_store.py" guarded "$FM_WAKE_LIB_DIR/fm-wake-lib.sh" "$steal" "$@"
+)
 
 fm_lock_release() {
   local lockdir=$1 pid current ownerdir
@@ -2788,7 +2804,7 @@ fm_wake_append_guarded() {
 # their own write, then release.
 fm_wake_append_locked() {
   local kind=$1 key=$2 payload=$3 clean_key clean_payload epoch seq seq_file status
-  local recovery_marker guard=${4:-}
+  local recovery_marker guard=${4:-} bound=${FM_JARVIS_WAKE_MARKER_BOUND:-}
   shift 3
   [ -z "$guard" ] || shift
   case "$kind" in
@@ -2803,7 +2819,7 @@ fm_wake_append_locked() {
   recovery_marker="$STATE/.watcher-down"
   status=0
 
-  _fm_recovery_marker_publish "$recovery_marker" downtime "" append "$guard" "$@" || status=$?
+  _fm_recovery_marker_publish "$recovery_marker" downtime "$bound" append "$guard" "$@" || status=$?
   if [ "$status" -eq 0 ]; then
     seq=$(cat "$seq_file" 2>/dev/null || echo 0)
     case "$seq" in
@@ -2828,7 +2844,7 @@ fm_wake_append_locked() {
     printf '%s\t%s\t%s\t%s\t%s\n' "$epoch" "$seq" "$kind" "$clean_key" "$clean_payload" >> "$FM_WAKE_QUEUE" || status=$?
   fi
   if [ "$status" -ne 0 ]; then
-    _fm_wake_append_recovery_restore_locked || true
+    _fm_wake_append_recovery_restore_locked "$bound" || true
   else
     FM_WAKE_APPEND_RECOVERY_PREVIOUS_TOKEN=
     FM_WAKE_APPEND_RECOVERY_PUBLISHED_TOKEN=

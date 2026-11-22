@@ -27,6 +27,11 @@
 #   fm-inbox.sh receipts [--after <cursor>] [--all-pending] [--all-handled] [--all-replies]
 #   fm-inbox.sh ready
 #   fm-inbox.sh wait <id> [--timeout <seconds>] [--json]
+#   fm-inbox.sh bridge-{submit,status,wait} <request> | bridge-lookup <slug>
+#   fm-inbox.sh jarvis-release <request>  (local final reply, v1 envelope)
+#   fm-inbox.sh jarvis-publish <slug> [expiry-epoch]  (local UTF-8 stdin)
+#   fm-inbox.sh jarvis-withdraw <slug> | jarvis-expire  (local only)
+#   docs/voice-relay.md owns the Jarvis wire, storage and forced-wrapper contract.
 #   fm-inbox.sh say  [<file.wav>]       (default: audio on stdin)
 #   fm-inbox.sh status
 #   fm-inbox.sh ask  <question>...
@@ -78,7 +83,8 @@
 # and reply (null or the receipts reply shape).
 # An answer wins over handled, even if recorded before acknowledgement.
 # Timeout is not cancellation; callers may repeat the wait using the same id.
-# Work requests MUST receive a final durable `reply` before `drain --ack`.
+# Work requests MUST receive a final durable answer before `drain --ack`: use
+# `jarvis-release` for approved Jarvis replies, and `reply` for legacy notes.
 # Do not use the single reply slot for an interim acceptance message.
 # Keep unfinished work pending, including delegated work; record its final
 # result, refusal or failure, not just a chat answer or a dispatch notice.
@@ -129,13 +135,20 @@ set -euo pipefail
 # the bare word `ada`, so without this the model-backed subcommands fail with
 # "[Errno 2] No such file or directory: 'ada'" while note/status still work.
 # Verified: this is exactly what happens over SSH without the fix.
-for _extra in "$HOME/.toolbox/bin" "$HOME/.local/bin"; do
-  case ":$PATH:" in
-    *":$_extra:"*) ;;
-    *) [ -d "$_extra" ] && PATH="$_extra:$PATH" ;;
-  esac
-done
-unset _extra
+# Neither a bridge call nor its fixed internal note/reply/wait may augment
+# the host wrapper's audited PATH.
+case "${1:-}:${FM_JARVIS_INTERNAL:-}" in
+  bridge-*:*|jarvis-*:*|*:1) ;;
+  *)
+    for _extra in "$HOME/.toolbox/bin" "$HOME/.local/bin"; do
+      case ":$PATH:" in
+        *":$_extra:"*) ;;
+        *) [ -d "$_extra" ] && PATH="$_extra:$PATH" ;;
+      esac
+    done
+    unset _extra ;;
+
+esac
 export PATH
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -269,12 +282,15 @@ note_path() {  # <id>
 }
 
 note_announced() {  # <id>
-  [ -f "$ANNOUNCED_DIR/$1" ]
+  if [[ "$1" = jarvis-* ]]; then
+    inbox_store check-mark "$INBOX" "$1"
+  elif [ ! -f "$ANNOUNCED_DIR/$1" ]; then
+    return 2
+  fi
 }
 
-mark_announced() {  # <id>
-  mkdir -p "$ANNOUNCED_DIR"
-  printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$ANNOUNCED_DIR/$1"
+inbox_store() {
+  python3 -IB "$SELF_DIR/fm_jarvis_store.py" "$@"
 }
 
 # true | false | unknown, for the note recorded at <path>.
@@ -288,6 +304,8 @@ note_announce_state() {  # <id> <path>
   if note_announced "$1"; then
     printf 'true\n'
     return 0
+  elif [ "$?" -ne 2 ]; then
+    return 1
   fi
   marker=$(sed -n '/^--$/q;/^announce_marker=1$/p' "$2")
   if [ -n "$marker" ]; then
@@ -297,8 +315,11 @@ note_announce_state() {  # <id> <path>
   fi
 }
 
-read_note_body() {  # <file>
-  awk 'found { print; next } /^--$/ { found=1 }' "$1"
+note_summary_from_record() {
+  case "${1##*/}" in
+    jarvis-*) printf '%s' 'Untrusted Jarvis request; approval is not implied.' ;;
+    *) note_summary_from_body "$(awk 'found { print; next } /^--$/ { found=1 }' "$1")" ;;
+  esac
 }
 
 note_summary_from_body() {
@@ -306,21 +327,23 @@ note_summary_from_body() {
 }
 
 write_note_file() {  # <path> <id> <source> <body> [extra] [request-id]
-  local path=$1 id=$2 source=$3 body=$4 extra=${5:-} request_id=${6:-}
+  local path=$1 id=$2 source=$3 body=$4 extra=${5:-} request_id=${6:-} at
+  at=$(date -u +%Y-%m-%dT%H:%M:%SZ) || return 1
   {
-    printf 'id=%s\n' "$id"
-    printf 'at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    printf 'source=%s\n' "$source"
-    printf 'announce_marker=1\n'
-    [ -z "$request_id" ] || printf 'request_id=%s\n' "$request_id"
-    [ -z "$extra" ] || printf '%s\n' "$extra"
-    printf -- '--\n'
-    printf '%s' "$body"
-    case "$body" in
-      *$'\n') ;;
-      *) printf '\n' ;;
-    esac
+    printf 'id=%s\nat=%s\nsource=%s\nannounce_marker=1\n' "$id" "$at" "$source" || return 1
+    [ -z "$request_id" ] || printf 'request_id=%s\n' "$request_id" || return 1
+    [ -z "$extra" ] || printf '%s\n' "$extra" || return 1
+    write_record_body "$body"
   } >"$path"
+}
+
+write_record_body() {
+  printf -- '--\n' || return 1
+  printf '%s' "$1" || return 1
+  case "$1" in
+    *$'\n') ;;
+    *) printf '\n' ;;
+  esac
 }
 
 emit_note_json() {  # <outcome> <id> <request-id> <saved> <announced> <path> [acknowledged]
@@ -358,6 +381,8 @@ announce_note() {  # <id> <summary>
   local id=$1 summary=$2 lib="$FM_ROOT/bin/fm-wake-lib.sh" status=0
   if note_announced "$id"; then
     return 0
+  elif [ "$?" -ne 2 ]; then
+    return 1
   fi
   [ -f "$INBOX/$id.note" ] || return 2
   if [ ! -r "$lib" ]; then
@@ -365,17 +390,41 @@ announce_note() {  # <id> <summary>
     return 1
   fi
   load_wake_lib || return 1
-  fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK" || return 1
+  if [[ "$id" = jarvis-* ]]; then
+    fm_lock_acquire_wait_max "$FM_WAKE_QUEUE_LOCK" 2 || return 1
+  else
+    fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK" || return 1
+  fi
   if note_announced "$id"; then
     fm_lock_release "$FM_WAKE_QUEUE_LOCK"
     return 0
+  elif [ "$?" -ne 2 ]; then
+    fm_lock_release "$FM_WAKE_QUEUE_LOCK"
+    return 1
   fi
   if [ ! -f "$INBOX/$id.note" ]; then
     fm_lock_release "$FM_WAKE_QUEUE_LOCK"
     return 2
   fi
-  if fm_wake_append_locked check "inbox:$id" "check: captain inbox note $id - $summary"; then
-    mark_announced "$id"
+  local key="inbox:$id" row="check: captain inbox note $id - $summary" owner
+  if [[ "$id" = jarvis-* ]]; then
+    if fm_current_pid owner && inbox_store sync "$INBOX" "$INBOX/$id.note" &&
+      fm_jarvis_locked_store "$FM_WAKE_QUEUE_LOCK" "$owner" separate-wake "$FM_WAKE_QUEUE" && {
+      inbox_store check-wake "$FM_WAKE_QUEUE" "$key" || {
+        [ "$?" -eq 2 ] && FM_JARVIS_WAKE_MARKER_BOUND=2 fm_wake_append_locked check "$key" "$row" &&
+          inbox_store check-wake "$FM_WAKE_QUEUE" "$key"
+      }
+    }; then
+      if [ -f "$STATE/.wake-queue.seq" ]; then
+        inbox_store sync "$STATE/.wake-queue.seq" || status=1
+      fi
+      [ "$status" -eq 0 ] && inbox_store sync "$FM_WAKE_QUEUE" &&
+        fm_jarvis_locked_store "$FM_WAKE_QUEUE_LOCK" "$owner" mark "$INBOX" "$id" || status=1
+    else
+      status=1
+    fi
+  elif fm_wake_append_locked check "$key" "$row"; then
+    { mkdir -p "$ANNOUNCED_DIR" && printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$ANNOUNCED_DIR/$id"; } || status=1
   else
     status=1
   fi
@@ -432,13 +481,28 @@ publish_from_reservation() {  # <request-id> <source> <body> <extra>
   local request_id=$1 source=$2 body=$3 extra=$4
   local reserved="$REQUESTS/$request_id" id tmp
   [ -f "$reserved" ] || return 1
+  if [ "$source" = jarvis ]; then
+    inbox_store sync "$REQUESTS" "$reserved" || return 1
+  fi
   id=$(tr -d '\r' <"$reserved")
   id=${id%%$'\n'*}
   valid_note_id "$id" || return 1
   if [ ! -f "$INBOX/$id.note" ] && [ ! -f "$INBOX/handled/$id.note" ]; then
-    tmp=$(mktemp "$INBOX/.staging-XXXXXX")
-    write_note_file "$tmp" "$id" "$source" "$body" "$extra" "$request_id"
-    mv "$tmp" "$INBOX/$id.note"
+    if [ "$source" = jarvis ]; then
+      tmp="$INBOX/.jarvis-writing"
+    else
+      tmp=$(mktemp "$INBOX/.staging-XXXXXX") || return 1
+    fi
+    if ! write_note_file "$tmp" "$id" "$source" "$body" "$extra" "$request_id" || ! {
+      if [ "$source" = jarvis ]; then
+        inbox_store commit "$tmp" "$INBOX/$id.note"
+      else
+        mv "$tmp" "$INBOX/$id.note"
+      fi
+    }; then
+      rm -f "$tmp"
+      return 1
+    fi
   fi
   printf '%s\n' "$id"
 }
@@ -459,19 +523,22 @@ queue_note() {
     if [ -f "$reserved" ]; then
       id=$(publish_from_reservation "$request_id" "$source" "$body" "$extra") \
         || die "request id $request_id is reserved but unreadable; retry the same request id"
-      summary=$(note_summary_from_body "$(read_note_body "$(note_path "$id")")")
+      summary=$(note_summary_from_record "$(note_path "$id")")
       finish_note_result replay "$id" "$request_id" "$json" "$strict" "$summary"
       return $?
     fi
     tmp=$(mktemp "$INBOX/.staging-XXXXXX")
     staging_name=$(basename "$tmp")
     id="$(date +%s)-${staging_name#.staging-}"
-    write_note_file "$tmp" "$id" "$source" "$body" "$extra" "$request_id"
+    if ! write_note_file "$tmp" "$id" "$source" "$body" "$extra" "$request_id"; then
+      rm -f "$tmp"
+      die 'could not write note'
+    fi
     if ! claim_request_id "$request_id" "$id"; then
       rm -f "$tmp"
       id=$(publish_from_reservation "$request_id" "$source" "$body" "$extra") \
         || die "request id $request_id is reserved but unreadable; retry the same request id"
-      summary=$(note_summary_from_body "$(read_note_body "$(note_path "$id")")")
+      summary=$(note_summary_from_record "$(note_path "$id")")
       finish_note_result replay "$id" "$request_id" "$json" "$strict" "$summary"
       return $?
     fi
@@ -484,7 +551,10 @@ queue_note() {
   tmp=$(mktemp "$INBOX/.staging-XXXXXX")
   staging_name=$(basename "$tmp")
   id="$(date +%s)-${staging_name#.staging-}"
-  write_note_file "$tmp" "$id" "$source" "$body" "$extra" ""
+  if ! write_note_file "$tmp" "$id" "$source" "$body" "$extra" ""; then
+    rm -f "$tmp"
+    die 'could not write note'
+  fi
   mv "$tmp" "$INBOX/$id.note"
   summary=$(note_summary_from_body "$body")
   finish_note_result created "$id" "" "$json" "$strict" "$summary"
@@ -515,12 +585,19 @@ cmd_note() {
     die "usage: fm-inbox.sh note [--request-id <id>] [--json] [--] <text>... (or: note -)"
   elif [ "$1" = "-" ]; then
     [ "$#" -eq 1 ] || die "usage: fm-inbox.sh note [--request-id <id>] [--json] -"
-    body=$(cat; printf .)
+    body=$(cat && printf .) || die 'could not read note text'
     body=${body%.}
   else
     body="$*"
   fi
-  queue_note text "$body" "$extra" "$request_id" "$json"
+  case "$request_id" in
+    [jJ][aA][rR][vV][iI][sS]-[vV]1:*)
+      [ "${FM_JARVIS_INTERNAL:-}" = 1 ] && [[ "${FM_JARVIS_DIGEST:-}" =~ ^[0-9a-f]{64}$ ]] \
+        && [ -f "$REQUESTS/$request_id" ] || die 'reserved request namespace'
+      queue_note jarvis "$body" "origin=jarvis
+payload_sha256=$FM_JARVIS_DIGEST" "$request_id" "$json" ;;
+    *) queue_note text "$body" "$extra" "$request_id" "$json" ;;
+  esac
 }
 
 cmd_announce() {
@@ -533,7 +610,7 @@ cmd_announce() {
   [ -n "$id" ] || die "usage: fm-inbox.sh announce [--json] <id>"
   valid_note_id "$id" || die "invalid note id"
   path=$(note_path "$id") || die "no such note: $id"
-  summary=$(note_summary_from_body "$(read_note_body "$path")")
+  summary=$(note_summary_from_record "$path")
   state=$(note_announce_state "$id" "$path")
   if [ "$state" != true ] && [ "$path" = "$INBOX/handled/$id.note" ]; then
     state=acknowledged
@@ -589,7 +666,7 @@ cmd_announce() {
 # The claim is above both the counter and every recorded reply, and the counter
 # is replaced by rename, so a torn or lost counter can never move it backwards.
 next_reply_seq() {
-  local seq_file="$REPLIES/.seq" seq recorded tmp
+  local seq_file="$REPLIES/.seq" seq recorded tmp owner=${1:-}
   seq=$(cat "$seq_file" 2>/dev/null || printf '0')
   case "$seq" in
     ''|*[!0-9]*) seq=0 ;;
@@ -604,61 +681,39 @@ next_reply_seq() {
   esac
   [ "$recorded" -le "$seq" ] || seq=$recorded
   seq=$((seq + 1))
-  tmp=$(mktemp "$REPLIES/.seq-XXXXXX") || return 1
-  if ! printf '%s\n' "$seq" >"$tmp" || ! mv "$tmp" "$seq_file"; then
+  if [ -n "$owner" ]; then
+    tmp="$REPLIES/.jarvis-seq"
+  else
+    tmp=$(mktemp "$REPLIES/.seq-XXXXXX") || return 1
+  fi
+  if ! printf '%s\n' "$seq" >"$tmp" || ! {
+    if [ -n "$owner" ]; then
+      fm_jarvis_locked_store "$REPLY_SEQ_LOCK" "$owner" commit "$tmp" "$seq_file"
+    else
+      mv "$tmp" "$seq_file"
+    fi
+  }; then
     rm -f "$tmp"
     return 1
   fi
   printf '%s\n' "$seq"
 }
 
-cmd_reply() {
-  local json=0 id body path staging seq reply_digest domain_header domain run_outcome=0
-  local -a outcome_env=(env -u FM_DISCORD_DOMAIN "FM_HOME=$FM_HOME")
-  if [ "${1:-}" = "--json" ]; then
-    json=1
-    shift
-  fi
-  id=${1:-}
-  [ -n "$id" ] || die "usage: fm-inbox.sh reply [--json] <id> <text>... (or: reply [--json] <id> -)"
-  shift
-  valid_note_id "$id" || die "invalid note id"
-  path=$(note_path "$id") || die "no such note: $id"
-  if [ "$#" -eq 0 ]; then
-    die "usage: fm-inbox.sh reply [--json] <id> <text>... (or: reply [--json] <id> -)"
-  elif [ "$1" = "-" ]; then
-    [ "$#" -eq 1 ] || die "usage: fm-inbox.sh reply [--json] <id> -"
-    body=$(cat; printf .)
-    body=${body%.}
-  else
-    body="$*"
-  fi
-  [ -n "${body//[[:space:]]/}" ] || die "refusing to record an empty reply"
-  mkdir -p "$REPLIES"
-  load_wake_lib || die "the reply sequence needs $FM_ROOT/bin/fm-wake-lib.sh"
-  fm_lock_acquire_wait "$REPLY_SEQ_LOCK" || die "could not claim the reply sequence"
-  if [ -f "$REPLIES/$id" ]; then
-    fm_lock_release "$REPLY_SEQ_LOCK"
-    die "reply already recorded for $id"
-  fi
-  if ! seq=$(next_reply_seq); then
-    fm_lock_release "$REPLY_SEQ_LOCK"
-    die "could not claim the reply sequence"
-  fi
-  staging=$(mktemp "$REPLIES/.staging-XXXXXX")
+write_reply_file() {
+  local path=$1 id=$2 seq=$3 body=$4 at
+  at=$(date -u +%Y-%m-%dT%H:%M:%SZ) || return 1
   {
-    printf 'id=%s\n' "$id"
-    printf 'at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    printf 'seq=%s\n' "$seq"
-    printf -- '--\n'
-    printf '%s' "$body"
-    case "$body" in
-      *$'\n') ;;
-      *) printf '\n' ;;
-    esac
-  } >"$staging"
-  mv "$staging" "$REPLIES/$id"
-  fm_lock_release "$REPLY_SEQ_LOCK"
+    printf 'id=%s\nat=%s\nseq=%s\n' "$id" "$at" "$seq" || return 1
+    if [ "${FM_JARVIS_INTERNAL:-}" = 1 ] && [[ "${FM_JARVIS_RELEASE:-}" =~ ^[0-9a-f]{64}$ ]]; then
+      printf 'jarvis_release=%s\n' "$FM_JARVIS_RELEASE" || return 1
+    fi
+    write_record_body "$body"
+  } >"$path"
+}
+
+reply_discord_outcome() {
+  local id=$1 path=$2 reply_digest domain_header domain run_outcome=0
+  local -a outcome_env=(env -u FM_DISCORD_DOMAIN "FM_HOME=$FM_HOME")
   # The trusted capture header owns the outcome binding; never infer it from
   # the reply session, the note body or the mere existence of domain configs.
   domain_header=$(awk '/^--$/ { exit } /^discord_domain=/ { print }' "$path")
@@ -679,6 +734,69 @@ cmd_reply() {
     if ! printf '%s' "$reply_digest" | "${outcome_env[@]}" python3 -I "$SELF_DIR/fm-discord-hook.py" outcome "$id"; then
       echo 'warning: reply recorded; Discord final needs reconciliation, do not resend' >&2
     fi
+  fi
+}
+
+cmd_reply() {
+  local json=0 id body path staging seq owner=
+  if [ "${1:-}" = "--json" ]; then
+    json=1
+    shift
+  fi
+  id=${1:-}
+  [ -n "$id" ] || die "usage: fm-inbox.sh reply [--json] <id> <text>... (or: reply [--json] <id> -)"
+  shift
+  valid_note_id "$id" || die "invalid note id"
+  path=$(note_path "$id") || die "no such note: $id"
+  if [ "$#" -eq 0 ]; then
+    die "usage: fm-inbox.sh reply [--json] <id> <text>... (or: reply [--json] <id> -)"
+  elif [ "$1" = "-" ]; then
+    [ "$#" -eq 1 ] || die "usage: fm-inbox.sh reply [--json] <id> -"
+    body=$(cat && printf .) || die 'could not read reply text'
+    body=${body%.}
+  else
+    body="$*"
+  fi
+  [ -n "${body//[[:space:]]/}" ] || die "refusing to record an empty reply"
+  mkdir -p "$REPLIES"
+  load_wake_lib || die "the reply sequence needs $FM_ROOT/bin/fm-wake-lib.sh"
+  if [ "${FM_JARVIS_INTERNAL:-}" = 1 ]; then
+    fm_lock_acquire_wait_max "$REPLY_SEQ_LOCK" 2 || die "could not claim the reply sequence"
+  else
+    fm_lock_acquire_wait "$REPLY_SEQ_LOCK" || die "could not claim the reply sequence"
+  fi
+  if [ -f "$REPLIES/$id" ]; then
+    fm_lock_release "$REPLY_SEQ_LOCK"
+    die "reply already recorded for $id"
+  fi
+  if [ "${FM_JARVIS_INTERNAL:-}" = 1 ]; then
+    fm_current_pid owner || die 'could not identify reply writer'
+  fi
+  if ! seq=$(next_reply_seq "$owner"); then
+    fm_lock_release "$REPLY_SEQ_LOCK"
+    die "could not claim the reply sequence"
+  fi
+  if [ "${FM_JARVIS_INTERNAL:-}" = 1 ]; then
+    staging="$REPLIES/.jarvis-writing"
+  elif ! staging=$(mktemp "$REPLIES/.staging-XXXXXX"); then
+    fm_lock_release "$REPLY_SEQ_LOCK"
+    die 'could not stage reply'
+  fi
+  if ! write_reply_file "$staging" "$id" "$seq" "$body" || ! {
+    if [ -n "$owner" ]; then
+      inbox_store sync "$REPLIES" &&
+        fm_jarvis_locked_store "$REPLY_SEQ_LOCK" "$owner" commit "$staging" "$REPLIES/$id"
+    else
+      mv "$staging" "$REPLIES/$id"
+    fi
+  }; then
+    rm -f "$staging"
+    fm_lock_release "$REPLY_SEQ_LOCK"
+    die 'could not publish reply'
+  fi
+  fm_lock_release "$REPLY_SEQ_LOCK"
+  if [[ "${FM_JARVIS_INTERNAL:-}" != 1 || ! "${FM_JARVIS_RELEASE:-}" =~ ^[0-9a-f]{64}$ ]]; then
+    reply_discord_outcome "$id" "$path"
   fi
   if [ "$json" -eq 1 ]; then
     need_python
@@ -716,10 +834,10 @@ cmd_receipts() {
     esac
   done
   need_python
-  python3 - "$INBOX" "$ANNOUNCED_DIR" "$REPLIES" "$FM_HOME" \
+  python3 -IB - "$INBOX" "$ANNOUNCED_DIR" "$REPLIES" "$FM_HOME" \
     "$RECEIPTS_PENDING_BOUND" "$RECEIPTS_HANDLED_BOUND" "$RECEIPTS_REPLIES_BOUND" \
     "$all_pending" "$all_handled" "$all_replies" "$after" \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" <<'PY'
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$SELF_DIR" <<'PY'
 import json, os, sys
 from pathlib import Path
 
@@ -762,7 +880,7 @@ def list_notes(folder):
     if not folder.is_dir():
         return []
     notes = []
-    for path in sorted(folder.glob("*.note"), key=lambda p: p.name, reverse=True):
+    for path in folder.glob("*.note"):
         if path.name.startswith("."):
             continue
         record = parse_record(path)
@@ -779,7 +897,7 @@ def list_notes(folder):
             "body": body,
             "path": str(path),
         })
-    return notes
+    return sorted(notes, key=lambda n: (n['at'] or '', n['path']), reverse=True)
 
 # The cursor is the reply sequence, a strict total order in creation order.
 # Every reply is recorded with one, so a reply without a valid sequence is
@@ -812,7 +930,16 @@ def enrich(note, acknowledged):
     note_id = note["id"]
     rec = dict(note)
     rec["acknowledged"] = acknowledged
-    if (Path(announced_dir) / note_id).is_file():
+    announced = (Path(announced_dir) / note_id).is_file()
+    if announced and note_id.startswith('jarvis-'):
+        sys.path.insert(0, sys.argv[13])
+        from fm_jarvis_store import directory, durable_marker
+        sys.path.pop(0)
+        with directory(None, inbox) as fd, directory(fd, '.announced') as marks:
+            announced = bool(durable_marker(marks, note_id))
+            if announced:
+                os.fsync(fd)
+    if announced:
         rec["announced"] = True
     elif note.get("announce_marker"):
         rec["announced"] = False
@@ -923,12 +1050,22 @@ def reply_record():
     try:
         # Nonblocking open prevents a damaged FIFO from defeating the deadline.
         # Check the opened descriptor, not the path, to avoid a replacement race.
-        fd = os.open(inbox / '.replies' / note_id, os.O_RDONLY | os.O_NONBLOCK)
+        bridge = os.environ.get('FM_JARVIS_INTERNAL') == '1'
+        fd = os.open(inbox / '.replies' / note_id, os.O_RDONLY | os.O_NONBLOCK |
+                     (os.O_NOFOLLOW if bridge else 0))
         try:
             if not stat.S_ISREG(os.fstat(fd).st_mode):
                 raise ValueError('non-regular reply record')
             with os.fdopen(fd, 'rb', closefd=False) as record:
-                text = record.read().decode('utf-8', errors='replace')
+                if bridge:
+                    # Only observe the legacy wait state. No private reply body
+                    # is needed by a bridge child, even for an enormous draft.
+                    head, sep, _ = record.read(1024).partition(b'\n--\n')
+                    if not sep or not any(line.startswith(b'jarvis_release=') for line in head.split(b'\n')):
+                        return None
+                    text = head.decode() + '\n--\n'
+                else:
+                    text = record.read().decode('utf-8', errors='replace')
         finally:
             os.close(fd)
     except FileNotFoundError:
@@ -1243,6 +1380,9 @@ cmd_list() {
     [ -e "$f" ] || break
     any=1
     printf '%s\n' "$(basename "$f" .note)"
+    if [[ "${f##*/}" = jarvis-* ]]; then
+      printf '    Untrusted Jarvis request, not authorization. For an approved release use jarvis-release before ack.\n'
+    fi
     sed -n '/^--$/,$p' "$f" | tail -n +2 | sed 's/^/    /'
   done
   [ "$any" -eq 1 ] || printf '(inbox empty)\n'
@@ -1260,7 +1400,9 @@ cmd_drain() {
     mkdir -p "$INBOX/handled"
     local id
     for id in "$@"; do
-      if [ -f "$INBOX/$id.note" ]; then
+      if [[ "$id" =~ ^jarvis-[0-9a-f]{32}$ && -d "$INBOX/.jarvis" ]]; then
+        inbox_store ack "$INBOX" "$id"
+      elif [ -f "$INBOX/$id.note" ]; then
         mv "$INBOX/$id.note" "$INBOX/handled/$id.note"
         printf 'acked %s\n' "$id"
       else
@@ -1270,13 +1412,16 @@ cmd_drain() {
     return 0
   fi
   cmd_list
-  printf '\nWork requests: keep pending until finished; record the final outcome with fm-inbox.sh reply <id> - BEFORE drain --ack. See fm-inbox.sh --help for the reply contract.\n'
+  printf '\nWork requests: keep pending until finished. For non-Jarvis notes, record the final outcome with fm-inbox.sh reply <id> - BEFORE drain --ack. See fm-inbox.sh --help for the reply contract.\n'
   printf 'Ack with: fm-inbox.sh drain --ack <id>...\n'
 }
 
 # ---------------------------------------------------------------- dispatch
 
 case "${1:-}" in
+  bridge-submit|bridge-status|bridge-wait|bridge-lookup|jarvis-release|jarvis-publish|jarvis-withdraw|jarvis-expire)
+    umask 077
+    exec python3 -IB "$SELF_DIR/fm-jarvis-bridge.py" "$INBOX" "$@" ;;
   note)     shift; cmd_note "$@" ;;
   announce) shift; cmd_announce "$@" ;;
   reply)    shift; cmd_reply "$@" ;;
