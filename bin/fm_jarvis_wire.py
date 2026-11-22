@@ -106,7 +106,8 @@ def plain_zip(data):
             limit = entries[i+1].header_offset if i+1 < len(entries) else offset
             p = e.header_offset
             require(e.volume == 0 and 0 <= p <= offset - 30 and data[p:p+4] == b'PK\x03\x04')
-            flags, method = struct.unpack_from('<HH', data, p + 6)
+            version, flags, method = struct.unpack_from('<BxHH', data, p + 4)
+            require(version <= zipfile.MAX_EXTRACT_VERSION)
             require(flags == e.flag_bits and not flags & (1 | 0x40 | 0x2000)
                     and method == e.compress_type
                     and (method != 0 or e.file_size == e.compress_size))

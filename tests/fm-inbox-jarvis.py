@@ -91,7 +91,9 @@ packet = envelope('Untrusted fixture content', pdf, zip_file)
 selector = lambda slot: json.dumps(dict(attachment=slot)).encode()
 
 # Invalid envelopes, including late failures, never leave a published unit.
-badframes = [envelope('unsupported ZIP version', unsupported_zip),
+local_version_zip = (*zip_file[:2], zip_file[2][:4] + b'\x64' + zip_file[2][5:])
+unsupported_local_frame = envelope('unsupported local ZIP version', local_version_zip)
+badframes = [envelope('unsupported ZIP version', unsupported_zip), unsupported_local_frame,
              packet[:-1], packet+b'!', packet[:-1]+b'!', struct.pack('>I', 24577),
              frame(b'{"v":1,"text":"one","text":"two"}'), frame(b'{"v":1,"text":"\xff"}'),
              envelope('x'*16385), envelope('x', *([png]*5)),
@@ -732,6 +734,9 @@ spool.unlink()
 call('jarvis-release', c, data=envelope('disk error', pdf, larger), preexec_fn=file_limit, want='server-error')
 assert not (spool/fresh/'reply').exists() and not (inbox/'.replies'/fresh).exists()
 call('jarvis-release', c, data=badframes[-1], want='invalid')
+call('jarvis-release', c, data=unsupported_local_frame, want='invalid')
+assert not (spool/fresh/'reply').exists() and not (inbox/'.replies'/fresh).exists()
+assert (state/'.wake-queue').read_bytes() == wakes
 call('jarvis-release', c, data=envelope('final', jpeg, webp, bzip), want='answered')
 third = call('bridge-submit', unknown, data=envelope('no answer needed'), want='announced')['receipt']
 run('drain', '--ack', third)
