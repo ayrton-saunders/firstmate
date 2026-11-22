@@ -2441,9 +2441,9 @@ run_owner_start() (
 )
 
 record_run_owner() {
-  local pid=$1 group=${2:-0} start
+  local pid=$1 group=${2:-0} marker=${3:-$RUN_TMP/.fm-test-run-owner} start
   start=$(run_owner_start "$pid") || start=unknown
-  printf '%s|%s|%s|%s\n' "$UID" "$pid" "$group" "$start" >>"$RUN_TMP/.fm-test-run-owner"
+  printf '%s|%s|%s|%s\n' "$UID" "$pid" "$group" "$start" >>"$marker"
 }
 
 remove_run_tree() {
@@ -2480,7 +2480,7 @@ run_owners_gone() {
 }
 
 reap_orphan_runs() {
-  local parent=$1 dir marker snapshot
+  local parent=$1 dir marker snapshot timed
   run_owner_start "$$" >/dev/null || return 0
   for dir in "$parent"/r.??????; do
     marker="$dir/.fm-test-run-owner"
@@ -2493,9 +2493,13 @@ reap_orphan_runs() {
       $1 == pid { found = 1 }
       END { exit (invalid || !found) }
     ' <<<"$snapshot" || return 0
-    if run_owners_gone "$marker" "$snapshot"; then
-      remove_run_tree "$dir" || true
-    fi
+    run_owners_gone "$marker" "$snapshot" || continue
+    for timed in "$dir"/w*/timed-owner; do
+      [ -e "$timed" ] || continue
+      [ -f "$timed" ] && [ ! -L "$timed" ] && [ -O "$timed" ] || continue 2
+      run_owners_gone "$timed" "$snapshot" || continue 2
+    done
+    remove_run_tree "$dir" || true
   done
 }
 
@@ -2524,10 +2528,26 @@ stop_worker_groups() {
   for pid in "$@"; do wait "$pid" 2>/dev/null || true; done
 }
 
+stop_owned_workers() {
+  local slot work group owner pid start extra
+  local -a groups=()
+  for slot in "$@"; do
+    work="$RUN_TMP/w$slot"
+    pid=${WORKER_PIDS[$slot]:-}
+    [ -z "$pid" ] || groups+=("$pid")
+    : >"$work/stopping"
+    if [ -f "$work/timed-owner" ] && IFS='|' read -r owner pid group start extra <"$work/timed-owner" \
+      && [ "$owner" = "$UID" ] && [ "$pid" = "$group" ] && [ -z "$extra" ]; then
+      case "$group" in ''|0*|*[!0-9]*) ;; *) groups+=("$group") ;; esac
+    fi
+  done
+  stop_worker_groups "${groups[@]+"${groups[@]}"}"
+}
+
 # shellcheck disable=SC2329
 cleanup_run() {
   trap '' HUP INT TERM
-  stop_worker_groups "${WORKER_PIDS[@]+"${WORKER_PIDS[@]}"}"
+  stop_owned_workers "${!WORKER_PIDS[@]}"
   if [ -n "$RUN_TMP" ]; then remove_run_tree "$RUN_TMP"; fi
 }
 
@@ -2596,10 +2616,6 @@ fi
 case "$PER_SCRIPT_TIMEOUT_SECS" in
   ''|*[!0-9]*) die "--per-script-timeout-secs requires a whole number of seconds (0 disables)" ;;
 esac
-PER_SCRIPT_TIMEOUT_SECS=${PER_SCRIPT_TIMEOUT_SECS#"${PER_SCRIPT_TIMEOUT_SECS%%[!0]*}"}
-PER_SCRIPT_TIMEOUT_SECS=${PER_SCRIPT_TIMEOUT_SECS:-0}
-[ "$PER_SCRIPT_TIMEOUT_SECS" -le "$((9223372036854775807 - SECONDS - 1))" ] 2>/dev/null \
-  || die '--per-script-timeout-secs is too large'
 
 # Refuse before any suite is selected or run. The inspection modes execute
 # nothing: --list-families, --list-concurrent-safe-families, --list-lanes,
@@ -2904,8 +2920,8 @@ start_worker() {
   local script=$1 stream=$2 foreground=${3:-0} work base family expected
   worker_n=$((worker_n + 1))
   work="$RUN_TMP/w$worker_n"
-  mkdir -p "$work/tmp"
-  chmod 0700 "$work" "$work/tmp" || die "could not chmod 0700 worker root $work"
+  mkdir -p "$work/t"
+  chmod 0700 "$work" "$work/t" || die "could not chmod 0700 worker root $work"
   base=$(basename "$script")
   family=$(family_for_basename "$base")
   expected=$(expected_gate_skip_for_family "$family")
@@ -2929,6 +2945,32 @@ start_worker() {
   fi
 }
 
+register_timed_owner() {
+  local work=$1 worker=$2 group
+  group=$(LC_ALL=C ps -p "$$" -o pgid= 2>/dev/null | awk 'NF == 1 { print $1 }')
+  if [ -z "$group" ]; then
+    group=$(LC_ALL=C ps -e 2>/dev/null | awk -v pid="$$" '
+      NR == 1 { for (i=1; i<=NF; ++i) if ($i == "PGID") col=i }
+      col && $1 == pid { print $col; exit }
+    ')
+  fi
+  case "$group" in ''|0*|*[!0-9]*) return 1 ;; esac
+  record_run_owner "$group" "$group" "$work/timed-owner" || return 1
+  [ ! -e "$work/stopping" ] && kill -0 "$worker" 2>/dev/null
+}
+
+run_owned_timed() {
+  local work=$1 worker=$2
+  shift 2
+  export ROOT RUN_TMP
+  export -f register_timed_owner record_run_owner run_owner_start
+  fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash -c '
+    register_timed_owner "$1" "$2" || exit 1
+    shift 2
+    exec "$@"
+  ' _ "$work" "$worker" "$@"
+}
+
 execute_worker() {
   local script=$1 stream=$2 work=$3 foreground=$4 pid group=0 rc begin_ms end_ms duration
   trap - EXIT HUP INT TERM
@@ -2937,7 +2979,7 @@ execute_worker() {
   [ "$foreground" -eq 1 ] || group=$pid
   record_run_owner "$pid" "$group" || exit 1
   kill -0 "$$" 2>/dev/null || exit 1
-  export TMPDIR="$work/tmp" TMP="$work/tmp" TEMP="$work/tmp"
+  export TMPDIR="$work/t" TMP="$work/t" TEMP="$work/t"
   if [ "$stream" -eq 0 ]; then
     unset FM_HOME FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_ROOT_OVERRIDE \
       FM_PROJECTS_OVERRIDE FM_CONFIG_OVERRIDE FM_BACKEND 2>/dev/null || true
@@ -2950,7 +2992,7 @@ execute_worker() {
   if [ "$stream" -eq 1 ]; then
     if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
       # shellcheck disable=SC2016
-      fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash -c \
+      run_owned_timed "$work" "$pid" bash -c \
         'bash "$1" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' _ "$script" "$work/output"
       rc=$?
     else
@@ -2958,7 +3000,7 @@ execute_worker() {
       rc=${PIPESTATUS[0]}
     fi
   elif [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
-    fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash "$script" >"$work/output" 2>&1
+    run_owned_timed "$work" "$pid" bash "$script" >"$work/output" 2>&1
     rc=$?
   else
     bash "$script" >"$work/output" 2>&1
@@ -2991,10 +3033,9 @@ collect_worker() {
   script=${WORKER_SCRIPTS[$slot]}
   work="$RUN_TMP/w$slot"
   out="$work/output"
-  if [ -n "$pid" ]; then
-    wait "$pid" || true
-    stop_worker_groups "$pid"
-  fi
+  if [ -n "$pid" ]; then wait "$pid" || true; fi
+  stop_owned_workers "$slot"
+  rm -f "$work/timed-owner"
   active_workers=$((active_workers - 1))
   rc=$(cat "$work/exit" 2>/dev/null || echo 1)
   duration=$(cat "$work/duration_ms" 2>/dev/null || echo 0)

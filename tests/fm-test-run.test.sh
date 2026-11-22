@@ -1573,7 +1573,7 @@ SH
   began=$(date +%s)
   set +e
   GRANDCHILD_PID="$grandchild_pid" \
-    "$runner" --per-script-timeout-secs 03 "$hang" >"$tmp/out" 2>"$tmp/err"
+    "$runner" --per-script-timeout-secs 3 "$hang" >"$tmp/out" 2>"$tmp/err"
   rc=$?
   set -e
   ended=$(date +%s)
@@ -1589,7 +1589,7 @@ SH
   grep -Fq 'FM_TEST_SUMMARY total=1 failed=1' "$tmp/out" \
     || fail "the bounded run did not report a complete summary: $(cat "$tmp/out")"
   worker_tmp=$(<"$grandchild_pid.tmpdir")
-  [ ! -e "${worker_tmp%/w1/tmp}" ] || fail 'timeout left its run root'
+  [ ! -e "${worker_tmp%/w1/t}" ] || fail 'timeout left its run root'
   [ -s "$grandchild_pid" ] || fail "the hanging fixture did not record its grandchild"
   grandchild=$(cat "$grandchild_pid")
   waited=0
@@ -1983,7 +1983,7 @@ repo = tmp / 'repo'
 (repo / 'bin').mkdir(parents=True)
 (repo / 'tests').mkdir()
 runner = pathlib.Path(shutil.copy2(runner, repo / 'bin'))
-for name in ('fm-path-lib.sh', 'fm-wake-lib.sh'):
+for name in ('fm-path-lib.sh', 'fm-wake-lib.sh', 'fm-timeout-lib.sh'):
     shutil.copy2(root / 'bin' / name, repo / 'bin')
 for name in ('git-config-helpers.sh', 'remote-secondmate-source-copy-helpers.sh'):
     shutil.copy2(root / 'tests' / name, repo / 'tests')
@@ -2044,14 +2044,15 @@ for other_arg in ('--list-lanes', '--help', cmd[-1]):
         result = subprocess.run([str(runner), *args], cwd=repo, env=fixture_env, capture_output=True)
         assert result.returncode == 2 and not result.stdout, result
 
-def launch(name, mode, use_fixture=True):
+def launch(name, mode, use_fixture=True, bounded=False):
     proof = tmp / name
     case_env = dict(fixture_env if use_fixture else env, PROBE_MODE=mode, PROOF=str(proof))
     log = (tmp / (name + '.log')).open('w')
     with log:
         # A Bash-launched background test may inherit SIGINT ignored. Deliver
         # a catchable signal, as for a directly invoked foreground runner.
-        child = subprocess.Popen(cmd, cwd=repo, env=case_env, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+        command = [cmd[0], '--per-script-timeout-secs', '60', *cmd[1:]] if bounded else cmd
+        child = subprocess.Popen(command, cwd=repo, env=case_env, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                                  preexec_fn=(lambda: signal.signal(signal.SIGINT, signal.SIG_DFL)) if os.name == 'posix' else None)
     return child, proof
 
@@ -2095,6 +2096,29 @@ if os.name != 'posix' or subprocess.run(
         cwd=repo, env=dict(fixture_env, FM_STATE_OVERRIDE=str(tmp)), capture_output=True).returncode:
     print('skip: orphan recovery requires process identity and group liveness support')
     sys.exit(0)
+
+child, proof = launch('bounded-term', 'hang', bounded=True)
+worker_group = None
+try:
+    worker_tmp = scratch(proof)
+    worker = int((tmp / 'bounded-term.pid').read_text())
+    worker_group = os.getpgid(worker)
+    run = next(p for p in worker_tmp.parents if (p / '.fm-test-run-owner').is_file())
+    child.terminate()
+    assert child.wait(timeout=10) == 143
+    state = subprocess.run(['ps', '-p', str(worker), '-o', 'stat='], capture_output=True, text=True)
+    assert not state.stdout.strip() or state.stdout.lstrip().startswith('Z'), state.stdout
+    worker_group = None
+    assert not run.exists(), run
+finally:
+    if child.poll() is None:
+        child.kill()
+        child.wait(timeout=10)
+    if worker_group is not None:
+        try:
+            os.killpg(worker_group, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
 
 live, proof = launch('live', 'hang')
 worker_group = None

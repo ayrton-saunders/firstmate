@@ -122,28 +122,27 @@ gate_run() {
 # FM_LAB_ISO_TMP_COPY marks the copy of this suite under /tmp (below), which
 # needs only the decoy preflight.
 if [ -z "${FM_LAB_ISO_HOST_MARKER:-}" ] && [ -z "${FM_LAB_ISO_TMP_COPY:-}" ]; then
-  GATE_SOCKET="$TMP_ROOT/a/tmux-$(id -u)/s"
+  GATE_SOCKET="$TMP_ROOT/tmux-$(id -u)/s"
   STUCK_SOCKET="$TMP_ROOT/b/tmux-$(id -u)/s"
-  out=$(gate_run "$TMP_ROOT/a")
+  out=$(gate_run "$TMP_ROOT")
   expect_code 0 "$?" "the gate passes with no socket directory: $out"
   assert_equals RAN "$out" "the gate runs the suite where no tmux server can answer"
 
-  mkdir -p "$TMP_ROOT/a"
   mkdir -m 700 "${GATE_SOCKET%/*}"
   tmux -S "$GATE_SOCKET" -f /dev/null new-session -d -s live 'exec sleep 600' || fail "cannot start the gate's own server"
-  out=$(gate_run "$TMP_ROOT/a")
+  out=$(gate_run "$TMP_ROOT")
   expect_code 0 "$?" "the gate skips cleanly beside a live server: $out"
   assert_contains "$(printf '%s\n' "$out" | head -n 1)" "skip: tmux isolation: a live tmux server answers on $GATE_SOCKET" "the skip is the first line and names the live socket"
   assert_contains "$out" "unshare -Urm" "the skip names the isolation it needs"
   assert_not_contains "$out" RAN "the gate stops the suite beside a live server"
 
-  out=$(gate_run "$TMP_ROOT/a" CI=true)
+  out=$(gate_run "$TMP_ROOT" CI=true)
   expect_code 0 "$?" "under CI the gate skips the same way: $out"
   assert_contains "$out" "skip: tmux isolation" "under CI the gate still says why it skips"
   assert_not_contains "$out" RAN "under CI the gate stops the suite beside a live server"
 
   tmux -S "$GATE_SOCKET" kill-server 2>/dev/null
-  out=$(gate_run "$TMP_ROOT/a")
+  out=$(gate_run "$TMP_ROOT")
   assert_equals RAN "$out" "the gate runs again once only a dead socket is left"
   pass "fm_tmux_isolation_gate runs isolated and skips beside a live server"
 
