@@ -1630,28 +1630,17 @@ test_changed_bound_gives_slow_watcher_suites_headroom() {
   mkdir -p "$repo/bin" "$repo/tests"
   cp "$RUNNER" "$repo/bin/fm-test-run.sh"
   cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
-  cat >"$tmp/clock" <<'SH'
-if [ "${0##*/}" = fm-test-run.sh ]; then
-  sleep() {
-    elapsed=${elapsed:-0}
-    if [ -f "$CLOCK_DIR/ready" ] && [ "$elapsed" -lt "$FINISH_AT" ]; then
-      elapsed=$((elapsed + 100))
-      SECONDS=$((SECONDS + 100))
-      printf '%s\n' "$elapsed" >"$CLOCK_DIR/tick.next"
-      mv "$CLOCK_DIR/tick.next" "$CLOCK_DIR/tick"
-    fi
-    command sleep "$@"
-  }
-fi
+  cat >"$repo/bin/fm-timeout-lib.sh" <<'SH'
+fm_run_timed() {
+  [ "$1" -ge 1500 ] || return 124
+  [ "${SIMULATE_TIMEOUT:-0}" -eq 0 ] || return 124
+  shift
+  "$@"
+}
 SH
   cat >"$repo/$script" <<'SH'
 #!/usr/bin/env bash
-touch "$CLOCK_DIR/ready"
-for ((i=0; i<60; i++)); do
-  if [ -s "$CLOCK_DIR/tick" ] && [ "$(<"$CLOCK_DIR/tick")" -ge "$FINISH_AT" ]; then exit 0; fi
-  sleep 0.05
-done
-exit 3
+exit 0
 SH
   chmod +x "$repo/bin/fm-test-run.sh" "$repo/$script"
   git -C "$repo" init -q
@@ -1659,19 +1648,58 @@ SH
   git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm baseline
   printf '\n' >>"$repo/$script"
   set +e
-  (cd "$repo" && BASH_ENV="$tmp/clock" CLOCK_DIR="$tmp" FINISH_AT=1300 bin/fm-test-run.sh --changed --base HEAD) </dev/null >"$tmp/out" 2>"$tmp/err"
+  (cd "$repo" && bin/fm-test-run.sh --changed --base HEAD) </dev/null >"$tmp/out" 2>"$tmp/err"
   rc=$?
   set -e
   [ "$rc" -eq 0 ] || fail "healthy changed watcher script must pass, got $rc: $(cat "$tmp/out" "$tmp/err")"
-  rm -f "$tmp/ready" "$tmp/tick"
   set +e
-  (cd "$repo" && BASH_ENV="$tmp/clock" CLOCK_DIR="$tmp" FINISH_AT=10000 bin/fm-test-run.sh --changed --base HEAD) </dev/null >"$tmp/out" 2>"$tmp/err"
+  (cd "$repo" && SIMULATE_TIMEOUT=1 bin/fm-test-run.sh --changed --base HEAD) </dev/null >"$tmp/out" 2>"$tmp/err"
   rc=$?
   set -e
   [ "$rc" -eq 1 ] && grep -Eq 'FM_TEST_END .* exit=124 ' "$tmp/out" \
-    || fail "hung changed watcher script must time out: $(cat "$tmp/out" "$tmp/err")"
+    || fail "changed watcher must run through the timeout helper: $(cat "$tmp/out" "$tmp/err")"
   rm -rf "$tmp"
-  pass "the automatic --changed bound leaves watcher headroom and enforces a deadline"
+  pass "the automatic --changed timeout helper receives at least 1500 seconds"
+}
+
+test_parallel_timeout_during_slow_replay() {
+  local tmp repo first second rc
+  tmp=$(fm_test_tmproot fm-replay)
+  repo="$tmp/repo"
+  first=tests/fm-supervision-events.test.sh
+  second=tests/fm-session-lock-ancestry.test.sh
+  mkdir -p "$repo/bin" "$repo/tests" "$tmp/path"
+  cp "$RUNNER" "$ROOT/bin/fm-timeout-lib.sh" "$repo/bin/"
+  cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
+  cat >"$repo/$first" <<'SH'
+for ((i=0; i<100; i++)); do
+  if [ -f "$REPLAY_PROOF/started" ]; then echo replay-overlap; exit 0; fi
+  sleep 0.02
+done
+exit 1
+SH
+  cat >"$repo/$second" <<'SH'
+touch "$REPLAY_PROOF/started"
+sleep 5
+touch "$REPLAY_PROOF/escaped"
+SH
+  cat >"$tmp/path/cat" <<'SH'
+#!/usr/bin/env bash
+if [ "$#" -eq 1 ] && [[ "$1" == */output ]] && grep -qx replay-overlap "$1"; then
+  touch "$REPLAY_PROOF/replaying"
+  sleep 6
+fi
+exec "$REAL_CAT" "$@"
+SH
+  chmod +x "$tmp/path/cat"
+  rc=0
+  PATH="$tmp/path:$PATH" REPLAY_PROOF="$tmp" REAL_CAT="$(command -v cat)" \
+    "$repo/bin/fm-test-run.sh" --jobs 2 --per-script-timeout-secs 3 "$first" "$second" \
+    </dev/null >"$tmp/out" 2>"$tmp/err" || rc=$?
+  [ "$rc" -eq 1 ] && [ -f "$tmp/replaying" ] && [ ! -e "$tmp/escaped" ] \
+    && grep -F " $second exit=124 " "$tmp/out" >/dev/null \
+    || fail "a worker deadline must hold during another worker's replay: $(cat "$tmp/out" "$tmp/err")"
+  pass 'parallel timeout holds during another worker’s slow output replay'
 }
 
 test_max_wall_ms_is_a_result_not_advice() {
@@ -2157,6 +2185,7 @@ test_changed_t3_sources_select_their_readers
 test_concurrent_runs_are_ordered_longest_first
 test_per_script_timeout_bounds_a_hang
 test_changed_bound_gives_slow_watcher_suites_headroom
+test_parallel_timeout_during_slow_replay
 test_max_wall_ms_is_a_result_not_advice
 test_jobs_parallel_scheduler_and_failure_propagation
 test_herdr_ci_family_run_has_a_step_timeout

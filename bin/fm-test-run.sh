@@ -2504,8 +2504,6 @@ RUN_INTERRUPT=0
 RUN_CRITICAL=0
 WORKER_PIDS=()
 WORKER_SCRIPTS=()
-WORKER_DEADLINES=()
-WORKER_STARTED_MS=()
 
 # Traps defer exit only while publishing an allocation or a background PID.
 # shellcheck disable=SC2329
@@ -2813,6 +2811,12 @@ if [ "$JOBS" -gt 1 ]; then
   rm -f "$SCHEDULE_TMP"
 fi
 
+if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
+  [ -r "$ROOT/bin/fm-timeout-lib.sh" ] || die 'per-script timeout helper not found: bin/fm-timeout-lib.sh'
+  # shellcheck source=bin/fm-timeout-lib.sh
+  . "$ROOT/bin/fm-timeout-lib.sh"
+fi
+
 RECORDS="$RUN_TMP/records.tsv"
 FAMILIES_TSV="$RUN_TMP/families.tsv"
 : >"$RECORDS"
@@ -2909,14 +2913,7 @@ start_worker() {
     "$(now_iso)" "$script" "$family" "$expected"
   # Monitor mode gives each worker its own group before this shell proceeds.
   # Turn it off inside the worker so the test and tee share the same group.
-  # Deadlines live in this scheduler, not in nested timeout process groups.
   : >"$work/output"
-  WORKER_STARTED_MS[worker_n]=$(now_ms)
-  WORKER_DEADLINES[worker_n]=0
-  if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
-    # SECONDS is coarse; rounding up never cuts the configured bound short.
-    WORKER_DEADLINES[worker_n]=$((SECONDS + PER_SCRIPT_TIMEOUT_SECS + 1))
-  fi
   WORKER_SCRIPTS[worker_n]=$script
   active_workers=$((active_workers + 1))
   if [ "$foreground" -eq 1 ]; then
@@ -2950,24 +2947,27 @@ execute_worker() {
   cd "$ROOT" || exit 1
   set +e
   begin_ms=$(now_ms)
-  if [ "$foreground" -eq 1 ] && [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
-    # shellcheck source=bin/fm-timeout-lib.sh
-    . "$ROOT/bin/fm-timeout-lib.sh" || exit 1
-    # shellcheck disable=SC2016
-    fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash -c \
-      'bash "$1" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' _ "$script" "$work/output"
-    rc=$?
-    if [ "$rc" -eq 124 ]; then
-      printf 'not ok - %s exceeded the per-script bound of %ss and was terminated\n' \
-        "$script" "$PER_SCRIPT_TIMEOUT_SECS" >>"$work/output"
-      tail -1 "$work/output"
+  if [ "$stream" -eq 1 ]; then
+    if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
+      # shellcheck disable=SC2016
+      fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash -c \
+        'bash "$1" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' _ "$script" "$work/output"
+      rc=$?
+    else
+      bash "$script" 2>&1 | tee "$work/output"
+      rc=${PIPESTATUS[0]}
     fi
-  elif [ "$stream" -eq 1 ]; then
-    bash "$script" 2>&1 | tee "$work/output"
-    rc=${PIPESTATUS[0]}
+  elif [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
+    fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash "$script" >"$work/output" 2>&1
+    rc=$?
   else
     bash "$script" >"$work/output" 2>&1
     rc=$?
+  fi
+  if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ] && [ "$rc" -eq 124 ]; then
+    printf 'not ok - %s exceeded the per-script bound of %ss and was terminated\n' \
+      "$script" "$PER_SCRIPT_TIMEOUT_SECS" >>"$work/output"
+    [ "$stream" -eq 0 ] || tail -1 "$work/output"
   fi
   end_ms=$(now_ms)
   duration=$((end_ms - begin_ms))
@@ -2979,42 +2979,26 @@ execute_worker() {
 run_one_serial() {
   if [ -t 0 ]; then
     start_worker "$1" 1 1
-    collect_worker "$worker_n" 1 0
-    return
-  fi
-  start_worker "$1" 1
-  if [ "$PER_SCRIPT_TIMEOUT_SECS" -eq 0 ]; then
-    # wait is interruptible: unlike a foreground pipeline it runs our signal
-    # traps immediately. The collector still drains any leftover group members.
-    collect_worker "$worker_n" 1 0
   else
-    wait_one_completed_job_worker 1
+    start_worker "$1" 1
   fi
+  collect_worker "$worker_n" 1
 }
 
 collect_worker() {
-  local slot=$1 stream=$2 timed_out=$3 pid work script rc duration mode out end_iso
+  local slot=$1 stream=$2 pid work script rc duration mode out end_iso
   pid=${WORKER_PIDS[$slot]:-}
   script=${WORKER_SCRIPTS[$slot]}
   work="$RUN_TMP/w$slot"
   out="$work/output"
   if [ -n "$pid" ]; then
-    if [ "$timed_out" -eq 0 ]; then wait "$pid" || true; fi
+    wait "$pid" || true
     stop_worker_groups "$pid"
   fi
   active_workers=$((active_workers - 1))
-  if [ "$timed_out" -eq 1 ]; then
-    rc=124
-    duration=$(($(now_ms) - WORKER_STARTED_MS[slot]))
-    [ "$duration" -ge 0 ] || duration=0
-    printf 'not ok - %s exceeded the per-script bound of %ss and was terminated\n' \
-      "$script" "$PER_SCRIPT_TIMEOUT_SECS" >>"$out"
-    [ "$stream" -eq 0 ] || tail -1 "$out"
-  else
-    rc=$(cat "$work/exit" 2>/dev/null || echo 1)
-    duration=$(cat "$work/duration_ms" 2>/dev/null || echo 0)
-  fi
-  unset 'WORKER_PIDS[slot]' 'WORKER_SCRIPTS[slot]' 'WORKER_DEADLINES[slot]' 'WORKER_STARTED_MS[slot]'
+  rc=$(cat "$work/exit" 2>/dev/null || echo 1)
+  duration=$(cat "$work/duration_ms" 2>/dev/null || echo 0)
+  unset 'WORKER_PIDS[slot]' 'WORKER_SCRIPTS[slot]'
   end_iso=$(now_iso)
   # Replay captured parallel output after the worker finishes, in one block.
   if [ "$stream" -eq 0 ] && [ -s "$out" ]; then
@@ -3034,18 +3018,14 @@ collect_worker() {
 }
 
 wait_one_completed_job_worker() {
-  local stream=$1 slot running deadline
+  local slot running
   while :; do
     # Keep `jobs` in this shell. A subshell does not have its job table.
     jobs -p >"$RUN_TMP/running-pids"
     running=$'\n'$(<"$RUN_TMP/running-pids")$'\n'
     for slot in "${!WORKER_PIDS[@]}"; do
-      deadline=${WORKER_DEADLINES[$slot]}
       if [ -f "$RUN_TMP/w$slot/exit" ] || [[ "$running" != *$'\n'"${WORKER_PIDS[$slot]}"$'\n'* ]]; then
-        collect_worker "$slot" "$stream" 0
-        return
-      elif [ "$deadline" -gt 0 ] && [ "$SECONDS" -ge "$deadline" ]; then
-        collect_worker "$slot" "$stream" 1
+        collect_worker "$slot" 0
         return
       fi
     done
@@ -3061,17 +3041,17 @@ else
   for script in "${CONCURRENT_SCRIPTS[@]+"${CONCURRENT_SCRIPTS[@]}"}"; do
     if [ "$script" = "$CONCURRENT_PHASE_BREAK" ]; then
       while [ "$active_workers" -gt 0 ]; do
-        wait_one_completed_job_worker 0
+        wait_one_completed_job_worker
       done
       continue
     fi
     while [ "$active_workers" -ge "$JOBS" ]; do
-      wait_one_completed_job_worker 0
+      wait_one_completed_job_worker
     done
     start_worker "$script" 0 </dev/null
   done
   while [ "$active_workers" -gt 0 ]; do
-    wait_one_completed_job_worker 0
+    wait_one_completed_job_worker
   done
   # Unproven remainder, after every concurrent worker has finished.
   for script in "${SERIAL_TAIL_SCRIPTS[@]+"${SERIAL_TAIL_SCRIPTS[@]}"}"; do
