@@ -932,8 +932,7 @@ if [ -n "$ACK_THROUGH" ]; then
   JARVIS_ACKS=$(awk -F '\t' '
     FILENAME == ARGV[1] { retained[$2] = 1; next }
     NF >= 5 && $2 ~ /^[0-9]+$/ && !($2 in retained) && $3 == "check" &&
-      length($4) == 45 && $4 ~ /^inbox:jarvis-[0-9a-f]+$/ &&
-      $5 == "check: captain inbox note " substr($4, 7) " - Untrusted Jarvis request; approval is not implied." {
+      length($4) == 45 && $4 ~ /^inbox:jarvis-[0-9a-f]+$/ {
         print substr($4, 7)
       }
   ' "$DRAIN_TMP" "$FM_WAKE_QUEUE") || exit 1

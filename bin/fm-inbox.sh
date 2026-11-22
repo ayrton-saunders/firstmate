@@ -403,9 +403,9 @@ announce_note() {  # <id> <summary>
   local key="inbox:$id" row="check: captain inbox note $id - $summary"
   if [[ "$id" = jarvis-* ]]; then
     if inbox_store sync "$INBOX" "$INBOX/$id.note" && inbox_store separate-wake "$FM_WAKE_QUEUE" && {
-      inbox_store check-wake "$FM_WAKE_QUEUE" "$key" "$row" || {
+      inbox_store check-wake "$FM_WAKE_QUEUE" "$key" || {
         [ "$?" -eq 2 ] && fm_wake_append_locked check "$key" "$row" &&
-          inbox_store check-wake "$FM_WAKE_QUEUE" "$key" "$row"
+          inbox_store check-wake "$FM_WAKE_QUEUE" "$key"
       }
     }; then
       if [ -f "$STATE/.wake-queue.seq" ]; then

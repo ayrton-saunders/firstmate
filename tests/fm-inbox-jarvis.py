@@ -167,6 +167,13 @@ slots = json.loads((spool/lost_note/'request'/'manifest.json').read_bytes())['fi
 assert [f['name'] for f in slots] == ['review_only.pdf', 'review_only.pdf', 'compressed.zip']
 assert len({f['slot'] for f in slots}) == 3
 
+queue = state/'.wake-queue'
+old_row = repaired.replace(payload, b'older warning text\n', 1)
+queue.write_bytes(queue.read_bytes().replace(repaired, old_row, 1))
+(inbox/'.announced'/first).unlink()
+queued = queue.read_bytes()
+call('bridge-submit', a, data=packet, want='announced')
+assert queue.read_bytes() == queued
 (inbox/'.announced'/first).unlink()
 drain = script.with_name('fm-wake-drain.sh')
 p = run(binary=drain, check=False)
@@ -240,6 +247,38 @@ with subprocess.Popen([str(crash_child), 'bridge-submit', cut], env=env, stdin=s
         publisher_continue.touch()
     out, err = crashed.communicate(timeout=10)
     assert crashed.returncode == 0 and not err and json.loads(out)['result'] == 'server-error'
+
+publisher_crashed.unlink()
+publisher_continue.unlink()
+with subprocess.Popen([str(crash_child), 'bridge-submit', cut], env=env, stdin=subprocess.PIPE,
+                      stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL) as interrupted:
+    try:
+        interrupted.stdin.write(long_packet)
+        interrupted.stdin.close()
+        deadline = time.monotonic() + 10
+        while not publisher_crashed.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert publisher_crashed.exists()
+        interrupted.send_signal(signal.SIGINT)
+        assert interrupted.wait(timeout=5) != 0
+        scratch = inbox/'.jarvis-writing'
+        scratch.write_bytes(b'publisher still active')
+        with subprocess.Popen([str(script), 'jarvis-expire'], env=env, stdin=subprocess.DEVNULL,
+                              stdout=subprocess.PIPE, stderr=subprocess.PIPE) as sweep:
+            try:
+                try:
+                    sweep.wait(timeout=0.5)
+                except subprocess.TimeoutExpired:
+                    assert scratch.exists()
+                else:
+                    raise AssertionError('sweep entered before the publisher helper exited')
+            finally:
+                publisher_continue.touch()
+            out, err = sweep.communicate(timeout=10)
+            assert sweep.returncode == 0 and not err and json.loads(out)['result'] == 'cleaned'
+            assert not scratch.exists()
+    finally:
+        publisher_continue.touch()
 call('bridge-submit', cut, data=long_packet, preexec_fn=publisher_limit, want='server-error')
 assert len(list(inbox.glob('*.note'))) == 2 and not (state/'.wake-queue').read_bytes()
 assert call('bridge-status', cut, want='saved-not-announced')['receipt']

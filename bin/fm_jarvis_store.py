@@ -170,12 +170,13 @@ def main():
                 if f.read(1) != b'\n':
                     f.write(b'\n')
     elif op == 'check-wake':
-        queue, key, payload = args
-        fields = [b'check', key.encode(), payload.encode()+b'\n']
+        queue, key = args
+        fields = [b'check', key.encode()]
         with suppress(FileNotFoundError), open(queue, 'rb') as f:
             for line in f:
                 row = line.split(b'\t', 4)
-                if row[0].isdigit() and len(row) == 5 and row[1].isdigit() and row[2:] == fields:
+                if (line.endswith(b'\n') and len(row) == 5 and row[0].isdigit()
+                        and row[1].isdigit() and row[2:4] == fields):
                     return
         sys.exit(2)
     elif op == 'check-mark':

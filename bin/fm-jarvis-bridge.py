@@ -49,9 +49,6 @@ class Bridge:
         state = d(None, str(Path(inbox).parent), create=True)
         self.inbox = d(state, 'inbox', create=True)
         self.control = d(self.inbox, '.jarvis', **PRIVATE)
-        # Directory flock is released by the kernel on crash; pass the open
-        # description to publishing children so orphan completion stays serialized.
-        self.lock = self.control
         if verb in REPORT_VERBS:
             return
         self.spool = d(self.inbox, '.attachments', **PRIVATE)
@@ -62,11 +59,9 @@ class Bridge:
 
     @contextmanager
     def locked(self):
-        fcntl.flock(self.lock, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(self.lock, fcntl.LOCK_UN)
+        with directory(self.inbox, '.jarvis', private=True) as lock:
+            fcntl.flock(lock, fcntl.LOCK_EX)
+            yield lock
 
     def audit(self, verb, outcome, count, elapsed):
         data = json_bytes(dict(at=int(time.time()), principal='jarvis' if verb.startswith('bridge-') else 'parent',
@@ -81,12 +76,11 @@ class Bridge:
                 safe(os.fstat(f.fileno()))
                 f.write(data)
 
-    def child(self, *args, body=b'', codes=(0,), **env):
-        publishing = args[0] in ('note', 'reply')
+    def child(self, *args, body=b'', codes=(0,), lock=None, **env):
         p = subprocess.run([str(BIN/'fm-inbox.sh'), *args], input=body, stdout=subprocess.PIPE,
-                           stderr=subprocess.PIPE if publishing else subprocess.DEVNULL,
+                           stderr=subprocess.PIPE if lock is not None else subprocess.DEVNULL,
                            env=dict(os.environ, FM_JARVIS_INTERNAL='1', **env),
-                           pass_fds=(self.lock,) if publishing else ())
+                           pass_fds=(lock,) if lock is not None else ())
         require(p.returncode in codes, 'server-error')
         return parse(p.stdout)
 
@@ -193,7 +187,7 @@ class Bridge:
                 return release
         return None
 
-    def save(self, req, packet, reply):
+    def save(self, req, packet, reply, lock):
         body, files, blobs, payload = packet
         note = receipt(req)
         key = 'jarvis-v1:' + req
@@ -223,7 +217,7 @@ class Bridge:
                 try:
                     if reply:
                         regular(self.replies, '.seq')
-                        self.child('reply', '--json', note, '-', body=body.encode(), FM_JARVIS_RELEASE=mh)
+                        self.child('reply', '--json', note, '-', body=body.encode(), lock=lock, FM_JARVIS_RELEASE=mh)
                         return result('answered', receipt=note)
                     atomic(self.requests, key, f'{note}\njarvis\n{req}\n{payload}\n{mh}\n'.encode())
                 except Exception:
@@ -236,7 +230,7 @@ class Bridge:
         # The standard note publisher completes this reservation, including
         # after a crash. Neither body nor display names become authority.
         self.child('note', '--request-id', key, '--json', '-', body=body.encode(),
-                   FM_JARVIS_DIGEST=payload, codes=(0, 3))
+                   FM_JARVIS_DIGEST=payload, codes=(0, 3), lock=lock)
         return self.snapshot(req, None, False)[0]
 
     def snapshot(self, req, selector, wait):
@@ -334,8 +328,8 @@ class Bridge:
         req = args[0]
         if verb in ('bridge-submit', 'jarvis-release'):
             packet = envelope(reader)
-            with self.locked():
-                return self.save(req, packet, verb == 'jarvis-release'), None
+            with self.locked() as lock:
+                return self.save(req, packet, verb == 'jarvis-release', lock), None
         wait = verb == 'bridge-wait'
         data = reader.bounded(128 if wait else 0)
         selector = None
