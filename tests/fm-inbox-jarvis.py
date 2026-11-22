@@ -2,6 +2,7 @@
 import base64
 from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
+import fcntl
 import io
 import json
 import os
@@ -131,7 +132,7 @@ copy.mkdir(parents=True)
 for src in [script, *script.parent.glob('*jarvis*.py')]:
     shutil.copy2(src, copy/src.name)
 (copy/'fm-wake-lib.sh').write_text('kill -KILL "$$"\n')
-call('bridge-submit', a, data=packet, binary=copy/script.name, want='server-error')
+call('bridge-submit', a, data=packet, binary=copy/script.name, want='saved-not-announced')
 (copy/'fm-wake-lib.sh').unlink()
 first = call('bridge-status', a, want='saved-not-announced')['receipt']
 assert call('bridge-submit', a, data=packet, binary=copy/script.name, want='saved-not-announced')['receipt'] == first
@@ -428,6 +429,56 @@ for streaming_slot, sweep_during_transfer in zip(streaming_slots, (False, True))
     assert not (transfer_dir/(streaming_slot+'.delivered')).exists()
 for streaming_slot in streaming_slots:
     call('bridge-wait', lost, data=selector(streaming_slot), want='expired')
+flush_seen = home/'flush-seen'
+flush_continue = home/'flush-continue'
+probe = '''
+import fcntl, runpy, sys, time
+from pathlib import Path
+notice, resume, bridge, *args = sys.argv[1:]
+flock = fcntl.flock
+calls = 0
+def observe(fd, op):
+    global calls
+    calls += 1
+    if calls == 2:
+        Path(notice).touch()
+        deadline = time.monotonic() + 10
+        while not Path(resume).exists() and time.monotonic() < deadline:
+            time.sleep(0.01)
+    return flock(fd, op)
+fcntl.flock = observe
+sys.argv = [bridge, *args]
+runpy.run_path(bridge, run_name='__main__')
+'''
+with subprocess.Popen([sys.executable, '-IB', '-c', probe, str(flush_seen), str(flush_continue),
+                       str(script.with_name('fm-jarvis-bridge.py')), str(inbox), 'bridge-wait', a],
+                      env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
+    p.stdin.write(selector(undelivered_slot))
+    p.stdin.close()
+    p.stdin = None
+    deadline = time.monotonic() + 5
+    while not flush_seen.exists() and time.monotonic() < deadline:
+        time.sleep(0.01)
+    assert flush_seen.exists()
+    arrived = time.time()
+    control_fd = os.open(inbox/'.jarvis', os.O_RDONLY)
+    record = inbox/'.replies'/first
+    original_times = record.stat()
+    try:
+        fcntl.flock(control_fd, fcntl.LOCK_EX)
+        expiry = arrived + 0.1
+        os.utime(record, (expiry-30*86400,)*2)
+        flush_continue.touch()
+        while time.time() <= expiry:
+            time.sleep(0.01)
+    finally:
+        os.close(control_fd)
+    framed, err = p.communicate(timeout=10)
+    os.utime(record, ns=(original_times.st_atime_ns, original_times.st_mtime_ns))
+    assert p.returncode == 0 and not err and framed.partition(b'\n')[2] == frame(pdf[2])
+assert (spool/first/'reply'/(undelivered_slot+'.delivered')).stat().st_mtime <= arrived
+assert call('bridge-wait', a, data=selector(undelivered_slot), want='attachment') == pdf[2]
+(spool/first/'reply'/(undelivered_slot+'.delivered')).unlink()
 call('bridge-wait', a, data=selector(f['slot']), want='not-available')
 for p in (spool, *spool.rglob('*')):
     assert p.stat().st_mode & 0o777 == (0o700 if p.is_dir() else 0o600), p.name
@@ -606,6 +657,16 @@ for group, folder in [('pending', inbox), ('handled', inbox/'handled')]:
     rows = json.loads(run('receipts', f'--all-{group}').stdout)[group]
     assert [row['id'] for row in rows[-21:]] == old_ids[::-1]
 
+scratch_paths = [inbox/'.replies'/'.jarvis-seq', inbox/'.announced'/'.jarvis-writing',
+                 inbox/'.jarvis'/'releases'/'.jarvis-writing']
+legacy_scratch = inbox/'.replies'/'.seq-legacy'
+for scratch in (*scratch_paths, legacy_scratch):
+    scratch.write_bytes(b'interrupted fixture write')
+call('jarvis-expire', want='cleaned')
+assert not any(p.exists() for p in scratch_paths)
+assert legacy_scratch.read_bytes() == b'interrupted fixture write'
+legacy_scratch.unlink()
+
 interrupted_req = '9'*32
 interrupted_note = call('bridge-submit', interrupted_req, data=envelope('recover reply'), want='announced')['receipt']
 ordinary_note = json.loads(run('note', '--json', 'ordinary reply contender').stdout)['id']
@@ -641,7 +702,8 @@ with ThreadPoolExecutor(3) as pool:
         commit_continue.touch()
     ordinary.result()
     assert same.result().returncode != 0
-    assert release.result().returncode == 0
+    released = release.result()
+    assert released.returncode == 0 and json.loads(released.stdout)['result'] == 'answered'
 rows = json.loads(run('receipts', '--after', cursor).stdout)['replies']
 assert [(row['body'], int(row['cursor'])) for row in rows] == [
     ('interrupted final', int(cursor)+1), ('ordinary final', int(cursor)+2),

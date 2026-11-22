@@ -315,8 +315,11 @@ note_announce_state() {  # <id> <path>
   fi
 }
 
-read_note_body() {  # <file>
-  awk 'found { print; next } /^--$/ { found=1 }' "$1"
+note_summary_from_record() {
+  case "${1##*/}" in
+    jarvis-*) printf '%s' 'Untrusted Jarvis request; approval is not implied.' ;;
+    *) note_summary_from_body "$(awk 'found { print; next } /^--$/ { found=1 }' "$1")" ;;
+  esac
 }
 
 note_summary_from_body() {
@@ -376,7 +379,6 @@ PY
 # already acknowledged it, so a wake would only spend a turn on an empty inbox.
 announce_note() {  # <id> <summary>
   local id=$1 summary=$2 lib="$FM_ROOT/bin/fm-wake-lib.sh" status=0
-  case "$id" in jarvis-*) summary='Untrusted Jarvis request; approval is not implied.' ;; esac
   if note_announced "$id"; then
     return 0
   elif [ "$?" -ne 2 ]; then
@@ -517,7 +519,7 @@ queue_note() {
     if [ -f "$reserved" ]; then
       id=$(publish_from_reservation "$request_id" "$source" "$body" "$extra") \
         || die "request id $request_id is reserved but unreadable; retry the same request id"
-      summary=$(note_summary_from_body "$(read_note_body "$(note_path "$id")")")
+      summary=$(note_summary_from_record "$(note_path "$id")")
       finish_note_result replay "$id" "$request_id" "$json" "$strict" "$summary"
       return $?
     fi
@@ -532,7 +534,7 @@ queue_note() {
       rm -f "$tmp"
       id=$(publish_from_reservation "$request_id" "$source" "$body" "$extra") \
         || die "request id $request_id is reserved but unreadable; retry the same request id"
-      summary=$(note_summary_from_body "$(read_note_body "$(note_path "$id")")")
+      summary=$(note_summary_from_record "$(note_path "$id")")
       finish_note_result replay "$id" "$request_id" "$json" "$strict" "$summary"
       return $?
     fi
@@ -604,7 +606,7 @@ cmd_announce() {
   [ -n "$id" ] || die "usage: fm-inbox.sh announce [--json] <id>"
   valid_note_id "$id" || die "invalid note id"
   path=$(note_path "$id") || die "no such note: $id"
-  summary=$(note_summary_from_body "$(read_note_body "$path")")
+  summary=$(note_summary_from_record "$path")
   state=$(note_announce_state "$id" "$path")
   if [ "$state" != true ] && [ "$path" = "$INBOX/handled/$id.note" ]; then
     state=acknowledged
@@ -675,7 +677,11 @@ next_reply_seq() {
   esac
   [ "$recorded" -le "$seq" ] || seq=$recorded
   seq=$((seq + 1))
-  tmp=$(mktemp "$REPLIES/.seq-XXXXXX") || return 1
+  if [ -n "$owner" ]; then
+    tmp="$REPLIES/.jarvis-seq"
+  else
+    tmp=$(mktemp "$REPLIES/.seq-XXXXXX") || return 1
+  fi
   if ! printf '%s\n' "$seq" >"$tmp" || ! {
     if [ -n "$owner" ]; then
       fm_jarvis_locked_store "$REPLY_SEQ_LOCK" "$owner" commit "$tmp" "$seq_file"

@@ -45,6 +45,7 @@ def headers(fd, name):
 class Bridge:
     def __init__(self, stack, inbox, verb):
         self.stack = stack
+        self.inbox_path = Path(inbox)
         d = lambda parent, name, **kw: stack.enter_context(directory(parent, name, **kw))
         state = d(None, str(Path(inbox).parent), create=True)
         self.inbox = d(state, 'inbox', create=True)
@@ -148,6 +149,7 @@ class Bridge:
         return m
 
     def sweep(self):
+        remove(self.replies, '.jarvis-seq')
         for folder in (self.inbox, self.replies, self.requests):
             remove(folder, '.jarvis-writing')
         used = 0
@@ -229,19 +231,16 @@ class Bridge:
                     # Do not discard a commit that succeeded but lost its
                     # response. An interrupted process leaves this to sweep.
                     committed = self.released_hash(note) == mh if reply else self.binding(req)
+                    if reply and committed:
+                        return self.snapshot(req, None, False)[0]
                     if not committed:
                         discard(side, direction)
                     raise
         # The standard note publisher completes this reservation, including
         # after a crash. Neither body nor display names become authority.
-        try:
+        with suppress(Refusal, OSError):
             self.child('note', '--request-id', key, '--json', '-', body=body.encode(),
                        FM_JARVIS_DIGEST=payload, codes=(0, 3), lock=lock)
-        except Refusal:
-            answer, _ = self.snapshot(req, None, False)
-            if answer['result'] == 'not-saved':
-                return answer
-            raise
         return self.snapshot(req, None, False)[0]
 
     def snapshot(self, req, selector, wait):
@@ -286,12 +285,26 @@ class Bridge:
             state = 'pending' if wait else 'announced'
         return result(state, **out), None
 
-    def delivered(self, note, slot):
+    def delivered(self, note, slot, flushed):
         with self.locked(), directory(self.spool, note, private=True) as side, directory(side, 'reply', private=True) as fd:
             terminal = self.terminal(note, self.released_hash(note))
-            if self.slot_state(fd, slot, terminal, time.time()) == 'undelivered' and regular(fd, slot):
-                create(fd, slot+'.delivered', b'')
+            if self.slot_state(fd, slot, terminal, flushed) == 'undelivered' and regular(fd, slot):
+                create(fd, slot+'.delivered', b'', mtime=flushed)
                 os.fsync(fd)
+
+    def clean_journal_scratch(self):
+        with suppress(FileNotFoundError), directory(self.control, 'releases', private=True) as fd:
+            remove(fd, '.jarvis-writing')
+        if regular(self.markers, '.jarvis-writing'):
+            subprocess.run(['bash', '-c', '''set -euo pipefail
+                . "$1"
+                fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK"
+                fm_current_pid owner
+                fm_jarvis_locked_store "$FM_WAKE_QUEUE_LOCK" "$owner" mark "$2"
+                fm_lock_release "$FM_WAKE_QUEUE_LOCK"
+            ''', '_', str(BIN/'fm-wake-lib.sh'), str(self.inbox_path)],
+                env=dict(os.environ, FM_STATE_OVERRIDE=str(self.inbox_path.parent)),
+                stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
 
     def report(self, verb, slug, data, expiry):
         name = digest(('jarvis:'+slug).encode())
@@ -326,6 +339,7 @@ class Bridge:
             reader.bounded(0)
             with self.locked():
                 self.sweep()
+                self.clean_journal_scratch()
             return result('cleaned'), None
         if verb in REPORT_VERBS:
             require(len(args) in ((1, 2) if verb == 'jarvis-publish' else (1,)) and re.fullmatch(SLUG, args[0]))
@@ -386,9 +400,10 @@ def main():
                 shutil.copyfileobj(stream, sys.stdout.buffer, length=64*K)
             sys.stdout.buffer.flush()
             if stream is not None:
+                flushed = time.time()
                 count += answer['length']
                 try:
-                    bridge.delivered(answer['receipt'], answer['slot'])
+                    bridge.delivered(answer['receipt'], answer['slot'], flushed)
                 except (OSError, Refusal):
                     sys.exit(1)
         except OSError:

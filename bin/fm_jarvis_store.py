@@ -78,10 +78,12 @@ def durable_marker(fd, name):
     return entry
 
 
-def create(fd, name, data):
+def create(fd, name, data, *, mtime=None):
     with os.fdopen(os.open(name, NEW, 0o600, dir_fd=fd), 'wb') as f:
         f.write(data)
         f.flush()
+        if mtime is not None:
+            os.utime(f.fileno(), (mtime, mtime))
         os.fsync(f.fileno())
 
 
@@ -199,6 +201,7 @@ def main(argv):
     elif op == 'mark':
         inbox, *ids = args
         with directory(None, inbox) as fd, directory(fd, '.announced', create=True) as marks:
+            remove(marks, '.jarvis-writing')
             for note in ids:
                 if not durable_marker(marks, note):
                     atomic(marks, note, time.strftime('%Y-%m-%dT%H:%M:%SZ\n', time.gmtime()).encode())
