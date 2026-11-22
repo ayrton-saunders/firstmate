@@ -1,0 +1,52 @@
+Running real inbox CLI under stock macOS PATH (Python 3.9.6) from a background bash job
+Fixture exit: 0
+
+Synthetic inbox CLI transcript (disposable traced fixture; assertions unchanged)
+bridge-submit {"result": "invalid", "v": 1}
+ZIP reader version 100 (central + local; local only) and other invalid frames refused
+Invalid submit state: zero published attachment records, notes, or wakes
+bridge-submit {"result": "server-error", "v": 1}
+bridge-status {"result": "unknown", "v": 1}
+bridge-status {"result": "invalid", "v": 1}
+bridge-wait {"result": "invalid", "v": 1}
+bridge-submit {"observed": 1795339398, "receipt": "jarvis-b06a4e6e797602ba0a5f345e25cdbcee", "result": "saved-not-announced", "v": 1}
+bridge-status {"observed": 1795339399, "receipt": "jarvis-b06a4e6e797602ba0a5f345e25cdbcee", "result": "saved-not-announced", "v": 1}
+jarvis-release {"result": "server-error", "v": 1}
+jarvis-expire {"result": "server-error", "v": 1}
+jarvis-expire {"result": "cleaned", "v": 1}
+bridge-submit {"observed": 1795339427, "receipt": "jarvis-b06a4e6e797602ba0a5f345e25cdbcee", "result": "announced", "v": 1}
+Replay state: crash recovery plus lost-response replay left exactly two notes and one complete wake per receipt
+bridge-status {"observed": 1795339431, "receipt": "jarvis-b06a4e6e797602ba0a5f345e25cdbcee", "result": "announced", "v": 1}
+bridge-submit {"observed": 1795339432, "receipt": "jarvis-3a7103bb150b6560be3ee470d4e20f8c", "result": "not-saved", "v": 1}
+Interrupted bridge-submit exit after SIGINT: -2
+Expiry waited for interrupted publisher, then removed scratch: {"v":1,"result":"cleaned"}
+bridge-status {"observed": 1795339441, "receipt": "jarvis-3a7103bb150b6560be3ee470d4e20f8c", "result": "not-saved", "v": 1}
+bridge-wait {"observed": 1795339441, "receipt": "jarvis-3a7103bb150b6560be3ee470d4e20f8c", "result": "not-saved", "v": 1}
+bridge-submit {"result": "conflict", "v": 1}
+bridge-wait {"observed": 1795339458, "receipt": "jarvis-3a7103bb150b6560be3ee470d4e20f8c", "result": "handled-no-answer", "v": 1}
+bridge-wait {"result": "not-available", "v": 1}
+Request manifest SHA-256 verified against original PDF and ZIP; selector denied
+bridge-wait {"observed": 1795339481, "receipt": "jarvis-b06a4e6e797602ba0a5f345e25cdbcee", "result": "pending", "v": 1}
+jarvis-release {"receipt": "jarvis-b06a4e6e797602ba0a5f345e25cdbcee", "result": "answered", "v": 1}
+bridge-wait {"files": [{"length": 68, "mime": "image/png", "name": "sample.png", "sha256": "431ced6916a2a21a156e38701afe55bbd7f88969fbbfc56d7fe099d47f265460", "slot": "610818dcfc64dd03c973c4550c102942"}, {"length": 327, "mime": "application/pdf", "name": "_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.PDF", "sha256": "91195e188b2bd2d45a1d838ae1df849eef8a43a953f57b13e643c10b755973d1", "slot": "1054ab594052e2de6ddac872a5f08585"}], "observed": 1795339484, "receipt": "jarvis-b06a4e6e797602ba0a5f345e25cdbcee", "result": "answered", "text": "explicit final\n\n", "v": 1}
+bridge-status {"observed": 1795339484, "receipt": "jarvis-b06a4e6e797602ba0a5f345e25cdbcee", "result": "answered", "v": 1}
+jarvis-release {"result": "conflict", "v": 1}
+bridge-wait {"length": 68, "mime": "image/png", "name": "sample.png", "observed": 1795339484, "receipt": "jarvis-b06a4e6e797602ba0a5f345e25cdbcee", "result": "attachment", "sha256": "431ced6916a2a21a156e38701afe55bbd7f88969fbbfc56d7fe099d47f265460", "slot": "610818dcfc64dd03c973c4550c102942", "v": 1}
+bridge-wait {"result": "expired", "v": 1}
+jarvis-release {"result": "unknown", "v": 1}
+bridge-wait {"result": "denied", "v": 1}
+bridge-status {"result": "denied", "v": 1}
+bridge-submit {"result": "overload", "v": 1}
+jarvis-release {"result": "overload", "v": 1}
+bridge-lookup {"result": "not-available", "v": 1}
+jarvis-withdraw {"result": "withdrawn", "v": 1}
+jarvis-publish {"result": "published", "v": 1, "version": "437fe2a224fb29fca3435e2734a33132"}
+bridge-lookup {"as_of": 1795339512, "expires": null, "result": "available", "text": "published without attachments", "v": 1, "version": "437fe2a224fb29fca3435e2734a33132"}
+jarvis-release {"result": "invalid", "v": 1}
+Local release with unsupported ZIP local version: invalid; no reply or reply manifest, queue unchanged
+bridge-lookup {"result": "invalid", "v": 1}
+jarvis-publish {"result": "invalid", "v": 1}
+Withdrawn, expired, foreign and missing reports returned identical not-available JSON
+Concurrent reply records: [('interrupted final', 9), ('ordinary final', 10)]
+
+Traced fixture exit: 0
