@@ -14,7 +14,7 @@ import zipfile
 
 BIN = Path(__file__).resolve().parent
 sys.path.insert(0, str(BIN))  # -I: only trusted siblings
-from fm_jarvis_store import SAFE, atomic, clear_dir, create, directory, discard, read, regular, remove, safe, stage
+from fm_jarvis_store import SAFE, atomic, clear_stage, create, directory, discard, read, regular, remove, safe, stage
 from fm_jarvis_wire import FILE, K, M, MANIFEST, Reader, Refusal, digest, envelope, json_bytes, parse, require, text
 
 ID = r'[0-9a-f]{32}'
@@ -103,9 +103,9 @@ class Bridge:
             return True
         return False
 
-    def terminal(self, note):
+    def terminal(self, note, release):
         # rename into handled updates ctime, not the note creation mtime.
-        r = regular(self.replies, note)
+        r = regular(self.replies, note) if release else None
         h = regular(self.handled, note+'.note')
         return min([t for t in (r.st_mtime if r else None, h.st_ctime if h else None) if t is not None], default=None)
 
@@ -144,7 +144,7 @@ class Bridge:
                 dirs = set(os.listdir(side))
                 require(dirs <= {'request', 'reply', '.stage'}, 'denied')
                 if '.stage' in dirs:
-                    clear_dir(side, '.stage')
+                    clear_stage(side)
                 if 'request' in dirs:
                     with directory(side, 'request', private=True) as fd:
                         req = parse(read(fd, 'manifest.json', MANIFEST + 4096))['request']
@@ -153,9 +153,10 @@ class Bridge:
                     if not binding:  # interrupted before reservation commit
                         discard(side, 'request')
                     else:
-                        terminal = self.terminal(note)
+                        release = self.released_hash(note)
+                        terminal = self.terminal(note, release)
                         for direction in dirs & {'request', 'reply'}:
-                            expected = binding[1] if direction == 'request' else self.released_hash(note)
+                            expected = binding[1] if direction == 'request' else release
                             if not expected:  # no final reply committed this staged manifest
                                 discard(side, direction)
                                 continue
@@ -191,7 +192,7 @@ class Bridge:
                 self.manifest(fd, req, 'request', binding[1])
             exists = self.note(req, binding[0])
             if reply:
-                require(exists and not self.terminal(note), 'conflict')
+                require(exists and not regular(self.handled, note+'.note') and not regular(self.replies, note), 'conflict')
             else:
                 require(binding[0] == payload, 'conflict')
         else:
@@ -224,20 +225,20 @@ class Bridge:
                    FM_JARVIS_DIGEST=payload, codes=(0, 3))
         return self.snapshot(req, None, False)[0]
 
-    def snapshot(self, req, selector, wait, observed=None):
+    def snapshot(self, req, selector, wait):
         note = receipt(req)
         b = self.binding(req)
         require(b, 'unknown')
         out = dict(receipt=note, observed=int(time.time()))
         if not self.note(req, b[0]):
             return result('saved-not-announced', **out), None
-        observed = observed or self.child('wait', note, '--timeout', '0', '--json', codes=(0, 2, 3, 4))
+        observed = self.child('wait', note, '--timeout', '0', '--json', codes=(0, 2, 3, 4))
         release = self.released_hash(note) if observed['outcome'] == 'answered' else None
         if release:
             with directory(self.spool, note, private=True) as side, directory(side, 'reply', private=True) as fd:
                 m = self.manifest(fd, req, 'reply', release)
                 if wait:
-                    self.expire_slots(fd, m['files'], self.terminal(note))
+                    self.expire_slots(fd, m['files'], self.terminal(note, release))
                     if selector:
                         f = next((f for f in m['files'] if f['slot'] == selector), None)
                         require(f, 'not-available')
@@ -317,9 +318,9 @@ class Bridge:
             answer = self.snapshot(req, selector, wait)
         if wait and not selector and answer[0]['result'] == 'pending':
             # No spool lock across the long poll: parent can publish a final.
-            observed = self.child('wait', receipt(req), '--timeout', '20', '--json', codes=(0, 2, 3, 4))
+            self.child('wait', receipt(req), '--timeout', '20', '--json', codes=(0, 2, 3, 4))
             with self.locked():
-                answer = self.snapshot(req, selector, wait, observed)
+                answer = self.snapshot(req, selector, wait)
         return answer
 
 

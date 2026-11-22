@@ -87,17 +87,17 @@ def remove(fd, name):
         os.unlink(name, dir_fd=fd)
 
 
-def clear_dir(fd, name):
-    with directory(fd, name, private=True) as child:
+def clear_stage(side):
+    os.fsync(side)
+    with directory(side, '.stage', private=True) as child:
         for leaf in os.listdir(child):
             remove(child, leaf)
-    os.rmdir(name, dir_fd=fd)
+    os.rmdir('.stage', dir_fd=side)
 
 
 def discard(side, direction):
     os.rename(direction, '.stage', src_dir_fd=side, dst_dir_fd=side)
-    os.fsync(side)
-    clear_dir(side, '.stage')
+    clear_stage(side)
 
 
 def stage(side, direction, files, blobs, metadata):
@@ -113,7 +113,7 @@ def stage(side, direction, files, blobs, metadata):
             os.fsync(tmp)
         os.rename('.stage', direction, src_dir_fd=side, dst_dir_fd=side)
     except Exception:
-        clear_dir(side, '.stage')
+        clear_stage(side)
         raise
     os.fsync(side)
     return digest(manifest)

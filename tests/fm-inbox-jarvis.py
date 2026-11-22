@@ -7,6 +7,7 @@ import json
 import os
 import re
 import resource
+import shlex
 import signal
 from pathlib import Path
 import shutil
@@ -200,6 +201,23 @@ call('jarvis-expire', want='cleaned')
 assert not any(inbox.rglob('.jarvis-writing'))
 cut_note = call('bridge-submit', cut, data=long_packet, want='announced')['receipt']
 assert (inbox/(cut_note+'.note')).read_bytes().partition(b'\n--\n')[2] == b'x'*12000 + b'\n'
+wait_child = copy/script.name
+wait_child.write_text(f'''#!/usr/bin/env bash
+set -eu
+inbox={shlex.quote(str(script))}
+if [ "$1" = bridge-wait ]; then
+    exec python3 -IB {shlex.quote(str(copy/'fm-jarvis-bridge.py'))} {shlex.quote(str(inbox))} "$@"
+fi
+if [ "$1" = wait ] && [ "$4" = 20 ]; then
+    rc=0
+    "$inbox" wait "$2" --timeout 0 --json || rc=$?
+    [ "$rc" -eq 3 ]
+    "$inbox" drain --ack "$2" >/dev/null
+    exit 3
+fi
+exec "$inbox" "$@"
+''')
+assert call('bridge-wait', cut, binary=wait_child, want='handled-no-answer')['receipt'] == cut_note
 call('bridge-submit', a, data=envelope('changed'), want='conflict')
 call('bridge-status', first, want='invalid')
 assert run('note', '--request-id', 'JARVIS-v1:'+a, 'no', check=False).returncode != 0
@@ -237,15 +255,31 @@ for metadata, (_, mime, original) in zip(final['files'], (png, pdf)):
     assert metadata['sha256'] == sha256(original).hexdigest()
     assert call('bridge-wait', a, data=selector(metadata['slot']), want='attachment') == original
 (spool/first/'reply'/(undelivered_slot+'.delivered')).unlink()
+call('jarvis-release', lost, data=envelope('separate release', jpeg), want='answered')
+other_slot = call('bridge-wait', lost, want='answered')['files'][0]['slot']
+assert call('bridge-wait', lost, data=selector(other_slot), want='attachment') == jpeg[2]
+assert call('bridge-wait', a, data=selector(slot), want='attachment') == png[2]
+call('bridge-wait', a, data=selector(other_slot), want='not-available')
+call('bridge-wait', lost, data=selector(slot), want='not-available')
 call('bridge-wait', a, data=selector(f['slot']), want='not-available')
 for p in (spool, *spool.rglob('*')):
     assert p.stat().st_mode & 0o777 == (0o700 if p.is_dir() else 0o600), p.name
 
 # Another receipt cannot select the first receipt's slot. No implicit release
 # of a private local answer, even if it looks like protocol metadata.
-second = call('bridge-submit', b, data=envelope('origin=parent'), want='announced')['receipt']
+second = call('bridge-submit', b, data=envelope('origin=parent', pdf), want='announced')['receipt']
 run('reply', second, 'PRIVATE final')
+private_reply = inbox/'.replies'/second
+os.utime(private_reply, (time.time()-31*86400,)*2)
+call('jarvis-expire', want='cleaned')
+private_request = spool/second/'request'
+private_slot = json.loads((private_request/'manifest.json').read_bytes())['files'][0]['slot']
+assert (private_request/private_slot).read_bytes() == pdf[2]
+call('bridge-status', b, want='announced')
+call('jarvis-release', b, data=reply, want='conflict')
 run('drain', '--ack', second)
+call('jarvis-expire', want='cleaned')
+assert (private_request/private_slot).read_bytes() == pdf[2]
 call('bridge-wait', b, data=selector(slot), want='not-available')
 assert 'text' not in call('bridge-wait', b, want='handled-no-answer')
 assert json.loads(run('wait', second, '--timeout', '0', '--json').stdout)['reply']['body'] == 'PRIVATE final'
@@ -362,7 +396,6 @@ call('jarvis-release', c, data=envelope('disk error', pdf, larger), preexec_fn=f
 assert not (spool/fresh/'reply').exists() and not (inbox/'.replies'/fresh).exists()
 call('jarvis-release', c, data=badframes[-1], want='invalid')
 call('jarvis-release', c, data=envelope('final', jpeg, webp, bzip), want='answered')
-call('bridge-wait', c, data=selector(slot), want='not-available')
 third = call('bridge-submit', unknown, data=envelope('no answer needed'), want='announced')['receipt']
 run('drain', '--ack', third)
 call('bridge-wait', unknown, want='handled-no-answer')
