@@ -92,7 +92,11 @@ pass "plain note keeps exit 1 for a saved-but-unannounced failure"
 
 no_python="$TMP_ROOT/no-python"
 mkdir "$no_python"
-printf '#!/bin/sh\n: > "$FM_PYTHON_CALLED"\nexit 127\n' > "$no_python/python3"
+cat > "$no_python/python3" <<'EOF'
+#!/bin/sh
+: > "$FM_PYTHON_CALLED"
+exit 127
+EOF
 chmod +x "$no_python/python3"
 (
   export PATH="$no_python:$PATH" FM_PYTHON_CALLED="$no_python/called"

@@ -941,6 +941,7 @@ if [ -n "$ACK_THROUGH" ]; then
     while IFS= read -r jarvis_id; do
       jarvis_ids+=("$jarvis_id")
     done <<< "$JARVIS_ACKS"
+    jarvis_owner=
     fm_current_pid jarvis_owner || exit 1
     fm_jarvis_locked_store "$FM_WAKE_QUEUE_LOCK" "$jarvis_owner" mark "$STATE/inbox" "${jarvis_ids[@]}" || exit 1
   fi
