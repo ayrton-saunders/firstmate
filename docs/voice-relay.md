@@ -105,7 +105,7 @@ Submit consists of one framed UTF-8 JSON manifest then one frame per file in arr
 A manifest is `{"v":1,"text":"...","files":[{"name":"review.pdf","mime":"application/pdf","length":123,"sha256":"<64 lowercase hex>"}]}`; omit `files` or send `[]` for text only.
 Limits are 24 KiB for the manifest, 16 KiB for UTF-8 text, four files, 8 MiB each and 16 MiB total.
 Only signature-matching PNG, JPEG, WebP, PDF and classic (non-ZIP64), unencrypted single-volume ZIP are admitted; nothing is unpacked, rendered, executed, fetched or OCRed.
-Names are sanitized display metadata, never paths or caller-selected slots.
+Names are sanitized display metadata, never paths or caller-selected slots. Names longer than 128 characters are shortened while preserving the validated extension.
 Status and lookup require immediate EOF; empty wait stdin means a normal wait, or send exactly one unframed JSON object `{"attachment":"<released slot>"}` (128 bytes maximum) and EOF.
 
 Read one UTF-8 JSON line with `v:1` and `result` even for errors; only `attachment` is followed by a single binary frame.

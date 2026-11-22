@@ -143,6 +143,24 @@ assert not (state/'.wake-queue').exists()
 )
 call('bridge-submit', a, data=packet, binary=copy/script.name, want='saved-not-announced')
 assert (state/'.wake-queue').read_bytes() == b'123\t'
+failed_allocation = home/'failed-allocation'
+failed_allocation.mkdir()
+mktemp = failed_allocation/'mktemp'
+mktemp.write_text(f'''#!/bin/sh
+case "$*" in
+    *.steal.owner.*) exit 1 ;;
+esac
+exec {shlex.quote(shutil.which('mktemp'))} "$@"
+''')
+mktemp.chmod(0o700)
+original_path = env['PATH']
+try:
+    env['PATH'] = f'{failed_allocation}:{original_path}'
+    assert call('bridge-submit', a, data=packet, want='saved-not-announced')['receipt'] == first
+finally:
+    env['PATH'] = original_path
+assert (state/'.wake-queue').read_bytes() == b'123\t'
+assert not (state/'.wake-queue.lock').exists()
 with ThreadPoolExecutor(3) as pool:
     jobs = [pool.submit(call, 'bridge-submit', a, data=packet, want='announced') for _ in range(2)]
     pool.submit(call, 'jarvis-expire', want='cleaned').result()
@@ -155,7 +173,9 @@ assert b'fixture content' not in payload
 assert len(list(inbox.glob('*.note'))) == 1
 
 lost = 'e'*32
-lost_packet = envelope('response discarded', pdf, pdf, bzip)
+long_pdf = ('é' + 'x'*130 + '.PDF', *pdf[1:])
+short_pdf_name = '_' + 'x'*123 + '.PDF'
+lost_packet = envelope('response discarded', pdf, pdf, bzip, long_pdf)
 with open(os.devnull, 'wb') as sink:
     p = subprocess.run([str(script), 'bridge-submit', lost], input=lost_packet, stdout=sink,
                        stderr=subprocess.PIPE, env=env, timeout=45)
@@ -164,8 +184,9 @@ lost_note = call('bridge-submit', lost, data=lost_packet, want='announced')['rec
 assert len(list(inbox.glob('*.note'))) == 2
 assert len((state/'.wake-queue').read_bytes().splitlines()) == 3
 slots = json.loads((spool/lost_note/'request'/'manifest.json').read_bytes())['files']
-assert [f['name'] for f in slots] == ['review_only.pdf', 'review_only.pdf', 'compressed.zip']
-assert len({f['slot'] for f in slots}) == 3
+assert [f['name'] for f in slots] == ['review_only.pdf', 'review_only.pdf', 'compressed.zip', short_pdf_name]
+assert len({f['slot'] for f in slots}) == 4
+assert (spool/lost_note/'request'/slots[-1]['slot']).read_bytes() == pdf[2]
 
 queue = state/'.wake-queue'
 old_row = repaired.replace(payload, b'older warning text\n', 1)
@@ -332,7 +353,7 @@ call('bridge-wait', a, data=selector(f['slot']), want='not-available')
 # Real wait timeout, no private progress reply. Concurrent wait must not lock
 # out the parent release; the reply is durable and visible before ack.
 call('bridge-wait', a, want='pending')
-reply = envelope('explicit final\n\n', png, pdf)
+reply = envelope('explicit final\n\n', png, long_pdf)
 hook_calls = home/'hook-calls'
 shim = home/'python-shim'
 shim.mkdir()
@@ -369,6 +390,7 @@ with ThreadPoolExecutor(1) as pool:
         poll_continue.touch()
     final = waiting.result()
 assert final['text'] == 'explicit final\n\n'
+assert final['files'][1]['name'] == short_pdf_name
 run('drain', '--ack', first)
 assert call('bridge-wait', a, want='answered')['files'] == final['files']
 assert set(call('bridge-status', a, want='answered')) == {'v','receipt','observed','result'}

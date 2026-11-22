@@ -258,12 +258,13 @@ def envelope(reader):
     for f in files:
         require(type(f) is dict and set(f) == {'name', 'mime', 'length', 'sha256'})
         name = f['name']
-        require(type(name) is str and 0 < len(name) <= 128 and not name.startswith('.')
+        require(type(name) is str and name and not name.startswith('.')
                 and all(c.isprintable() and c not in '/\\:' for c in name))
         name = re.sub(r'[^A-Za-z0-9._-]', '_', name)
         require('.' in name)
-        f['name'] = name
-        require(type(f['mime']) is str and MIME.get(name.rsplit('.', 1)[1].lower()) == f['mime'])
+        stem, ext = name.rsplit('.', 1)
+        require(type(f['mime']) is str and MIME.get(ext.lower()) == f['mime'])
+        f['name'] = stem[:127-len(ext)] + '.' + ext
         n = f['length']
         require(type(n) is int and 0 < n <= FILE and total + n <= TOTAL)
         total += n
