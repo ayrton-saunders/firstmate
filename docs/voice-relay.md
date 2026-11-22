@@ -107,10 +107,13 @@ Submit consists of one framed UTF-8 JSON manifest then one frame per file in arr
 A manifest is `{"v":1,"text":"...","files":[{"name":"review.pdf","mime":"application/pdf","length":123,"sha256":"<64 lowercase hex>"}]}`; omit `files` or send `[]` for text only.
 Limits are 24 KiB for the manifest, 16 KiB for UTF-8 text, four files, 8 MiB each and 16 MiB total.
 The extension and declared MIME type must agree, and the bytes must pass the [format's signature and container checks](../bin/fm_jarvis_wire.py) for PNG, JPEG, WebP, PDF or classic (non-ZIP64), unencrypted single-volume ZIP.
+For both submit and local release, a ZIP is `invalid` if a member's local header or central directory entry requires a newer ZIP reader than the receiver's Python supports.
 These checks are not full decoding or a safety assessment; nothing is unpacked, rendered, executed, fetched or OCRed.
 Names are sanitized display metadata, never paths or caller-selected slots.
 Names longer than 128 characters are shortened while preserving the validated extension.
-Status and lookup require immediate EOF; empty wait stdin means a normal wait, or send exactly one unframed JSON object `{"attachment":"<released slot>"}` (128 bytes maximum) and EOF.
+Status and lookup require empty stdin; send EOF without any bytes.
+Empty wait stdin means a normal wait; to retrieve an attachment, send exactly one unframed JSON object `{"attachment":"<released slot>"}` (128 bytes maximum) followed by EOF.
+Use the 32-character lowercase hexadecimal slot from this request's released manifest, not the display name.
 
 Read one UTF-8 JSON line with `v:1` and `result` even for errors; only `attachment` is followed by a single binary frame.
 Verify the slot, length and SHA-256 before using bytes; a missing/truncated response is a transport failure, never a receipt or successful download.
