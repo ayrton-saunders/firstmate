@@ -132,12 +132,9 @@ unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME SSH_AUTH_SOCK
 # Materialize the current branch as the remote host's tracked code root. The
 # fixture is a real git repository because provisioning and guarded sync exercise
 # the same clone and fast-forward path as a second Mac.
-# Copy working-tree bytes for tracked paths only, never runner scratch or
-# private files even when the invoking checkout contains them.
-git -C "$ROOT" ls-files -z > "$TMP_ROOT/source-files" || fail 'could not list fixture source files'
-( set -o pipefail
-  tar -C "$ROOT" -cf - --null -T "$TMP_ROOT/source-files" | tar -C "$REMOTE_ROOT" -xf -
-) || fail 'could not copy fixture code root'
+# shellcheck source=tests/remote-secondmate-source-copy-helpers.sh
+. "$ROOT/tests/remote-secondmate-source-copy-helpers.sh"
+fm_fixture_copy_remote_source "$ROOT" "$REMOTE_ROOT" || fail 'could not copy fixture code root'
 cat > "$REMOTE_ROOT/bin/tmux" <<SH
 #!/usr/bin/env bash
 set -u

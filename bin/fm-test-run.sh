@@ -75,8 +75,18 @@
 #                   slowest CI hint with margin; exceeding it becomes a bounded
 #                   failure, not proof of a hang. --max-wall-ms is checked
 #                   after the run and so cannot catch a hang on its own.
-#                   External interruption cleanup is outside this runner's
-#                   guarantee; configured per-script bounds remain authoritative.
+#   --scratch-base  print the validated scratch base for direct probes; allocate nothing
+#
+# Scratch is independent of inherited TMPDIR. The default is the OS per-user
+# temp area on macOS and /tmp elsewhere. FM_TEST_SCRATCH_PARENT may name an
+# existing absolute directory instead. Neither base nor run root may resolve
+# into the checkout, FM_HOME, preserved copies or a Treehouse pool. Using OS
+# temp keeps reproducible scratch out of backups without changing Time Machine.
+# Within the base, a private per-UID directory holds marked runs and wN/tmp
+# directories. EXIT, INT, HUP and TERM drain owned worker groups before removing
+# the run; a test that starts a separate session/group owns that group's cleanup.
+# A subsequent run recovers aged, marked roots when the original owner is gone.
+# Keep requested reports and redirected logs outside runner scratch.
 #   --max-wall-ms N fail the run when its measured invocation wall clock exceeds
 #                   N milliseconds, including an empty selection. It is
 #                   evaluated after selection and suite execution and cannot
@@ -163,7 +173,7 @@ now_ms() {
 RUN_STARTED_ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 RUN_STARTED_MS=$(now_ms)
 
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
 cd "$ROOT" || exit 1
 
 MODE=
@@ -186,6 +196,7 @@ JOBS_EXPLICIT=0
 JOBS_MAX=8
 MAX_WALL_MS=
 PER_SCRIPT_TIMEOUT_SECS=0
+SCRATCH_BASE_ONLY=0
 # Bound applied automatically on the automatic --changed path, derived from
 # measured healthy runtimes with margin rather than picked: the slowest measured
 # script was tests/fm-watch-triage.test.sh at about 1075s under CI load before
@@ -1042,8 +1053,8 @@ EOF
 # back to PORTABLE_SERIAL_DEFAULT_WEIGHT_MS, so they are balanced on a guess
 # rather than on evidence; the coverage guard bounds how many there may be.
 portable_serial_unhinted() {
-  local tmp
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-unhinted.XXXXXX") || return 1
+  local tmp="$RUN_TMP/unhinted"
+  mkdir "$tmp" || return 1
   portable_serial_weight_hints | awk 'NF { print $1 }' | LC_ALL=C sort -u >"$tmp/hinted"
   list_portable_serial | LC_ALL=C sort -u >"$tmp/serial"
   LC_ALL=C comm -23 "$tmp/serial" "$tmp/hinted"
@@ -1196,7 +1207,8 @@ run_coverage_guard() {
   local tmp missing extra a b shard assignments unhinted serial_total serial_ms serial_max_ms=0
   local p1_ms p1_unhinted p2_ms p2_unhinted parallel_max_ms parallel_imbalance_ms
   local -a saved_scripts=()
-  tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-coverage.XXXXXX")
+  tmp="$RUN_TMP/coverage"
+  mkdir "$tmp"
 
   all_repo_tests | LC_ALL=C sort -u >"$tmp/all"
   list_proven_isolated | LC_ALL=C sort -u >"$tmp/proven"
@@ -2334,6 +2346,11 @@ while [ "$#" -gt 0 ]; do
       FAIL_ON_GATE_SKIP=${1#--fail-on-gate-skip=}
       shift
       ;;
+    --scratch-base)
+      [ "$#" -eq 1 ] && [ "$SCRATCH_BASE_ONLY" -eq 0 ] || die '--scratch-base takes no arguments'
+      SCRATCH_BASE_ONLY=1
+      shift
+      ;;
     -h|--help)
       usage
       exit 0
@@ -2377,7 +2394,149 @@ if [ "$LIST_LANES" -eq 1 ]; then
   exit 0
 fi
 
+# Compare ancestors by identity as well as using physical paths: macOS and
+# Windows can resolve case variants to the same directory.
+check_scratch_placement() {
+  local base=$1 blocked ancestor checkout
+  checkout=$(git rev-parse --show-toplevel 2>/dev/null) || checkout=$ROOT
+  for blocked in "$ROOT" "$checkout" "${FM_HOME:-}" "${FM_ROOT_OVERRIDE:-}" \
+    "$HOME/.firstmate-preserved" "$HOME/.treehouse" "$HOME/.treehouse-bdm" "${TREEHOUSE_ROOT:-}"; do
+    [ -n "$blocked" ] || continue
+    ancestor=$base
+    while :; do
+      if [ "$ancestor" = "${blocked%/}" ] || [ "$ancestor" -ef "$blocked" ]; then
+        die "unsafe scratch base $base resolves inside $blocked"
+      fi
+      [ "$ancestor" != / ] || break
+      ancestor=${ancestor%/*}
+      ancestor=${ancestor:-/}
+    done
+  done
+}
+
+scratch_base() {
+  local base=${FM_TEST_SCRATCH_PARENT:-}
+  if [ -z "$base" ]; then
+    base=$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null) || base=/tmp
+  fi
+  case "$base" in /*) ;; *) die "scratch base must be absolute: $base" ;; esac
+  base=$(cd -P -- "$base" && pwd -P) || die 'cannot resolve scratch base'
+  check_scratch_placement "$base"
+  printf '%s\n' "$base"
+}
+
+# Normalize ps lstart across BSD and GNU; a successful full snapshot lets us
+# distinguish an absent PID from a failed per-PID query. Unreadable snapshots
+# and malformed markers never authorize deletion.
+run_owner_snapshot() {
+  LC_ALL=C TZ=UTC0 ps -e -o pid= -o lstart=
+}
+
+run_owner_start() {
+  awk -v pid="$1" '$1 == pid { if (NF == 6) print $2, $3, $4, $5, $6; else print "unknown"; exit }'
+}
+
+reap_orphan_runs() {
+  local parent=$1 dir marker owner pid start extra snapshot='' current
+  for dir in "$parent"/fm-test-run.??????; do
+    marker="$dir/.fm-test-run-owner"
+    [ -d "$dir" ] && [ ! -L "$dir" ] && [ -O "$dir" ] || continue
+    [ -f "$marker" ] && [ ! -L "$marker" ] && [ -O "$marker" ] || continue
+    [ -n "$(find "$marker" -prune -mmin +1 -print)" ] || continue
+    IFS='|' read -r owner pid start extra <"$marker" || continue
+    [ "$owner" = "$UID" ] && [ -z "$extra" ] || continue
+    case "$pid" in ''|0*|*[!0-9]*) continue ;; esac
+    case "$start" in
+      [A-Za-z][A-Za-z][A-Za-z]\ [A-Za-z][A-Za-z][A-Za-z]\ [0-9]*\ [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\ [0-9][0-9][0-9][0-9]) ;;
+      *) continue ;;
+    esac
+    if [ -z "$snapshot" ]; then
+      snapshot=$(run_owner_snapshot) || return 0
+      [ -n "$(run_owner_start "$$" <<<"$snapshot")" ] || return 0
+    fi
+    current=$(run_owner_start "$pid" <<<"$snapshot")
+    [ "$start" != "$current" ] || continue
+    # If ps could see the PID but not its start time, we cannot prove reuse.
+    [ "$current" != unknown ] || continue
+    rm -rf -- "$dir"
+  done
+}
+
+RUN_TMP=
+RUN_INTERRUPT=0
+RUN_CRITICAL=0
+WORKER_PIDS=()
+WORKER_SCRIPTS=()
+WORKER_DEADLINES=()
+
+# Traps defer exit only while publishing an allocation or a background PID.
+# shellcheck disable=SC2329
+interrupt_run() {
+  RUN_INTERRUPT=$1
+  [ "$RUN_CRITICAL" -ne 0 ] || exit "$RUN_INTERRUPT"
+}
+
+stop_worker_groups() {
+  local pid signaled=()
+  for pid in "$@"; do
+    if kill -TERM -- "-$pid" 2>/dev/null; then signaled+=("$pid"); fi
+  done
+  if [ "${#signaled[@]}" -gt 0 ]; then
+    sleep 0.2
+    for pid in "${signaled[@]}"; do kill -KILL -- "-$pid" 2>/dev/null || true; done
+  fi
+  for pid in "$@"; do wait "$pid" 2>/dev/null || true; done
+}
+
+# shellcheck disable=SC2329
+cleanup_run() {
+  trap '' HUP INT TERM
+  stop_worker_groups "${WORKER_PIDS[@]+"${WORKER_PIDS[@]}"}"
+  if [ -n "$RUN_TMP" ]; then rm -rf -- "$RUN_TMP"; RUN_TMP=; fi
+}
+
+prepare_run_scratch() {
+  local base parent mode start snapshot
+  base=$(scratch_base) || exit "$?"
+  parent="${base%/}/firstmate-test-scratch-$UID"
+  check_scratch_placement "$parent"
+  (umask 077; mkdir -- "$parent") 2>/dev/null || true
+  [ -d "$parent" ] && [ ! -L "$parent" ] && [ -O "$parent" ] \
+    || die "scratch directory is not an owned, real directory: $parent"
+  if worker_root_mode_is_enforceable; then
+    mode=$(stat -c %a "$parent" 2>/dev/null || stat -f %Lp "$parent" 2>/dev/null) || mode=unknown
+    case "$mode" in 700|0700) ;; *) die "scratch directory must have mode 0700: $parent" ;; esac
+  fi
+  reap_orphan_runs "$parent"
+  trap cleanup_run EXIT
+  trap 'interrupt_run 129' HUP
+  trap 'interrupt_run 130' INT
+  trap 'interrupt_run 143' TERM
+  RUN_CRITICAL=1
+  RUN_TMP=$(mktemp -d "$parent/fm-test-run.XXXXXX") || die "cannot allocate test scratch under $parent"
+  RUN_CRITICAL=0
+  [ "$RUN_INTERRUPT" -eq 0 ] || exit "$RUN_INTERRUPT"
+  snapshot=$(LC_ALL=C TZ=UTC0 ps -p "$$" -o pid= -o lstart= 2>/dev/null) || snapshot=
+  start=$(run_owner_start "$$" <<<"$snapshot")
+  printf '%s|%s|%s\n' "$UID" "$$" "$start" >"$RUN_TMP/.fm-test-run-owner"
+  # Also covers temporary files used by runner helpers rather than the tests.
+  export TMPDIR="$RUN_TMP" TMP="$RUN_TMP" TEMP="$RUN_TMP"
+}
+
+worker_root_mode_is_enforceable() {
+  case "$(uname -s)" in
+    MINGW*|MSYS*) return 1 ;;
+    *) return 0 ;;
+  esac
+}
+
+if [ "$SCRATCH_BASE_ONLY" -eq 1 ]; then
+  scratch_base
+  exit $?
+fi
+
 if [ "$CHECK_COVERAGE" -eq 1 ]; then
+  prepare_run_scratch
   run_coverage_guard
   exit $?
 fi
@@ -2481,6 +2640,8 @@ if [ "$LIST_ONLY" -eq 1 ] || [ "$LIST_SCHEDULED" -eq 1 ]; then
   exit 0
 fi
 
+prepare_run_scratch
+
 # An empty selection is a clean result, not a no-op that falls through. Exiting
 # here also keeps every array expansion below off the empty-array path: under
 # `set -u`, bash 3.2 (the stock macOS shell) treats "${arr[@]}" on an empty
@@ -2504,8 +2665,8 @@ if [ "${#SCRIPTS[@]}" -eq 0 ]; then
     fi
   fi
   if [ -n "$JSON_PATH" ]; then
-    empty_rec=$(mktemp)
-    empty_fam=$(mktemp)
+    empty_rec="$RUN_TMP/empty-records.tsv"
+    empty_fam="$RUN_TMP/empty-families.tsv"
     : >"$empty_rec"
     : >"$empty_fam"
     empty_finished_iso=$(now_iso)
@@ -2536,6 +2697,7 @@ AUTO_CONCURRENCY=0
 if { [ "$MODE" = changed ] || [ "$MODE" = scripts ]; } && [ "$JOBS_EXPLICIT" -eq 0 ]; then
   if [ "$MODE" = changed ] && [ "${#SCRIPTS[@]}" -gt 0 ] && [ "$PER_SCRIPT_TIMEOUT_SECS" -eq 0 ]; then
     PER_SCRIPT_TIMEOUT_SECS=$CHANGED_DEFAULT_TIMEOUT_SECS
+    log "per-script timeout: ${PER_SCRIPT_TIMEOUT_SECS}s (--changed default)"
   fi
   auto_admissible=0
   for s in "${SCRIPTS[@]}"; do
@@ -2584,7 +2746,7 @@ CONCURRENT_SCRIPTS=()
 SERIAL_TAIL_SCRIPTS=()
 CONCURRENT_PHASE_BREAK=__fm_test_concurrent_phase_break__
 if [ "$JOBS" -gt 1 ]; then
-  SCHEDULE_TMP=$(mktemp "${TMPDIR:-/tmp}/fm-test-sched.XXXXXX")
+  SCHEDULE_TMP="$RUN_TMP/schedule.tsv"
   : >"$SCHEDULE_TMP"
   for s in "${SCRIPTS[@]}"; do
     if script_allows_concurrency "$s"; then
@@ -2617,27 +2779,9 @@ if [ "$JOBS" -gt 1 ]; then
   rm -f "$SCHEDULE_TMP"
 fi
 
-if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
-  [ -r "$ROOT/bin/fm-timeout-lib.sh" ] || die "per-script timeout helper not found: bin/fm-timeout-lib.sh"
-  # shellcheck source=bin/fm-timeout-lib.sh
-  . "$ROOT/bin/fm-timeout-lib.sh"
-fi
-
-RUN_TMP=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run.XXXXXX")
 RECORDS="$RUN_TMP/records.tsv"
 FAMILIES_TSV="$RUN_TMP/families.tsv"
 : >"$RECORDS"
-declare -a WORKER_PIDS=()
-declare -a WORKER_IDX=()
-declare -a WORKER_SCRIPTS=()
-
-# Invoked indirectly by the EXIT trap below.
-# shellcheck disable=SC2329
-cleanup_run() {
-  rm -rf "$RUN_TMP"
-}
-
-trap cleanup_run EXIT
 
 RUN_ID="fm-test-run-${RUN_STARTED_MS}-$$"
 TOTAL=0
@@ -2715,75 +2859,135 @@ record_script_result() {
   TOTAL=$((TOTAL + 1))
 }
 
-# Run <script>, capturing output to <out>. <stream> 1 also echoes it live.
-# <id> only has to be unique within this run. When PER_SCRIPT_TIMEOUT_SECS is
-# positive, a script that outruns it is terminated and reported as exit 124: a
-# hung script must become a bounded failure rather than an unbounded suite,
-# because an unbounded suite is what silently outruns its caller's budget.
-run_script_bounded() {  # <script> <out> <stream> <id>
-  local script=$1 out=$2 stream=$3 id=$4
-  # Declaring the variables local first keeps the helper's export scoped to this
-  # call and its child script, so the runner's own environment is left as the
-  # caller had it.
-  local GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM
-  # shellcheck source=tests/git-config-helpers.sh
-  . "$ROOT/tests/git-config-helpers.sh" || return
-  local rc
-  : "$id"
-  set +e
-  if [ "$stream" -eq 1 ]; then
-    if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
-      # Expansion is intentionally deferred to the child bash passed to -c.
-      # shellcheck disable=SC2016
-      fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash -c \
-        'bash "$1" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' _ "$script" "$out"
-      rc=$?
-    else
-      bash "$script" 2>&1 | tee "$out"
-      rc=${PIPESTATUS[0]}
-    fi
-  elif [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
-    fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash "$script" >"$out" 2>&1
-    rc=$?
-  else
-    bash "$script" >"$out" 2>&1
-    rc=$?
-  fi
-  if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ] && [ "$rc" -eq 124 ]; then
-    printf 'not ok - %s exceeded the per-script bound of %ss and was terminated\n' \
-      "$script" "$PER_SCRIPT_TIMEOUT_SECS" >>"$out"
-    [ "$stream" -eq 1 ] && tail -1 "$out"
-  fi
-  return "$rc"
-}
+worker_n=0
+active_workers=0
 
-run_one_serial() {
-  local script=$1
-  local base family expected out begin_iso begin_ms end_ms end_iso duration rc
+start_worker() {
+  local script=$1 stream=$2 work base family expected
+  worker_n=$((worker_n + 1))
+  work="$RUN_TMP/w$worker_n"
+  mkdir -p "$work/tmp"
+  chmod 0700 "$work" "$work/tmp" || die "could not chmod 0700 worker root $work"
   base=$(basename "$script")
   family=$(family_for_basename "$base")
   expected=$(expected_gate_skip_for_family "$family")
-  out="$RUN_TMP/out.$TOTAL"
-  begin_iso=$(now_iso)
-  begin_ms=$(now_ms)
-
   printf 'FM_TEST_BEGIN %s %s family=%s expected_gate_skip=%s\n' \
-    "$begin_iso" "$script" "$family" "$expected"
+    "$(now_iso)" "$script" "$family" "$expected"
+  # Monitor mode gives each worker its own group before this shell proceeds.
+  # Turn it off inside the worker so the test and tee share the same group.
+  # Deadlines live in this scheduler, not in nested timeout process groups.
+  : >"$work/output"
+  WORKER_DEADLINES[worker_n]=0
+  if [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
+    # SECONDS is coarse; rounding up never cuts the configured bound short.
+    WORKER_DEADLINES[worker_n]=$((SECONDS + 10#$PER_SCRIPT_TIMEOUT_SECS + 1))
+  fi
+  RUN_CRITICAL=1
+  set -m
+  (
+    trap - EXIT HUP INT TERM
+    set +m
+    export TMPDIR="$work/tmp" TMP="$work/tmp" TEMP="$work/tmp"
+    if [ "$stream" -eq 0 ]; then
+      unset FM_HOME FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_ROOT_OVERRIDE \
+        FM_PROJECTS_OVERRIDE FM_CONFIG_OVERRIDE FM_BACKEND 2>/dev/null || true
+    fi
+    # shellcheck source=tests/git-config-helpers.sh
+    . "$ROOT/tests/git-config-helpers.sh" || exit 1
+    cd "$ROOT" || exit 1
+    set +e
+    begin_ms=$(now_ms)
+    if [ "$stream" -eq 1 ]; then
+      bash "$script" 2>&1 | tee "$work/output"
+      rc=${PIPESTATUS[0]}
+    else
+      bash "$script" >"$work/output" 2>&1
+      rc=$?
+    fi
+    end_ms=$(now_ms)
+    duration=$((end_ms - begin_ms))
+    [ "$duration" -ge 0 ] || duration=0
+    printf '%s\n' "$duration" >"$work/duration_ms"
+    printf '%s\n' "$rc" >"$work/exit"
+  ) <&0 &
+  WORKER_PIDS[worker_n]=$!
+  set +m
+  WORKER_SCRIPTS[worker_n]=$script
+  active_workers=$((active_workers + 1))
+  RUN_CRITICAL=0
+  [ "$RUN_INTERRUPT" -eq 0 ] || exit "$RUN_INTERRUPT"
+}
 
-  set +e
-  # Stream live output while retaining a copy for gate-skip detection.
-  run_script_bounded "$script" "$out" 1 "s$TOTAL"
-  rc=$?
-  set -e
-  : "${rc:=1}"
+run_one_serial() {
+  if [ -t 0 ]; then start_worker "$1" 1 </dev/null; else start_worker "$1" 1; fi
+  if [ "$PER_SCRIPT_TIMEOUT_SECS" -eq 0 ]; then
+    # wait is interruptible: unlike a foreground pipeline it runs our signal
+    # traps immediately. The collector still drains any leftover group members.
+    wait "${WORKER_PIDS[$worker_n]}" || true
+    collect_worker "$worker_n" 1 0
+  else
+    wait_one_completed_job_worker 1
+  fi
+}
 
-  end_ms=$(now_ms)
+collect_worker() {
+  local slot=$1 stream=$2 timed_out=$3 pid work script rc duration mode out end_iso
+  pid=${WORKER_PIDS[$slot]}
+  script=${WORKER_SCRIPTS[$slot]}
+  work="$RUN_TMP/w$slot"
+  out="$work/output"
+  if [ "$timed_out" -eq 0 ]; then
+    wait "$pid" || true
+  fi
+  stop_worker_groups "$pid"
+  unset 'WORKER_PIDS[slot]' 'WORKER_SCRIPTS[slot]' 'WORKER_DEADLINES[slot]'
+  active_workers=$((active_workers - 1))
+  if [ "$timed_out" -eq 1 ]; then
+    rc=124
+    duration=$((PER_SCRIPT_TIMEOUT_SECS * 1000))
+    printf 'not ok - %s exceeded the per-script bound of %ss and was terminated\n' \
+      "$script" "$PER_SCRIPT_TIMEOUT_SECS" >>"$out"
+    [ "$stream" -eq 0 ] || tail -1 "$out"
+  else
+    rc=$(cat "$work/exit" 2>/dev/null || echo 1)
+    duration=$(cat "$work/duration_ms" 2>/dev/null || echo 0)
+  fi
   end_iso=$(now_iso)
-  duration=$((end_ms - begin_ms))
-  if [ "$duration" -lt 0 ]; then
-    duration=0
+  # Replay captured parallel output after the worker finishes, in one block.
+  if [ "$stream" -eq 0 ] && [ -s "$out" ]; then
+    cat "$out"
+  fi
+  if worker_root_mode_is_enforceable; then
+    mode=$(stat -c %a "$work" 2>/dev/null || stat -f %Lp "$work" 2>/dev/null || echo unknown)
+    case "$mode" in
+      700|0700) ;;
+      *)
+        log "isolation failure: worker root mode is $mode, expected 0700 ($work)"
+        rc=1
+        ;;
+    esac
   fi
   record_script_result "$script" "$rc" "$duration" "$out" "$end_iso"
+}
+
+wait_one_completed_job_worker() {
+  local stream=$1 slot running deadline
+  while :; do
+    # Keep `jobs` in this shell. A subshell does not have its job table.
+    jobs -p >"$RUN_TMP/running-pids"
+    running=$'\n'$(<"$RUN_TMP/running-pids")$'\n'
+    for slot in "${!WORKER_PIDS[@]}"; do
+      deadline=${WORKER_DEADLINES[$slot]}
+      if [ -f "$RUN_TMP/w$slot/exit" ] || [[ "$running" != *$'\n'"${WORKER_PIDS[$slot]}"$'\n'* ]]; then
+        collect_worker "$slot" "$stream" 0
+        return
+      elif [ "$deadline" -gt 0 ] && [ "$SECONDS" -ge "$deadline" ]; then
+        collect_worker "$slot" "$stream" 1
+        return
+      fi
+    done
+    sleep 0.05
+  done
 }
 
 if [ "$JOBS" -eq 1 ]; then
@@ -2791,130 +2995,20 @@ if [ "$JOBS" -eq 1 ]; then
     run_one_serial "$script"
   done
 else
-  # Bounded concurrent execution for admitted scripts. Each worker gets a
-  # private mode-0700 TMPDIR so mktemp roots cannot collide. Native Windows
-  # Bash layers report synthetic POSIX modes, so retain chmod there but enforce
-  # its observed mode only where the host reports real POSIX permissions.
-  # Retries are never used as a green strategy.
-  worker_n=0
-  active_workers=0
-
-  worker_root_mode_is_enforceable() {
-    case "$(uname -s)" in
-      MINGW*|MSYS*) return 1 ;;
-      *) return 0 ;;
-    esac
-  }
-
-  wait_one_job_worker() {
-    local slot=$1 pid idx work script rc duration mode out end_iso
-    pid=${WORKER_PIDS[$slot]}
-    idx=${WORKER_IDX[$slot]}
-    script=${WORKER_SCRIPTS[$slot]}
-    set +e
-    wait "$pid"
-    set -e
-    unset 'WORKER_PIDS[slot]'
-    unset 'WORKER_IDX[slot]'
-    unset 'WORKER_SCRIPTS[slot]'
-    active_workers=$((active_workers - 1))
-    work="$RUN_TMP/w$idx"
-    rc=$(cat "$work/exit" 2>/dev/null || echo 1)
-    duration=$(cat "$work/duration_ms" 2>/dev/null || echo 0)
-    out="$work/output"
-    end_iso=$(now_iso)
-    # Replay captured output after the worker finishes so markers stay ordered.
-    if [ -s "$out" ]; then
-      cat "$out"
-    fi
-    if worker_root_mode_is_enforceable; then
-      mode=$(stat -c %a "$work" 2>/dev/null || /usr/bin/stat -f %Lp "$work" 2>/dev/null || echo unknown)
-      case "$mode" in
-        700|0700) ;;
-        *)
-          log "isolation failure: worker root mode is $mode, expected 0700 ($work)"
-          rc=1
-          ;;
-      esac
-    fi
-    record_script_result "$script" "$rc" "$duration" "$out" "$end_iso"
-  }
-
-  worker_pid_is_running() {
-    local want=$1 running inventory="$RUN_TMP/running-pids"
-    # Keep `jobs` in this shell. A process substitution runs it in a subshell
-    # without this shell's job table on Bash 3.2/5.x, falsely reporting every
-    # worker complete and making the scheduler wait for the oldest PID.
-    jobs -r -p >"$inventory"
-    while IFS= read -r running; do
-      [ "$running" = "$want" ] && return 0
-    done <"$inventory"
-    return 1
-  }
-
-  wait_one_completed_job_worker() {
-    local slot work
-    while :; do
-      for slot in "${!WORKER_PIDS[@]}"; do
-        work="$RUN_TMP/w${WORKER_IDX[$slot]}"
-        if [ -f "$work/exit" ] || ! worker_pid_is_running "${WORKER_PIDS[$slot]}"; then
-          wait_one_job_worker "$slot"
-          return
-        fi
-      done
-      sleep 0.01
-    done
-  }
-
   for script in "${CONCURRENT_SCRIPTS[@]+"${CONCURRENT_SCRIPTS[@]}"}"; do
     if [ "$script" = "$CONCURRENT_PHASE_BREAK" ]; then
       while [ "$active_workers" -gt 0 ]; do
-        wait_one_completed_job_worker
+        wait_one_completed_job_worker 0
       done
       continue
     fi
     while [ "$active_workers" -ge "$JOBS" ]; do
-      wait_one_completed_job_worker
+      wait_one_completed_job_worker 0
     done
-    worker_n=$((worker_n + 1))
-    work="$RUN_TMP/w$worker_n"
-    mkdir -p "$work/tmp"
-    chmod 0700 "$work" "$work/tmp" || die "could not chmod 0700 worker root $work"
-    base=$(basename "$script")
-    family=$(family_for_basename "$base")
-    expected=$(expected_gate_skip_for_family "$family")
-    printf 'FM_TEST_BEGIN %s %s family=%s expected_gate_skip=%s\n' \
-      "$(now_iso)" "$script" "$family" "$expected"
-    (
-      trap - EXIT HUP INT TERM
-      set +e
-      export TMPDIR="$work/tmp"
-      export TMP="$work/tmp"
-      unset FM_HOME FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_ROOT_OVERRIDE \
-        FM_PROJECTS_OVERRIDE FM_CONFIG_OVERRIDE FM_BACKEND 2>/dev/null || true
-      cd "$ROOT" || exit 1
-      begin_ms=$(now_ms)
-      set +e
-      run_script_bounded "$script" "$work/output" 0 "w$worker_n"
-      rc=$?
-      set -e
-      end_ms=$(now_ms)
-      duration=$((end_ms - begin_ms))
-      if [ "$duration" -lt 0 ]; then
-        duration=0
-      fi
-      printf '%s\n' "$duration" >"$work/duration_ms"
-      printf '%s\n' "$rc" >"$work/exit"
-      exit 0
-    ) &
-    worker_pid=$!
-    WORKER_PIDS[worker_n]=$worker_pid
-    WORKER_IDX[worker_n]=$worker_n
-    WORKER_SCRIPTS[worker_n]=$script
-    active_workers=$((active_workers + 1))
+    start_worker "$script" 0 </dev/null
   done
   while [ "$active_workers" -gt 0 ]; do
-    wait_one_completed_job_worker
+    wait_one_completed_job_worker 0
   done
   # Unproven remainder, after every concurrent worker has finished.
   for script in "${SERIAL_TAIL_SCRIPTS[@]+"${SERIAL_TAIL_SCRIPTS[@]}"}"; do

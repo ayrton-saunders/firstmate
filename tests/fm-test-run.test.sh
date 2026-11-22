@@ -489,7 +489,7 @@ test_changed_bin_reference_selects_per_script_not_per_family() {
 # Exercise begin/end markers from real fixture processes to prove the automatic
 # changed-suite default and its explicit serial override.
 test_changed_uses_bounded_automatic_concurrency() {
-  local tmp repo script serial_shape parallel_shape timeout_repo timeout_script expected_jobs rc
+  local tmp repo script serial_shape parallel_shape expected_jobs
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-changed-consent.XXXXXX")
   repo="$tmp/repo"
   init_changed_fixture_repo "$repo"
@@ -535,37 +535,6 @@ assert automatic["selection"].split(";")[-1] == f"jobs={expected}"
 assert serial["selection"].split(";")[-1] == "jobs=1"
 PY
 
-  timeout_repo="$tmp/timeout-repo"
-  timeout_script=tests/fm-calm-pi-extension.test.sh
-  mkdir -p "$timeout_repo/bin" "$timeout_repo/tests"
-  cp "$RUNNER" "$timeout_repo/bin/fm-test-run.sh"
-  cp "$ROOT/tests/git-config-helpers.sh" "$timeout_repo/tests/"
-  cat >"$timeout_repo/bin/fm-timeout-lib.sh" <<'SH'
-fm_run_timed() {
-  [ "$1" -eq 1500 ] || return 99
-  return 124
-}
-SH
-  cat >"$timeout_repo/$timeout_script" <<'SH'
-#!/usr/bin/env bash
-touch should-not-run
-echo "not ok - automatic timeout helper was bypassed"
-SH
-  chmod +x "$timeout_repo/bin/fm-test-run.sh" "$timeout_repo/$timeout_script"
-  git -C "$timeout_repo" init -q
-  git -C "$timeout_repo" add .
-  git -C "$timeout_repo" -c user.name=test -c user.email=test@example.invalid commit -qm baseline
-  printf '\n' >>"$timeout_repo/$timeout_script"
-  set +e
-  (cd "$timeout_repo" && bin/fm-test-run.sh --changed --base HEAD) \
-    >"$tmp/timeout.out" 2>"$tmp/timeout.err"
-  rc=$?
-  set -e
-  [ "$rc" -eq 1 ] || fail "single-script automatic timeout must fail the run, got $rc"
-  grep -Eq '^FM_TEST_END .+ tests/fm-calm-pi-extension\.test\.sh exit=124 ' "$tmp/timeout.out" \
-    || fail "single unproven changed script did not receive the automatic timeout: $(cat "$tmp/timeout.out")"
-  [ ! -e "$timeout_repo/should-not-run" ] || fail "automatic timeout helper did not own the single changed script"
-
   rm -rf "$tmp"
   pass "changed defaults to bounded automatic scheduling with serial override"
 }
@@ -584,7 +553,7 @@ printf '%s\n' "${FAKE_UNAME:-MINGW64_NT-10.0}"
 SH
   cat >"$fakebin/stat" <<'SH'
 #!/usr/bin/env bash
-if [ "${1:-}" = -c ] && [ "${2:-}" = %a ]; then
+if [ "${1:-}" = -c ] && [ "${2:-}" = %a ] && [[ ${3##*/} = w[0-9]* ]]; then
   printf '%s\n' 755
   exit 0
 fi
@@ -1561,7 +1530,7 @@ test_concurrent_runs_are_ordered_longest_first() {
 # finishes. A hung script has to become a bounded failure, because an unbounded
 # suite is exactly what silently outruns its caller's invocation budget.
 test_per_script_timeout_bounds_a_hang() {
-  local tmp repo runner hang rc began ended grandchild_pid grandchild waited
+  local tmp repo runner hang rc began ended grandchild_pid grandchild waited worker_tmp
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-hang.XXXXXX")
   repo="$tmp/repo"
   runner="$repo/bin/fm-test-run.sh"
@@ -1574,7 +1543,8 @@ test_per_script_timeout_bounds_a_hang() {
   cat >"$repo/$hang" <<'SH'
 #!/usr/bin/env bash
 echo "ok - fixture is about to hang"
-sh -c 'trap "" TERM; echo $$ >"$1"; sleep 600' _ "$GRANDCHILD_PID" &
+printf '%s\n' "$TMPDIR" >"$GRANDCHILD_PID.tmpdir"
+sh -c 'trap "" TERM; echo $$ >"$1"; exec sleep 600' _ "$GRANDCHILD_PID" &
 sleep 600
 SH
   chmod +x "$runner" "$repo/$hang"
@@ -1597,14 +1567,16 @@ SH
   # The run still completes and accounts for the script, rather than dying.
   grep -Fq 'FM_TEST_SUMMARY total=1 failed=1' "$tmp/out" \
     || fail "the bounded run did not report a complete summary: $(cat "$tmp/out")"
+  worker_tmp=$(<"$grandchild_pid.tmpdir")
+  [ ! -e "${worker_tmp%/w1/tmp}" ] || fail 'timeout left its run root'
   [ -s "$grandchild_pid" ] || fail "the hanging fixture did not record its grandchild"
   grandchild=$(cat "$grandchild_pid")
   waited=0
-  while kill -0 "$grandchild" 2>/dev/null && [ "$waited" -lt 50 ]; do
+  while ps -p "$grandchild" -o stat= 2>/dev/null | grep -Eq '^[^Z ]' && [ "$waited" -lt 50 ]; do
     sleep 0.1
     waited=$((waited + 1))
   done
-  if kill -0 "$grandchild" 2>/dev/null; then
+  if ps -p "$grandchild" -o stat= 2>/dev/null | grep -Eq '^[^Z ]'; then
     kill -KILL "$grandchild" 2>/dev/null || true
     fail "the timed-out script left grandchild $grandchild running"
   fi
@@ -1628,7 +1600,7 @@ SH
 # 593s under CI load (pause and wedge-defer siblings are 467s and 527s), so the
 # automatic --changed bound must leave a slow but healthy watcher-wake-lock
 # script room while still bounding a genuinely hung one
-# (upstream issue #3869). The stub records the bound the runner hands it.
+# (upstream issue #3869). Check the executing runner's effective-bound diagnostic.
 test_changed_bound_gives_slow_watcher_suites_headroom() {
   local tmp repo script bound rc
   tmp=$(mktemp -d)
@@ -1637,13 +1609,6 @@ test_changed_bound_gives_slow_watcher_suites_headroom() {
   mkdir -p "$repo/bin" "$repo/tests"
   cp "$RUNNER" "$repo/bin/fm-test-run.sh"
   cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
-  cat >"$repo/bin/fm-timeout-lib.sh" <<'SH'
-fm_run_timed() {
-  printf '%s\n' "$1" >bound-secs
-  shift
-  "$@"
-}
-SH
   cat >"$repo/$script" <<'SH'
 #!/usr/bin/env bash
 echo "ok - healthy but slow watcher suite"
@@ -1658,8 +1623,8 @@ SH
   rc=$?
   set -e
   [ "$rc" -eq 0 ] || fail "healthy changed watcher script must pass, got $rc: $(cat "$tmp/out" "$tmp/err")"
-  [ -s "$repo/bound-secs" ] || fail "changed watcher script did not run under the automatic bound: $(cat "$tmp/out")"
-  bound=$(cat "$repo/bound-secs")
+  bound=$(awk '/per-script timeout: / { value=$(NF-2); sub(/s$/, "", value); print value }' "$tmp/err")
+  [ -n "$bound" ] || fail "changed watcher script did not report the automatic bound: $(cat "$tmp/err")"
   [ "$bound" -ge 1500 ] \
     || fail "automatic --changed bound for $script must be at least 1500s, got ${bound}s"
   rm -rf "$tmp"
@@ -1936,6 +1901,128 @@ assert len(doc["scripts"])==3
   pass "aggregate-json merges lane timing artifacts"
 }
 
+test_scratch_placement_and_lifecycle() {
+  local tmp
+  tmp=$(fm_test_tmproot fm-run-scratch-contract)
+  python3 - "$tmp" "$RUNNER" "$ROOT" <<'PY' || fail 'runner scratch contract'
+import os, pathlib, shutil, signal, subprocess, sys, time
+
+tmp, runner, root = map(pathlib.Path, sys.argv[1:])
+repo = tmp / 'repo'
+(repo / 'bin').mkdir(parents=True)
+(repo / 'tests').mkdir()
+runner = pathlib.Path(shutil.copy2(runner, repo / 'bin'))
+for name in ('git-config-helpers.sh', 'remote-secondmate-source-copy-helpers.sh'):
+    shutil.copy2(root / 'tests' / name, repo / 'tests')
+script = repo / 'tests/copy.test.sh'
+script.write_text('''#!/usr/bin/env bash
+set -eu
+. tests/remote-secondmate-source-copy-helpers.sh
+mktemp_dir=$(mktemp -d "$TMPDIR/copy.XXXXXX")
+fm_fixture_copy_remote_source "$PWD" "$mktemp_dir"
+[ -f "$mktemp_dir/tracked" ] && [ ! -e "$mktemp_dir/.test-phase-tmp" ]
+printf '%s\\n' "$TMPDIR" > "$PROOF"
+if [ "$PROBE_MODE" = hang ]; then exec sleep 300; fi
+[ "$PROBE_MODE" != fail ]
+''')
+(repo / 'tracked').touch()
+subprocess.run(['git', 'init', '-q', str(repo)], check=True)
+subprocess.run(['git', '-C', str(repo), 'add', 'tracked'], check=True)
+legacy = repo / '.test-phase-tmp'
+legacy.mkdir()
+(legacy / 'sentinel').touch()
+base = tmp / 'dedicated'
+base.mkdir()
+alias = tmp / 'alias'
+alias.symlink_to(legacy, target_is_directory=True)
+home = tmp / 'home'
+for blocked in (home / '.firstmate-preserved', home / '.treehouse', home / '.treehouse-bdm', tmp / 'fm-home', tmp / 'custom-treehouse'):
+    blocked.mkdir(parents=True)
+env = dict(os.environ, HOME=str(home), FM_HOME=str(tmp / 'fm-home'),
+           TREEHOUSE_ROOT=str(tmp / 'custom-treehouse'), TMPDIR=str(legacy),
+           TMP=str(legacy), TEMP=str(legacy), PROBE_MODE='pass')
+for key in ('FM_TEST_SCRATCH_PARENT', 'FM_TASK_ID'):
+    env.pop(key, None)
+cmd = [str(runner), str(script.relative_to(repo))]
+for blocked in (legacy, alias, home / '.firstmate-preserved', home / '.treehouse', home / '.treehouse-bdm', tmp / 'fm-home', tmp / 'custom-treehouse'):
+    result = subprocess.run([str(runner), '--scratch-base'], cwd=repo,
+                            env=dict(env, FM_TEST_SCRATCH_PARENT=str(blocked)), capture_output=True)
+    assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
+    assert not list(blocked.glob('firstmate-test-scratch-*')), blocked
+
+def launch(name, mode, explicit=True):
+    proof = tmp / name
+    case_env = dict(env, PROBE_MODE=mode, PROOF=str(proof))
+    if explicit:
+        case_env['FM_TEST_SCRATCH_PARENT'] = str(base)
+    log = (tmp / (name + '.log')).open('w')
+    with log:
+        # A Bash-launched background test may inherit SIGINT ignored. Deliver
+        # a catchable signal, as for a directly invoked foreground runner.
+        child = subprocess.Popen(cmd, cwd=repo, env=case_env, stdout=log, stderr=log,
+                                 preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
+    return child, proof
+
+def scratch(proof):
+    for _ in range(300):
+        if proof.exists() and proof.read_text().endswith('\n'):
+            worker_tmp = pathlib.Path(proof.read_text().strip())
+            assert worker_tmp.parts[-2:] == ('w1', 'tmp'), worker_tmp
+            return worker_tmp.parents[1]
+        time.sleep(0.05)
+    raise AssertionError(f'missing proof: {proof}')
+
+for mode, rc in [('pass', 0), ('fail', 1)]:
+    child, proof = launch(mode, mode, explicit=(mode == 'fail'))
+    assert child.wait(timeout=20) == rc
+    run = scratch(proof)
+    assert not run.exists() and repo not in run.parents, run
+assert sorted(p.name for p in legacy.iterdir()) == ['sentinel']
+private = base / f'firstmate-test-scratch-{os.getuid()}'
+result = subprocess.run(cmd, cwd=repo, env=dict(env, FM_HOME=str(private), FM_TEST_SCRATCH_PARENT=str(base)),
+                        capture_output=True)
+assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
+
+for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+    child, proof = launch(sig.name, 'hang')
+    try:
+        run = scratch(proof)
+        child.send_signal(sig)
+        assert child.wait(timeout=10) == 128 + sig, sig
+        assert not run.exists(), run
+    finally:
+        if child.poll() is None:
+            child.terminate()
+            child.wait(timeout=10)
+
+live, proof = launch('live', 'hang')
+try:
+    live_root = scratch(proof)
+    marker = live_root / '.fm-test-run-owner'
+    old = time.time() - 600
+    os.utime(marker, (old, old))
+    # A separate exited process supplies a real dead PID; otherwise use the
+    # live run's marker verbatim so the recovery schema is producer-owned.
+    exited = subprocess.Popen(['sleep', '0'])
+    exited.wait(timeout=5)
+    dead_root = live_root.with_name('fm-test-run.Dead01')
+    dead_root.mkdir()
+    dead_marker = dead_root / marker.name
+    dead_marker.write_text(marker.read_text().replace(f'|{live.pid}|', f'|{exited.pid}|'))
+    os.utime(dead_marker, (old, old))
+    unmarked = live_root.with_name('fm-test-run.Other1')
+    unmarked.mkdir()
+    other, proof = launch('reaper', 'pass')
+    assert other.wait(timeout=20) == 0
+    assert not dead_root.exists() and live_root.exists() and unmarked.exists()
+finally:
+    live.terminate()
+    live.wait(timeout=10)
+PY
+  pass 'runner scratch stays out of snapshots and is cleaned after results, signals and owner death'
+}
+
+test_scratch_placement_and_lifecycle
 test_list_all_exact_suite_coverage
 test_family_selection
 test_single_script_selection
