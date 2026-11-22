@@ -70,8 +70,22 @@ class Bridge:
                                duration_ms=round(elapsed*1000))) + b'\n'
         with self.locked():
             name = 'audit.jsonl'
-            s = regular(self.control, name)
-            if s and s.st_size >= M:
+            size = 0
+            if regular(self.control, name):
+                with os.fdopen(os.open(name, SAFE | os.O_RDWR, dir_fd=self.control), 'r+b') as f:
+                    safe(os.fstat(f.fileno()))
+                    size = end = f.seek(0, os.SEEK_END)
+                    while size:
+                        start = max(0, size - 4096)
+                        f.seek(start)
+                        newline = f.read(size - start).rfind(b'\n')
+                        if newline >= 0:
+                            size = start + newline + 1
+                            break
+                        size = start
+                    if size != end:
+                        f.truncate(size)
+            if size >= M:
                 os.rename(name, name+'.1', src_dir_fd=self.control, dst_dir_fd=self.control)
             with os.fdopen(os.open(name, SAFE | os.O_CREAT | os.O_WRONLY | os.O_APPEND, 0o600, dir_fd=self.control), 'ab') as f:
                 safe(os.fstat(f.fileno()))

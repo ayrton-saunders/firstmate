@@ -577,13 +577,34 @@ with extra.open('r+b') as out:
 wakes = (state/'.wake-queue').read_bytes()
 
 
+audit_before = log.read_bytes()
+audit_cap = len(audit_before) + 8
+
+
 def audit_limit():
     signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
-    resource.setrlimit(resource.RLIMIT_FSIZE, (1, 1))
+    resource.setrlimit(resource.RLIMIT_FSIZE, (audit_cap, audit_cap))
 
 
 call('bridge-submit', unknown, data=packet, preexec_fn=audit_limit, want='overload')
-call('bridge-status', c, preexec_fn=audit_limit, want='announced')
+torn = log.read_bytes()
+assert len(torn) == audit_cap and torn.startswith(audit_before) and not torn.endswith(b'\n')
+call('bridge-status', c, want='announced')
+repaired = log.read_bytes()
+assert repaired.startswith(audit_before)
+row = json.loads(repaired[len(audit_before):])
+assert row['verb'] == 'bridge-status' and row['result'] == 'announced'
+
+line = repaired[len(audit_before):]
+rotation_size = 1024*1024
+complete_log = line * (rotation_size // len(line) + 1)
+log.write_bytes(complete_log + torn[len(audit_before):])
+call('bridge-status', c, want='announced')
+rotated = log.with_name('audit.jsonl.1')
+assert rotated.read_bytes() == complete_log
+assert json.loads(log.read_bytes())['result'] == 'announced'
+rotated.unlink()
+log.write_bytes(repaired + log.read_bytes())
 call('jarvis-release', c, data=reply, want='overload')
 assert not (spool/fresh/'reply').exists() and not (inbox/'.replies'/fresh).exists()
 assert (state/'.wake-queue').read_bytes() == wakes and (pending/'manifest.json').exists()
