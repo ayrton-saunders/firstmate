@@ -421,6 +421,19 @@ fm_busy_record_read() {  # <state-dir> <id>
   printf '%s %s %s %s' "$r_state" "$r_source" "$r_event" "$r_seq"
 }
 
+# Position of a trusted busy event. An incarnation change invalidates an
+# earlier sequence, and a racing re-arm is not evidence of progress.
+fm_busy_progress_position() {  # <state-dir> <id> <harness>
+  local gen record state source event seq
+  gen=$(fm_busy_current_gen "$1" "$2") || return 1
+  record=$(fm_busy_record_read "$1" "$2") || return 1
+  # shellcheck disable=SC2034 # event separates the source and seq fields.
+  read -r state source event seq <<< "$record"
+  [ "$state" = busy ] && fm_busy_source_trusted "$3" "$source" || return 1
+  [ "$(fm_busy_current_gen "$1" "$2")" = "$gen" ] || return 1
+  printf '%s:%s' "$gen" "$seq"
+}
+
 # ---------------------------------------------------------------------------
 # muse session-log busy source
 #

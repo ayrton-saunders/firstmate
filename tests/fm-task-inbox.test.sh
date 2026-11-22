@@ -922,6 +922,29 @@ test_watcher_waits_on_busy_pane() {
   pass "watcher: busy deferrals survive restart, escalate once at the bound, and never type"
 }
 
+test_watcher_busy_budget_resets_on_progress() {
+  local dir state gen event="$ROOT/bin/fm-busy-event.sh"
+  dir=$(busy_case busy-progress)
+  state="$dir/state"
+  fm_write_meta "$state/t1.meta" 'window=sess:fm-t1' 'kind=secondmate' 'harness=claude'
+  gen=$("$event" arm "$state" t1) || fail "fixture: could not arm semantic busy state"
+  "$event" apply "$state" t1 busy --gen "$gen" --source claude-hook --event user-prompt-submit \
+    || fail "fixture: could not record the first turn"
+  busy_steer_check "$dir"
+  [ ! -s "$state/.wake-queue" ] || fail "the first busy deferral must wait"
+  "$event" apply "$state" t1 idle --gen "$gen" --source claude-hook --event stop \
+    || fail "fixture: could not close the first turn"
+  "$event" apply "$state" t1 busy --gen "$gen" --source claude-hook --event user-prompt-submit \
+    || fail "fixture: could not start the next turn"
+  busy_steer_check "$dir"
+  [ ! -s "$state/.wake-queue" ] || fail "progress between due checks was treated as stuck"
+  [ -f "$state/t1.inbox/001.msg" ] || fail "progress removed an unhandled steer"
+  busy_steer_check "$dir"
+  grep -q 'stuck-busy' "$state/.wake-queue" || fail "a later unchanged busy position did not escalate"
+  [ ! -s "$dir/send.log" ] || fail "busy worker received a doorbell"
+  pass "watcher: a trusted turn advance resets the same message's busy budget; an unchanged turn still escalates"
+}
+
 test_watcher_busy_budget_resets_on_ring_and_ack() {
   local dir rec
   dir=$(busy_case busy-reset)
@@ -1393,6 +1416,7 @@ test_fire_and_forget_retry_is_quiet_without_the_flag
 test_ring_ladder_policy
 test_watcher_rerings_idle_pane_quietly
 test_watcher_waits_on_busy_pane
+test_watcher_busy_budget_resets_on_progress
 test_watcher_busy_budget_resets_on_ring_and_ack
 test_watcher_busy_bookkeeping_failure_surfaces
 test_watcher_successor_busy_reset_failure_surfaces idle

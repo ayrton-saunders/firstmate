@@ -28,7 +28,7 @@
 #   <task>.inbox/.seq.lock     serializes sequence allocation across writers
 #                              (the session and the away daemon)
 #   <task>.inbox/.ring-state   watcher re-ring ladder: "<msg>\t<count>\t<epoch>"
-#   <task>.inbox/.busy-state   consecutive busy deferrals: "<msg>\t<count>"
+#   <task>.inbox/.busy-state   consecutive busy deferrals: "<msg>\t<count>\t<busy-position>"
 #   <task>.inbox/.escalated    oldest-message name already surfaced as stale,
 #                              so later polls suppress another escalation
 #   <task>.inbox/.retry-ring   name of a fire-and-forget record still owed its
@@ -57,8 +57,9 @@
 # caller owns the busy and recovery-grade endpoint checks: due actions deferred
 # by the caller's delivery guard consume a separate durable consecutive-poll budget,
 # FM_TASK_INBOX_BUSY_MAX. At that bound the same escalation path surfaces a
-# stuck-busy reason without submission. An allowed due check or acknowledgement
-# resets this budget. fm-busy-lib.sh owns the backend-specific delivery guard.
+# stuck-busy reason without submission. An allowed due check, acknowledgement,
+# or advance of the task's trusted busy position for that message resets this
+# budget. fm-busy-lib.sh owns the backend-specific delivery guard and position.
 # Fire-and-forget retries remain outside escalation. A positively
 # dead or missing endpoint skips delivery and the ladder and escalates directly.
 # This library owns the schedule, durable budgets, and escalation marker.
@@ -133,20 +134,37 @@ fm_task_inbox_busy_max() {
 
 # Persist before returning the new count, so a fresh watcher continues the same
 # bounded wait. A removed or acknowledged record is a quiet no-op.
-fm_task_inbox_record_busy() {  # <state-dir> <task-id> <record-path>
-  local dir base previous count
+fm_task_inbox_record_busy() {  # <state-dir> <task-id> <record-path> [trusted busy position]
+  local dir base previous count prior position=${4:-}
   dir=$(fm_task_inbox_dir "$1" "$2")
   base=${3##*/}
-  { IFS=$(printf '\t') read -r previous count < "$dir/.busy-state"; } 2>/dev/null || true
-  [ "${previous:-}" = "$base" ] || count=0
+  { IFS=$(printf '\t') read -r previous count prior < "$dir/.busy-state"; } 2>/dev/null || true
+  [ "${previous:-}" = "$base" ] || { count=0; prior=; }
   case "${count:-}" in ''|*[!0-9]*) count=0 ;; esac
+  if [ -n "${prior:-}" ] && [ -n "$position" ] && [ "$prior" != "$position" ]; then
+    count=0
+  fi
   [ -f "$3" ] || { printf '0'; return 0; }
   count=$((count + 1))
-  if ! { printf '%s\t%s\n' "$base" "$count" > "$dir/.busy-state"; } 2>/dev/null; then
+  if ! { printf '%s\t%s\t%s\n' "$base" "$count" "${position:-${prior:-}}" > "$dir/.busy-state"; } 2>/dev/null; then
     [ -f "$3" ] || { printf '0'; return 0; }
     return 1
   fi
   printf '%s' "$count"
+}
+
+# Extract the message named by the watcher's stuck-busy reason, not by the
+# current ladder (which may already have advanced to a different message).
+fm_task_inbox_stuck_busy_record() {  # <state-dir> <wake-reason>
+  local state=$1 reason=$2 record task
+  local pattern='^stale: [^[:space:]]+ \(unread firstmate instruction: stuck-busy after [0-9]+ consecutive busy-deferred due doorbells; (.+) stays unhandled and no doorbell was typed; inspect the worker\)$'
+  [[ "$reason" =~ $pattern ]] || return 1
+  record=${BASH_REMATCH[1]}
+  case "$record" in "$state"/*.inbox/*.msg) ;; *) return 1 ;; esac
+  task=${record%/*}; task=${task#"$state/"}; task=${task%.inbox}
+  case "$task" in ''|*[!A-Za-z0-9._-]*|.|..) return 1 ;; esac
+  fm_task_inbox_seq_of "${record##*/}" >/dev/null || return 1
+  printf '%s\n' "$record"
 }
 
 fm_task_inbox_clear_busy() {  # <state-dir> <task-id>

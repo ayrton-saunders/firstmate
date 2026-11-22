@@ -2462,6 +2462,33 @@ EOF
   [ "$start" -ge "$end" ]
 }
 
+# An in-flight signal can be selected before the sender publishes its owned
+# range. Only a complete, unchanged unread span of home-authored answers may
+# be acknowledged without presenting the signal. Do not infer authorship from
+# an `answered:` note alone, or treat the open-decision fold as presentation.
+status_unread_only_home_answers() {  # <status-file>
+  local f=$1 start end ident span line note unstamped open
+  [ -f "${f%/*}/.status-presentation-cursor" ] || return 1
+  _fm_status_read_ident_size "$f" || return 1
+  ident=$_FM_STAT_IDENTITY end=${_FM_STAT_SIZE//[[:space:]]/}
+  start=$(status_presentation_cursor_offset "$f") || return 1
+  [ "$start" -lt "$end" ] || return 1
+  status_home_appends_covers "$f" "$start" "$end" || return 1
+  span=$(_fm_status_read_span "$f" "$start" "$((end - start))") || return 1
+  [ -n "$span" ] || return 1
+  while IFS= read -r line; do
+    [ "$(status_line_verb "$line")" = resolved ] || return 1
+    _fm_status_unstamped "$line" unstamped
+    _fm_key_before_colon "$unstamped" && _fm_decision_key "$line" >/dev/null || return 1
+    status_line_note "$line" note
+    case "$note" in answered|answered:*) ;; *) return 1 ;; esac
+  done <<< "$span"
+  open=$(status_open_decisions "$f") || return 1
+  [ -z "$open" ] || return 1
+  _fm_status_read_ident_size "$f" || return 1
+  [ "$_FM_STAT_IDENTITY" = "$ident" ] && [ "${_FM_STAT_SIZE//[[:space:]]/}" = "$end" ]
+}
+
 status_home_appends_record() {  # <status-file> <start> <end>
   local f=$1 start=$2 end=$3 path lock rc=0
   case "$start:$end" in *[!0-9:]*) return 1 ;; esac

@@ -132,7 +132,7 @@ test_attended_captain_outcome_reaches_main_through_branch_outcomes() {
   echo captain > "$home/stub-mode"
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "captain: the host never started a watcher cycle"
-  append_status "$home" 'ready for review'
+  append_status "$home" 'PR ready for review' 'done'
   wait_until_deadline 60 host_exited "$home" || fail "captain: the captain outcome did not wake main: $(cat "$home/state/.supervision-host.log")"
   expect_code 0 "$(cat "$home/host.rc")" "a captain-outcome exit must exit 0 for the owner to deliver"
   assert_re '^supervision-host: branch-outcome: .*\(store rows 1\); run bin/fm-wake-drain.sh' "$home/host.out" \
@@ -212,12 +212,13 @@ test_quiet_record_without_its_daemon_is_a_present_captain() {
   pass "host: a quiet record without its daemon is a present captain, so outcomes and decisions reach main"
 }
 
-test_attended_main_only_close_passes_straight_to_main() {
+assert_attended_main_only_status() {  # <verb>
   local home
-  home=$(make_home attended-main-only attended)
+  home=$(make_home "attended-main-only-$1" attended)
+  printf 'kind=secondmate\n' >> "$home/state/demo.meta"
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "main-only: the host never started a watcher cycle"
-  append_status "$home" 'which export format?' needs-decision
+  append_status "$home" 'which export format?' "$1"
   wait_until_deadline 60 host_exited "$home" || fail "main-only: the decision close did not reach main: $(cat "$home/state/.supervision-host.log")"
   expect_code 0 "$(cat "$home/host.rc")" "a main-only close must exit 0"
   assert_re '^signal: .*demo.status' "$home/host.out" "the close must carry the watcher's reason line"
@@ -225,9 +226,182 @@ test_attended_main_only_close_passes_straight_to_main() {
   [ "$(engine_calls "$home")" -eq 0 ] || fail "main-only: the engine ran for a decision close"
   assert_grep 'demo.status' "$home/state/.wake-queue" "the decision wake must stay queued for main"
   assert_re '	pass-through	attended	main-only	signal:' "$home/state/.supervision-host.log" "the ledger must record why the close went to main"
-  pass "host: an attended decision close stays main's exactly as the plain arm delivers it"
+  stop_home_processes "$home"
+  pass "host: an attended $1 close stays main's exactly as the plain arm delivers it"
 }
 
+test_attended_main_only_close_passes_straight_to_main() { assert_attended_main_only_status needs-decision; }
+test_attended_blocked_close_passes_straight_to_main() { assert_attended_main_only_status blocked; }
+
+test_attended_failed_status_reaches_main() {
+  local home drain
+  home=$(make_home attended-failed-status attended)
+  printf 'captain\n' > "$home/stub-mode"
+  start_host "$home"
+  wait_until 150 watcher_live "$home" || fail "failed status: watcher never started"
+  append_status "$home" 'build could not complete' failed
+  wait_until_deadline 60 host_exited "$home" || fail "failed status: failure did not reach main"
+  assert_re '^supervision-host: branch-outcome:' "$home/host.out" "failed status did not come back as a captain outcome"
+  assert_grep 'build could not complete' "$home/engine-drain.1" "the failure was absent from the branch's drain"
+  drain=$(FM_HOME="$home" "$FAKE_CLAUDE" -c '"$0" 2>&1' "$ROOT/bin/fm-wake-drain.sh")
+  assert_contains "$drain" 'BRANCH OUTCOMES (captain outcomes' "main's drain lost the failure outcome"
+  stop_home_processes "$home"
+  pass "host: an attended failed status can surface as a captain outcome"
+}
+
+routine_wake_lib() {  # <home> <wake-lib function> [args...]
+  local home=$1
+  shift
+  FM_HOME="$home" bash -c '. "$1"; shift; "$@"' _ "$ROOT/bin/fm-wake-lib.sh" "$@"
+}
+
+assert_routine_close_acknowledged() {  # <home> <reason pattern>
+  local home=$1 log="$1/state/.supervision-host.log"
+  wait_until_deadline 60 grep -Eq 'routine-ack|pass-through|to-main' "$log" \
+    || fail "the host did not classify the routine close"
+  assert_re "routine-ack[[:space:]]+$2" "$log" "the host did not acknowledge the routine close"
+  [ ! -s "$home/state/.wake-queue" ] || fail "the routine close was not removed from the queue"
+  [ "$(engine_calls "$home")" = 0 ] || fail "a deterministic acknowledgement ran an engine turn"
+  [ ! -s "$home/host.rc" ] || fail "a routine close exited to main"
+  assert_no_re '^(signal:|stale:|check:|supervision-host:)' "$home/host.out" "a routine close reached main"
+  watcher_live "$home" || fail "the host did not retain its successor watcher"
+}
+
+# Delay only the release of evidence until the watcher has already closed.
+# The real offer and host still classify at their normal boundaries.
+install_first_offer_action() {  # <home> <shell command>
+  local real_node
+  real_node=$(command -v node)
+  cat > "$1/fakebin/node" <<SH
+#!/usr/bin/env bash
+if [ "\${2:-}" = offer ] && [ ! -e "\$FM_HOME/offer-action-ran" ]; then
+  : > "\$FM_HOME/offer-action-ran"
+  $2 || exit 1
+fi
+exec "$real_node" "\$@"
+SH
+  chmod +x "$1/fakebin/node"
+}
+
+# Reproduce the race where the watcher sees the close before the same home's
+# append receipt is published. The receipt comes from fm-send's append primitive.
+test_attended_answer_close() {  # <owned|external|mixed>
+  local mode=$1 home state f baseline action real_mv
+  home=$(make_home "attended-answer-$mode" quiet)
+  state="$home/state"
+  f="$state/demo.status"
+  printf 'kind=secondmate\n' >> "$state/demo.meta"
+  printf 'needs-decision [key=answer-test]: choose\n' > "$f"
+  routine_wake_lib "$home" fm_wake_status_mark_current "$state" "$f" || fail "fixture: could not baseline the decision"
+  routine_wake_lib "$home" fm_wake_append signal demo.status "needs-decision: $f" || fail "fixture: could not queue the decision"
+  main_drain_and_ack "$home"
+  [ ! -s "$state/.wake-queue" ] || fail "fixture: prior decision is still queued"
+  baseline=$(routine_wake_lib "$home" fm_wake_signal_sig "$f")
+  routine_wake_lib "$home" fm_wake_status_reported_commit "$state" "$f" "$baseline" || fail "fixture: prior decision could still wake"
+  action=:
+  if [ "$mode" != external ]; then
+    real_mv=$(command -v mv)
+    cat > "$home/fakebin/mv" <<SH
+#!/usr/bin/env bash
+if [ "\${3:-}" = "\$FM_HOME/state/.demo.home-appends" ]; then
+  exec "$real_mv" "\$2" "\$FM_HOME/delayed-home-appends"
+fi
+exec "$real_mv" "\$@"
+SH
+    chmod +x "$home/fakebin/mv"
+    FM_HOME="$home" PATH="$home/fakebin:$PATH" bash -c '
+      . "$1"
+      fm_wake_status_append_self_announced "$2" "$3" "resolved [key=answer-test]: answered: go ahead"
+    ' _ "$ROOT/bin/fm-wake-lib.sh" "$state" "$f"
+    [ -s "$home/delayed-home-appends" ] || fail "fixture: no append receipt was delayed"
+    rm "$home/fakebin/mv"
+    # The watcher was already looking at the prior signature when the writer
+    # appended. Restore its pre-answer classified position, not presentation.
+    routine_wake_lib "$home" fm_wake_status_seen_commit "$state" "$f" \
+      "$(head -n 1 "$f" | wc -c | tr -d ' ')" "$(awk -F '\t' '$1 == "demo" { print $2 }' "$state/.status-presentation-cursor")" \
+      || fail "fixture: could not replay the watcher snapshot"
+    routine_wake_lib "$home" fm_wake_status_reported_commit "$state" "$f" "$baseline" || fail "fixture: could not restore the old signature"
+    action='mv "$FM_HOME/delayed-home-appends" "$FM_HOME/state/.demo.home-appends"'
+  else
+    printf 'resolved [key=answer-test]: answered: go ahead\n' >> "$f"
+  fi
+  if [ "$mode" = mixed ]; then
+    action+=$'\n''  printf "needs-decision [key=new-choice]: choose again\n" >> "$FM_HOME/state/demo.status"'
+  fi
+  install_first_offer_action "$home" "$action"
+  start_host "$home"
+  if [ "$mode" = owned ]; then
+    assert_routine_close_acknowledged "$home" 'signal: .*demo.status'
+  else
+    wait_until_deadline 60 host_exited "$home" || fail "$mode: did not hand the signal back to main"
+    assert_re '^signal: .*demo.status' "$home/host.out" "$mode: the signal did not reach main"
+    [ -s "$state/.wake-queue" ] || fail "$mode: the host consumed consequential work"
+  fi
+  stop_home_processes "$home"
+  pass "host: attended answer signal with $mode provenance/content routes correctly"
+}
+
+test_attended_busy_inbox_close() {  # <handled|stuck>
+  local mode=$1 home rec
+  home=$(make_home "attended-busy-$mode" quiet)
+  printf 'project=demo\nwindow=sess:fm-demo\nkind=secondmate\nharness=grok\n' > "$home/state/demo.meta"
+  cat > "$home/fakebin/tmux" <<'SH'
+#!/usr/bin/env bash
+case "$1" in
+  capture-pane) echo BUSYTOKEN ;;
+  display-message) echo fakepane ;;
+  list-windows) echo fm-demo ;;
+  *) exit 1 ;;
+esac
+SH
+  chmod +x "$home/fakebin/tmux"
+  rec=$(FM_HOME="$home" bash -c '. "$1"; fm_task_inbox_write "$2" demo steer' _ "$ROOT/bin/fm-task-inbox-lib.sh" "$home/state") \
+    || fail "fixture: could not write an inbox record"
+  if [ "$mode" = handled ]; then
+    install_first_offer_action "$home" 'mv "$FM_HOME/state/demo.inbox/001.msg" "$FM_HOME/state/demo.inbox/handled/"'
+  fi
+  FM_BUSY_REGEX=BUSYTOKEN FM_TASK_INBOX_GRACE_SECS=0 start_host "$home"
+  if [ "$mode" = handled ]; then
+    assert_routine_close_acknowledged "$home" 'stale: .*stuck-busy'
+    [ -f "$home/state/demo.inbox/handled/${rec##*/}" ] || fail "fixture: the worker did not handle the named record"
+  else
+    wait_until_deadline 60 host_exited "$home" || fail "a genuinely stuck inbox never reached main"
+    assert_re '^stale: .*stuck-busy' "$home/host.out" "the stuck reason did not reach main"
+    assert_grep 'stuck-busy' "$home/state/.wake-queue" "the stuck wake must stay queued"
+    [ -f "$rec" ] || fail "the stuck record was lost"
+  fi
+  stop_home_processes "$home"
+  pass "host: a $mode inbox stale closes in the correct destination"
+}
+
+test_attended_resurface() {  # <empty|credential|captain-outcome>
+  local mode=$1 home
+  home=$(make_home "attended-resurface-$mode" quiet)
+  : > "$home/state/.wake-queue"
+  case "$mode" in
+    credential) routine_wake_lib "$home" fm_wake_append check needs-gh-auth 'check: GitHub login required' || fail "fixture: no credential check" ;;
+    captain-outcome)
+      FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" append --task demo --verdict captain \
+        --summary 'a review requires attention' >/dev/null || fail "fixture: no captain outcome" ;;
+  esac
+  routine_wake_lib "$home" fm_recovery_marker_publish "$home/state/.watcher-down" downtime || fail "fixture: no recovery episode"
+  start_host "$home"
+  if [ "$mode" = empty ]; then
+    assert_routine_close_acknowledged "$home" 'check: rearm-resurface$'
+    assert_re '^acked:' "$home/state/.watcher-down" "empty resurfacing did not acknowledge recovery"
+  else
+    wait_until_deadline 60 host_exited "$home" || fail "$mode: recovery did not reach main"
+    assert_re '^check: rearm-resurface$' "$home/host.out" "$mode: recovery was suppressed"
+    local drain
+    drain=$(FM_HOME="$home" "$FAKE_CLAUDE" -c '"$0" 2>&1' "$ROOT/bin/fm-wake-drain.sh")
+    case "$mode" in
+      credential) assert_contains "$drain" 'GitHub login required' "the credentials request was lost" ;;
+      captain-outcome) assert_contains "$drain" 'a review requires attention' "the captain outcome was lost" ;;
+    esac
+  fi
+  stop_home_processes "$home"
+  pass "host: attended recovery with $mode routes correctly"
+}
 
 # The file is read at every wake (docs/configuration.md "Supervision host"), so
 # an off written while the host is parked sends the next attended close to main
@@ -537,6 +711,9 @@ dialog_restart_diagnostic_snapshot() {  # <private home> <stage>
 park_after_stop() {  # <home>
   DIALOG_RESTART_DIAGNOSTIC_STEP=$(( ${DIALOG_RESTART_DIAGNOSTIC_STEP:-0} + 1 ))
   dialog_restart_diagnostic_snapshot "$1" before-restart
+  # Provide intentional main work so even an otherwise empty recovery still
+  # hands back for this fixture's explicit drain and next park.
+  routine_wake_lib "$1" fm_wake_append check fixture-restart 'check: fixture restart' || fail "could not queue the restart check"
   rm -f "$1/host.rc"
   : > "$1/park.go"
   wait_until 150 host_exited "$1" || {
@@ -1069,6 +1246,15 @@ diagnostic_suite_cleanup() {
 }
 trap diagnostic_suite_cleanup EXIT
 
+test_owned_answer_close() { test_attended_answer_close owned; }
+test_external_answer_close() { test_attended_answer_close external; }
+test_mixed_answer_close() { test_attended_answer_close mixed; }
+test_handled_busy_inbox_close() { test_attended_busy_inbox_close handled; }
+test_stuck_busy_inbox_close() { test_attended_busy_inbox_close stuck; }
+test_empty_resurface() { test_attended_resurface empty; }
+test_credential_resurface() { test_attended_resurface credential; }
+test_captain_outcome_resurface() { test_attended_resurface captain-outcome; }
+
 fm_test_run \
   test_park_exit_probe_uses_half_second_child_sleeps \
   test_attended_routine_wake_is_handled_on_the_engine_and_stays_off_main \
@@ -1078,6 +1264,16 @@ fm_test_run \
   test_captain_leaving_mid_turn_keeps_its_captain_outcome_for_the_return \
   test_quiet_record_without_its_daemon_is_a_present_captain \
   test_attended_main_only_close_passes_straight_to_main \
+  test_attended_blocked_close_passes_straight_to_main \
+  test_attended_failed_status_reaches_main \
+  test_owned_answer_close \
+  test_external_answer_close \
+  test_mixed_answer_close \
+  test_handled_busy_inbox_close \
+  test_stuck_busy_inbox_close \
+  test_empty_resurface \
+  test_credential_resurface \
+  test_captain_outcome_resurface \
   test_off_written_while_parked_passes_the_next_attended_close_to_main \
   test_main_only_pass_through_leaves_the_successor_watcher_running \
   test_attended_close_with_unidentified_main_session_passes_to_main \

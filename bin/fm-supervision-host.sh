@@ -49,8 +49,8 @@
 #     lock holder can be identified, the session is not cooling down after
 #     engine errors, and the Pi branch's offer rule
 #     (bin/fm-branch-dispatch.mjs offer) says the branch may take this close,
-#     so main-only classes (check triggers, decision-owned triggers, a scan
-#     that is unsafe or holds nothing for the branch) stay main's. That
+#     or the host proves it can acknowledge the whole close without a turn
+#     (docs/supervision-host.md "Attended"). Other main-only closes stay main's. That
 #     pass-through starts the successor watcher cycle and leaves it running
 #     before the close is printed, so supervision continues when the session
 #     drops the handoff. It confirms no handling handoff and republishes the
@@ -202,6 +202,8 @@ CONFIG="${FM_CONFIG_OVERRIDE:-$FM_HOME/config}"
 . "$SCRIPT_DIR/fm-wake-lib.sh"
 # shellcheck source=bin/fm-session-lock-lib.sh
 . "$SCRIPT_DIR/fm-session-lock-lib.sh"
+# shellcheck source=bin/fm-task-inbox-lib.sh
+. "$SCRIPT_DIR/fm-task-inbox-lib.sh"
 # shellcheck source=bin/fm-timeout-lib.sh
 . "$SCRIPT_DIR/fm-timeout-lib.sh"
 # shellcheck source=bin/fm-supervision-engine-lib.sh
@@ -1016,6 +1018,118 @@ health_record() {  # <engine-error 0|1> <reports>
   health_save
 }
 
+# A proven routine close needs no engine turn. Return its exact queue rows,
+# or an empty set only for rearm-resurface with no queued work. A mixed,
+# malformed or unrelated batch stays on the normal routing path.
+attended_routine_rows() {  # <reason>
+  local reason=$1 queue='' seq kind key payload epoch extra record='' task target='' f rows='' pending
+  local -a files
+  # A first cycle that closes before readiness is streamed still has its
+  # normal arm status line in ARM_TEXT. No other diagnostics are ignorable.
+  case "$ARM_TEXT" in
+    "$reason"|watcher:\ started\ *$'\n'"$reason"|watcher:\ attached\ *$'\n'"$reason")
+      case "${ARM_TEXT%"$reason"}" in *$'\n'*$'\n'*) return 1 ;; esac ;;
+    *) return 1 ;;
+  esac
+  if [ -e "$FM_WAKE_QUEUE" ] || [ -L "$FM_WAKE_QUEUE" ]; then
+    [ -f "$FM_WAKE_QUEUE" ] && [ ! -L "$FM_WAKE_QUEUE" ] || return 1
+    queue=$(cat "$FM_WAKE_QUEUE") || return 1
+  fi
+  case "$reason" in
+    'check: rearm-resurface')
+      [ -z "$queue" ] || return 1
+      # A killed host may have recorded a captain outcome before hand-back.
+      if [ -e "$STATE/branch-outcomes.jsonl" ]; then
+        pending=$("$SCRIPT_DIR/fm-branch-outcome.sh" unread) || return 1
+        [ "$(printf '%s\n' "$pending" | jq -rs 'any(.verdict == "captain")')" = false ] || return 1
+        pending=$("$SCRIPT_DIR/fm-branch-outcome.sh" unprocessed) || return 1
+        [ -z "$pending" ] || return 1
+      fi
+      return 0
+      ;;
+    signal:*)
+      _fm_wake_require_classify || return 1
+      read -r -a files <<< "${reason#signal:}"
+      [ "${#files[@]}" -gt 0 ] || return 1
+      for f in "${files[@]}"; do
+        case "${f##*/}" in *.status) ;; *) return 1 ;; esac
+        [ "$f" = "$STATE/${f##*/}" ] || return 1
+        task=${f##*/}; task=${task%.status}
+        case "$task" in ''|*[!A-Za-z0-9._-]*|.|..) return 1 ;; esac
+        status_unread_only_home_answers "$f" || return 1
+      done
+      ;;
+    stale:*)
+      record=$(fm_task_inbox_stuck_busy_record "$STATE" "$reason") || return 1
+      [ ! -e "$record" ] && [ ! -L "$record" ] && [ -f "${record%/*}/handled/${record##*/}" ] || return 1
+      _fm_wake_require_classify || return 1
+      target=${reason#stale: }; target=${target%% *}
+      task=$(window_to_task "$target" "$STATE")
+      [ -n "$task" ] && [ "$record" = "$STATE/$task.inbox/${record##*/}" ] || return 1
+      ;;
+    *) return 1 ;;
+  esac
+  [ -n "$queue" ] || return 1
+  while IFS=$'\t' read -r epoch seq kind key payload extra; do
+    case "$epoch:$seq" in *[!0-9:]*|:*|*:) return 1 ;; esac
+    [ -z "$extra" ] || return 1
+    case "$kind:$reason" in
+      signal:signal:*)
+        case "$payload" in "$reason"|"needs-decision:${reason#signal:}") ;; *) return 1 ;; esac
+        case " ${reason#signal:} " in *" $STATE/$key "*) ;; *) return 1 ;; esac
+        ;;
+      stale:stale:*) [ "$key" = "$target" ] && [ "$payload" = "$reason" ] || return 1 ;;
+      *) return 1 ;;
+    esac
+    rows=${rows:+$rows }$seq
+  done <<< "$queue"
+  printf '%s\n' "$rows"
+}
+
+publish_wake_grant() {  # <space-separated rows>
+  local rc
+  if [ "$GRANT_ACTIVE" -eq 0 ]; then
+    "$SCRIPT_DIR/fm-wake-grant.sh" activate "$HOST_PID" "$GEN" >/dev/null 2>&1 || {
+      HANDLE_WHY="the branch grant could not be activated"
+      return 1
+    }
+    GRANT_ACTIVE=1
+  fi
+  # shellcheck disable=SC2086 # the classifier's exact decimal sequence numbers
+  "$SCRIPT_DIR/fm-wake-grant.sh" publish "$GEN" $1 >/dev/null 2>&1
+  rc=$?
+  case "$rc" in
+    0) return 0 ;;
+    3) HANDLE_WHY="main already claimed these wake rows" ;;
+    *) HANDLE_WHY="the branch grant could not be published" ;;
+  esac
+  return 1
+}
+
+acknowledge_routine_close() {  # <exact rows, or empty for rearm-resurface>
+  local rows=$1 marker="$STATE/.watcher-down" generation rc=0 unacked
+  host_still_owner || return 1
+  fm_recovery_marker_snapshot "$marker" || return 1
+  generation=${FM_RECOVERY_MARKER_TOKEN##*:}
+  [ -n "$generation" ] || return 1
+  if [ -z "$rows" ]; then
+    fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK" || return 1
+    if [ -s "$FM_WAKE_QUEUE" ]; then
+      rc=1
+    else
+      fm_recovery_marker_ack "$marker" "$generation" || rc=$?
+    fi
+    fm_lock_release "$FM_WAKE_QUEUE_LOCK"
+    return "$rc"
+  fi
+  publish_wake_grant "$rows" || return 1
+  branch_env "$SCRIPT_DIR/fm-wake-drain.sh" --ack-through "${rows##* }" --recovery-generation "$generation" >/dev/null 2>&1 || rc=$?
+  # shellcheck disable=SC2086 # rows are the exact sequence numbers just granted
+  unacked=$(fm_wake_rows_queued $rows) || rc=1
+  "$SCRIPT_DIR/fm-wake-grant.sh" release "$GEN" >/dev/null 2>&1 || rc=1
+  [ "$rc" -eq 0 ] && [ -z "$unacked" ]
+}
+
 # Handle one close on the engine, in the posture the record gives when the
 # turn starts (TURN_POSTURE). Returns 0 when the wake is handled (or held
 # nothing the branch may claim), 2 with ATTENDED_WHY set when the turn starts
@@ -1033,7 +1147,15 @@ handle_wake() {  # <reason-lines>
   ! fm_afk_contract_away_present "$STATE" || TURN_POSTURE=away
   first=$(printf '%s\n' "$reason" | head -n 1)
   if [ "$TURN_POSTURE" = attended ]; then
-    attended_acceptor "$first" || return 2
+    attended_acceptor "$reason" || return 2
+    if [ "$ATTENDED_ROUTINE" -eq 1 ]; then
+      if acknowledge_routine_close "$ATTENDED_ROUTINE_ROWS"; then
+        log_line "routine-ack	$first"
+        return 0
+      fi
+      HANDLE_WHY="the routine close could not be acknowledged safely"
+      return 1
+    fi
     scope=$ATTENDED_OFFER
   else
     set --
@@ -1056,21 +1178,7 @@ handle_wake() {  # <reason-lines>
     log_line "no-op	nothing for the branch to claim	$first"
     return 0
   fi
-  if [ "$GRANT_ACTIVE" -eq 0 ]; then
-    if ! "$SCRIPT_DIR/fm-wake-grant.sh" activate "$HOST_PID" "$GEN" >/dev/null 2>&1; then
-      HANDLE_WHY="the branch grant could not be activated"
-      return 1
-    fi
-    GRANT_ACTIVE=1
-  fi
-  # shellcheck disable=SC2086 # rows is a space-separated list of sequence numbers.
-  "$SCRIPT_DIR/fm-wake-grant.sh" publish "$GEN" $rows >/dev/null 2>&1
-  rc=$?
-  case "$rc" in
-    0) ;;
-    3) HANDLE_WHY="main already claimed these wake rows"; return 1 ;;
-    *) HANDLE_WHY="the branch grant could not be published"; return 1 ;;
-  esac
+  publish_wake_grant "$rows" || return 1
   if ! host_still_owner; then
     "$SCRIPT_DIR/fm-wake-grant.sh" release "$GEN" >/dev/null 2>&1 || true
     HANDLE_WHY="this session no longer owns supervision"
@@ -1210,19 +1318,24 @@ turn_captain_seqs() {  # <turn>
 # Why an attended close stays with main exactly as the plain arm delivers it,
 # or nothing when the supervision session may take it. Sets ATTENDED_WHY, and
 # ATTENDED_OFFER to the offer's verdict and the scope it judged.
-attended_acceptor() {  # <first-reason-line>
-  local offer=
+attended_acceptor() {  # <reason-lines>
+  local offer='' first=${1%%$'\n'*}
   ATTENDED_WHY=
   ATTENDED_OFFER=
+  ATTENDED_ROUTINE=0
+  ATTENDED_ROUTINE_ROWS=
   if ! fm_supervision_host_attended_ready "$CONFIG" "$PRIMARY"; then
     ATTENDED_WHY=$FM_SUPERVISION_HOST_UNREADY
   elif ! fm_supervision_host_main_key "$STATE" >/dev/null; then
     ATTENDED_WHY="the main session could not be identified"
   elif health_cooling; then
     ATTENDED_WHY="the supervision session is cooling down after engine errors"
-  elif ! offer=$(printf '%s\n' "$1" | node "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer 2>/dev/null); then
+  elif ! offer=$(printf '%s\n' "$first" | node "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer 2>/dev/null); then
     ATTENDED_WHY="branch eligibility could not be computed"
-  elif [ "$(printf '%s\n' "$offer" | sed -n 's/^eligible=//p')" != 1 ]; then
+  elif ATTENDED_ROUTINE_ROWS=$(attended_routine_rows "$1"); then
+    ATTENDED_ROUTINE=1
+  elif fm_task_inbox_stuck_busy_record "$STATE" "$first" >/dev/null \
+    || [ "$(printf '%s\n' "$offer" | sed -n 's/^eligible=//p')" != 1 ]; then
     ATTENDED_WHY="main-only"
   fi
   ATTENDED_OFFER=$offer
@@ -1275,7 +1388,7 @@ while :; do
   # Attended: the close reaches main exactly as the plain arm delivers it,
   # unless the supervision session may take it (attended_acceptor).
   if ! fm_afk_contract_away_present "$STATE"; then
-    if ! attended_acceptor "$(printf '%s\n' "$REASON" | head -n 1)"; then
+    if ! attended_acceptor "$REASON"; then
       log_line "pass-through	attended	$ATTENDED_WHY	$(printf '%s\n' "$REASON" | head -n 1)"
       acknowledged_handback
       if [ "$ATTENDED_WHY" = main-only ]; then
