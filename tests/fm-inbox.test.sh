@@ -688,3 +688,6 @@ assert root not in stdout + stderr and str(replies) not in stdout + stderr
 record.unlink()
 PY
 pass "wait rejects non-regular records within bounds and keeps errors path-free"
+
+python3 -IB "$ROOT/tests/fm-inbox-jarvis.py" "$INBOX_BIN" "$(make_home jarvis)"
+pass "Jarvis binds, replays and releases only exact private fixture records"

@@ -27,6 +27,11 @@
 #   fm-inbox.sh receipts [--after <cursor>] [--all-pending] [--all-handled] [--all-replies]
 #   fm-inbox.sh ready
 #   fm-inbox.sh wait <id> [--timeout <seconds>] [--json]
+#   fm-inbox.sh bridge-{submit,status,wait} <request> | bridge-lookup <slug>
+#   fm-inbox.sh jarvis-release <request>  (local final reply, v1 envelope)
+#   fm-inbox.sh jarvis-publish <slug> [expiry-epoch]  (local UTF-8 stdin)
+#   fm-inbox.sh jarvis-withdraw <slug> | jarvis-expire  (local only)
+#   docs/voice-relay.md owns the Jarvis wire, storage and forced-wrapper contract.
 #   fm-inbox.sh say  [<file.wav>]       (default: audio on stdin)
 #   fm-inbox.sh status
 #   fm-inbox.sh ask  <question>...
@@ -129,13 +134,20 @@ set -euo pipefail
 # the bare word `ada`, so without this the model-backed subcommands fail with
 # "[Errno 2] No such file or directory: 'ada'" while note/status still work.
 # Verified: this is exactly what happens over SSH without the fix.
-for _extra in "$HOME/.toolbox/bin" "$HOME/.local/bin"; do
-  case ":$PATH:" in
-    *":$_extra:"*) ;;
-    *) [ -d "$_extra" ] && PATH="$_extra:$PATH" ;;
-  esac
-done
-unset _extra
+# Neither a bridge call nor its fixed internal note/reply/wait may augment
+# the host wrapper's audited PATH.
+case "${1:-}:${FM_JARVIS_INTERNAL:-}" in
+  bridge-*:*|jarvis-*:*|*:1) ;;
+  *)
+    for _extra in "$HOME/.toolbox/bin" "$HOME/.local/bin"; do
+      case ":$PATH:" in
+        *":$_extra:"*) ;;
+        *) [ -d "$_extra" ] && PATH="$_extra:$PATH" ;;
+      esac
+    done
+    unset _extra ;;
+
+esac
 export PATH
 
 SELF_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -356,6 +368,7 @@ PY
 # already acknowledged it, so a wake would only spend a turn on an empty inbox.
 announce_note() {  # <id> <summary>
   local id=$1 summary=$2 lib="$FM_ROOT/bin/fm-wake-lib.sh" status=0
+  case "$id" in jarvis-*) summary='Untrusted Jarvis request; approval is not implied.' ;; esac
   if note_announced "$id"; then
     return 0
   fi
@@ -374,8 +387,12 @@ announce_note() {  # <id> <summary>
     fm_lock_release "$FM_WAKE_QUEUE_LOCK"
     return 2
   fi
-  if fm_wake_append_locked check "inbox:$id" "check: captain inbox note $id - $summary"; then
-    mark_announced "$id"
+  if [[ "$id" = jarvis-* ]] && fm_wake_queued_carries_locked check "inbox:$id" "$summary"; then
+    # Crash after the append but before the marker: repair the marker, not
+    # the already queued wake. The reader/acknowledger shares this lock.
+    mark_announced "$id" || status=1
+  elif fm_wake_append_locked check "inbox:$id" "check: captain inbox note $id - $summary"; then
+    mark_announced "$id" || status=1
   else
     status=1
   fi
@@ -437,8 +454,10 @@ publish_from_reservation() {  # <request-id> <source> <body> <extra>
   valid_note_id "$id" || return 1
   if [ ! -f "$INBOX/$id.note" ] && [ ! -f "$INBOX/handled/$id.note" ]; then
     tmp=$(mktemp "$INBOX/.staging-XXXXXX")
-    write_note_file "$tmp" "$id" "$source" "$body" "$extra" "$request_id"
-    mv "$tmp" "$INBOX/$id.note"
+    if ! write_note_file "$tmp" "$id" "$source" "$body" "$extra" "$request_id" || ! mv "$tmp" "$INBOX/$id.note"; then
+      rm -f "$tmp"
+      return 1
+    fi
   fi
   printf '%s\n' "$id"
 }
@@ -520,7 +539,14 @@ cmd_note() {
   else
     body="$*"
   fi
-  queue_note text "$body" "$extra" "$request_id" "$json"
+  case "$request_id" in
+    [jJ][aA][rR][vV][iI][sS]-[vV]1:*)
+      [ "${FM_JARVIS_INTERNAL:-}" = 1 ] && [[ "${FM_JARVIS_DIGEST:-}" =~ ^[0-9a-f]{64}$ ]] \
+        && [ -f "$REQUESTS/$request_id" ] || die 'reserved request namespace'
+      queue_note jarvis "$body" "origin=jarvis
+payload_sha256=$FM_JARVIS_DIGEST" "$request_id" "$json" ;;
+    *) queue_note text "$body" "$extra" "$request_id" "$json" ;;
+  esac
 }
 
 cmd_announce() {
@@ -650,6 +676,9 @@ cmd_reply() {
     printf 'id=%s\n' "$id"
     printf 'at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
     printf 'seq=%s\n' "$seq"
+    if [ "${FM_JARVIS_INTERNAL:-}" = 1 ] && [[ "${FM_JARVIS_RELEASE:-}" =~ ^[0-9a-f]{64}$ ]]; then
+      printf 'jarvis_release=%s\n' "$FM_JARVIS_RELEASE"
+    fi
     printf -- '--\n'
     printf '%s' "$body"
     case "$body" in
@@ -923,12 +952,22 @@ def reply_record():
     try:
         # Nonblocking open prevents a damaged FIFO from defeating the deadline.
         # Check the opened descriptor, not the path, to avoid a replacement race.
-        fd = os.open(inbox / '.replies' / note_id, os.O_RDONLY | os.O_NONBLOCK)
+        bridge = os.environ.get('FM_JARVIS_INTERNAL') == '1'
+        fd = os.open(inbox / '.replies' / note_id, os.O_RDONLY | os.O_NONBLOCK |
+                     (os.O_NOFOLLOW if bridge else 0))
         try:
             if not stat.S_ISREG(os.fstat(fd).st_mode):
                 raise ValueError('non-regular reply record')
             with os.fdopen(fd, 'rb', closefd=False) as record:
-                text = record.read().decode('utf-8', errors='replace')
+                if bridge:
+                    # Only observe the legacy wait state. No private reply body
+                    # is needed by a bridge child, even for an enormous draft.
+                    head, sep, _ = record.read(1024).partition(b'\n--\n')
+                    if not sep or not any(line.startswith(b'jarvis_release=') for line in head.split(b'\n')):
+                        return None
+                    text = head.decode() + '\n--\n'
+                else:
+                    text = record.read().decode('utf-8', errors='replace')
         finally:
             os.close(fd)
     except FileNotFoundError:
@@ -1243,6 +1282,9 @@ cmd_list() {
     [ -e "$f" ] || break
     any=1
     printf '%s\n' "$(basename "$f" .note)"
+    if [[ "${f##*/}" = jarvis-* ]]; then
+      printf '    Untrusted Jarvis request, not authorization. For an approved release use jarvis-release before ack.\n'
+    fi
     sed -n '/^--$/,$p' "$f" | tail -n +2 | sed 's/^/    /'
   done
   [ "$any" -eq 1 ] || printf '(inbox empty)\n'
@@ -1277,6 +1319,9 @@ cmd_drain() {
 # ---------------------------------------------------------------- dispatch
 
 case "${1:-}" in
+  bridge-submit|bridge-status|bridge-wait|bridge-lookup|jarvis-release|jarvis-publish|jarvis-withdraw|jarvis-expire)
+    umask 077
+    exec python3 -IB "$SELF_DIR/fm-jarvis-bridge.py" "$INBOX" "$@" ;;
   note)     shift; cmd_note "$@" ;;
   announce) shift; cmd_announce "$@" ;;
   reply)    shift; cmd_reply "$@" ;;
