@@ -125,13 +125,13 @@ These are local `fm-inbox.sh` commands, never additional wire forms.
 Parent approval releases only to Jarvis on the bound receipt; it does not authorize another destination or posting the content.
 
 The parent can read `state/inbox/.attachments/<receipt>/request/manifest.json` and the slot files alongside it, including after acknowledgement moves the note to `handled/`.
-Give a worker only the selected private copies it needs, not access to the parent spool.
+The local release, publish, withdraw and final reply commands are not isolated from other processes running as the same OS user, including Firstmate workers sharing the home. The parent must not delegate Jarvis releases; give workers only the selected private copies they need through normal dispatch, not access to the parent spool.
 The local receiver reserves `jarvis-v1:` request IDs and journals origin, payload and manifest digests with the note mapping before the usual note publisher wakes the parent.
 The reply's private manifest digest is committed in the single final reply itself; neither release uses a client-supplied path or parses authority from text.
 The attachment tree uses `0700` directories and `0600` copied files. The 256 MiB budget covers attachment bytes in both directions, including staged files; it does not charge retained manifests, expiry markers, note/reply records or bindings. New attachments that would exceed the budget are refused rather than evicting pending requests. Text-only submissions and replies are not subject to this budget. Abandoned staging is collected under the commit lock.
 On write or local `jarvis-expire`, collect slots seven days after the first complete download response is successfully written and flushed to the channel, otherwise thirty days after an explicit Jarvis release or acknowledgement. A private reply alone does not start the clock for pending request files.
 Run `jarvis-expire` periodically locally for reclamation while idle; waits enforce expiry before serving bytes and report `expired` rather than returning empty data.
-A successful channel write does not confirm end-user delivery; a failed or interrupted write does not start the seven-day clock.
+The selector checks expiry when it opens the slot. A transfer already open may finish even if the slot expires while it is streaming; later fetches return `expired`, and the completed transfer does not revive the slot. A successful channel write does not confirm end-user delivery; a failed or interrupted write does not start the seven-day clock.
 Private rotated audit logs contain call metadata only, never names, bodies, selector contents or report text. An unavailable audit sink does not change the wire result.
 
 ## What it costs in time

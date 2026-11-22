@@ -2,10 +2,12 @@
 from contextlib import ExitStack, contextmanager, suppress
 import errno
 import fcntl
+import hashlib
 import os
 from pathlib import Path
 import re
 import secrets
+import shutil
 import struct
 import subprocess
 import sys
@@ -14,7 +16,9 @@ import zipfile
 
 BIN = Path(__file__).resolve().parent
 sys.path.insert(0, str(BIN))  # -I: only trusted siblings
-from fm_jarvis_store import SAFE, atomic, clear_stage, create, directory, discard, read, regular, remove, safe, stage
+from fm_jarvis_store import (
+    SAFE, atomic, clear_stage, create, directory, discard, handled_note, open_regular, read, regular, remove, safe, stage,
+)
 from fm_jarvis_wire import FILE, K, M, MANIFEST, Reader, Refusal, digest, envelope, json_bytes, parse, require, text
 
 ID = r'[0-9a-f]{32}'
@@ -39,6 +43,7 @@ def headers(fd, name):
 
 class Bridge:
     def __init__(self, stack, inbox, verb):
+        self.stack = stack
         d = lambda parent, name, **kw: stack.enter_context(directory(parent, name, **kw))
         state = d(None, str(Path(inbox).parent), create=True)
         self.inbox = d(state, 'inbox', create=True)
@@ -89,11 +94,14 @@ class Bridge:
         fields = read(self.requests, key, 512).decode().splitlines()
         require(len(fields) == 5 and fields[:3] == [receipt(req), 'jarvis', req]
                 and all(re.fullmatch(SHA, h) for h in fields[3:]), 'denied')
+        os.fsync(self.requests)
         return fields[3:]
 
     def note(self, req, payload):
         note = receipt(req)
         for folder in (self.inbox, self.handled):
+            if folder == self.handled and not self.handled_entry(note):
+                continue
             try:
                 h = headers(folder, note+'.note')
             except FileNotFoundError:
@@ -103,10 +111,13 @@ class Bridge:
             return True
         return False
 
+    def handled_entry(self, note):
+        return handled_note(self.inbox, self.handled, note+'.note')
+
     def terminal(self, note, release):
         # rename into handled updates ctime, not the note creation mtime.
         r = regular(self.replies, note) if release else None
-        h = regular(self.handled, note+'.note')
+        h = self.handled_entry(note)
         return min([t for t in (r.st_mtime if r else None, h.st_ctime if h else None) if t is not None], default=None)
 
     def expire_slots(self, folder, files, terminal):
@@ -192,12 +203,12 @@ class Bridge:
                 self.manifest(fd, req, 'request', binding[1])
             exists = self.note(req, binding[0])
             if reply:
-                require(exists and not regular(self.handled, note+'.note') and not regular(self.replies, note), 'conflict')
+                require(exists and not self.handled_entry(note) and not regular(self.replies, note), 'conflict')
             else:
                 require(binding[0] == payload, 'conflict')
         else:
             require(not reply, 'unknown')
-            require(not marker and not regular(self.inbox, note+'.note') and not regular(self.handled, note+'.note')
+            require(not marker and not regular(self.inbox, note+'.note') and not self.handled_entry(note)
                     and not regular(self.replies, note), 'denied')
         if reply or not binding:
             require(not blobs or used + sum(map(len, blobs)) <= 256*M, 'overload')
@@ -243,9 +254,15 @@ class Bridge:
                         f = next((f for f in m['files'] if f['slot'] == selector), None)
                         require(f, 'not-available')
                         require(not f.get('expired'), 'expired')
-                        blob = read(fd, selector, FILE)
-                        require(len(blob) == f['length'] and digest(blob) == f['sha256'], 'denied')
-                        return result('attachment', **out, **f), blob
+                        stream = self.stack.enter_context(open_regular(fd, selector))
+                        size = f['length']
+                        require(0 < size <= FILE and os.fstat(stream.fileno()).st_size == size, 'denied')
+                        checksum = hashlib.sha256()
+                        for chunk in iter(lambda: stream.read(64*K), b''):
+                            checksum.update(chunk)
+                        require(stream.tell() == size and checksum.hexdigest() == f['sha256'], 'denied')
+                        stream.seek(0)
+                        return result('attachment', **out, **f), stream
                     # Only the explicit final commit releases the single inbox reply body.
                     raw = read(self.replies, note, 16*K + 1024)
                     body = raw.split(b'\n--\n', 1)[1][:m['text_bytes']].decode()
@@ -269,7 +286,14 @@ class Bridge:
 
     def report(self, verb, slug, data, expiry):
         name = digest(('jarvis:'+slug).encode())
-        with directory(self.control, 'releases', **PRIVATE) as fd:
+        with ExitStack() as stack:
+            try:
+                fd = stack.enter_context(directory(self.control, 'releases', private=True,
+                                                   create=verb == 'jarvis-publish'))
+            except FileNotFoundError:
+                if verb == 'jarvis-publish':
+                    raise
+                return result('withdrawn' if verb == 'jarvis-withdraw' else 'not-available')
             if verb == 'jarvis-publish':
                 record = dict(audience='jarvis', slug=slug, version=secrets.token_hex(16),
                               as_of=int(time.time()), expires=expiry, text=text(data.decode(), 64*K))
@@ -328,12 +352,12 @@ def main():
     inbox, verb, *args = sys.argv[1:]
     reader = Reader()
     started = time.monotonic()
-    blob = None
+    stream = None
     with ExitStack() as stack:
         bridge = None
         try:
             bridge = Bridge(stack, inbox, verb)
-            answer, blob = bridge.dispatch(verb, args, reader)
+            answer, stream = bridge.dispatch(verb, args, reader)
         except Refusal as e:
             answer = result(str(e))
         except (UnicodeError, zipfile.BadZipFile, struct.error):
@@ -344,15 +368,17 @@ def main():
             answer = result('server-error')
         if bridge is not None:
             with suppress(OSError, Refusal):
-                bridge.audit(verb, answer['result'], reader.count + len(blob or b''), time.monotonic()-started)
+                bridge.audit(verb, answer['result'], reader.count + (answer['length'] if stream else 0),
+                             time.monotonic()-started)
         try:
             sys.stdout.buffer.write(json_bytes(answer) + b'\n')
-            if blob is not None:
-                sys.stdout.buffer.write(struct.pack('>I', len(blob)) + blob)
+            if stream is not None:
+                sys.stdout.buffer.write(struct.pack('>I', answer['length']))
+                shutil.copyfileobj(stream, sys.stdout.buffer, length=64*K)
             sys.stdout.buffer.flush()
         except OSError:
             os._exit(1)
-        if blob is not None:
+        if stream is not None:
             try:
                 bridge.delivered(answer['receipt'], answer['slot'])
             except (OSError, Refusal):

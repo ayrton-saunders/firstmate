@@ -255,12 +255,30 @@ for metadata, (_, mime, original) in zip(final['files'], (png, pdf)):
     assert metadata['sha256'] == sha256(original).hexdigest()
     assert call('bridge-wait', a, data=selector(metadata['slot']), want='attachment') == original
 (spool/first/'reply'/(undelivered_slot+'.delivered')).unlink()
-call('jarvis-release', lost, data=envelope('separate release', jpeg), want='answered')
-other_slot = call('bridge-wait', lost, want='answered')['files'][0]['slot']
+streamed_pdf = pdf_document(2*1024*1024)
+call('jarvis-release', lost, data=envelope('separate release', jpeg, (*pdf[:2], streamed_pdf)), want='answered')
+other_slot, streaming_slot = (item['slot'] for item in call('bridge-wait', lost, want='answered')['files'])
 assert call('bridge-wait', lost, data=selector(other_slot), want='attachment') == jpeg[2]
 assert call('bridge-wait', a, data=selector(slot), want='attachment') == png[2]
 call('bridge-wait', a, data=selector(other_slot), want='not-available')
 call('bridge-wait', lost, data=selector(slot), want='not-available')
+with subprocess.Popen([str(script), 'bridge-wait', lost], env=env, stdin=subprocess.PIPE,
+                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0) as p:
+    try:
+        p.stdin.write(selector(streaming_slot))
+        p.stdin.close()
+        p.stdin = None
+        assert json.loads(p.stdout.readline())['result'] == 'attachment'
+        old = time.time()-31*86400
+        os.utime(inbox/'.replies'/lost_note, (old, old))
+        call('jarvis-expire', want='cleaned')
+        call('bridge-wait', lost, data=selector(streaming_slot), want='expired')
+        framed, err = p.communicate(timeout=45)
+        assert p.returncode == 0 and not err and framed == frame(streamed_pdf)
+    finally:
+        if p.poll() is None:
+            p.kill()
+assert not (spool/lost_note/'reply'/(streaming_slot+'.delivered')).exists()
 call('bridge-wait', a, data=selector(f['slot']), want='not-available')
 for p in (spool, *spool.rglob('*')):
     assert p.stat().st_mode & 0o777 == (0o700 if p.is_dir() else 0o600), p.name
@@ -380,6 +398,10 @@ manifest.update(request=unknown, receipt=orphan.name)
 manifest_path.write_text(json.dumps(manifest))
 call('jarvis-expire', want='cleaned')
 assert not orphan.exists()
+release_index = inbox/'.jarvis'/'releases'
+call('bridge-lookup', 'spool-independent', want='not-available')
+call('jarvis-withdraw', 'spool-independent', want='withdrawn')
+assert not release_index.exists()
 call('jarvis-publish', 'spool-independent', data=b'published without attachments', want='published')
 # Scratch directory failure cannot create a note or follow the symlink.
 spool.rename(inbox/'.saved')

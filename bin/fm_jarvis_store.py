@@ -49,12 +49,18 @@ def safe(s):
     require(stat.S_ISREG(s.st_mode) and s.st_nlink == 1 and s.st_uid == os.geteuid(), 'denied')
 
 
-def read(fd, name, limit, header=False):
+@contextmanager
+def open_regular(fd, name):
     # Reject devices before even opening them; re-check the opened object.
     if not regular(fd, name):
         raise FileNotFoundError
     with os.fdopen(os.open(name, os.O_RDONLY | SAFE, dir_fd=fd), 'rb') as f:
         safe(os.fstat(f.fileno()))
+        yield f
+
+
+def read(fd, name, limit, header=False):
+    with open_regular(fd, name) as f:
         data = f.read(limit+1)
         if header:
             data, sep, _ = data.partition(b'\n--\n')
@@ -127,6 +133,14 @@ def sync_path(path):
         os.close(fd)
 
 
+def handled_note(inbox, handled, name):
+    entry = regular(handled, name)
+    if entry:
+        os.fsync(handled)
+        os.fsync(inbox)
+    return entry
+
+
 def main():
     op, *args = sys.argv[1:]
     if op == 'commit':
@@ -168,15 +182,13 @@ def main():
             fcntl.flock(lock, fcntl.LOCK_EX)
             with directory(fd, 'handled', create=True) as handled:
                 name = note+'.note'
-                if regular(fd, name):
+                pending = regular(fd, name)
+                if pending:
                     if (Path(inbox)/'.replies'/note).is_file():
                         sync_path(Path(inbox)/'.replies')
                     os.rename(name, name, src_dir_fd=fd, dst_dir_fd=handled)
-                    os.fsync(handled)
-                    os.fsync(fd)
-                    print('acked', note)
-                else:
-                    print('already-acked', note)
+                handled_note(fd, handled, name)
+                print('acked' if pending else 'already-acked', note)
 
 
 if __name__ == '__main__':
