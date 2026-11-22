@@ -926,23 +926,38 @@ test_watcher_busy_budget_resets_on_progress() {
   local dir state gen event="$ROOT/bin/fm-busy-event.sh"
   dir=$(busy_case busy-progress)
   state="$dir/state"
-  fm_write_meta "$state/t1.meta" 'window=sess:fm-t1' 'kind=secondmate' 'harness=claude'
+  fm_write_meta "$state/t1.meta" 'window=sess:fm-t1' 'kind=secondmate' 'harness=pi'
   gen=$("$event" arm "$state" t1) || fail "fixture: could not arm semantic busy state"
-  "$event" apply "$state" t1 busy --gen "$gen" --source claude-hook --event user-prompt-submit \
-    || fail "fixture: could not record the first turn"
+  "$event" apply "$state" t1 busy --gen "$gen" --source pi-ext --event agent-start \
+    || fail "fixture: could not record the busy turn"
   busy_steer_check "$dir"
   [ ! -s "$state/.wake-queue" ] || fail "the first busy deferral must wait"
-  "$event" apply "$state" t1 idle --gen "$gen" --source claude-hook --event stop \
-    || fail "fixture: could not close the first turn"
-  "$event" apply "$state" t1 busy --gen "$gen" --source claude-hook --event user-prompt-submit \
-    || fail "fixture: could not start the next turn"
+  "$event" progress "$state" t1 --gen "$gen" || fail "fixture: could not publish native progress"
   busy_steer_check "$dir"
   [ ! -s "$state/.wake-queue" ] || fail "progress between due checks was treated as stuck"
   [ -f "$state/t1.inbox/001.msg" ] || fail "progress removed an unhandled steer"
   busy_steer_check "$dir"
-  grep -q 'stuck-busy' "$state/.wake-queue" || fail "a later unchanged busy position did not escalate"
+  grep -q 'stuck-busy' "$state/.wake-queue" || fail "an unchanged progress marker did not escalate"
   [ ! -s "$dir/send.log" ] || fail "busy worker received a doorbell"
-  pass "watcher: a trusted turn advance resets the same message's busy budget; an unchanged turn still escalates"
+  pass "watcher: native activity resets the same message's busy budget without a new turn"
+}
+
+test_watcher_busy_retry_is_not_progress() {
+  local dir state gen event="$ROOT/bin/fm-busy-event.sh"
+  dir=$(busy_case busy-retry)
+  state="$dir/state"
+  fm_write_meta "$state/t1.meta" 'window=sess:fm-t1' 'kind=secondmate' 'harness=opencode'
+  gen=$("$event" arm "$state" t1) || fail "fixture: could not arm semantic busy state"
+  "$event" apply "$state" t1 busy --gen "$gen" --source opencode-plugin --event session-busy \
+    || fail "fixture: could not record the busy turn"
+  busy_steer_check "$dir"
+  [ ! -s "$state/.wake-queue" ] || fail "the first busy deferral must wait"
+  "$event" apply "$state" t1 busy --gen "$gen" --source opencode-plugin --event session-retry \
+    || fail "fixture: could not record the retry"
+  busy_steer_check "$dir"
+  grep -q 'stuck-busy' "$state/.wake-queue" || fail "a retry alone suppressed the stuck-busy wake"
+  [ ! -s "$dir/send.log" ] || fail "busy worker received a doorbell"
+  pass "watcher: a busy retry without activity does not reset the deferral budget"
 }
 
 test_watcher_busy_budget_resets_on_ring_and_ack() {
@@ -1417,6 +1432,7 @@ test_ring_ladder_policy
 test_watcher_rerings_idle_pane_quietly
 test_watcher_waits_on_busy_pane
 test_watcher_busy_budget_resets_on_progress
+test_watcher_busy_retry_is_not_progress
 test_watcher_busy_budget_resets_on_ring_and_ack
 test_watcher_busy_bookkeeping_failure_surfaces
 test_watcher_successor_busy_reset_failure_surfaces idle

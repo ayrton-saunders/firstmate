@@ -283,8 +283,46 @@ SH
   chmod +x "$1/fakebin/node"
 }
 
-# Reproduce the race where the watcher sees the close before the same home's
-# append receipt is published. The receipt comes from fm-send's append primitive.
+test_answer_receipt_is_serialized_with_classification() {
+  local home f writer reader
+  home=$(make_home answer-receipt-race attended)
+  f="$home/state/demo.status"
+  printf 'needs-decision [key=answer-test]: choose\n' > "$f"
+  routine_wake_lib "$home" fm_wake_append signal demo.status "needs-decision: $f"
+  main_drain_and_ack "$home"
+  FM_HOME="$home" bash -c '
+    . "$1"
+    mv() {
+      if [ "${3:-}" = "$FM_HOME/state/.demo.home-appends" ]; then
+        : > "$FM_HOME/publishing"
+        for ((i=0; i<200; i++)); do
+          [ ! -f "$FM_HOME/release-receipt" ] || break
+          command sleep 0.05
+        done
+      fi
+      command mv "$@"
+    }
+    fm_wake_status_append_self_announced "${2%/*}" "$2" "resolved [key=answer-test]: answered: go ahead"
+  ' _ "$ROOT/bin/fm-wake-lib.sh" "$f" &
+  writer=$!
+  wait_until_deadline 5 test -f "$home/publishing" || fail "receipt publication did not reach the test seam"
+  FM_HOME="$home" bash -c '
+    . "$1"
+    _fm_wake_require_classify
+    sleep() { : > "$FM_HOME/reader-waiting"; command sleep "$@"; }
+    status_unread_only_home_answers "$2"
+    printf "%s\n" "$?" > "$FM_HOME/reader-result"
+  ' _ "$ROOT/bin/fm-wake-lib.sh" "$f" &
+  reader=$!
+  wait_until_deadline 5 test -f "$home/reader-waiting" || fail "classification did not wait for the in-flight receipt"
+  [ ! -e "$home/reader-result" ] || fail "classification completed before the receipt was published"
+  : > "$home/release-receipt"
+  wait "$writer" || true
+  wait "$reader"
+  expect_code 0 "$(<"$home/reader-result")" "classification must recognize the answer after publication"
+  pass "host: answer classification waits for an in-flight owned append receipt"
+}
+
 test_attended_answer_close() {  # <owned|external|mixed>
   local mode=$1 home state f baseline action real_mv
   home=$(make_home "attended-answer-$mode" quiet)
@@ -365,30 +403,51 @@ SH
     assert_routine_close_acknowledged "$home" 'stale: .*stuck-busy'
     [ -f "$home/state/demo.inbox/handled/${rec##*/}" ] || fail "fixture: the worker did not handle the named record"
   else
-    wait_until_deadline 60 host_exited "$home" || fail "a genuinely stuck inbox never reached main"
-    assert_re '^stale: .*stuck-busy' "$home/host.out" "the stuck reason did not reach main"
-    assert_grep 'stuck-busy' "$home/state/.wake-queue" "the stuck wake must stay queued"
+    wait_until_deadline 60 grep -q 'stuck-busy' "$home/engine-drain.1" 2>/dev/null \
+      || fail "a branch-eligible stuck inbox did not reach the branch engine"
     [ -f "$rec" ] || fail "the stuck record was lost"
   fi
   stop_home_processes "$home"
   pass "host: a $mode inbox stale closes in the correct destination"
 }
 
-test_attended_resurface() {  # <empty|credential|captain-outcome>
-  local mode=$1 home
+test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-captain-outcome>
+  local mode=$1 home rec reason seq
   home=$(make_home "attended-resurface-$mode" quiet)
   : > "$home/state/.wake-queue"
   case "$mode" in
     credential) routine_wake_lib "$home" fm_wake_append check needs-gh-auth 'check: GitHub login required' || fail "fixture: no credential check" ;;
-    captain-outcome)
-      FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" append --task demo --verdict captain \
-        --summary 'a review requires attention' >/dev/null || fail "fixture: no captain outcome" ;;
+    routine)
+      rec=$(FM_HOME="$home" bash -c '. "$1"; fm_task_inbox_write "$2" demo steer' _ "$ROOT/bin/fm-task-inbox-lib.sh" "$home/state") || fail "fixture: no inbox record"
+      mv "$rec" "${rec%/*}/handled/"
+      reason="stale: sess:fm-demo (unread firstmate instruction: stuck-busy after 2 consecutive busy-deferred due doorbells; $rec stays unhandled and no doorbell was typed; inspect the worker)"
+      printf 'needs-decision [key=answer-test]: choose\n' > "$home/state/demo.status"
+      routine_wake_lib "$home" fm_wake_append signal demo.status "needs-decision: $home/state/demo.status"
+      main_drain_and_ack "$home"
+      routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$home/state/demo.status"
+      routine_wake_lib "$home" fm_wake_status_append_self_announced "$home/state" "$home/state/demo.status" \
+        'resolved [key=answer-test]: answered: go ahead' || fail "fixture: answer was not self-announced"
+      routine_wake_lib "$home" fm_wake_append signal demo.status "needs-decision: $home/state/demo.status" || fail "fixture: no recovered answer row"
+      routine_wake_lib "$home" fm_wake_append stale sess:fm-demo "$reason" || fail "fixture: no recovered stale row"
+      ;;
+    captain-outcome|read-captain-outcome)
+      seq=$(FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" append --task demo --verdict captain \
+        --summary 'a review requires attention') || fail "fixture: no captain outcome"
+      if [ "$mode" = read-captain-outcome ]; then
+        FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" mark-read --through "$seq" || fail "fixture: outcome was not marked read"
+      fi
+      ;;
   esac
   routine_wake_lib "$home" fm_recovery_marker_publish "$home/state/.watcher-down" downtime || fail "fixture: no recovery episode"
-  start_host "$home"
-  if [ "$mode" = empty ]; then
+  printf '0\n' > "$home/park-clock"
+  if [ "$mode" = routine ]; then
+    install_first_offer_action "$home" 'printf "105\n" > "$FM_HOME/park-clock"'
+  fi
+  FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 \
+    FM_SUPERVISION_HOST_TURN_TIMEOUT=20 FM_SUPERVISION_ENGINE_GRACE=1 start_host "$home"
+  if [ "$mode" = empty ] || [ "$mode" = routine ]; then
     assert_routine_close_acknowledged "$home" 'check: rearm-resurface$'
-    assert_re '^acked:' "$home/state/.watcher-down" "empty resurfacing did not acknowledge recovery"
+    assert_re '^acked:' "$home/state/.watcher-down" "resurfacing did not acknowledge recovery"
   else
     wait_until_deadline 60 host_exited "$home" || fail "$mode: recovery did not reach main"
     assert_re '^check: rearm-resurface$' "$home/host.out" "$mode: recovery was suppressed"
@@ -396,7 +455,7 @@ test_attended_resurface() {  # <empty|credential|captain-outcome>
     drain=$(FM_HOME="$home" "$FAKE_CLAUDE" -c '"$0" 2>&1' "$ROOT/bin/fm-wake-drain.sh")
     case "$mode" in
       credential) assert_contains "$drain" 'GitHub login required' "the credentials request was lost" ;;
-      captain-outcome) assert_contains "$drain" 'a review requires attention' "the captain outcome was lost" ;;
+      captain-outcome|read-captain-outcome) assert_contains "$drain" 'a review requires attention' "the captain outcome was lost" ;;
     esac
   fi
   stop_home_processes "$home"
@@ -1251,6 +1310,8 @@ test_external_answer_close() { test_attended_answer_close external; }
 test_mixed_answer_close() { test_attended_answer_close mixed; }
 test_handled_busy_inbox_close() { test_attended_busy_inbox_close handled; }
 test_stuck_busy_inbox_close() { test_attended_busy_inbox_close stuck; }
+test_routine_resurface() { test_attended_resurface routine; }
+test_read_captain_outcome_resurface() { test_attended_resurface read-captain-outcome; }
 test_empty_resurface() { test_attended_resurface empty; }
 test_credential_resurface() { test_attended_resurface credential; }
 test_captain_outcome_resurface() { test_attended_resurface captain-outcome; }
@@ -1266,14 +1327,17 @@ fm_test_run \
   test_attended_main_only_close_passes_straight_to_main \
   test_attended_blocked_close_passes_straight_to_main \
   test_attended_failed_status_reaches_main \
+  test_answer_receipt_is_serialized_with_classification \
   test_owned_answer_close \
   test_external_answer_close \
   test_mixed_answer_close \
   test_handled_busy_inbox_close \
   test_stuck_busy_inbox_close \
+  test_routine_resurface \
   test_empty_resurface \
   test_credential_resurface \
   test_captain_outcome_resurface \
+  test_read_captain_outcome_resurface \
   test_off_written_while_parked_passes_the_next_attended_close_to_main \
   test_main_only_pass_through_leaves_the_successor_watcher_running \
   test_attended_close_with_unidentified_main_session_passes_to_main \

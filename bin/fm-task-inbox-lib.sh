@@ -28,7 +28,7 @@
 #   <task>.inbox/.seq.lock     serializes sequence allocation across writers
 #                              (the session and the away daemon)
 #   <task>.inbox/.ring-state   watcher re-ring ladder: "<msg>\t<count>\t<epoch>"
-#   <task>.inbox/.busy-state   consecutive busy deferrals: "<msg>\t<count>\t<busy-position>"
+#   <task>.inbox/.busy-state   consecutive busy deferrals: "<msg>\t<count>\t<progress-mtime>"
 #   <task>.inbox/.escalated    oldest-message name already surfaced as stale,
 #                              so later polls suppress another escalation
 #   <task>.inbox/.retry-ring   name of a fire-and-forget record still owed its
@@ -58,8 +58,8 @@
 # by the caller's delivery guard consume a separate durable consecutive-poll budget,
 # FM_TASK_INBOX_BUSY_MAX. At that bound the same escalation path surfaces a
 # stuck-busy reason without submission. An allowed due check, acknowledgement,
-# or advance of the task's trusted busy position for that message resets this
-# budget. fm-busy-lib.sh owns the backend-specific delivery guard and position.
+# or advance of the task's native progress marker resets this budget.
+# fm-busy-lib.sh owns the backend-specific delivery guard.
 # Fire-and-forget retries remain outside escalation. A positively
 # dead or missing endpoint skips delivery and the ladder and escalates directly.
 # This library owns the schedule, durable budgets, and escalation marker.
@@ -134,19 +134,23 @@ fm_task_inbox_busy_max() {
 
 # Persist before returning the new count, so a fresh watcher continues the same
 # bounded wait. A removed or acknowledged record is a quiet no-op.
-fm_task_inbox_record_busy() {  # <state-dir> <task-id> <record-path> [trusted busy position]
-  local dir base previous count prior position=${4:-}
+fm_task_inbox_record_busy() {  # <state-dir> <task-id> <record-path> [progress mtime]
+  local dir base previous count prior progress=${4:-0}
   dir=$(fm_task_inbox_dir "$1" "$2")
   base=${3##*/}
   { IFS=$(printf '\t') read -r previous count prior < "$dir/.busy-state"; } 2>/dev/null || true
-  [ "${previous:-}" = "$base" ] || { count=0; prior=; }
+  [ "${previous:-}" = "$base" ] || { count=0; prior=0; }
   case "${count:-}" in ''|*[!0-9]*) count=0 ;; esac
-  if [ -n "${prior:-}" ] && [ -n "$position" ] && [ "$prior" != "$position" ]; then
+  case "${prior:-}" in ''|*[!0-9]*) prior=0 ;; esac
+  case "$progress" in ''|*[!0-9]*) progress=0 ;; esac
+  if [ "$progress" -gt "$prior" ]; then
     count=0
+  else
+    progress=$prior
   fi
   [ -f "$3" ] || { printf '0'; return 0; }
   count=$((count + 1))
-  if ! { printf '%s\t%s\t%s\n' "$base" "$count" "${position:-${prior:-}}" > "$dir/.busy-state"; } 2>/dev/null; then
+  if ! { printf '%s\t%s\t%s\n' "$base" "$count" "$progress" > "$dir/.busy-state"; } 2>/dev/null; then
     [ -f "$3" ] || { printf '0'; return 0; }
     return 1
   fi

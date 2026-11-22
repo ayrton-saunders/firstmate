@@ -1022,8 +1022,7 @@ health_record() {  # <engine-error 0|1> <reports>
 # or an empty set only for rearm-resurface with no queued work. A mixed,
 # malformed or unrelated batch stays on the normal routing path.
 attended_routine_rows() {  # <reason>
-  local reason=$1 queue='' seq kind key payload epoch extra record='' task target='' f rows='' pending
-  local -a files
+  local reason=$1 queue='' seq kind key payload epoch extra rows='' pending row_reason
   # A first cycle that closes before readiness is streamed still has its
   # normal arm status line in ARM_TEXT. No other diagnostics are ignorable.
   case "$ARM_TEXT" in
@@ -1037,53 +1036,55 @@ attended_routine_rows() {  # <reason>
   fi
   case "$reason" in
     'check: rearm-resurface')
-      [ -z "$queue" ] || return 1
-      # A killed host may have recorded a captain outcome before hand-back.
-      if [ -e "$STATE/branch-outcomes.jsonl" ]; then
-        pending=$("$SCRIPT_DIR/fm-branch-outcome.sh" unread) || return 1
-        [ "$(printf '%s\n' "$pending" | jq -rs 'any(.verdict == "captain")')" = false ] || return 1
-        pending=$("$SCRIPT_DIR/fm-branch-outcome.sh" unprocessed) || return 1
-        [ -z "$pending" ] || return 1
-      fi
-      return 0
+      pending=$("$SCRIPT_DIR/fm-branch-outcome.sh" present) || return 1
+      [ "$(printf '%s\n' "$pending" | jq -rs 'any(.verdict == "captain")')" = false ] || return 1
+      [ -n "$queue" ] || return 0
       ;;
-    signal:*)
-      _fm_wake_require_classify || return 1
-      read -r -a files <<< "${reason#signal:}"
-      [ "${#files[@]}" -gt 0 ] || return 1
-      for f in "${files[@]}"; do
-        case "${f##*/}" in *.status) ;; *) return 1 ;; esac
-        [ "$f" = "$STATE/${f##*/}" ] || return 1
-        task=${f##*/}; task=${task%.status}
-        case "$task" in ''|*[!A-Za-z0-9._-]*|.|..) return 1 ;; esac
-        status_unread_only_home_answers "$f" || return 1
-      done
-      ;;
-    stale:*)
-      record=$(fm_task_inbox_stuck_busy_record "$STATE" "$reason") || return 1
-      [ ! -e "$record" ] && [ ! -L "$record" ] && [ -f "${record%/*}/handled/${record##*/}" ] || return 1
-      _fm_wake_require_classify || return 1
-      target=${reason#stale: }; target=${target%% *}
-      task=$(window_to_task "$target" "$STATE")
-      [ -n "$task" ] && [ "$record" = "$STATE/$task.inbox/${record##*/}" ] || return 1
-      ;;
+    signal:*|stale:*) [ -n "$queue" ] || return 1 ;;
     *) return 1 ;;
   esac
-  [ -n "$queue" ] || return 1
   while IFS=$'\t' read -r epoch seq kind key payload extra; do
     case "$epoch:$seq" in *[!0-9:]*|:*|*:) return 1 ;; esac
     [ -z "$extra" ] || return 1
-    case "$kind:$reason" in
-      signal:signal:*)
-        case "$payload" in "$reason"|"needs-decision:${reason#signal:}") ;; *) return 1 ;; esac
-        case " ${reason#signal:} " in *" $STATE/$key "*) ;; *) return 1 ;; esac
-        ;;
-      stale:stale:*) [ "$key" = "$target" ] && [ "$payload" = "$reason" ] || return 1 ;;
-      *) return 1 ;;
+    row_reason=$payload
+    case "$kind:$payload" in
+      signal:needs-decision:*) row_reason="signal:${payload#needs-decision:}" ;;
     esac
+    [ "$reason" = 'check: rearm-resurface' ] || [ "$row_reason" = "$reason" ] || return 1
+    attended_routine_row "$kind" "$key" "$row_reason" || return 1
     rows=${rows:+$rows }$seq
   done <<< "$queue"
   printf '%s\n' "$rows"
+}
+
+attended_routine_row() {  # <kind> <key> <reason>
+  local kind=$1 key=$2 reason=$3 record task target f found=0
+  local -a files
+  case "$kind:$reason" in
+    signal:signal:*)
+      _fm_wake_require_classify || return 1
+      read -r -a files <<< "${reason#signal:}"
+      for f in "${files[@]}"; do
+        [ "$f" = "$STATE/${f##*/}" ] || return 1
+        case "${f##*/}" in *.status) ;; *) return 1 ;; esac
+        task=${f##*/}; task=${task%.status}
+        case "$task" in ''|*[!A-Za-z0-9._-]*|.|..) return 1 ;; esac
+        [ "${f##*/}" != "$key" ] || found=1
+        status_unread_only_home_answers "$f" || return 1
+      done
+      [ "$found" -eq 1 ]
+      ;;
+    stale:stale:*)
+      record=$(fm_task_inbox_stuck_busy_record "$STATE" "$reason") || return 1
+      [ ! -e "$record" ] && [ ! -L "$record" ] && [ -f "${record%/*}/handled/${record##*/}" ] || return 1
+      target=${reason#stale: }; target=${target%% *}
+      [ "$key" = "$target" ] || return 1
+      _fm_wake_require_classify || return 1
+      task=$(window_to_task "$target" "$STATE")
+      [ -n "$task" ] && [ "$record" = "$STATE/$task.inbox/${record##*/}" ]
+      ;;
+    *) return 1 ;;
+  esac
 }
 
 publish_wake_grant() {  # <space-separated rows>
@@ -1149,6 +1150,7 @@ handle_wake() {  # <reason-lines>
   if [ "$TURN_POSTURE" = attended ]; then
     attended_acceptor "$reason" || return 2
     if [ "$ATTENDED_ROUTINE" -eq 1 ]; then
+      boundary_reached && boundary_exit
       if acknowledge_routine_close "$ATTENDED_ROUTINE_ROWS"; then
         log_line "routine-ack	$first"
         return 0
@@ -1334,8 +1336,7 @@ attended_acceptor() {  # <reason-lines>
     ATTENDED_WHY="branch eligibility could not be computed"
   elif ATTENDED_ROUTINE_ROWS=$(attended_routine_rows "$1"); then
     ATTENDED_ROUTINE=1
-  elif fm_task_inbox_stuck_busy_record "$STATE" "$first" >/dev/null \
-    || [ "$(printf '%s\n' "$offer" | sed -n 's/^eligible=//p')" != 1 ]; then
+  elif [ "$(printf '%s\n' "$offer" | sed -n 's/^eligible=//p')" != 1 ]; then
     ATTENDED_WHY="main-only"
   fi
   ATTENDED_OFFER=$offer
@@ -1387,6 +1388,7 @@ while :; do
   fi
   # Attended: the close reaches main exactly as the plain arm delivers it,
   # unless the supervision session may take it (attended_acceptor).
+  ATTENDED_ROUTINE=0
   if ! fm_afk_contract_away_present "$STATE"; then
     if ! attended_acceptor "$REASON"; then
       log_line "pass-through	attended	$ATTENDED_WHY	$(printf '%s\n' "$REASON" | head -n 1)"
@@ -1423,7 +1425,10 @@ while :; do
   fi
 
   # A turn that could outlive the boundary would outlive the hook registration.
-  turn_crosses_boundary && boundary_exit
+  boundary_reached && boundary_exit
+  if [ "$ATTENDED_ROUTINE" -eq 0 ]; then
+    turn_crosses_boundary && boundary_exit
+  fi
   if ! ARM_OWN_GROUP=1 start_successor "$CLOSED_ARM_PID"; then
     exit_to_main "the successor watcher cycle could not be verified before handling; this wake is yours"
   fi

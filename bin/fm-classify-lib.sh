@@ -2380,7 +2380,7 @@ window_to_task() {
 # --resolve-key closes must not each force a captain-facing wake solely because
 # each one appended a status line, while a worker-authored line that is not in
 # this ledger still signals.
-# fm_wake_signal_seen_current (bin/fm-wake-lib.sh) is the ONLY consumer. The
+# Wake detection and routine answer classification both use the same receipt. The
 # ledger decides whether growth wakes this home and nothing else: it never
 # removes a line from presentation, so the drain's signal annotation and its
 # UNREAD STATUS section both still print these bytes.
@@ -2443,6 +2443,15 @@ EOF
 }
 
 status_home_appends_covers() {  # <status-file> <start> <end>
+  local lock rc=0
+  lock="$(status_home_appends_path "$1").lock"
+  fm_lock_acquire_wait "$lock" --refuse-unreapable || return 1
+  _fm_status_home_appends_covers_locked "$@" || rc=$?
+  fm_lock_release "$lock" || return 1
+  return "$rc"
+}
+
+_fm_status_home_appends_covers_locked() {  # <status-file> <start> <end>
   local start=$2 end=$3 range_start range_end
   case "$start:$end" in *[!0-9:]*) return 1 ;; esac
   [ "$end" -ge "$start" ] || return 1
@@ -2462,8 +2471,7 @@ EOF
   [ "$start" -ge "$end" ]
 }
 
-# An in-flight signal can be selected before the sender publishes its owned
-# range. Only a complete, unchanged unread span of home-authored answers may
+# Only a complete, unchanged unread span of home-authored answers may
 # be acknowledged without presenting the signal. Do not infer authorship from
 # an `answered:` note alone, or treat the open-decision fold as presentation.
 status_unread_only_home_answers() {  # <status-file>
