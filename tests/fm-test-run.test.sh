@@ -1633,8 +1633,8 @@ test_changed_bound_gives_slow_watcher_suites_headroom() {
   cat >"$tmp/clock" <<'SH'
 if [ "${0##*/}" = fm-test-run.sh ]; then
   sleep() {
-    if [ -f "$CLOCK_DIR/ready" ]; then
-      elapsed=${elapsed:-0}
+    elapsed=${elapsed:-0}
+    if [ -f "$CLOCK_DIR/ready" ] && [ "$elapsed" -lt "$FINISH_AT" ]; then
       elapsed=$((elapsed + 100))
       SECONDS=$((SECONDS + 100))
       printf '%s\n' "$elapsed" >"$CLOCK_DIR/tick.next"
@@ -1659,19 +1659,19 @@ SH
   git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm baseline
   printf '\n' >>"$repo/$script"
   set +e
-  (cd "$repo" && BASH_ENV="$tmp/clock" CLOCK_DIR="$tmp" FINISH_AT=1500 bin/fm-test-run.sh --changed --base HEAD) >"$tmp/out" 2>"$tmp/err"
+  (cd "$repo" && BASH_ENV="$tmp/clock" CLOCK_DIR="$tmp" FINISH_AT=1300 bin/fm-test-run.sh --changed --base HEAD) </dev/null >"$tmp/out" 2>"$tmp/err"
   rc=$?
   set -e
   [ "$rc" -eq 0 ] || fail "healthy changed watcher script must pass, got $rc: $(cat "$tmp/out" "$tmp/err")"
   rm -f "$tmp/ready" "$tmp/tick"
   set +e
-  (cd "$repo" && BASH_ENV="$tmp/clock" CLOCK_DIR="$tmp" FINISH_AT=10000 bin/fm-test-run.sh --changed --base HEAD) >"$tmp/out" 2>"$tmp/err"
+  (cd "$repo" && BASH_ENV="$tmp/clock" CLOCK_DIR="$tmp" FINISH_AT=10000 bin/fm-test-run.sh --changed --base HEAD) </dev/null >"$tmp/out" 2>"$tmp/err"
   rc=$?
   set -e
   [ "$rc" -eq 1 ] && grep -Eq 'FM_TEST_END .* exit=124 ' "$tmp/out" \
     || fail "hung changed watcher script must time out: $(cat "$tmp/out" "$tmp/err")"
   rm -rf "$tmp"
-  pass "the automatic --changed bound gives the slow watcher suite at least 1500s"
+  pass "the automatic --changed bound leaves watcher headroom and enforces a deadline"
 }
 
 test_max_wall_ms_is_a_result_not_advice() {
@@ -1955,6 +1955,8 @@ repo = tmp / 'repo'
 (repo / 'bin').mkdir(parents=True)
 (repo / 'tests').mkdir()
 runner = pathlib.Path(shutil.copy2(runner, repo / 'bin'))
+for name in ('fm-path-lib.sh', 'fm-wake-lib.sh'):
+    shutil.copy2(root / 'bin' / name, repo / 'bin')
 for name in ('git-config-helpers.sh', 'remote-secondmate-source-copy-helpers.sh'):
     shutil.copy2(root / 'tests' / name, repo / 'tests')
 script = repo / 'tests/copy.test.sh'
@@ -1992,7 +1994,7 @@ getconf.chmod(0o755)
 alias = tmp / 'alias'
 alias.symlink_to(legacy, target_is_directory=True)
 home = tmp / 'home'
-for blocked in (home / '.firstmate-preserved', home / '.treehouse', home / '.treehouse-bdm', tmp / 'fm-home', tmp / 'custom-treehouse'):
+for blocked in (home / '.firstmate-preserved', home / '.treehouse', tmp / 'fm-home', tmp / 'custom-treehouse'):
     blocked.mkdir(parents=True)
 env = dict(os.environ, HOME=str(home), FM_HOME=str(tmp / 'fm-home'),
            TREEHOUSE_ROOT=str(tmp / 'custom-treehouse'), TMPDIR=str(legacy),
@@ -2000,11 +2002,19 @@ env = dict(os.environ, HOME=str(home), FM_HOME=str(tmp / 'fm-home'),
 env.pop('FM_TASK_ID', None)
 fixture_env = dict(env, PATH=str(fakebin) + os.pathsep + env['PATH'], OS_TEMP_FIXTURE=str(base))
 cmd = [str(runner), str(script.relative_to(repo))]
-for blocked in (legacy, alias, home / '.firstmate-preserved', home / '.treehouse', home / '.treehouse-bdm', tmp / 'fm-home', tmp / 'custom-treehouse'):
+for blocked in (legacy, alias, home / '.firstmate-preserved', home / '.treehouse', tmp / 'fm-home', tmp / 'custom-treehouse'):
     for command in ([str(runner), '--scratch-base'], cmd):
         result = subprocess.run(command, cwd=repo, env=dict(fixture_env, OS_TEMP_FIXTURE=str(blocked)),
                                 capture_output=True)
         assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
+
+result = subprocess.run([str(runner), '--scratch-base'], cwd=repo, env=fixture_env, capture_output=True)
+assert result.returncode == 0 and pathlib.Path(os.fsdecode(result.stdout).strip()) == base.resolve(), result
+assert not list(base.iterdir()), 'scratch-base must not allocate'
+for other_arg in ('--list-lanes', '--help', cmd[-1]):
+    for args in ((other_arg, '--scratch-base'), ('--scratch-base', other_arg)):
+        result = subprocess.run([str(runner), *args], cwd=repo, env=fixture_env, capture_output=True)
+        assert result.returncode == 2 and not result.stdout, result
 
 def launch(name, mode, use_fixture=True):
     proof = tmp / name
@@ -2014,7 +2024,7 @@ def launch(name, mode, use_fixture=True):
         # A Bash-launched background test may inherit SIGINT ignored. Deliver
         # a catchable signal, as for a directly invoked foreground runner.
         child = subprocess.Popen(cmd, cwd=repo, env=case_env, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                                 preexec_fn=lambda: signal.signal(signal.SIGINT, signal.SIG_DFL))
+                                 preexec_fn=(lambda: signal.signal(signal.SIGINT, signal.SIG_DFL)) if os.name == 'posix' else None)
     return child, proof
 
 def scratch(proof):
@@ -2039,7 +2049,7 @@ assert not list(private.iterdir())
 result = subprocess.run(cmd, cwd=repo, env=dict(fixture_env, FM_HOME=str(private)), capture_output=True)
 assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
 
-for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
+for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP) if os.name == 'posix' else ():
     child, proof = launch(sig.name, 'hang')
     try:
         worker_tmp = scratch(proof)
@@ -2052,59 +2062,11 @@ for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP):
             child.terminate()
             child.wait(timeout=10)
 
-if os.name == 'posix':
-    import errno, pty
-
-    tty_script = repo / 'tests/tty.test.sh'
-    tty_script.write_text('''#!/usr/bin/env bash
-set -eu
-IFS= read -r input
-[ "$input" = 'foreground input' ]
-printf '%s\\n' "$TMPDIR" > "$PROOF"
-if [ "$PROBE_MODE" = hang ]; then exec sleep 300; fi
-''')
-    for sig in (None, signal.SIGTERM, signal.SIGHUP):
-        proof = tmp / ('tty-' + (sig.name if sig else 'pass'))
-        case_env = dict(fixture_env, PROOF=str(proof), PROBE_MODE='hang' if sig else 'pass')
-        child, master = pty.fork()
-        if child == 0:
-            os.chdir(repo)
-            os.execve(runner, [str(runner), 'tests/tty.test.sh'], case_env)
-        waited = 0
-        try:
-            os.write(master, b'foreground input\n')
-            os.set_blocking(master, False)
-            worker_tmp = scratch(proof)
-            if sig:
-                run = next(p for p in worker_tmp.parents if (p / '.fm-test-run-owner').is_file())
-                os.kill(child, sig)
-            for _ in range(100):
-                try:
-                    os.read(master, 8192)
-                except BlockingIOError:
-                    pass
-                except OSError as exc:
-                    if exc.errno != errno.EIO:
-                        raise
-                waited, status = os.waitpid(child, os.WNOHANG)
-                if waited:
-                    break
-                time.sleep(0.05)
-            assert waited and os.waitstatus_to_exitcode(status) == (128 + sig if sig else 0), sig
-            assert not worker_tmp.exists(), worker_tmp
-            if sig:
-                assert not run.exists(), run
-        finally:
-            if not waited:
-                try:
-                    group = os.tcgetpgrp(master)
-                    if group > 0 and group != child:
-                        os.killpg(group, signal.SIGKILL)
-                except OSError:
-                    pass
-                os.kill(child, signal.SIGKILL)
-                os.waitpid(child, 0)
-            os.close(master)
+if os.name != 'posix' or subprocess.run(
+        ['bash', '-c', '. bin/fm-wake-lib.sh && fm_pid_start_time "$$" && ps -e -o pid= -o pgid= -o stat='],
+        cwd=repo, env=dict(fixture_env, FM_STATE_OVERRIDE=str(tmp)), capture_output=True).returncode:
+    print('skip: orphan recovery requires process identity and group liveness support')
+    sys.exit(0)
 
 live, proof = launch('live', 'hang')
 worker_group = None

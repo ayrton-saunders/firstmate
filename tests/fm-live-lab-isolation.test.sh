@@ -30,9 +30,9 @@ unset TMUX TMUX_TMPDIR
 
 TMP_ROOT=$(fm_test_tmproot fm-lab-iso)
 LIVE_LAB="$ROOT/bin/fm-live-lab.sh"
-GATE_SOCKET="$TMP_ROOT/base/tmux-$(id -u)/default"
+GATE_SOCKET=
 DEFAULT_SOCKET="/tmp/tmux-$(id -u)/default"
-STUCK_SOCKET="$TMP_ROOT/stuck/tmux-$(id -u)/default"
+STUCK_SOCKET=
 DECOY_PID=''
 STUCK_PID=''
 
@@ -100,6 +100,10 @@ isolation_cleanup() {
   [ "$rc" -eq 0 ] || exit 1
 }
 trap isolation_cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+trap 'exit 131' QUIT
 
 # gate_run <base> [NAME=VALUE...]: the gate's output and exit, in a subshell,
 # followed by RAN when the gate let the script continue.
@@ -118,40 +122,43 @@ gate_run() {
 # FM_LAB_ISO_TMP_COPY marks the copy of this suite under /tmp (below), which
 # needs only the decoy preflight.
 if [ -z "${FM_LAB_ISO_HOST_MARKER:-}" ] && [ -z "${FM_LAB_ISO_TMP_COPY:-}" ]; then
-  out=$(gate_run "$TMP_ROOT/base")
+  SOCKET_ROOT=$(TMPDIR=/tmp fm_test_tmproot fms) || fail 'cannot allocate private tmux socket root'
+  GATE_SOCKET="$SOCKET_ROOT/base/tmux-$(id -u)/default"
+  STUCK_SOCKET="$SOCKET_ROOT/stuck/tmux-$(id -u)/default"
+  out=$(gate_run "$SOCKET_ROOT/base")
   expect_code 0 "$?" "the gate passes with no socket directory: $out"
   assert_equals RAN "$out" "the gate runs the suite where no tmux server can answer"
 
-  mkdir -p "$TMP_ROOT/base"
-  mkdir -m 700 "$TMP_ROOT/base/tmux-$(id -u)"
+  mkdir -p "$SOCKET_ROOT/base"
+  mkdir -m 700 "$SOCKET_ROOT/base/tmux-$(id -u)"
   tmux -S "$GATE_SOCKET" -f /dev/null new-session -d -s live 'exec sleep 600' || fail "cannot start the gate's own server"
-  out=$(gate_run "$TMP_ROOT/base")
+  out=$(gate_run "$SOCKET_ROOT/base")
   expect_code 0 "$?" "the gate skips cleanly beside a live server: $out"
   assert_contains "$(printf '%s\n' "$out" | head -n 1)" "skip: tmux isolation: a live tmux server answers on $GATE_SOCKET" "the skip is the first line and names the live socket"
   assert_contains "$out" "unshare -Urm" "the skip names the isolation it needs"
   assert_not_contains "$out" RAN "the gate stops the suite beside a live server"
 
-  out=$(gate_run "$TMP_ROOT/base" CI=true)
+  out=$(gate_run "$SOCKET_ROOT/base" CI=true)
   expect_code 0 "$?" "under CI the gate skips the same way: $out"
   assert_contains "$out" "skip: tmux isolation" "under CI the gate still says why it skips"
   assert_not_contains "$out" RAN "under CI the gate stops the suite beside a live server"
 
   tmux -S "$GATE_SOCKET" kill-server 2>/dev/null
-  out=$(gate_run "$TMP_ROOT/base")
+  out=$(gate_run "$SOCKET_ROOT/base")
   assert_equals RAN "$out" "the gate runs again once only a dead socket is left"
   pass "fm_tmux_isolation_gate runs isolated and skips beside a live server"
 
   # A server that accepts the connection but never answers (stopped here) must
   # not hold the gate: it gives up at its probe deadline and skips.
-  mkdir -p "$TMP_ROOT/stuck"
-  mkdir -m 700 "$TMP_ROOT/stuck/tmux-$(id -u)"
+  mkdir -p "$SOCKET_ROOT/stuck"
+  mkdir -m 700 "$SOCKET_ROOT/stuck/tmux-$(id -u)"
   tmux -S "$STUCK_SOCKET" -f /dev/null new-session -d -s stuck 'exec sleep 600' || fail "cannot start the stuck server"
   STUCK_PID=$(tmux -S "$STUCK_SOCKET" display-message -p '#{pid}')
   [ -n "$STUCK_PID" ] || fail "the stuck server has no pid"
   kill -STOP "$STUCK_PID" || fail "cannot stop the stuck server"
   start=$(date +%s)
   # shellcheck disable=SC2016 # $1 and $2 expand in the bounded shell.
-  out=$(FM_TMUX_ISOLATION_PROBE_SECONDS=1 fm_run_timed 30 bash -c '. "$1/tests/lib.sh"; fm_tmux_isolation_gate "$2"; echo RAN' _ "$ROOT" "$TMP_ROOT/stuck" 2>&1)
+  out=$(FM_TMUX_ISOLATION_PROBE_SECONDS=1 fm_run_timed 30 bash -c '. "$1/tests/lib.sh"; fm_tmux_isolation_gate "$2"; echo RAN' _ "$ROOT" "$SOCKET_ROOT/stuck" 2>&1)
   code=$?
   kill -CONT "$STUCK_PID" 2>/dev/null
   stop_decoy "$STUCK_PID" "$STUCK_SOCKET" || fail "cannot stop the stuck server"

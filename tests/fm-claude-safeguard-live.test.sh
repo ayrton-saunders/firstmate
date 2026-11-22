@@ -15,6 +15,7 @@ fm_live_gate default-on FM_CLAUDE_SAFEGUARD_LIVE claude python3 tmux
 # shellcheck source=bin/fm-timeout-lib.sh
 . "$ROOT/bin/fm-timeout-lib.sh"
 TMP_ROOT=$(fm_test_tmproot fm-claude-safeguard-live)
+SOCKET_ROOT=$(TMPDIR=/tmp fm_test_tmproot fms) || fail 'cannot allocate private tmux socket root'
 version=$(claude --version 2>/dev/null | head -n 1)
 server_pid=''
 tmux_socket=''
@@ -26,6 +27,10 @@ stop_server() {
   server_pid=''
 }
 trap 'stop_server; fm_test_cleanup' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+trap 'exit 131' QUIT
 for category in cyber none; do
   python3 "$ROOT/tests/fixtures/fm-claude-refusal.py" "$TMP_ROOT/$category.port" "$category" &
   server_pid=$!
@@ -69,7 +74,7 @@ config.mkdir(parents=True, exist_ok=True)
 }))
 PY
   for width in 180 64 40; do
-    tmux_socket="$TMP_ROOT/$category-$width.sock"
+    tmux_socket="$SOCKET_ROOT/$category-$width.sock"
     env -i PATH="$PATH" HOME="$TMP_ROOT/home-$category" TERM=xterm-256color \
       CLAUDE_CONFIG_DIR="$TMP_ROOT/config-$category" \
       ANTHROPIC_API_KEY=sk-ant-synthetic-loopback-only \

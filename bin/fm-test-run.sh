@@ -86,6 +86,7 @@
 # the run; a test that starts a separate session/group owns that group's cleanup.
 # A subsequent run recovers aged, marked roots when the runner and workers are gone.
 # If interruption cuts short a nested runner's cleanup, its scratch is recovered on a later run once those workers are gone.
+# PID-directed TERM/HUP to a TTY runner waits for the foreground test to return or time out; non-TTY waits are interruptible.
 # Keep requested reports and redirected logs outside runner scratch.
 #   --max-wall-ms N fail the run when its measured invocation wall clock exceeds
 #                   N milliseconds, including an empty selection. It is
@@ -196,7 +197,6 @@ JOBS_EXPLICIT=0
 JOBS_MAX=8
 MAX_WALL_MS=
 PER_SCRIPT_TIMEOUT_SECS=0
-SCRATCH_BASE_ONLY=0
 # Bound applied automatically on the automatic --changed path, derived from
 # measured healthy runtimes with margin rather than picked: the slowest measured
 # script was tests/fm-watch-triage.test.sh at about 1075s under CI load before
@@ -2202,6 +2202,43 @@ with open(out, "w", encoding="utf-8") as fh:
 PY
 }
 
+# Compare ancestors by identity as well as using physical paths: macOS and
+# Windows can resolve case variants to the same directory.
+check_scratch_placement() {
+  local base=$1 blocked ancestor checkout
+  checkout=$(git rev-parse --show-toplevel 2>/dev/null) || checkout=$ROOT
+  for blocked in "$ROOT" "$checkout" "${FM_HOME:-}" "${FM_ROOT_OVERRIDE:-}" \
+    "$HOME/.firstmate-preserved" "$HOME/.treehouse" "${TREEHOUSE_ROOT:-}"; do
+    [ -n "$blocked" ] || continue
+    ancestor=$base
+    while :; do
+      if [ "$ancestor" = "${blocked%/}" ] || [ "$ancestor" -ef "$blocked" ]; then
+        die "unsafe scratch base $base resolves inside $blocked"
+      fi
+      [ "$ancestor" != / ] || break
+      ancestor=${ancestor%/*}
+      ancestor=${ancestor:-/}
+    done
+  done
+}
+
+scratch_base() {
+  local base
+  base=$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null) || base=/tmp
+  case "$base" in /*) ;; *) die "scratch base must be absolute: $base" ;; esac
+  base=$(cd -P -- "$base" && pwd -P) || die 'cannot resolve scratch base'
+  check_scratch_placement "$base"
+  printf '%s\n' "$base"
+}
+
+if [ "$#" -eq 1 ] && [ "$1" = --scratch-base ]; then
+  scratch_base
+  exit $?
+fi
+for arg in "$@"; do
+  [ "$arg" != --scratch-base ] || die '--scratch-base must be used alone'
+done
+
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --all)
@@ -2351,11 +2388,6 @@ while [ "$#" -gt 0 ]; do
       FAIL_ON_GATE_SKIP=${1#--fail-on-gate-skip=}
       shift
       ;;
-    --scratch-base)
-      [ "$#" -eq 1 ] && [ "$SCRATCH_BASE_ONLY" -eq 0 ] || die '--scratch-base takes no arguments'
-      SCRATCH_BASE_ONLY=1
-      shift
-      ;;
     -h|--help)
       usage
       exit 0
@@ -2399,47 +2431,19 @@ if [ "$LIST_LANES" -eq 1 ]; then
   exit 0
 fi
 
-# Compare ancestors by identity as well as using physical paths: macOS and
-# Windows can resolve case variants to the same directory.
-check_scratch_placement() {
-  local base=$1 blocked ancestor checkout
-  checkout=$(git rev-parse --show-toplevel 2>/dev/null) || checkout=$ROOT
-  for blocked in "$ROOT" "$checkout" "${FM_HOME:-}" "${FM_ROOT_OVERRIDE:-}" \
-    "$HOME/.firstmate-preserved" "$HOME/.treehouse" "$HOME/.treehouse-bdm" "${TREEHOUSE_ROOT:-}"; do
-    [ -n "$blocked" ] || continue
-    ancestor=$base
-    while :; do
-      if [ "$ancestor" = "${blocked%/}" ] || [ "$ancestor" -ef "$blocked" ]; then
-        die "unsafe scratch base $base resolves inside $blocked"
-      fi
-      [ "$ancestor" != / ] || break
-      ancestor=${ancestor%/*}
-      ancestor=${ancestor:-/}
-    done
-  done
-}
-
-scratch_base() {
-  local base
-  base=$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null) || base=/tmp
-  case "$base" in /*) ;; *) die "scratch base must be absolute: $base" ;; esac
-  base=$(cd -P -- "$base" && pwd -P) || die 'cannot resolve scratch base'
-  check_scratch_placement "$base"
-  printf '%s\n' "$base"
-}
-
-# Normalize ps lstart across BSD and GNU; a successful full snapshot lets us
-# distinguish an absent PID from a failed per-PID query. Unreadable snapshots
-# and malformed markers never authorize deletion.
-run_owner_snapshot() {
-  LC_ALL=C TZ=UTC0 ps -e -o pid= -o pgid= -o stat= -o lstart=
-}
+run_owner_start() (
+  [ -r "$ROOT/bin/fm-wake-lib.sh" ] && [ -r "$ROOT/bin/fm-path-lib.sh" ] || return 1
+  FM_STATE_OVERRIDE=$RUN_TMP
+  unset FM_PROC_ROOT_OVERRIDE
+  # shellcheck source=bin/fm-wake-lib.sh
+  . "$ROOT/bin/fm-wake-lib.sh" || return 1
+  fm_pid_start_time "$1"
+)
 
 record_run_owner() {
-  local pid=$1 start
-  start=$(LC_ALL=C TZ=UTC0 ps -p "$pid" -o lstart= 2>/dev/null |
-    awk 'NF == 5 { print $1, $2, $3, $4, $5 }')
-  printf '%s|%s|%s\n' "$UID" "$pid" "${start:-unknown}" >>"$RUN_TMP/.fm-test-run-owner"
+  local pid=$1 group=${2:-0} start
+  start=$(run_owner_start "$pid") || start=unknown
+  printf '%s|%s|%s|%s\n' "$UID" "$pid" "$group" "$start" >>"$RUN_TMP/.fm-test-run-owner"
 }
 
 remove_run_tree() {
@@ -2451,33 +2455,44 @@ remove_run_tree() {
 }
 
 run_owners_gone() {
-  local marker=$1 snapshot=$2 owner pid start extra worker=0
-  while IFS='|' read -r owner pid start extra; do
+  local marker=$1 snapshot=$2 owner pid group start extra current found=0
+  while IFS='|' read -r owner pid group start extra; do
     [ "$owner" = "$UID" ] && [ -z "$extra" ] || return 1
     case "$pid" in ''|0*|*[!0-9]*) return 1 ;; esac
-    case "$start" in
-      [A-Za-z][A-Za-z][A-Za-z]\ [A-Za-z][A-Za-z][A-Za-z]\ [0-9]*\ [0-9][0-9]:[0-9][0-9]:[0-9][0-9]\ [0-9][0-9][0-9][0-9]) ;;
-      *) return 1 ;;
-    esac
-    awk -v pid="$pid" -v start="$start" -v worker="$worker" '
-      $3 !~ /^Z/ && (($1 == pid && (NF != 8 || start == $4 FS $5 FS $6 FS $7 FS $8)) ||
-                       (worker && $2 == pid)) { live = 1 }
-      END { exit live }
-    ' <<<"$snapshot" || return 1
-    worker=1
+    case "$group" in ''|*[!0-9]*) return 1 ;; esac
+    case "$start" in ''|unknown) return 1 ;; esac
+    if [ "$group" -ne 0 ]; then
+      awk -v group="$group" '$2 == group && $3 !~ /^Z/ { live = 1 } END { exit live }' \
+        <<<"$snapshot" || return 1
+    fi
+    if awk -v pid="$pid" '$1 == pid && $3 !~ /^Z/ { live = 1 } END { exit !live }' <<<"$snapshot"; then
+      current=$(run_owner_start "$pid") || return 1
+      case "$start|$current" in
+        proc-starttime=*\|proc-starttime=*) ;;
+        *proc-starttime=*) return 1 ;;
+        *) ;;
+      esac
+      [ "$start" != "$current" ] || return 1
+    fi
+    found=1
   done <"$marker"
-  [ "$worker" -eq 1 ] && [ -z "$owner$pid$start$extra" ]
+  [ "$found" -eq 1 ] && [ -z "$owner$pid$group$start$extra" ]
 }
 
 reap_orphan_runs() {
   local parent=$1 dir marker snapshot
+  run_owner_start "$$" >/dev/null || return 0
   for dir in "$parent"/r.??????; do
     marker="$dir/.fm-test-run-owner"
     [ -d "$dir" ] && [ ! -L "$dir" ] && [ -O "$dir" ] || continue
     [ -f "$marker" ] && [ ! -L "$marker" ] && [ -O "$marker" ] || continue
     [ -n "$(find "$marker" -prune -mmin +1 -print)" ] || continue
-    snapshot=$(run_owner_snapshot) || return 0
-    awk -v pid="$$" '$1 == pid && NF == 8 { found = 1 } END { exit !found }' <<<"$snapshot" || return 0
+    snapshot=$(LC_ALL=C ps -e -o pid= -o pgid= -o stat= 2>/dev/null) || return 0
+    awk -v pid="$$" '
+      NF != 3 || $1 !~ /^[0-9]+$/ || $2 !~ /^[0-9]+$/ { invalid = 1 }
+      $1 == pid { found = 1 }
+      END { exit (invalid || !found) }
+    ' <<<"$snapshot" || return 0
     if run_owners_gone "$marker" "$snapshot"; then
       remove_run_tree "$dir" || true
     fi
@@ -2487,7 +2502,6 @@ reap_orphan_runs() {
 RUN_TMP=
 RUN_INTERRUPT=0
 RUN_CRITICAL=0
-TERMINAL_GROUP=
 WORKER_PIDS=()
 WORKER_SCRIPTS=()
 WORKER_DEADLINES=()
@@ -2512,34 +2526,10 @@ stop_worker_groups() {
   for pid in "$@"; do wait "$pid" 2>/dev/null || true; done
 }
 
-terminal_group() {
-  python3 -c '
-import os, signal, sys
-if len(sys.argv) > 1:
-    signal.signal(signal.SIGTTOU, signal.SIG_IGN)
-    os.tcsetpgrp(0, int(sys.argv[1]))
-else:
-    if hasattr(os, "tcgetpgrp"):
-        try:
-            group = os.tcgetpgrp(0)
-        except OSError:
-            group = None
-        if group == os.getpgrp():
-            print(group)
-' "$@"
-}
-
-restore_terminal() {
-  [ -n "$TERMINAL_GROUP" ] || return 0
-  terminal_group "$TERMINAL_GROUP" || return
-  TERMINAL_GROUP=
-}
-
 # shellcheck disable=SC2329
 cleanup_run() {
   trap '' HUP INT TERM
   stop_worker_groups "${WORKER_PIDS[@]+"${WORKER_PIDS[@]}"}"
-  restore_terminal || true
   if [ -n "$RUN_TMP" ]; then remove_run_tree "$RUN_TMP"; fi
 }
 
@@ -2555,7 +2545,6 @@ prepare_run_scratch() {
     mode=$(stat -c %a "$parent" 2>/dev/null || stat -f %Lp "$parent" 2>/dev/null) || mode=unknown
     case "$mode" in 700|0700) ;; *) die "scratch directory must have mode 0700: $parent" ;; esac
   fi
-  reap_orphan_runs "$parent"
   trap cleanup_run EXIT
   trap 'interrupt_run 129' HUP
   trap 'interrupt_run 130' INT
@@ -2565,6 +2554,7 @@ prepare_run_scratch() {
   record_run_owner "$$"
   RUN_CRITICAL=0
   [ "$RUN_INTERRUPT" -eq 0 ] || exit "$RUN_INTERRUPT"
+  reap_orphan_runs "$parent"
   # Also covers temporary files used by runner helpers rather than the tests.
   export TMPDIR="$RUN_TMP" TMP="$RUN_TMP" TEMP="$RUN_TMP"
 }
@@ -2575,11 +2565,6 @@ worker_root_mode_is_enforceable() {
     *) return 0 ;;
   esac
 }
-
-if [ "$SCRATCH_BASE_ONLY" -eq 1 ]; then
-  scratch_base
-  exit $?
-fi
 
 if [ "$CHECK_COVERAGE" -eq 1 ]; then
   prepare_run_scratch
@@ -2912,7 +2897,7 @@ worker_n=0
 active_workers=0
 
 start_worker() {
-  local script=$1 stream=$2 work base family expected pid
+  local script=$1 stream=$2 foreground=${3:-0} work base family expected
   worker_n=$((worker_n + 1))
   work="$RUN_TMP/w$worker_n"
   mkdir -p "$work/tmp"
@@ -2932,49 +2917,70 @@ start_worker() {
     # SECONDS is coarse; rounding up never cuts the configured bound short.
     WORKER_DEADLINES[worker_n]=$((SECONDS + PER_SCRIPT_TIMEOUT_SECS + 1))
   fi
-  RUN_CRITICAL=1
-  set -m
-  (
-    trap - EXIT HUP INT TERM
-    set +m
-    pid=$(exec bash -c 'printf "%s\n" "$PPID"')
-    record_run_owner "$pid" || exit 1
-    kill -0 "$$" 2>/dev/null || exit 1
-    export TMPDIR="$work/tmp" TMP="$work/tmp" TEMP="$work/tmp"
-    if [ "$stream" -eq 0 ]; then
-      unset FM_HOME FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_ROOT_OVERRIDE \
-        FM_PROJECTS_OVERRIDE FM_CONFIG_OVERRIDE FM_BACKEND 2>/dev/null || true
-    fi
-    # shellcheck source=tests/git-config-helpers.sh
-    . "$ROOT/tests/git-config-helpers.sh" || exit 1
-    cd "$ROOT" || exit 1
-    [ -z "$TERMINAL_GROUP" ] || terminal_group "$pid" || exit 1
-    set +e
-    begin_ms=$(now_ms)
-    if [ "$stream" -eq 1 ]; then
-      bash "$script" 2>&1 | tee "$work/output"
-      rc=${PIPESTATUS[0]}
-    else
-      bash "$script" >"$work/output" 2>&1
-      rc=$?
-    fi
-    end_ms=$(now_ms)
-    duration=$((end_ms - begin_ms))
-    [ "$duration" -ge 0 ] || duration=0
-    printf '%s\n' "$duration" >"$work/duration_ms"
-    printf '%s\n' "$rc" >"$work/exit"
-  ) <&0 &
-  WORKER_PIDS[worker_n]=$!
-  set +m
   WORKER_SCRIPTS[worker_n]=$script
   active_workers=$((active_workers + 1))
-  RUN_CRITICAL=0
-  [ "$RUN_INTERRUPT" -eq 0 ] || exit "$RUN_INTERRUPT"
+  if [ "$foreground" -eq 1 ]; then
+    (execute_worker "$script" "$stream" "$work" "$foreground") || true
+  else
+    RUN_CRITICAL=1
+    set -m
+    execute_worker "$script" "$stream" "$work" "$foreground" <&0 &
+    WORKER_PIDS[worker_n]=$!
+    set +m
+    RUN_CRITICAL=0
+    [ "$RUN_INTERRUPT" -eq 0 ] || exit "$RUN_INTERRUPT"
+  fi
+}
+
+execute_worker() {
+  local script=$1 stream=$2 work=$3 foreground=$4 pid group=0 rc begin_ms end_ms duration
+  trap - EXIT HUP INT TERM
+  set +m
+  pid=${BASHPID:-$(exec bash -c 'printf "%s\n" "$PPID"')}
+  [ "$foreground" -eq 1 ] || group=$pid
+  record_run_owner "$pid" "$group" || exit 1
+  kill -0 "$$" 2>/dev/null || exit 1
+  export TMPDIR="$work/tmp" TMP="$work/tmp" TEMP="$work/tmp"
+  if [ "$stream" -eq 0 ]; then
+    unset FM_HOME FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_ROOT_OVERRIDE \
+      FM_PROJECTS_OVERRIDE FM_CONFIG_OVERRIDE FM_BACKEND 2>/dev/null || true
+  fi
+  # shellcheck source=tests/git-config-helpers.sh
+  . "$ROOT/tests/git-config-helpers.sh" || exit 1
+  cd "$ROOT" || exit 1
+  set +e
+  begin_ms=$(now_ms)
+  if [ "$foreground" -eq 1 ] && [ "$PER_SCRIPT_TIMEOUT_SECS" -gt 0 ]; then
+    # shellcheck source=bin/fm-timeout-lib.sh
+    . "$ROOT/bin/fm-timeout-lib.sh" || exit 1
+    # shellcheck disable=SC2016
+    fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash -c \
+      'bash "$1" 2>&1 | tee "$2"; exit "${PIPESTATUS[0]}"' _ "$script" "$work/output"
+    rc=$?
+    if [ "$rc" -eq 124 ]; then
+      printf 'not ok - %s exceeded the per-script bound of %ss and was terminated\n' \
+        "$script" "$PER_SCRIPT_TIMEOUT_SECS" >>"$work/output"
+      tail -1 "$work/output"
+    fi
+  elif [ "$stream" -eq 1 ]; then
+    bash "$script" 2>&1 | tee "$work/output"
+    rc=${PIPESTATUS[0]}
+  else
+    bash "$script" >"$work/output" 2>&1
+    rc=$?
+  fi
+  end_ms=$(now_ms)
+  duration=$((end_ms - begin_ms))
+  [ "$duration" -ge 0 ] || duration=0
+  printf '%s\n' "$duration" >"$work/duration_ms"
+  printf '%s\n' "$rc" >"$work/exit"
 }
 
 run_one_serial() {
   if [ -t 0 ]; then
-    TERMINAL_GROUP=$(terminal_group) || die 'cannot inspect foreground terminal ownership'
+    start_worker "$1" 1 1
+    collect_worker "$worker_n" 1 0
+    return
   fi
   start_worker "$1" 1
   if [ "$PER_SCRIPT_TIMEOUT_SECS" -eq 0 ]; then
@@ -2987,17 +2993,15 @@ run_one_serial() {
 }
 
 collect_worker() {
-  local slot=$1 stream=$2 timed_out=$3 pid work script rc duration mode out end_iso wait_rc=0
-  pid=${WORKER_PIDS[$slot]}
+  local slot=$1 stream=$2 timed_out=$3 pid work script rc duration mode out end_iso
+  pid=${WORKER_PIDS[$slot]:-}
   script=${WORKER_SCRIPTS[$slot]}
   work="$RUN_TMP/w$slot"
   out="$work/output"
-  if [ "$timed_out" -eq 0 ]; then
-    wait "$pid" || wait_rc=$?
-    if [ -n "$TERMINAL_GROUP" ] && [ "$wait_rc" -eq 130 ]; then exit 130; fi
+  if [ -n "$pid" ]; then
+    if [ "$timed_out" -eq 0 ]; then wait "$pid" || true; fi
+    stop_worker_groups "$pid"
   fi
-  stop_worker_groups "$pid"
-  restore_terminal
   active_workers=$((active_workers - 1))
   if [ "$timed_out" -eq 1 ]; then
     rc=124
