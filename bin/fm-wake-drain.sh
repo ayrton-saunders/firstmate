@@ -228,6 +228,9 @@ presented_max_row() { # <rows-file>
 
 case "${1:-}" in
   '') ;;
+  --status-backstop-clear)
+    [ "$#" -eq 1 ] && [ "$ACTOR" = main ] || exit 2
+    ;;
   --ack-through)
     ACK_THROUGH=${2:-}
     case "$ACK_THROUGH" in ''|*[!0-9]*) echo "wake drain: invalid acknowledgement sequence" >&2; exit 2 ;; esac
@@ -237,7 +240,7 @@ case "${1:-}" in
     case "$ACK_GENERATION" in ''|*[!A-Za-z0-9._-]*) echo "wake drain: invalid recovery generation" >&2; exit 2 ;; esac
     [ "$#" -eq 4 ] || { echo "wake drain: unexpected acknowledgement arguments" >&2; exit 2; }
     ;;
-  *) echo "usage: fm-wake-drain.sh [--ack-through SEQUENCE --recovery-generation GENERATION]" >&2; exit 2 ;;
+  *) echo "usage: fm-wake-drain.sh [--status-backstop-clear | --ack-through SEQUENCE --recovery-generation GENERATION]" >&2; exit 2 ;;
 esac
 
 [ "$ACTOR" != branch ] || require_branch_eligible_rows || exit 1
@@ -838,6 +841,13 @@ cleanup() {
 trap cleanup EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
+
+if [ "${1:-}" = --status-backstop-clear ]; then
+  snapshot=$(status_presentation_snapshot "$STATE") || exit 1
+  backstop=$(print_status_outcome_backstop_section "$snapshot") || exit 1
+  [ -z "$backstop" ]
+  exit $?
+fi
 
 if [ -n "$ACK_THROUGH" ]; then
   fm_lock_acquire_wait "$FM_WAKE_QUEUE_LOCK"

@@ -2442,16 +2442,16 @@ $rest
 EOF
 }
 
-status_home_appends_covers() {  # <status-file> <start> <end>
+_fm_status_home_appends_covers_serialized() {  # <status-file> <start> <end>
   local lock rc=0
   lock="$(status_home_appends_path "$1").lock"
   fm_lock_acquire_wait "$lock" --refuse-unreapable || return 1
-  _fm_status_home_appends_covers_locked "$@" || rc=$?
+  status_home_appends_covers "$@" || rc=$?
   fm_lock_release "$lock" || return 1
   return "$rc"
 }
 
-_fm_status_home_appends_covers_locked() {  # <status-file> <start> <end>
+status_home_appends_covers() {  # <status-file> <start> <end>
   local start=$2 end=$3 range_start range_end
   case "$start:$end" in *[!0-9:]*) return 1 ;; esac
   [ "$end" -ge "$start" ] || return 1
@@ -2481,7 +2481,7 @@ status_unread_only_home_answers() {  # <status-file>
   ident=$_FM_STAT_IDENTITY end=${_FM_STAT_SIZE//[[:space:]]/}
   start=$(status_presentation_cursor_offset "$f") || return 1
   [ "$start" -lt "$end" ] || return 1
-  status_home_appends_covers "$f" "$start" "$end" || return 1
+  _fm_status_home_appends_covers_serialized "$f" "$start" "$end" || return 1
   span=$(_fm_status_read_span "$f" "$start" "$((end - start))") || return 1
   [ -n "$span" ] || return 1
   while IFS= read -r line; do
@@ -2604,10 +2604,8 @@ _fm_status_open_decision_origins() {  # <status-file> [<kind>]
   printf '%s' "$origins"
 }
 
-status_span_first_actionable_record() {  # <status-file> <start-offset> [record-var] [needs-decision-var] [ignored-blocked-key] [has-opening-var]
-  local f=$1 start=${2:-0} output_var=${3-} needs_var=${4-} ignored_blocked_key=${5-} opening_var=${6-} size ident cur_ident scratch chunk_file result
-  local _fm_span_has_opening=0
-  [ -z "$opening_var" ] || printf -v "$opening_var" '%s' 0
+status_span_first_actionable_record() {  # <status-file> <start-offset> [record-var] [needs-decision-var] [ignored-blocked-key]
+  local f=$1 start=${2:-0} output_var=${3-} needs_var=${4-} ignored_blocked_key=${5-} size ident cur_ident scratch chunk_file result
   local line verb key origins='' folded=0 rc=1 failed=0 line_number=0 live_line='' events='' _line _key _fm_span_needs_decision=0
   [ -e "$f" ] || { [ -L "$f" ] && return 2; return 1; }
   [ -f "$f" ] && [ -r "$f" ] && [ ! -L "$f" ] || return 2
@@ -2677,7 +2675,6 @@ $origins
 EOF
 )
         [ -n "$live_line" ] && [ "$line_number" -eq "$live_line" ] || continue
-        _fm_span_has_opening=1
         [ -n "$events" ] && events="${events} ; "
         events="${events}${line}"
         if [ "$verb" = needs-decision ] || { [ "$verb" = blocked ] &&
@@ -2695,7 +2692,6 @@ EOF
   done < "$chunk_file"
   rm -f "$chunk_file"
   [ "$failed" -eq 0 ] || return 2
-  [ -z "$opening_var" ] || printf -v "$opening_var" '%s' "$_fm_span_has_opening"
   if [ "$rc" -eq 0 ]; then result="${size}"$'\t'"${ident}"$'\t'"${events}"; else result="${size}"$'\t'"${ident}"; fi
   if [ -n "$output_var" ]; then
     printf -v "$output_var" '%s' "$result"

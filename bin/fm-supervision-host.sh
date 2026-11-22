@@ -826,8 +826,9 @@ stand_down() {  # <why>
 
 # Start the successor cycle and wait until it proves a live watcher. Sets
 # SUCCESSOR_WATCHER and SUCCESSOR_GENERATION (empty when the arm attached).
-start_successor() {  # <predecessor-arm-pid>
+start_successor() {  # <predecessor-arm-pid> [park-bounded=0]
   local deadline line
+  local park_bounded=${2:-0}
   SUCCESSOR_WATCHER=
   SUCCESSOR_GENERATION=
   start_arm "$1" || return 1
@@ -835,6 +836,9 @@ start_successor() {  # <predecessor-arm-pid>
   SUCCESSOR_OUT=$STARTED_ARM_OUT
   deadline=$(( $(date +%s) + READY_TIMEOUT ))
   while :; do
+    if [ "$park_bounded" -eq 1 ]; then
+      boundary_reached && return 124
+    fi
     line=$(grep -E '^watcher: (started|attached) pid=[0-9]+' "$SUCCESSOR_OUT" 2>/dev/null | head -n 1)
     if [ -n "$line" ]; then
       SUCCESSOR_WATCHER=$(printf '%s\n' "$line" | sed -E 's/^watcher: (started|attached) pid=([0-9]+).*/\2/')
@@ -1023,13 +1027,6 @@ health_record() {  # <engine-error 0|1> <reports>
 attended_routine_rows() {  # <reason> <decision keys>
   local reason=$1 decision_keys=$2 queue='' seq kind key payload epoch extra rows='' pending row_reason f exclude
   local proven_answers=' '
-  # A first cycle that closes before readiness is streamed still has its
-  # normal arm status line in ARM_TEXT. No other diagnostics are ignorable.
-  case "$ARM_TEXT" in
-    "$reason"|watcher:\ started\ *$'\n'"$reason"|watcher:\ attached\ *$'\n'"$reason")
-      case "${ARM_TEXT%"$reason"}" in *$'\n'*$'\n'*) return 1 ;; esac ;;
-    *) return 1 ;;
-  esac
   if [ -e "$FM_WAKE_QUEUE" ] || [ -L "$FM_WAKE_QUEUE" ]; then
     [ -f "$FM_WAKE_QUEUE" ] && [ ! -L "$FM_WAKE_QUEUE" ] || return 1
     queue=$(cat "$FM_WAKE_QUEUE") || return 1
@@ -1038,11 +1035,12 @@ attended_routine_rows() {  # <reason> <decision keys>
     'check: rearm-resurface')
       pending=$("$SCRIPT_DIR/fm-branch-outcome.sh" present) || return 1
       [ "$(printf '%s\n' "$pending" | jq -rs 'any(.verdict == "captain")')" = false ] || return 1
+      FM_SUPERVISION_ACTOR=main "$SCRIPT_DIR/fm-wake-drain.sh" --status-backstop-clear || return 1
       _fm_wake_require_classify || return 1
       exclude=$(status_scan_parent_channel_exclude "$STATE")
       for f in "$STATE"/*.status; do
         [ -e "$f" ] && [ "$f" != "$exclude" ] && [ ! -L "$f" ] || continue
-        attended_no_unread_decision "$f" || return 1
+        attended_no_open_decision "$f" || return 1
       done
       [ -n "$queue" ] || return 0
       ;;
@@ -1063,14 +1061,12 @@ attended_routine_rows() {  # <reason> <decision keys>
   printf '%s\n' "$rows"
 }
 
-attended_no_unread_decision() {  # <status-file>
-  local start folded opening rc=0
+attended_no_open_decision() {  # <status-file>
+  local open
   [ -e "$1" ] || { [ ! -L "$1" ]; return; }
-  start=$(status_presentation_cursor_offset "$1") || return 1
-  folded=$(status_open_decisions_cursor_offset "$1") || return 1
-  [ "$folded" -le "$start" ] || start=$folded
-  status_span_first_actionable_record "$1" "$start" '' '' '' opening >/dev/null || rc=$?
-  [ "$rc" -le 1 ] && [ "$opening" -eq 0 ]
+  [ -f "$1" ] && [ -r "$1" ] && [ ! -L "$1" ] || return 1
+  open=$(status_open_decisions "$1") || return 1
+  [ -z "$open" ]
 }
 
 attended_routine_row() {  # <kind> <key> <reason>
@@ -1103,7 +1099,7 @@ attended_routine_row() {  # <kind> <key> <reason>
       task=$(window_to_task "$target" "$STATE")
       [ -n "$task" ] && [ "$record" = "$STATE/$task.inbox/${record##*/}" ] || return 1
       case " $decision_keys " in *" $target "*) return 1 ;; esac
-      attended_no_unread_decision "$STATE/$task.status"
+      attended_no_open_decision "$STATE/$task.status"
       ;;
     *) return 1 ;;
   esac
@@ -1352,15 +1348,35 @@ attended_park_run() {  # <command> [args...]
 
 attended_park_worker() {  # <function> [args...]
   FM_STATE_OVERRIDE="$STATE" attended_park_run bash -uc '
-    SCRIPT_DIR=$1 ARM_TEXT=$2 HOST_PID=$3 GEN=$4 GRANT_ACTIVE=$5
+    SCRIPT_DIR=$1 HOST_PID=$2 GEN=$3 GRANT_ACTIVE=$4
     . "$SCRIPT_DIR/fm-wake-lib.sh"
     . "$SCRIPT_DIR/fm-task-inbox-lib.sh"
-    eval "$6"
-    shift 6
-    "$@"
-  ' _ "$SCRIPT_DIR" "$ARM_TEXT" "$HOST_PID" "$GEN" "$GRANT_ACTIVE" \
-    "$(declare -f attended_routine_rows attended_routine_row attended_no_unread_decision \
+    eval "$5"
+    shift 5
+    if [ "$1" = attended_routine_rows ]; then
+      IFS= read -r reason && IFS= read -r decision_keys || exit 1
+      attended_routine_rows "$reason" "$decision_keys"
+    else
+      "$@"
+    fi
+  ' _ "$SCRIPT_DIR" "$HOST_PID" "$GEN" "$GRANT_ACTIVE" \
+    "$(declare -f attended_routine_rows attended_routine_row attended_no_open_decision \
       acknowledge_routine_close publish_wake_grant branch_env)" "$@"
+}
+
+attended_routine_candidate() {  # <reason>
+  case "$1" in
+    *$'\n'*) return 1 ;;
+    signal:*|stale:*|'check: rearm-resurface') ;;
+    *) return 1 ;;
+  esac
+  case "$ARM_TEXT" in
+    "$1") return 0 ;;
+    watcher:\ started\ *$'\n'"$1"|watcher:\ attached\ *$'\n'"$1")
+      case "${ARM_TEXT%"$1"}" in *$'\n'*$'\n'*) return 1 ;; esac ;;
+    *) return 1 ;;
+  esac
+  return 0
 }
 
 # Why an attended close stays with main exactly as the plain arm delivers it,
@@ -1383,9 +1399,13 @@ attended_acceptor() {  # <reason-lines>
     if [ "$rc" -ne 0 ]; then
       ATTENDED_WHY="branch eligibility could not be computed"
     else
-      decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
-      ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows "$1" "$decision_keys") || rc=$?
-      if [ "$rc" -eq 124 ]; then boundary_exit; fi
+      rc=1
+      if attended_routine_candidate "$1"; then
+        decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
+        rc=0
+        ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows <<< "$1"$'\n'"$decision_keys") || rc=$?
+        if [ "$rc" -eq 124 ]; then boundary_exit; fi
+      fi
       boundary_reached && boundary_exit
       if [ "$rc" -eq 0 ]; then
         ATTENDED_ROUTINE=1
@@ -1486,11 +1506,20 @@ while :; do
   if [ "$ATTENDED_ROUTINE" -eq 0 ]; then
     turn_crosses_boundary && boundary_exit
   fi
-  if ! ARM_OWN_GROUP=1 start_successor "$CLOSED_ARM_PID"; then
+  HANDOFF_RC=0
+  ARM_OWN_GROUP=1 start_successor "$CLOSED_ARM_PID" "$ATTENDED_ROUTINE" || HANDOFF_RC=$?
+  if [ "$HANDOFF_RC" -eq 124 ]; then boundary_exit; fi
+  if [ "$HANDOFF_RC" -ne 0 ]; then
     exit_to_main "the successor watcher cycle could not be verified before handling; this wake is yours"
   fi
   if [ -n "$SUCCESSOR_GENERATION" ]; then
-    if ! "$SCRIPT_DIR/fm-watch-arm.sh" --handling-delivered "$SUCCESSOR_GENERATION" --watcher-pid "$SUCCESSOR_WATCHER" >/dev/null 2>&1; then
+    if [ "$ATTENDED_ROUTINE" -eq 1 ]; then
+      attended_park_run "$SCRIPT_DIR/fm-watch-arm.sh" --handling-delivered "$SUCCESSOR_GENERATION" --watcher-pid "$SUCCESSOR_WATCHER" >/dev/null 2>&1 || HANDOFF_RC=$?
+      if [ "$HANDOFF_RC" -eq 124 ]; then boundary_exit; fi
+    else
+      "$SCRIPT_DIR/fm-watch-arm.sh" --handling-delivered "$SUCCESSOR_GENERATION" --watcher-pid "$SUCCESSOR_WATCHER" >/dev/null 2>&1 || HANDOFF_RC=$?
+    fi
+    if [ "$HANDOFF_RC" -ne 0 ]; then
       exit_to_main "the handling handoff to the successor watcher could not be confirmed; this wake is yours"
     fi
   fi
@@ -1551,7 +1580,15 @@ while :; do
   fi
 
   # Handled: park on the successor.
-  if ! fm_recovery_marker_handling_settled "$STATE/.watcher-down"; then
+  HANDOFF_RC=0
+  if [ "$TURN_POSTURE" = attended ] && [ "$ATTENDED_ROUTINE" -eq 1 ]; then
+    ARM_TEXT=
+    attended_park_worker fm_recovery_marker_handling_settled "$STATE/.watcher-down" || HANDOFF_RC=$?
+    if [ "$HANDOFF_RC" -eq 124 ]; then boundary_exit; fi
+  else
+    fm_recovery_marker_handling_settled "$STATE/.watcher-down" || HANDOFF_RC=$?
+  fi
+  if [ "$HANDOFF_RC" -ne 0 ]; then
     log_line "handling-settle-failed	turn=$LAST_TURN	successor=$SUCCESSOR_PID"
   fi
   ARM_PID=$SUCCESSOR_PID

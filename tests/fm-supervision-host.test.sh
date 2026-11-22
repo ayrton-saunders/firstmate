@@ -420,7 +420,7 @@ SH
 }
 
 test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-captain-outcome>
-  local mode=$1 home rec reason seq f
+  local mode=$1 home rec reason seq f i note initial
   home=$(make_home "attended-resurface-$mode" quiet)
   : > "$home/state/.wake-queue"
   case "$mode" in
@@ -435,19 +435,37 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
       fi
       routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$f" || fail "fixture: decision would wake independently"
       ;;
+    capped-decisions)
+      f="$home/state/demo.status"
+      printf -v note '%0200d' 0
+      for ((i=1; i<=25; i++)); do
+        printf 'blocked [key=choice-%s]: %s\n' "$i" "$note"
+      done > "$f"
+      initial=$(FM_HOME="$home" "$FAKE_CLAUDE" -c '"$0" 2>&1' "$ROOT/bin/fm-wake-drain.sh")
+      assert_contains "$initial" 'more omitted (byte cap)' "fixture: drain did not cap open decisions"
+      assert_not_contains "$initial" '[key=choice-25]' "fixture: the last open decision was already displayed"
+      routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$f" || fail "fixture: decisions would wake independently"
+      ;;
     credential) routine_wake_lib "$home" fm_wake_append check needs-gh-auth 'check: GitHub login required' || fail "fixture: no credential check" ;;
-    routine)
-      rec=$(FM_HOME="$home" bash -c '. "$1"; fm_task_inbox_write "$2" demo steer' _ "$ROOT/bin/fm-task-inbox-lib.sh" "$home/state") || fail "fixture: no inbox record"
-      mv "$rec" "${rec%/*}/handled/"
-      reason="stale: sess:fm-demo (unread firstmate instruction: stuck-busy after 2 consecutive busy-deferred due doorbells; $rec stays unhandled and no doorbell was typed; inspect the worker)"
-      printf 'needs-decision [key=answer-test]: choose\n' > "$home/state/demo.status"
-      routine_wake_lib "$home" fm_wake_append signal demo.status "needs-decision: $home/state/demo.status"
-      main_drain_and_ack "$home"
-      routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$home/state/demo.status"
-      routine_wake_lib "$home" fm_wake_status_append_self_announced "$home/state" "$home/state/demo.status" \
-        'resolved [key=answer-test]: answered: go ahead' || fail "fixture: answer was not self-announced"
-      routine_wake_lib "$home" fm_wake_append signal demo.status "needs-decision: $home/state/demo.status" || fail "fixture: no recovered answer row"
-      routine_wake_lib "$home" fm_wake_append stale sess:fm-demo "$reason" || fail "fixture: no recovered stale row"
+    backstop|routine-backstop|routine)
+      if [ "$mode" != backstop ]; then
+        rec=$(FM_HOME="$home" bash -c '. "$1"; fm_task_inbox_write "$2" demo steer' _ "$ROOT/bin/fm-task-inbox-lib.sh" "$home/state") || fail "fixture: no inbox record"
+        mv "$rec" "${rec%/*}/handled/"
+        reason="stale: sess:fm-demo (unread firstmate instruction: stuck-busy after 2 consecutive busy-deferred due doorbells; $rec stays unhandled and no doorbell was typed; inspect the worker)"
+        printf 'needs-decision [key=answer-test]: choose\n' > "$home/state/demo.status"
+        routine_wake_lib "$home" fm_wake_append signal demo.status "needs-decision: $home/state/demo.status"
+        main_drain_and_ack "$home"
+        routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$home/state/demo.status"
+        routine_wake_lib "$home" fm_wake_status_append_self_announced "$home/state" "$home/state/demo.status" \
+          'resolved [key=answer-test]: answered: go ahead' || fail "fixture: answer was not self-announced"
+        routine_wake_lib "$home" fm_wake_append signal demo.status "needs-decision: $home/state/demo.status" || fail "fixture: no recovered answer row"
+        routine_wake_lib "$home" fm_wake_append stale sess:fm-demo "$reason" || fail "fixture: no recovered stale row"
+      fi
+      if [ "$mode" != routine ]; then
+        f="$home/state/review.status"
+        printf 'failed: review build failed without a branch outcome\n' > "$f"
+        routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$f" || fail "fixture: failure would wake independently"
+      fi
       ;;
     captain-outcome|read-captain-outcome)
       seq=$(FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" append --task demo --verdict captain \
@@ -468,7 +486,7 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
   esac
   FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 \
     FM_SUPERVISION_HOST_TURN_TIMEOUT=20 FM_SUPERVISION_ENGINE_GRACE=1 start_host "$home"
-  if [ "$mode" = empty ] || [ "$mode" = routine ] || [ "$mode" = presented-decision ] || [ "$mode" = cooldown ]; then
+  if [ "$mode" = empty ] || [ "$mode" = routine ] || [ "$mode" = cooldown ]; then
     assert_routine_close_acknowledged "$home" 'check: rearm-resurface$'
     assert_re '^acked:' "$home/state/.watcher-down" "resurfacing did not acknowledge recovery"
   else
@@ -478,7 +496,12 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
     drain=$(FM_HOME="$home" "$FAKE_CLAUDE" -c '"$0" 2>&1' "$ROOT/bin/fm-wake-drain.sh")
     case "$mode" in
       credential) assert_contains "$drain" 'GitHub login required' "the credentials request was lost" ;;
-      new-decision|reopened-decision) assert_contains "$drain" '[key=recovery-choice] blocked: choose an approach' "the unread decision was lost" ;;
+      new-decision|reopened-decision|presented-decision) assert_contains "$drain" '[key=recovery-choice] blocked: choose an approach' "the open decision was lost" ;;
+      capped-decisions) assert_contains "$drain" 'more omitted (byte cap)' "recovery lost the open-decision overflow" ;;
+      backstop|routine-backstop)
+        assert_contains "$drain" 'STATUS OUTCOME BACKSTOP (' "recovery did not preserve the backstop surface"
+        assert_contains "$drain" 'review build failed without a branch outcome' "recovery lost the uncovered failure"
+        ;;
       captain-outcome|read-captain-outcome) assert_contains "$drain" 'a review requires attention' "the captain outcome was lost" ;;
     esac
   fi
@@ -1339,6 +1362,9 @@ test_handled_decision_stale() { test_attended_busy_inbox_close decision; }
 test_new_decision_resurface() { test_attended_resurface new-decision; }
 test_reopened_decision_resurface() { test_attended_resurface reopened-decision; }
 test_presented_decision_resurface() { test_attended_resurface presented-decision; }
+test_capped_decisions_resurface() { test_attended_resurface capped-decisions; }
+test_status_backstop_resurface() { test_attended_resurface backstop; }
+test_status_backstop_with_routine_rows_resurface() { test_attended_resurface routine-backstop; }
 test_cooldown_resurface() { test_attended_resurface cooldown; }
 
 test_routine_resurface_respects_park_deadline() {
@@ -1385,6 +1411,9 @@ fm_test_run \
   test_new_decision_resurface \
   test_reopened_decision_resurface \
   test_presented_decision_resurface \
+  test_capped_decisions_resurface \
+  test_status_backstop_resurface \
+  test_status_backstop_with_routine_rows_resurface \
   test_cooldown_resurface \
   test_routine_resurface_respects_park_deadline \
   test_empty_resurface \
