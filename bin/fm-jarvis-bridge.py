@@ -105,6 +105,7 @@ class Bridge:
                 continue
             require(h.get('id') == note and h.get('origin') == 'jarvis' and h.get('payload_sha256') == payload
                     and h.get('request_id') == 'jarvis-v1:'+req, 'denied')
+            os.fsync(folder)
             return True
         return False
 
@@ -117,21 +118,25 @@ class Bridge:
         h = self.handled_entry(note)
         return min([t for t in (r.st_mtime if r else None, h.st_ctime if h else None) if t is not None], default=None)
 
+    def slot_state(self, folder, slot, terminal, now):
+        require(re.fullmatch(ID, slot), 'denied')
+        delivered = durable_marker(folder, slot+'.delivered')
+        deadline = delivered.st_mtime + 7*DAY if delivered else terminal + 30*DAY if terminal else None
+        expired = durable_marker(folder, slot+'.expired')
+        if not expired and deadline and now >= deadline:
+            create(folder, slot+'.expired', b'')
+            os.fsync(folder)
+            expired = True
+        if expired:
+            if regular(folder, slot):
+                remove(folder, slot)
+            return 'expired'
+        return 'delivered' if delivered else 'undelivered'
+
     def expire_slots(self, folder, files, terminal):
         now = time.time()
         for f in files:
-            slot = f['slot']
-            require(re.fullmatch(ID, slot), 'denied')
-            delivered = durable_marker(folder, slot+'.delivered')
-            deadline = delivered.st_mtime + 7*DAY if delivered else terminal + 30*DAY if terminal else None
-            expired = durable_marker(folder, slot+'.expired')
-            if not expired and deadline and now >= deadline:
-                create(folder, slot+'.expired', b'')
-                os.fsync(folder)
-                expired = True
-            if expired:
-                if regular(folder, slot):
-                    remove(folder, slot)
+            if self.slot_state(folder, f['slot'], terminal, now) == 'expired':
                 f['expired'] = True
 
     def manifest(self, fd, req, direction, expected):
@@ -229,8 +234,14 @@ class Bridge:
                     raise
         # The standard note publisher completes this reservation, including
         # after a crash. Neither body nor display names become authority.
-        self.child('note', '--request-id', key, '--json', '-', body=body.encode(),
-                   FM_JARVIS_DIGEST=payload, codes=(0, 3), lock=lock)
+        try:
+            self.child('note', '--request-id', key, '--json', '-', body=body.encode(),
+                       FM_JARVIS_DIGEST=payload, codes=(0, 3), lock=lock)
+        except Refusal:
+            answer, _ = self.snapshot(req, None, False)
+            if answer['result'] == 'not-saved':
+                return answer
+            raise
         return self.snapshot(req, None, False)[0]
 
     def snapshot(self, req, selector, wait):
@@ -239,7 +250,7 @@ class Bridge:
         require(b, 'unknown')
         out = dict(receipt=note, observed=int(time.time()))
         if not self.note(req, b[0]):
-            return result('saved-not-announced', **out), None
+            return result('not-saved', **out), None
         observed = self.child('wait', note, '--timeout', '0', '--json', codes=(0, 2, 3, 4))
         release = self.released_hash(note) if observed['outcome'] == 'answered' else None
         if release:
@@ -277,7 +288,8 @@ class Bridge:
 
     def delivered(self, note, slot):
         with self.locked(), directory(self.spool, note, private=True) as side, directory(side, 'reply', private=True) as fd:
-            if not durable_marker(fd, slot+'.expired') and regular(fd, slot) and not durable_marker(fd, slot+'.delivered'):
+            terminal = self.terminal(note, self.released_hash(note))
+            if self.slot_state(fd, slot, terminal, time.time()) == 'undelivered' and regular(fd, slot):
                 create(fd, slot+'.delivered', b'')
                 os.fsync(fd)
 

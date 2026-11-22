@@ -202,7 +202,7 @@ cat_shim.chmod(0o700)
 original_path = env['PATH']
 try:
     env['PATH'] = f'{failed_reader}:{original_path}'
-    call('bridge-submit', cut, data=long_packet, want='server-error')
+    call('bridge-submit', cut, data=long_packet, want='not-saved')
     call('jarvis-release', lost, data=long_packet, want='server-error')
 finally:
     env['PATH'] = original_path
@@ -245,7 +245,7 @@ with subprocess.Popen([str(crash_child), 'bridge-submit', cut], env=env, stdin=s
     finally:
         publisher_continue.touch()
     out, err = crashed.communicate(timeout=10)
-    assert crashed.returncode == 0 and not err and json.loads(out)['result'] == 'server-error'
+    assert crashed.returncode == 0 and not err and json.loads(out)['result'] == 'not-saved'
 
 publisher_crashed.unlink()
 publisher_continue.unlink()
@@ -278,9 +278,11 @@ with subprocess.Popen([str(crash_child), 'bridge-submit', cut], env=env, stdin=s
             assert not scratch.exists()
     finally:
         publisher_continue.touch()
-call('bridge-submit', cut, data=long_packet, preexec_fn=publisher_limit, want='server-error')
+reserved = call('bridge-submit', cut, data=long_packet, preexec_fn=publisher_limit, want='not-saved')['receipt']
 assert len(list(inbox.glob('*.note'))) == 2 and not (state/'.wake-queue').read_bytes()
-assert call('bridge-status', cut, want='saved-not-announced')['receipt']
+assert call('bridge-status', cut, want='not-saved')['receipt'] == reserved
+assert call('bridge-wait', cut, want='not-saved')['receipt'] == reserved
+call('bridge-submit', cut, data=envelope('different text'), want='conflict')
 call('jarvis-release', lost, data=long_packet, preexec_fn=publisher_limit, want='server-error')
 assert not (inbox/'.replies'/lost_note).exists() and not (spool/lost_note/'reply').exists()
 for parent in (inbox, inbox/'.replies'):
@@ -290,6 +292,7 @@ for parent in (inbox, inbox/'.replies'):
 call('jarvis-expire', want='cleaned')
 assert not any(inbox.rglob('.jarvis-writing'))
 cut_note = call('bridge-submit', cut, data=long_packet, want='announced')['receipt']
+assert cut_note == reserved
 assert (inbox/(cut_note+'.note')).read_bytes().partition(b'\n--\n')[2] == b'x'*12000 + b'\n'
 wait_child = copy/script.name
 poll_entered = home/'poll-entered'
@@ -392,29 +395,39 @@ for metadata, (_, mime, original) in zip(final['files'], (png, pdf)):
     )
 (spool/first/'reply'/(undelivered_slot+'.delivered')).unlink()
 streamed_pdf = pdf_document(2*1024*1024)
-call('jarvis-release', lost, data=envelope('separate release', jpeg, (*pdf[:2], streamed_pdf)), want='answered')
-other_slot, streaming_slot = (item['slot'] for item in call('bridge-wait', lost, want='answered')['files'])
+streaming_file = (*pdf[:2], streamed_pdf)
+call('jarvis-release', lost, data=envelope('separate release', jpeg, streaming_file, streaming_file), want='answered')
+other_slot, *streaming_slots = (item['slot'] for item in call('bridge-wait', lost, want='answered')['files'])
 assert call('bridge-wait', lost, data=selector(other_slot), want='attachment') == jpeg[2]
 assert call('bridge-wait', a, data=selector(slot), want='attachment') == png[2]
 call('bridge-wait', a, data=selector(other_slot), want='not-available')
 call('bridge-wait', lost, data=selector(slot), want='not-available')
-with subprocess.Popen([str(script), 'bridge-wait', lost], env=env, stdin=subprocess.PIPE,
-                      stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0) as p:
-    try:
-        p.stdin.write(selector(streaming_slot))
-        p.stdin.close()
-        p.stdin = None
-        assert json.loads(p.stdout.readline())['result'] == 'attachment'
-        old = time.time()-31*86400
-        os.utime(inbox/'.replies'/lost_note, (old, old))
-        call('jarvis-expire', want='cleaned')
-        call('bridge-wait', lost, data=selector(streaming_slot), want='expired')
-        framed, err = p.communicate(timeout=45)
-        assert p.returncode == 0 and not err and framed == frame(streamed_pdf)
-    finally:
-        if p.poll() is None:
-            p.kill()
-assert not (spool/lost_note/'reply'/(streaming_slot+'.delivered')).exists()
+reply_record = inbox/'.replies'/lost_note
+for streaming_slot, sweep_during_transfer in zip(streaming_slots, (False, True)):
+    now = time.time()
+    os.utime(reply_record, (now, now))
+    with subprocess.Popen([str(script), 'bridge-wait', lost], env=env, stdin=subprocess.PIPE,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, bufsize=0) as p:
+        try:
+            p.stdin.write(selector(streaming_slot))
+            p.stdin.close()
+            p.stdin = None
+            assert json.loads(p.stdout.readline())['result'] == 'attachment'
+            old = time.time()-31*86400
+            os.utime(reply_record, (old, old))
+            if sweep_during_transfer:
+                call('jarvis-expire', want='cleaned')
+                call('bridge-wait', lost, data=selector(streaming_slot), want='expired')
+            framed, err = p.communicate(timeout=45)
+            assert p.returncode == 0 and not err and framed == frame(streamed_pdf)
+        finally:
+            if p.poll() is None:
+                p.kill()
+    transfer_dir = spool/lost_note/'reply'
+    assert (transfer_dir/(streaming_slot+'.expired')).exists() and not (transfer_dir/streaming_slot).exists()
+    assert not (transfer_dir/(streaming_slot+'.delivered')).exists()
+for streaming_slot in streaming_slots:
+    call('bridge-wait', lost, data=selector(streaming_slot), want='expired')
 call('bridge-wait', a, data=selector(f['slot']), want='not-available')
 for p in (spool, *spool.rglob('*')):
     assert p.stat().st_mode & 0o777 == (0o700 if p.is_dir() else 0o600), p.name
