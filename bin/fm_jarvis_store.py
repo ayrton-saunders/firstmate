@@ -87,12 +87,12 @@ def create(fd, name, data, *, mtime=None):
         os.fsync(f.fileno())
 
 
-def atomic(fd, name, data):
+def atomic(fd, name, data, *, mtime=None):
     # One known staging name per locked directory, also recoverable after SIGKILL.
     stage = '.jarvis-writing'
     remove(fd, stage)
     try:
-        create(fd, stage, data)
+        create(fd, stage, data, mtime=mtime)
         os.rename(stage, name, src_dir_fd=fd, dst_dir_fd=fd)
         os.fsync(fd)
     finally:

@@ -176,6 +176,8 @@ class Bridge:
                                 discard(side, direction)
                                 continue
                             with directory(side, direction, private=True) as fd:
+                                if direction == 'reply':
+                                    remove(fd, '.jarvis-writing')
                                 m = self.manifest(fd, req, direction, expected)
                                 self.expire_slots(fd, m['files'], terminal)
                                 for f in m['files']:
@@ -279,18 +281,19 @@ class Bridge:
         require(not selector, 'not-available')
         if observed['acknowledged']:
             state = 'handled-no-answer'
+        elif wait:
+            state = 'pending'
         elif not durable_marker(self.markers, note):
             state = 'saved-not-announced'
         else:
-            state = 'pending' if wait else 'announced'
+            state = 'announced'
         return result(state, **out), None
 
     def delivered(self, note, slot, flushed):
         with self.locked(), directory(self.spool, note, private=True) as side, directory(side, 'reply', private=True) as fd:
             terminal = self.terminal(note, self.released_hash(note))
             if self.slot_state(fd, slot, terminal, flushed) == 'undelivered' and regular(fd, slot):
-                create(fd, slot+'.delivered', b'', mtime=flushed)
-                os.fsync(fd)
+                atomic(fd, slot+'.delivered', b'', mtime=flushed)
 
     def clean_journal_scratch(self):
         with suppress(FileNotFoundError), directory(self.control, 'releases', private=True) as fd:

@@ -346,6 +346,8 @@ exec {shlex.quote(sys.executable)} "$@"
 python.chmod(0o700)
 discord_config = home/'config'/'discord-integration.json'
 old_path = env['PATH']
+(inbox/'.announced'/first).unlink()
+assert call('bridge-status', a, want='saved-not-announced')['receipt'] == first
 with ThreadPoolExecutor(1) as pool:
     waiting = pool.submit(call, 'bridge-wait', a, binary=wait_child, want='answered')
     try:
@@ -432,10 +434,17 @@ for streaming_slot in streaming_slots:
 flush_seen = home/'flush-seen'
 flush_continue = home/'flush-continue'
 probe = '''
-import fcntl, runpy, sys, time
+import fcntl, os, runpy, sys, time
 from pathlib import Path
-notice, resume, bridge, *args = sys.argv[1:]
+notice, resume, marker, bridge, *args = sys.argv[1:]
 flock = fcntl.flock
+utime = os.utime
+
+def set_timestamp(fd, times):
+    assert not Path(marker).exists(), 'delivery marker visible before its timestamp was set'
+    utime(fd, times)
+
+os.utime = set_timestamp
 calls = 0
 def observe(fd, op):
     global calls
@@ -450,8 +459,9 @@ fcntl.flock = observe
 sys.argv = [bridge, *args]
 runpy.run_path(bridge, run_name='__main__')
 '''
+delivery_marker = spool/first/'reply'/(undelivered_slot+'.delivered')
 with subprocess.Popen([sys.executable, '-IB', '-c', probe, str(flush_seen), str(flush_continue),
-                       str(script.with_name('fm-jarvis-bridge.py')), str(inbox), 'bridge-wait', a],
+                       str(delivery_marker), str(script.with_name('fm-jarvis-bridge.py')), str(inbox), 'bridge-wait', a],
                       env=env, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
     p.stdin.write(selector(undelivered_slot))
     p.stdin.close()
@@ -476,9 +486,9 @@ with subprocess.Popen([sys.executable, '-IB', '-c', probe, str(flush_seen), str(
     framed, err = p.communicate(timeout=10)
     os.utime(record, ns=(original_times.st_atime_ns, original_times.st_mtime_ns))
     assert p.returncode == 0 and not err and framed.partition(b'\n')[2] == frame(pdf[2])
-assert (spool/first/'reply'/(undelivered_slot+'.delivered')).stat().st_mtime <= arrived
+assert delivery_marker.stat().st_mtime <= arrived
 assert call('bridge-wait', a, data=selector(undelivered_slot), want='attachment') == pdf[2]
-(spool/first/'reply'/(undelivered_slot+'.delivered')).unlink()
+delivery_marker.unlink()
 call('bridge-wait', a, data=selector(f['slot']), want='not-available')
 for p in (spool, *spool.rglob('*')):
     assert p.stat().st_mode & 0o777 == (0o700 if p.is_dir() else 0o600), p.name
