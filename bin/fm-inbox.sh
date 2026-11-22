@@ -400,9 +400,10 @@ announce_note() {  # <id> <summary>
     fm_lock_release "$FM_WAKE_QUEUE_LOCK"
     return 2
   fi
-  local key="inbox:$id" row="check: captain inbox note $id - $summary"
+  local key="inbox:$id" row="check: captain inbox note $id - $summary" owner
   if [[ "$id" = jarvis-* ]]; then
-    if inbox_store sync "$INBOX" "$INBOX/$id.note" && inbox_store separate-wake "$FM_WAKE_QUEUE" && {
+    if fm_current_pid owner && inbox_store sync "$INBOX" "$INBOX/$id.note" &&
+      fm_jarvis_locked_store "$FM_WAKE_QUEUE_LOCK" "$owner" separate-wake "$FM_WAKE_QUEUE" && {
       inbox_store check-wake "$FM_WAKE_QUEUE" "$key" || {
         [ "$?" -eq 2 ] && fm_wake_append_locked check "$key" "$row" &&
           inbox_store check-wake "$FM_WAKE_QUEUE" "$key"
@@ -411,7 +412,8 @@ announce_note() {  # <id> <summary>
       if [ -f "$STATE/.wake-queue.seq" ]; then
         inbox_store sync "$STATE/.wake-queue.seq" || status=1
       fi
-      [ "$status" -eq 0 ] && inbox_store sync "$FM_WAKE_QUEUE" && inbox_store mark "$INBOX" "$id" || status=1
+      [ "$status" -eq 0 ] && inbox_store sync "$FM_WAKE_QUEUE" &&
+        fm_jarvis_locked_store "$FM_WAKE_QUEUE_LOCK" "$owner" mark "$INBOX" "$id" || status=1
     else
       status=1
     fi
@@ -658,7 +660,7 @@ cmd_announce() {
 # The claim is above both the counter and every recorded reply, and the counter
 # is replaced by rename, so a torn or lost counter can never move it backwards.
 next_reply_seq() {
-  local seq_file="$REPLIES/.seq" seq recorded tmp
+  local seq_file="$REPLIES/.seq" seq recorded tmp owner=${1:-}
   seq=$(cat "$seq_file" 2>/dev/null || printf '0')
   case "$seq" in
     ''|*[!0-9]*) seq=0 ;;
@@ -674,7 +676,13 @@ next_reply_seq() {
   [ "$recorded" -le "$seq" ] || seq=$recorded
   seq=$((seq + 1))
   tmp=$(mktemp "$REPLIES/.seq-XXXXXX") || return 1
-  if ! printf '%s\n' "$seq" >"$tmp" || ! mv "$tmp" "$seq_file"; then
+  if ! printf '%s\n' "$seq" >"$tmp" || ! {
+    if [ -n "$owner" ]; then
+      fm_jarvis_locked_store "$REPLY_SEQ_LOCK" "$owner" commit "$tmp" "$seq_file"
+    else
+      mv "$tmp" "$seq_file"
+    fi
+  }; then
     rm -f "$tmp"
     return 1
   fi
@@ -720,7 +728,7 @@ reply_discord_outcome() {
 }
 
 cmd_reply() {
-  local json=0 id body path staging seq
+  local json=0 id body path staging seq owner=
   if [ "${1:-}" = "--json" ]; then
     json=1
     shift
@@ -747,7 +755,10 @@ cmd_reply() {
     fm_lock_release "$REPLY_SEQ_LOCK"
     die "reply already recorded for $id"
   fi
-  if ! seq=$(next_reply_seq); then
+  if [ "${FM_JARVIS_INTERNAL:-}" = 1 ]; then
+    fm_current_pid owner || die 'could not identify reply writer'
+  fi
+  if ! seq=$(next_reply_seq "$owner"); then
     fm_lock_release "$REPLY_SEQ_LOCK"
     die "could not claim the reply sequence"
   fi
@@ -758,8 +769,9 @@ cmd_reply() {
     die 'could not stage reply'
   fi
   if ! write_reply_file "$staging" "$id" "$seq" "$body" || ! {
-    if [ "${FM_JARVIS_INTERNAL:-}" = 1 ]; then
-      inbox_store sync "$REPLIES" && inbox_store commit "$staging" "$REPLIES/$id"
+    if [ -n "$owner" ]; then
+      inbox_store sync "$REPLIES" &&
+        fm_jarvis_locked_store "$REPLY_SEQ_LOCK" "$owner" commit "$staging" "$REPLIES/$id"
     else
       mv "$staging" "$REPLIES/$id"
     fi

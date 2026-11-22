@@ -937,9 +937,12 @@ if [ -n "$ACK_THROUGH" ]; then
       }
   ' "$DRAIN_TMP" "$FM_WAKE_QUEUE") || exit 1
   if [ -n "$JARVIS_ACKS" ]; then
+    jarvis_ids=()
     while IFS= read -r jarvis_id; do
-      python3 -IB "$SCRIPT_DIR/fm_jarvis_store.py" mark "$STATE/inbox" "$jarvis_id" || exit 1
+      jarvis_ids+=("$jarvis_id")
     done <<< "$JARVIS_ACKS"
+    fm_current_pid jarvis_owner || exit 1
+    fm_jarvis_locked_store "$FM_WAKE_QUEUE_LOCK" "$jarvis_owner" mark "$STATE/inbox" "${jarvis_ids[@]}" || exit 1
   fi
   HANDOFF_ACK=
   if [ "$ACTOR" = main ] && [ -f "$STATE/.supervision-handoff-pending" ]; then

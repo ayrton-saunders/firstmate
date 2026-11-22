@@ -137,8 +137,7 @@ first = call('bridge-status', a, want='saved-not-announced')['receipt']
 assert call('bridge-submit', a, data=packet, binary=copy/script.name, want='saved-not-announced')['receipt'] == first
 assert not (state/'.wake-queue').exists()
 (copy/'fm-wake-lib.sh').write_text(
-    f'FM_WAKE_QUEUE="{state}/.wake-queue"\nFM_WAKE_QUEUE_LOCK="$FM_WAKE_QUEUE.lock"\n'
-    'fm_lock_acquire_wait() { :; }\nfm_lock_release() { :; }\n'
+    f'. {shlex.quote(str(script.with_name("fm-wake-lib.sh")))}\n'
     'fm_wake_append_locked() { printf "123\\t" >> "$FM_WAKE_QUEUE"; }\n'
 )
 call('bridge-submit', a, data=packet, binary=copy/script.name, want='saved-not-announced')
@@ -593,3 +592,45 @@ for group, folder in [('pending', inbox), ('handled', inbox/'handled')]:
     assert len(bounded) == 20 and receipt_id in {row['id'] for row in bounded}
     rows = json.loads(run('receipts', f'--all-{group}').stdout)[group]
     assert [row['id'] for row in rows[-21:]] == old_ids[::-1]
+
+interrupted_req = '9'*32
+interrupted_note = call('bridge-submit', interrupted_req, data=envelope('recover reply'), want='announced')['receipt']
+ordinary_note = json.loads(run('note', '--json', 'ordinary reply contender').stdout)['id']
+cursor = json.loads(run('receipts', '--all-replies').stdout)['reply_cursor']
+commit_started = home/'commit-started'
+commit_continue = home/'commit-continue'
+python.write_text(f'''#!/bin/sh
+if [ "${{3:-}}" = guarded ] && [ "${{6:-}}" = commit ] && [ "${{8:-}}" = {shlex.quote(str(inbox/'.replies'/interrupted_note))} ]; then
+    kill -KILL "$(cat "${{5%.steal}}/pid")" || exit 1
+    touch {shlex.quote(str(commit_started))}
+    while [ ! -f {shlex.quote(str(commit_continue))} ]; do sleep 0.05; done
+fi
+exec {shlex.quote(sys.executable)} "$@"
+''')
+with ThreadPoolExecutor(3) as pool:
+    release_env = dict(env, PATH=f'{shim}:{env["PATH"]}')
+    release = pool.submit(subprocess.run, [str(script), 'jarvis-release', interrupted_req],
+                          input=envelope('interrupted final'), capture_output=True, env=release_env, timeout=30)
+    try:
+        deadline = time.monotonic() + 10
+        while not commit_started.exists() and not release.done() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert commit_started.exists()
+        ordinary = pool.submit(run, 'reply', ordinary_note, 'ordinary final')
+        same = pool.submit(run, 'reply', interrupted_note, 'must not overwrite', check=False)
+        try:
+            ordinary.result(timeout=0.5)
+        except TimeoutError:
+            assert not same.done() and not (inbox/'.replies'/ordinary_note).exists()
+        else:
+            raise AssertionError('ordinary reply passed an in-flight release commit')
+    finally:
+        commit_continue.touch()
+    ordinary.result()
+    assert same.result().returncode != 0
+    assert release.result().returncode == 0
+rows = json.loads(run('receipts', '--after', cursor).stdout)['replies']
+assert [(row['body'], int(row['cursor'])) for row in rows] == [
+    ('interrupted final', int(cursor)+1), ('ordinary final', int(cursor)+2),
+]
+assert call('bridge-wait', interrupted_req, want='answered')['text'] == 'interrupted final'

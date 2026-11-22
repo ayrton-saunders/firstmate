@@ -150,8 +150,18 @@ def handled_note(inbox, handled, name):
     return entry
 
 
-def main():
-    op, *args = sys.argv[1:]
+def main(argv):
+    op, *args = argv
+    if op == 'guarded':
+        lib, steal, *mutation = args
+        status = 1
+        try:
+            main(mutation)
+            status = 0
+        finally:
+            os.execvp('bash', ['bash', '-c', '. "$1"; fm_lock_release "$2"; exit "$3"',
+                               '_', lib, steal, str(status)])
+        return
     if op == 'commit':
         source, target = map(Path, args)
         sync_path(source)
@@ -209,4 +219,4 @@ def main():
 
 
 if __name__ == '__main__':
-    main()
+    main(sys.argv[1:])

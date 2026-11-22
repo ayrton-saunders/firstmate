@@ -1813,6 +1813,18 @@ fm_lock_acquire_wait_bounded() {
   return "$rc"
 }
 
+fm_jarvis_locked_store() (
+  local lock=$1 owner=$2 steal="$1.steal"
+  shift 2
+  while ! fm_lock_try_acquire_steal_mutex "$steal"; do
+    [ "$(cat "$lock/pid" 2>/dev/null)" = "$owner" ] || exit 1
+    sleep 0.05
+  done
+  trap 'fm_lock_release "$steal"' EXIT
+  [ "$(cat "$lock/pid" 2>/dev/null)" = "$owner" ] || exit 1
+  exec python3 -IB "$FM_WAKE_LIB_DIR/fm_jarvis_store.py" guarded "$FM_WAKE_LIB_DIR/fm-wake-lib.sh" "$steal" "$@"
+)
+
 fm_lock_release() {
   local lockdir=$1 pid current ownerdir
   fm_current_pid current || return 1
