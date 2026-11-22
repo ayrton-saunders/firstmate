@@ -69,6 +69,15 @@ def read(fd, name, limit, header=False):
         return data
 
 
+def durable_marker(fd, name):
+    entry = regular(fd, name)
+    if entry:
+        with open_regular(fd, name) as f:
+            os.fsync(f.fileno())
+        os.fsync(fd)
+    return entry
+
+
 def create(fd, name, data):
     with os.fdopen(os.open(name, NEW, 0o600, dir_fd=fd), 'wb') as f:
         f.write(data)
@@ -169,11 +178,18 @@ def main():
                 if row[0].isdigit() and len(row) == 5 and row[1].isdigit() and row[2:] == fields:
                     return
         sys.exit(2)
+    elif op == 'check-mark':
+        inbox, note = args
+        with suppress(FileNotFoundError), directory(None, inbox) as fd, directory(fd, '.announced') as marks:
+            if durable_marker(marks, note):
+                os.fsync(fd)
+                return
+        sys.exit(2)
     elif op == 'mark':
         inbox, *ids = args
         with directory(None, inbox) as fd, directory(fd, '.announced', create=True) as marks:
             for note in ids:
-                if not regular(marks, note):
+                if not durable_marker(marks, note):
                     atomic(marks, note, time.strftime('%Y-%m-%dT%H:%M:%SZ\n', time.gmtime()).encode())
             os.fsync(marks)
     elif op == 'ack':

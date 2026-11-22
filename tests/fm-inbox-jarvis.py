@@ -247,13 +247,24 @@ undelivered_slot = final['files'][1]['slot']
 with subprocess.Popen([str(script), 'bridge-wait', a], env=env, stdin=subprocess.PIPE,
                       stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
     p.stdout.close()
-    p.communicate(selector(undelivered_slot), timeout=45)
+    out, err = p.communicate(selector(undelivered_slot), timeout=45)
+    assert p.returncode != 0 and not out and not err
+log = inbox/'.jarvis'/'audit.jsonl'
+failed = json.loads(log.read_bytes().splitlines()[-1])
+assert (failed['verb'], failed['result'], failed['bytes']) == (
+    'bridge-wait', 'write-failed', len(selector(undelivered_slot)),
+)
 assert not (spool/first/'reply'/(undelivered_slot+'.delivered')).exists()
 assert len(final['files']) == 2
 for metadata, (_, mime, original) in zip(final['files'], (png, pdf)):
     assert metadata['mime'] == mime and metadata['length'] == len(original)
     assert metadata['sha256'] == sha256(original).hexdigest()
-    assert call('bridge-wait', a, data=selector(metadata['slot']), want='attachment') == original
+    selection = selector(metadata['slot'])
+    assert call('bridge-wait', a, data=selection, want='attachment') == original
+    completed = json.loads(log.read_bytes().splitlines()[-1])
+    assert (completed['verb'], completed['result'], completed['bytes']) == (
+        'bridge-wait', 'attachment', len(selection) + len(original),
+    )
 (spool/first/'reply'/(undelivered_slot+'.delivered')).unlink()
 streamed_pdf = pdf_document(2*1024*1024)
 call('jarvis-release', lost, data=envelope('separate release', jpeg, (*pdf[:2], streamed_pdf)), want='answered')

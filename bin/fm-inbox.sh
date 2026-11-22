@@ -282,7 +282,11 @@ note_path() {  # <id>
 }
 
 note_announced() {  # <id>
-  [ -f "$ANNOUNCED_DIR/$1" ]
+  if [[ "$1" = jarvis-* ]]; then
+    inbox_store check-mark "$INBOX" "$1"
+  elif [ ! -f "$ANNOUNCED_DIR/$1" ]; then
+    return 2
+  fi
 }
 
 inbox_store() {
@@ -300,6 +304,8 @@ note_announce_state() {  # <id> <path>
   if note_announced "$1"; then
     printf 'true\n'
     return 0
+  elif [ "$?" -ne 2 ]; then
+    return 1
   fi
   marker=$(sed -n '/^--$/q;/^announce_marker=1$/p' "$2")
   if [ -n "$marker" ]; then
@@ -373,6 +379,8 @@ announce_note() {  # <id> <summary>
   case "$id" in jarvis-*) summary='Untrusted Jarvis request; approval is not implied.' ;; esac
   if note_announced "$id"; then
     return 0
+  elif [ "$?" -ne 2 ]; then
+    return 1
   fi
   [ -f "$INBOX/$id.note" ] || return 2
   if [ ! -r "$lib" ]; then
@@ -384,6 +392,9 @@ announce_note() {  # <id> <summary>
   if note_announced "$id"; then
     fm_lock_release "$FM_WAKE_QUEUE_LOCK"
     return 0
+  elif [ "$?" -ne 2 ]; then
+    fm_lock_release "$FM_WAKE_QUEUE_LOCK"
+    return 1
   fi
   if [ ! -f "$INBOX/$id.note" ]; then
     fm_lock_release "$FM_WAKE_QUEUE_LOCK"
@@ -790,10 +801,10 @@ cmd_receipts() {
     esac
   done
   need_python
-  python3 - "$INBOX" "$ANNOUNCED_DIR" "$REPLIES" "$FM_HOME" \
+  python3 -IB - "$INBOX" "$ANNOUNCED_DIR" "$REPLIES" "$FM_HOME" \
     "$RECEIPTS_PENDING_BOUND" "$RECEIPTS_HANDLED_BOUND" "$RECEIPTS_REPLIES_BOUND" \
     "$all_pending" "$all_handled" "$all_replies" "$after" \
-    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" <<'PY'
+    "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$SELF_DIR" <<'PY'
 import json, os, sys
 from pathlib import Path
 
@@ -886,7 +897,16 @@ def enrich(note, acknowledged):
     note_id = note["id"]
     rec = dict(note)
     rec["acknowledged"] = acknowledged
-    if (Path(announced_dir) / note_id).is_file():
+    announced = (Path(announced_dir) / note_id).is_file()
+    if announced and note_id.startswith('jarvis-'):
+        sys.path.insert(0, sys.argv[13])
+        from fm_jarvis_store import directory, durable_marker
+        sys.path.pop(0)
+        with directory(None, inbox) as fd, directory(fd, '.announced') as marks:
+            announced = bool(durable_marker(marks, note_id))
+            if announced:
+                os.fsync(fd)
+    if announced:
         rec["announced"] = True
     elif note.get("announce_marker"):
         rec["announced"] = False

@@ -17,7 +17,8 @@ import zipfile
 BIN = Path(__file__).resolve().parent
 sys.path.insert(0, str(BIN))  # -I: only trusted siblings
 from fm_jarvis_store import (
-    SAFE, atomic, clear_stage, create, directory, discard, handled_note, open_regular, read, regular, remove, safe, stage,
+    SAFE, atomic, clear_stage, create, directory, discard, durable_marker, handled_note, open_regular, read,
+    regular, remove, safe, stage,
 )
 from fm_jarvis_wire import FILE, K, M, MANIFEST, Reader, Refusal, digest, envelope, json_bytes, parse, require, text
 
@@ -125,15 +126,15 @@ class Bridge:
         for f in files:
             slot = f['slot']
             require(re.fullmatch(ID, slot), 'denied')
-            delivered = regular(folder, slot+'.delivered')
+            delivered = durable_marker(folder, slot+'.delivered')
             deadline = delivered.st_mtime + 7*DAY if delivered else terminal + 30*DAY if terminal else None
-            expired = regular(folder, slot+'.expired')
+            expired = durable_marker(folder, slot+'.expired')
             if not expired and deadline and now >= deadline:
                 create(folder, slot+'.expired', b'')
+                os.fsync(folder)
                 expired = True
             if expired:
                 if regular(folder, slot):
-                    os.fsync(folder)
                     remove(folder, slot)
                 f['expired'] = True
 
@@ -197,7 +198,7 @@ class Bridge:
         direction = 'reply' if reply else 'request'
         used = self.sweep()
         binding = self.binding(req)
-        marker = regular(self.markers, note)
+        marker = durable_marker(self.markers, note)
         if binding:
             with directory(self.spool, note, private=True) as side, directory(side, 'request', private=True) as fd:
                 self.manifest(fd, req, 'request', binding[1])
@@ -272,7 +273,7 @@ class Bridge:
         require(not selector, 'not-available')
         if observed['acknowledged']:
             state = 'handled-no-answer'
-        elif not regular(self.markers, note):
+        elif not durable_marker(self.markers, note):
             state = 'saved-not-announced'
         else:
             state = 'pending' if wait else 'announced'
@@ -280,7 +281,7 @@ class Bridge:
 
     def delivered(self, note, slot):
         with self.locked(), directory(self.spool, note, private=True) as side, directory(side, 'reply', private=True) as fd:
-            if regular(fd, slot) and not regular(fd, slot+'.expired') and not regular(fd, slot+'.delivered'):
+            if not durable_marker(fd, slot+'.expired') and regular(fd, slot) and not durable_marker(fd, slot+'.delivered'):
                 create(fd, slot+'.delivered', b'')
                 os.fsync(fd)
 
@@ -303,6 +304,8 @@ class Bridge:
                 remove(fd, name)
                 os.fsync(fd)
                 return result('withdrawn')
+            os.fsync(self.control)
+            os.fsync(fd)
             if regular(fd, name):
                 r = parse(read(fd, name, 6*64*K + 512))
                 if r.get('audience') == 'jarvis' and r.get('slug') == slug and (not r['expires'] or r['expires'] > time.time()):
@@ -366,17 +369,23 @@ def main():
             answer = result('overload' if e.errno in (errno.ENOSPC, errno.EDQUOT) else 'server-error')
         except Exception:
             answer = result('server-error')
-        if bridge is not None:
-            with suppress(OSError, Refusal):
-                bridge.audit(verb, answer['result'], reader.count + (answer['length'] if stream else 0),
-                             time.monotonic()-started)
+        outcome = answer['result']
+        count = reader.count
         try:
             sys.stdout.buffer.write(json_bytes(answer) + b'\n')
             if stream is not None:
                 sys.stdout.buffer.write(struct.pack('>I', answer['length']))
                 shutil.copyfileobj(stream, sys.stdout.buffer, length=64*K)
             sys.stdout.buffer.flush()
+            if stream is not None:
+                count += answer['length']
         except OSError:
+            outcome = 'write-failed'
+        finally:
+            if bridge is not None:
+                with suppress(OSError, Refusal):
+                    bridge.audit(verb, outcome, count, time.monotonic()-started)
+        if outcome == 'write-failed':
             os._exit(1)
         if stream is not None:
             try:
