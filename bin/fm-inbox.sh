@@ -577,7 +577,7 @@ cmd_note() {
     die "usage: fm-inbox.sh note [--request-id <id>] [--json] [--] <text>... (or: note -)"
   elif [ "$1" = "-" ]; then
     [ "$#" -eq 1 ] || die "usage: fm-inbox.sh note [--request-id <id>] [--json] -"
-    body=$(cat; printf .)
+    body=$(cat && printf .) || die 'could not read note text'
     body=${body%.}
   else
     body="$*"
@@ -734,7 +734,7 @@ cmd_reply() {
     die "usage: fm-inbox.sh reply [--json] <id> <text>... (or: reply [--json] <id> -)"
   elif [ "$1" = "-" ]; then
     [ "$#" -eq 1 ] || die "usage: fm-inbox.sh reply [--json] <id> -"
-    body=$(cat; printf .)
+    body=$(cat && printf .) || die 'could not read reply text'
     body=${body%.}
   else
     body="$*"

@@ -82,9 +82,11 @@ class Bridge:
                 f.write(data)
 
     def child(self, *args, body=b'', codes=(0,), **env):
+        publishing = args[0] in ('note', 'reply')
         p = subprocess.run([str(BIN/'fm-inbox.sh'), *args], input=body, stdout=subprocess.PIPE,
-                           stderr=subprocess.DEVNULL, env=dict(os.environ, FM_JARVIS_INTERNAL='1', **env),
-                           pass_fds=(self.lock,))
+                           stderr=subprocess.PIPE if publishing else subprocess.DEVNULL,
+                           env=dict(os.environ, FM_JARVIS_INTERNAL='1', **env),
+                           pass_fds=(self.lock,) if publishing else ())
         require(p.returncode in codes, 'server-error')
         return parse(p.stdout)
 

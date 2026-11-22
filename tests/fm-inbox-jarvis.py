@@ -188,6 +188,58 @@ def publisher_limit():
 
 cut = '1'*32
 long_packet = envelope('x'*12000 + '\n')
+failed_reader = home/'failed-reader'
+failed_reader.mkdir()
+cat_shim = failed_reader/'cat'
+cat_shim.write_text('#!/bin/sh\nprintf "partial body\\n"\nexit 1\n')
+cat_shim.chmod(0o700)
+original_path = env['PATH']
+try:
+    env['PATH'] = f'{failed_reader}:{original_path}'
+    call('bridge-submit', cut, data=long_packet, want='server-error')
+    call('jarvis-release', lost, data=long_packet, want='server-error')
+finally:
+    env['PATH'] = original_path
+assert len(list(inbox.glob('*.note'))) == 2 and not (state/'.wake-queue').read_bytes()
+assert not (inbox/'.replies'/lost_note).exists() and not (spool/lost_note/'reply').exists()
+crash_child = copy/script.name
+publisher_crashed = home/'publisher-crashed'
+publisher_continue = home/'publisher-continue'
+crash_child.write_text(f'''#!/usr/bin/env bash
+if [ "$1" = bridge-submit ]; then
+    exec python3 -IB {shlex.quote(str(copy/'fm-jarvis-bridge.py'))} {shlex.quote(str(inbox))} "$@"
+fi
+if [ "$1" = note ]; then
+    cat >/dev/null
+    receipt=$(
+        kill -KILL "$$"
+        touch {shlex.quote(str(publisher_crashed))}
+        while [ ! -f {shlex.quote(str(publisher_continue))} ]; do sleep 0.05; done
+    )
+    exit 1
+fi
+exit 2
+''')
+with subprocess.Popen([str(crash_child), 'bridge-submit', cut], env=env, stdin=subprocess.PIPE,
+                      stdout=subprocess.PIPE, stderr=subprocess.PIPE) as crashed:
+    try:
+        crashed.stdin.write(long_packet)
+        crashed.stdin.close()
+        crashed.stdin = None
+        deadline = time.monotonic() + 10
+        while not publisher_crashed.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert publisher_crashed.exists()
+        try:
+            crashed.wait(timeout=0.5)
+        except subprocess.TimeoutExpired:
+            pass
+        else:
+            raise AssertionError('submit returned while its publisher still held scratch')
+    finally:
+        publisher_continue.touch()
+    out, err = crashed.communicate(timeout=10)
+    assert crashed.returncode == 0 and not err and json.loads(out)['result'] == 'server-error'
 call('bridge-submit', cut, data=long_packet, preexec_fn=publisher_limit, want='server-error')
 assert len(list(inbox.glob('*.note'))) == 2 and not (state/'.wake-queue').read_bytes()
 assert call('bridge-status', cut, want='saved-not-announced')['receipt']
