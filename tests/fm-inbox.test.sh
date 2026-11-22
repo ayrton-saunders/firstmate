@@ -75,7 +75,7 @@ pass "plain note, list, and wake stay on the historical human path"
 # A saved note whose wake fails still exits 1 for callers that omit the new flags.
 isolated="$TMP_ROOT/isolated"
 mkdir -p "$isolated/bin"
-cp "$INBOX_BIN" "$ROOT/bin/fm_jarvis_store.py" "$ROOT/bin/fm_jarvis_wire.py" "$isolated/bin/"
+cp "$INBOX_BIN" "$isolated/bin/"
 chmod +x "$isolated/bin/fm-inbox.sh"
 home=$(make_home human-wake-fail)
 set +e
@@ -89,6 +89,23 @@ assert_equals "1" "$(count_notes "$home")" \
 assert_contains "$fail_out" "queued " "plain note still prints queued before the failure"
 assert_contains "$fail_out" "NOT woken" "plain note still reports the wake failure"
 pass "plain note keeps exit 1 for a saved-but-unannounced failure"
+
+no_python="$TMP_ROOT/no-python"
+mkdir "$no_python"
+printf '#!/bin/sh\n: > "$FM_PYTHON_CALLED"\nexit 127\n' > "$no_python/python3"
+chmod +x "$no_python/python3"
+(
+  export PATH="$no_python:$PATH" FM_PYTHON_CALLED="$no_python/called"
+  saved_plain=$(printf '%s\n' "$fail_out" | awk '/^queued / {print $2}')
+  run_inbox "$home" announce "$saved_plain" >/dev/null
+  keyed=$(run_inbox "$home" note --request-id shell-only "original")
+  keyed_id=$(printf '%s\n' "$keyed" | awk '/^queued / {print $2}')
+  replay=$(run_inbox "$home" note --request-id shell-only "original")
+  assert_contains "$replay" "replay $keyed_id" "keyed replay uses the original ID without Python"
+  run_inbox "$home" reply "$keyed_id" "final" >/dev/null
+  assert_absent "$FM_PYTHON_CALLED" "shell-only inbox calls never invoke Python"
+)
+pass "legacy note, replay, announce, and reply stay shell-only"
 
 # --- duplicate request id returns the original identity ---------------------
 

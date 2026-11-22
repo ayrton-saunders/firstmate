@@ -1,5 +1,5 @@
 """Implementation behind fm-inbox.sh. No shell, model, renderer or extractor."""
-from contextlib import ExitStack, contextmanager
+from contextlib import ExitStack, contextmanager, suppress
 import errno
 import fcntl
 import os
@@ -14,7 +14,7 @@ import zipfile
 
 BIN = Path(__file__).resolve().parent
 sys.path.insert(0, str(BIN))  # -I: only trusted siblings
-from fm_jarvis_store import SAFE, atomic, clear_dir, create, directory, read, regular, remove, safe, stage
+from fm_jarvis_store import SAFE, atomic, clear_dir, create, directory, discard, read, regular, remove, safe, stage
 from fm_jarvis_wire import FILE, K, M, MANIFEST, Reader, Refusal, digest, envelope, json_bytes, parse, require, text
 
 ID = r'[0-9a-f]{32}'
@@ -22,6 +22,7 @@ SHA = r'[0-9a-f]{64}'
 SLUG = r'[a-z][a-z0-9-]{0,47}'
 DAY = 86400
 PRIVATE = dict(private=True, create=True)
+REPORT_VERBS = ('bridge-lookup', 'jarvis-publish', 'jarvis-withdraw')
 
 
 def receipt(req):
@@ -37,7 +38,7 @@ def headers(fd, name):
 
 
 class Bridge:
-    def __init__(self, stack, inbox):
+    def __init__(self, stack, inbox, verb):
         d = lambda parent, name, **kw: stack.enter_context(directory(parent, name, **kw))
         state = d(None, str(Path(inbox).parent), create=True)
         self.inbox = d(state, 'inbox', create=True)
@@ -45,6 +46,8 @@ class Bridge:
         # Directory flock is released by the kernel on crash; pass the open
         # description to publishing children so orphan completion stays serialized.
         self.lock = self.control
+        if verb in REPORT_VERBS:
+            return
         self.spool = d(self.inbox, '.attachments', **PRIVATE)
         self.requests = d(self.inbox, '.requests', create=True)
         self.handled = d(self.inbox, 'handled', create=True)
@@ -148,13 +151,13 @@ class Bridge:
                         require(re.fullmatch(ID, req) and receipt(req) == note, 'denied')
                         binding = self.binding(req)
                     if not binding:  # interrupted before reservation commit
-                        clear_dir(side, 'request')
+                        discard(side, 'request')
                     else:
                         terminal = self.terminal(note)
                         for direction in dirs & {'request', 'reply'}:
                             expected = binding[1] if direction == 'request' else self.released_hash(note)
                             if not expected:  # no final reply committed this staged manifest
-                                clear_dir(side, direction)
+                                discard(side, direction)
                                 continue
                             with directory(side, direction, private=True) as fd:
                                 m = self.manifest(fd, req, direction, expected)
@@ -213,7 +216,7 @@ class Bridge:
                     # response. An interrupted process leaves this to sweep.
                     committed = self.released_hash(note) == mh if reply else self.binding(req)
                     if not committed:
-                        clear_dir(side, direction)
+                        discard(side, direction)
                     raise
         # The standard note publisher completes this reservation, including
         # after a crash. Neither body nor display names become authority.
@@ -288,7 +291,7 @@ class Bridge:
             with self.locked():
                 self.sweep()
             return result('cleaned'), None
-        if verb in ('bridge-lookup', 'jarvis-publish', 'jarvis-withdraw'):
+        if verb in REPORT_VERBS:
             require(len(args) in ((1, 2) if verb == 'jarvis-publish' else (1,)) and re.fullmatch(SLUG, args[0]))
             expiry = None
             if len(args) == 2:
@@ -326,8 +329,9 @@ def main():
     started = time.monotonic()
     blob = None
     with ExitStack() as stack:
-        bridge = Bridge(stack, inbox)
+        bridge = None
         try:
+            bridge = Bridge(stack, inbox, verb)
             answer, blob = bridge.dispatch(verb, args, reader)
         except Refusal as e:
             answer = result(str(e))
@@ -337,7 +341,9 @@ def main():
             answer = result('overload' if e.errno in (errno.ENOSPC, errno.EDQUOT) else 'server-error')
         except Exception:
             answer = result('server-error')
-        bridge.audit(verb, answer['result'], reader.count + len(blob or b''), time.monotonic()-started)
+        if bridge is not None:
+            with suppress(OSError, Refusal):
+                bridge.audit(verb, answer['result'], reader.count + len(blob or b''), time.monotonic()-started)
         try:
             sys.stdout.buffer.write(json_bytes(answer) + b'\n')
             if blob is not None:

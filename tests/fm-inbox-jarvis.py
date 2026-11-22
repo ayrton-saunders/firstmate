@@ -75,6 +75,10 @@ mem = io.BytesIO()
 with zipfile.ZipFile(mem, 'w') as archive:
     archive.writestr('example.txt', b'synthetic bytes')
 zip_file = ('packet.zip', 'application/zip', mem.getvalue())
+mem = io.BytesIO()
+with zipfile.ZipFile(mem, 'w', compression=zipfile.ZIP_BZIP2) as archive:
+    archive.writestr('example.txt', b'synthetic bytes')
+bzip = ('compressed.zip', 'application/zip', mem.getvalue())
 packet = envelope('Untrusted fixture content', pdf, zip_file)
 selector = lambda slot: json.dumps(dict(attachment=slot)).encode()
 
@@ -131,23 +135,36 @@ call('bridge-submit', a, data=packet, binary=copy/script.name, want='server-erro
 first = call('bridge-status', a, want='saved-not-announced')['receipt']
 assert call('bridge-submit', a, data=packet, binary=copy/script.name, want='saved-not-announced')['receipt'] == first
 assert not (state/'.wake-queue').exists()
+(copy/'fm-wake-lib.sh').write_text(
+    f'FM_WAKE_QUEUE="{state}/.wake-queue"\nFM_WAKE_QUEUE_LOCK="$FM_WAKE_QUEUE.lock"\n'
+    'fm_lock_acquire_wait() { :; }\nfm_lock_release() { :; }\n'
+    'fm_wake_append_locked() { printf "123\\t" >> "$FM_WAKE_QUEUE"; }\n'
+)
+call('bridge-submit', a, data=packet, binary=copy/script.name, want='saved-not-announced')
+assert (state/'.wake-queue').read_bytes() == b'123\t'
 with ThreadPoolExecutor(3) as pool:
     jobs = [pool.submit(call, 'bridge-submit', a, data=packet, want='announced') for _ in range(2)]
     pool.submit(call, 'jarvis-expire', want='cleaned').result()
     assert all(j.result()['receipt'] == first for j in jobs)
-assert len(list(inbox.glob('*.note'))) == len((state/'.wake-queue').read_text().splitlines()) == 1
-assert 'fixture content' not in (state/'.wake-queue').read_text()
+partial, repaired = (state/'.wake-queue').read_bytes().splitlines(keepends=True)
+assert partial == b'123\t\n' and repaired.endswith(b'\n')
+epoch, seq, kind, key, payload = repaired.split(b'\t')
+assert epoch.isdigit() and seq.isdigit() and kind == b'check' and key == f'inbox:{first}'.encode()
+assert b'fixture content' not in payload
+assert len(list(inbox.glob('*.note'))) == 1
 
 lost = 'e'*32
-lost_packet = envelope('response discarded', pdf, pdf)
+lost_packet = envelope('response discarded', pdf, pdf, bzip)
 with open(os.devnull, 'wb') as sink:
     p = subprocess.run([str(script), 'bridge-submit', lost], input=lost_packet, stdout=sink,
                        stderr=subprocess.PIPE, env=env, timeout=45)
 assert p.returncode == 0 and not p.stderr
 lost_note = call('bridge-submit', lost, data=lost_packet, want='announced')['receipt']
-assert len(list(inbox.glob('*.note'))) == len((state/'.wake-queue').read_text().splitlines()) == 2
+assert len(list(inbox.glob('*.note'))) == 2
+assert len((state/'.wake-queue').read_bytes().splitlines()) == 3
 slots = json.loads((spool/lost_note/'request'/'manifest.json').read_bytes())['files']
-assert [f['name'] for f in slots] == ['review_only.pdf']*2 and slots[0]['slot'] != slots[1]['slot']
+assert [f['name'] for f in slots] == ['review_only.pdf', 'review_only.pdf', 'compressed.zip']
+assert len({f['slot'] for f in slots}) == 3
 
 (inbox/'.announced'/first).unlink()
 drain = script.with_name('fm-wake-drain.sh')
@@ -214,7 +231,12 @@ with subprocess.Popen([str(script), 'bridge-wait', a], env=env, stdin=subprocess
     p.stdout.close()
     p.communicate(selector(undelivered_slot), timeout=45)
 assert not (spool/first/'reply'/(undelivered_slot+'.delivered')).exists()
-assert call('bridge-wait', a, data=selector(slot), want='attachment') == png[2]
+assert len(final['files']) == 2
+for metadata, (_, mime, original) in zip(final['files'], (png, pdf)):
+    assert metadata['mime'] == mime and metadata['length'] == len(original)
+    assert metadata['sha256'] == sha256(original).hexdigest()
+    assert call('bridge-wait', a, data=selector(metadata['slot']), want='attachment') == original
+(spool/first/'reply'/(undelivered_slot+'.delivered')).unlink()
 call('bridge-wait', a, data=selector(f['slot']), want='not-available')
 for p in (spool, *spool.rglob('*')):
     assert p.stat().st_mode & 0o777 == (0o700 if p.is_dir() else 0o600), p.name
@@ -251,14 +273,34 @@ call('bridge-wait', a, data=selector(slot), want='denied')
 (folder/slot).unlink()
 (folder/slot).write_bytes(png[2])
 os.chmod(folder/slot, 0o600)
-oldtime = time.time()-31*86400
-os.utime(folder/(slot+'.delivered'), (oldtime, oldtime))
-os.utime(inbox/'.replies'/first, (oldtime, oldtime))
-with ThreadPoolExecutor(2) as pool:
-    cleaned = pool.submit(call, 'jarvis-expire', want='cleaned')
-    fresh = call('bridge-submit', c, data=packet, want='announced')['receipt']
-    cleaned.result()
+day = 86400
+now = time.time()
+reply_record = inbox/'.replies'/first
+os.utime(folder/(slot+'.delivered'), (now-6*day,)*2)
+os.utime(reply_record, (now-29*day,)*2)
+call('jarvis-expire', want='cleaned')
+assert (folder/slot).exists() and (folder/undelivered_slot).exists()
+os.utime(folder/(slot+'.delivered'), (now-8*day,)*2)
+upload = envelope('simultaneous upload', ('large.pdf', pdf[1], pdf_document(2*1024*1024)))
+with subprocess.Popen([str(script), 'bridge-submit', c], env=env, stdin=subprocess.PIPE,
+                      stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
+    try:
+        p.stdin.write(upload[:-1])
+        p.stdin.flush()
+        call('jarvis-expire', want='cleaned')
+        assert p.poll() is None and not (folder/slot).exists() and (folder/undelivered_slot).exists()
+        out, err = p.communicate(upload[-1:], timeout=45)
+        assert p.returncode == 0 and not err
+    finally:
+        if p.poll() is None:
+            p.kill()
+answer = json.loads(out)
+assert answer['result'] == 'announced'
+fresh = answer['receipt']
+os.utime(reply_record, (now-31*day,)*2)
+call('jarvis-expire', want='cleaned')
 call('bridge-wait', a, data=selector(slot), want='expired')
+call('bridge-wait', a, data=selector(undelivered_slot), want='expired')
 assert all(f['expired'] for f in call('bridge-wait', a, want='answered')['files'])
 assert not (folder/slot).exists() and not (reqfolder/request['files'][0]['slot']).exists()
 
@@ -267,10 +309,19 @@ assert not (folder/slot).exists() and not (reqfolder/request['files'][0]['slot']
 pending = spool/fresh/'request'
 pending_slot = json.loads((pending/'manifest.json').read_bytes())['files'][0]['slot']
 extra = pending/pending_slot
+original = extra.read_bytes()
 with extra.open('r+b') as out:
     out.truncate(256*1024*1024)
 wakes = (state/'.wake-queue').read_bytes()
-call('bridge-submit', unknown, data=packet, want='overload')
+
+
+def audit_limit():
+    signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
+    resource.setrlimit(resource.RLIMIT_FSIZE, (1, 1))
+
+
+call('bridge-submit', unknown, data=packet, preexec_fn=audit_limit, want='overload')
+call('bridge-status', c, preexec_fn=audit_limit, want='announced')
 call('jarvis-release', c, data=reply, want='overload')
 assert not (spool/fresh/'reply').exists() and not (inbox/'.replies'/fresh).exists()
 assert (state/'.wake-queue').read_bytes() == wakes and (pending/'manifest.json').exists()
@@ -280,17 +331,29 @@ long_text = '\n'*8100 + 'a'*8284
 call('jarvis-release', text_only, data=envelope(long_text), want='answered')
 assert call('bridge-wait', text_only, want='answered')['text'] == long_text
 wakes = (state/'.wake-queue').read_bytes()
-extra.write_bytes(pdf[2])
+extra.write_bytes(original)
 stage = spool/fresh/'.stage'
 stage.mkdir(mode=0o700)
 (stage/'partial').write_bytes(b'synthetic')
 call('jarvis-expire', want='cleaned')
 assert not stage.exists()
+orphan = spool/('jarvis-'+sha256(('jarvis-v1:'+unknown).encode()).hexdigest()[:32])
+orphan.mkdir(mode=0o700)
+shutil.copytree(pending, orphan/'request')
+manifest_path = orphan/'request'/'manifest.json'
+manifest = json.loads(manifest_path.read_bytes())
+manifest.update(request=unknown, receipt=orphan.name)
+manifest_path.write_text(json.dumps(manifest))
+call('jarvis-expire', want='cleaned')
+assert not orphan.exists()
+call('jarvis-publish', 'spool-independent', data=b'published without attachments', want='published')
 # Scratch directory failure cannot create a note or follow the symlink.
 spool.rename(inbox/'.saved')
 scratch = home/'empty'
 scratch.mkdir()
 spool.symlink_to(scratch, target_is_directory=True)
+assert call('bridge-lookup', 'spool-independent', want='available')['text'] == 'published without attachments'
+call('jarvis-withdraw', 'spool-independent', want='withdrawn')
 call('bridge-submit', unknown, data=packet, want='server-error')
 assert not list(scratch.iterdir()) and (state/'.wake-queue').read_bytes() == wakes
 spool.unlink()
@@ -298,7 +361,7 @@ spool.unlink()
 call('jarvis-release', c, data=envelope('disk error', pdf, larger), preexec_fn=file_limit, want='server-error')
 assert not (spool/fresh/'reply').exists() and not (inbox/'.replies'/fresh).exists()
 call('jarvis-release', c, data=badframes[-1], want='invalid')
-call('jarvis-release', c, data=envelope('final', jpeg, webp), want='answered')
+call('jarvis-release', c, data=envelope('final', jpeg, webp, bzip), want='answered')
 call('bridge-wait', c, data=selector(slot), want='not-available')
 third = call('bridge-submit', unknown, data=envelope('no answer needed'), want='announced')['receipt']
 run('drain', '--ack', third)

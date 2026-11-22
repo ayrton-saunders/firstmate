@@ -94,6 +94,12 @@ def clear_dir(fd, name):
     os.rmdir(name, dir_fd=fd)
 
 
+def discard(side, direction):
+    os.rename(direction, '.stage', src_dir_fd=side, dst_dir_fd=side)
+    os.fsync(side)
+    clear_dir(side, '.stage')
+
+
 def stage(side, direction, files, blobs, metadata):
     from fm_jarvis_wire import digest, json_bytes
     os.mkdir('.stage', 0o700, dir_fd=side)
@@ -133,6 +139,22 @@ def main():
             path = Path(name)
             sync_path(path)
             sync_path(path.parent)
+    elif op == 'separate-wake':
+        queue, = args
+        with suppress(FileNotFoundError), open(queue, 'r+b') as f:
+            if f.seek(0, os.SEEK_END):
+                f.seek(-1, os.SEEK_END)
+                if f.read(1) != b'\n':
+                    f.write(b'\n')
+    elif op == 'check-wake':
+        queue, key, payload = args
+        fields = [b'check', key.encode(), payload.encode()+b'\n']
+        with suppress(FileNotFoundError), open(queue, 'rb') as f:
+            for line in f:
+                row = line.split(b'\t', 4)
+                if row[0].isdigit() and len(row) == 5 and row[1].isdigit() and row[2:] == fields:
+                    return
+        sys.exit(2)
     elif op == 'mark':
         inbox, *ids = args
         with directory(None, inbox) as fd, directory(fd, '.announced', create=True) as marks:

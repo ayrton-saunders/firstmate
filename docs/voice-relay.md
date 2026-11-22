@@ -74,7 +74,7 @@ A private inbox reply does not grant approval to publish its words elsewhere.
 ## Restricted Jarvis channel
 
 A Jarvis note and all of its files are untrusted requests, not approval for any action.
-This adapter requires a trusted local POSIX filesystem and Python 3; it does not install an SSH endpoint or a preview server.
+This adapter requires a trusted local POSIX filesystem and Python 3; it does not install an SSH endpoint or a preview server. Legacy shell-only inbox calls keep their existing requirements.
 
 ### Forced-command admission contract (host owner)
 
@@ -132,7 +132,7 @@ The attachment tree uses `0700` directories and `0600` copied files. The 256 MiB
 On write or local `jarvis-expire`, collect slots seven days after the first complete download response is successfully written and flushed to the channel, otherwise thirty days after the reply or acknowledgement; pending request files are retained.
 Run `jarvis-expire` periodically locally for reclamation while idle; waits enforce expiry before serving bytes and report `expired` rather than returning empty data.
 A successful channel write does not confirm end-user delivery; a failed or interrupted write does not start the seven-day clock.
-Private rotated audit logs contain call metadata only, never names, bodies, selector contents or report text.
+Private rotated audit logs contain call metadata only, never names, bodies, selector contents or report text. An unavailable audit sink does not change the wire result.
 
 ## What it costs in time
 

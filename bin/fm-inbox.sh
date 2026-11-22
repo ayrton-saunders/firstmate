@@ -389,11 +389,23 @@ announce_note() {  # <id> <summary>
     fm_lock_release "$FM_WAKE_QUEUE_LOCK"
     return 2
   fi
-  if inbox_store sync "$INBOX" "$INBOX/$id.note" && {
-    { [[ "$id" = jarvis-* ]] && fm_wake_queued_carries_locked check "inbox:$id" "$summary"; } ||
-      fm_wake_append_locked check "inbox:$id" "check: captain inbox note $id - $summary"
-  }; then
-    inbox_store sync "$STATE/.wake-queue.seq" "$FM_WAKE_QUEUE" && inbox_store mark "$INBOX" "$id" || status=1
+  local key="inbox:$id" row="check: captain inbox note $id - $summary"
+  if [[ "$id" = jarvis-* ]]; then
+    if inbox_store sync "$INBOX" "$INBOX/$id.note" && inbox_store separate-wake "$FM_WAKE_QUEUE" && {
+      inbox_store check-wake "$FM_WAKE_QUEUE" "$key" "$row" || {
+        [ "$?" -eq 2 ] && fm_wake_append_locked check "$key" "$row" &&
+          inbox_store check-wake "$FM_WAKE_QUEUE" "$key" "$row"
+      }
+    }; then
+      if [ -f "$STATE/.wake-queue.seq" ]; then
+        inbox_store sync "$STATE/.wake-queue.seq" || status=1
+      fi
+      [ "$status" -eq 0 ] && inbox_store sync "$FM_WAKE_QUEUE" && inbox_store mark "$INBOX" "$id" || status=1
+    else
+      status=1
+    fi
+  elif fm_wake_append_locked check "$key" "$row"; then
+    { mkdir -p "$ANNOUNCED_DIR" && printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$ANNOUNCED_DIR/$id"; } || status=1
   else
     status=1
   fi
@@ -441,7 +453,6 @@ claim_request_id() {  # <request-id> <note-id>  -> 0 claimed, 1 already exists
   reserved="$REQUESTS/$request_id"
   mkdir -p "$REQUESTS"
   if ( set -C; printf '%s\n' "$note_id" >"$reserved" ) 2>/dev/null; then
-    inbox_store sync "$REQUESTS" "$reserved" || die 'could not persist request reservation'
     return 0
   fi
   return 1
@@ -451,7 +462,9 @@ publish_from_reservation() {  # <request-id> <source> <body> <extra>
   local request_id=$1 source=$2 body=$3 extra=$4
   local reserved="$REQUESTS/$request_id" id tmp
   [ -f "$reserved" ] || return 1
-  inbox_store sync "$REQUESTS" "$reserved" || return 1
+  if [ "$source" = jarvis ]; then
+    inbox_store sync "$REQUESTS" "$reserved" || return 1
+  fi
   id=$(tr -d '\r' <"$reserved")
   id=${id%%$'\n'*}
   valid_note_id "$id" || return 1
@@ -461,7 +474,13 @@ publish_from_reservation() {  # <request-id> <source> <body> <extra>
     else
       tmp=$(mktemp "$INBOX/.staging-XXXXXX") || return 1
     fi
-    if ! write_note_file "$tmp" "$id" "$source" "$body" "$extra" "$request_id" || ! inbox_store commit "$tmp" "$INBOX/$id.note"; then
+    if ! write_note_file "$tmp" "$id" "$source" "$body" "$extra" "$request_id" || ! {
+      if [ "$source" = jarvis ]; then
+        inbox_store commit "$tmp" "$INBOX/$id.note"
+      else
+        mv "$tmp" "$INBOX/$id.note"
+      fi
+    }; then
       rm -f "$tmp"
       return 1
     fi
@@ -504,7 +523,7 @@ queue_note() {
       finish_note_result replay "$id" "$request_id" "$json" "$strict" "$summary"
       return $?
     fi
-    inbox_store commit "$tmp" "$INBOX/$id.note"
+    mv "$tmp" "$INBOX/$id.note"
     summary=$(note_summary_from_body "$body")
     finish_note_result created "$id" "$request_id" "$json" "$strict" "$summary"
     return $?
@@ -517,7 +536,7 @@ queue_note() {
     rm -f "$tmp"
     die 'could not write note'
   fi
-  inbox_store commit "$tmp" "$INBOX/$id.note"
+  mv "$tmp" "$INBOX/$id.note"
   summary=$(note_summary_from_body "$body")
   finish_note_result created "$id" "" "$json" "$strict" "$summary"
 }
@@ -702,8 +721,13 @@ cmd_reply() {
     fm_lock_release "$REPLY_SEQ_LOCK"
     die 'could not stage reply'
   fi
-  if ! write_reply_file "$staging" "$id" "$seq" "$body" ||
-    ! inbox_store sync "$REPLIES" || ! inbox_store commit "$staging" "$REPLIES/$id"; then
+  if ! write_reply_file "$staging" "$id" "$seq" "$body" || ! {
+    if [ "${FM_JARVIS_INTERNAL:-}" = 1 ]; then
+      inbox_store sync "$REPLIES" && inbox_store commit "$staging" "$REPLIES/$id"
+    else
+      mv "$staging" "$REPLIES/$id"
+    fi
+  }; then
     rm -f "$staging"
     fm_lock_release "$REPLY_SEQ_LOCK"
     die 'could not publish reply'

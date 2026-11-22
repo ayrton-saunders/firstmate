@@ -103,7 +103,7 @@ def plain_zip(data):
             require(e.volume == 0 and 0 <= p <= offset - 30 and data[p:p+4] == b'PK\x03\x04')
             flags, method = struct.unpack_from('<HH', data, p + 6)
             require(flags == e.flag_bits and not flags & (1 | 0x40 | 0x2000)
-                    and method == e.compress_type and method in (0, 8)
+                    and method == e.compress_type
                     and (method != 0 or e.file_size == e.compress_size))
             crc, size, expanded, name_len, extra_len = struct.unpack_from('<IIIHH', data, p+14)
             name_end = p+30+name_len
