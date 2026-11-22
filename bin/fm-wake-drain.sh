@@ -929,6 +929,19 @@ if [ -n "$ACK_THROUGH" ]; then
       exit 1
     }
   fi
+  JARVIS_ACKS=$(awk -F '\t' '
+    FILENAME == ARGV[1] { retained[$2] = 1; next }
+    NF >= 5 && $2 ~ /^[0-9]+$/ && !($2 in retained) && $3 == "check" &&
+      length($4) == 45 && $4 ~ /^inbox:jarvis-[0-9a-f]+$/ &&
+      $5 == "check: captain inbox note " substr($4, 7) " - Untrusted Jarvis request; approval is not implied." {
+        print substr($4, 7)
+      }
+  ' "$DRAIN_TMP" "$FM_WAKE_QUEUE") || exit 1
+  if [ -n "$JARVIS_ACKS" ]; then
+    while IFS= read -r jarvis_id; do
+      python3 -IB "$SCRIPT_DIR/fm_jarvis_store.py" mark "$STATE/inbox" "$jarvis_id" || exit 1
+    done <<< "$JARVIS_ACKS"
+  fi
   HANDOFF_ACK=
   if [ "$ACTOR" = main ] && [ -f "$STATE/.supervision-handoff-pending" ]; then
     HANDOFF_TOKEN=$(cat "$STATE/.supervision-handoff-pending") || exit 1

@@ -128,10 +128,10 @@ The parent can read `state/inbox/.attachments/<receipt>/request/manifest.json` a
 Give a worker only the selected private copies it needs, not access to the parent spool.
 The local receiver reserves `jarvis-v1:` request IDs and journals origin, payload and manifest digests with the note mapping before the usual note publisher wakes the parent.
 The reply's private manifest digest is committed in the single final reply itself; neither release uses a client-supplied path or parses authority from text.
-The attachment tree uses `0700` directories and `0600` copied files, refuses new material at its 256 MiB budget rather than evicting pending requests, and collects abandoned staging under the commit lock.
-On write or local `jarvis-expire`, collect slots seven days after first handoff for download, otherwise thirty days after the reply or acknowledgement; pending request files are retained.
+The attachment tree uses `0700` directories and `0600` copied files. The 256 MiB budget covers attachment bytes in both directions, including staged files; it does not charge retained manifests, expiry markers, note/reply records or bindings. New attachments that would exceed the budget are refused rather than evicting pending requests. Text-only submissions and replies are not subject to this budget. Abandoned staging is collected under the commit lock.
+On write or local `jarvis-expire`, collect slots seven days after the first complete download response is successfully written and flushed to the channel, otherwise thirty days after the reply or acknowledgement; pending request files are retained.
 Run `jarvis-expire` periodically locally for reclamation while idle; waits enforce expiry before serving bytes and report `expired` rather than returning empty data.
-An attempted transfer may be interrupted, so the handoff timestamp is not proof of end-user delivery.
+A successful channel write does not confirm end-user delivery; a failed or interrupted write does not start the seven-day clock.
 Private rotated audit logs contain call metadata only, never names, bodies, selector contents or report text.
 
 ## What it costs in time

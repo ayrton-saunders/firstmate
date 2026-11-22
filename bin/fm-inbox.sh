@@ -83,7 +83,8 @@
 # and reply (null or the receipts reply shape).
 # An answer wins over handled, even if recorded before acknowledgement.
 # Timeout is not cancellation; callers may repeat the wait using the same id.
-# Work requests MUST receive a final durable `reply` before `drain --ack`.
+# Work requests MUST receive a final durable answer before `drain --ack`: use
+# `jarvis-release` for approved Jarvis replies, and `reply` for legacy notes.
 # Do not use the single reply slot for an interim acceptance message.
 # Keep unfinished work pending, including delegated work; record its final
 # result, refusal or failure, not just a chat answer or a dispatch notice.
@@ -284,9 +285,8 @@ note_announced() {  # <id>
   [ -f "$ANNOUNCED_DIR/$1" ]
 }
 
-mark_announced() {  # <id>
-  mkdir -p "$ANNOUNCED_DIR"
-  printf '%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$ANNOUNCED_DIR/$1"
+inbox_store() {
+  python3 -IB "$SELF_DIR/fm_jarvis_store.py" "$@"
 }
 
 # true | false | unknown, for the note recorded at <path>.
@@ -318,21 +318,23 @@ note_summary_from_body() {
 }
 
 write_note_file() {  # <path> <id> <source> <body> [extra] [request-id]
-  local path=$1 id=$2 source=$3 body=$4 extra=${5:-} request_id=${6:-}
+  local path=$1 id=$2 source=$3 body=$4 extra=${5:-} request_id=${6:-} at
+  at=$(date -u +%Y-%m-%dT%H:%M:%SZ) || return 1
   {
-    printf 'id=%s\n' "$id"
-    printf 'at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    printf 'source=%s\n' "$source"
-    printf 'announce_marker=1\n'
-    [ -z "$request_id" ] || printf 'request_id=%s\n' "$request_id"
-    [ -z "$extra" ] || printf '%s\n' "$extra"
-    printf -- '--\n'
-    printf '%s' "$body"
-    case "$body" in
-      *$'\n') ;;
-      *) printf '\n' ;;
-    esac
+    printf 'id=%s\nat=%s\nsource=%s\nannounce_marker=1\n' "$id" "$at" "$source" || return 1
+    [ -z "$request_id" ] || printf 'request_id=%s\n' "$request_id" || return 1
+    [ -z "$extra" ] || printf '%s\n' "$extra" || return 1
+    write_record_body "$body"
   } >"$path"
+}
+
+write_record_body() {
+  printf -- '--\n' || return 1
+  printf '%s' "$1" || return 1
+  case "$1" in
+    *$'\n') ;;
+    *) printf '\n' ;;
+  esac
 }
 
 emit_note_json() {  # <outcome> <id> <request-id> <saved> <announced> <path> [acknowledged]
@@ -387,12 +389,11 @@ announce_note() {  # <id> <summary>
     fm_lock_release "$FM_WAKE_QUEUE_LOCK"
     return 2
   fi
-  if [[ "$id" = jarvis-* ]] && fm_wake_queued_carries_locked check "inbox:$id" "$summary"; then
-    # Crash after the append but before the marker: repair the marker, not
-    # the already queued wake. The reader/acknowledger shares this lock.
-    mark_announced "$id" || status=1
-  elif fm_wake_append_locked check "inbox:$id" "check: captain inbox note $id - $summary"; then
-    mark_announced "$id" || status=1
+  if inbox_store sync "$INBOX" "$INBOX/$id.note" && {
+    { [[ "$id" = jarvis-* ]] && fm_wake_queued_carries_locked check "inbox:$id" "$summary"; } ||
+      fm_wake_append_locked check "inbox:$id" "check: captain inbox note $id - $summary"
+  }; then
+    inbox_store sync "$STATE/.wake-queue.seq" "$FM_WAKE_QUEUE" && inbox_store mark "$INBOX" "$id" || status=1
   else
     status=1
   fi
@@ -440,6 +441,7 @@ claim_request_id() {  # <request-id> <note-id>  -> 0 claimed, 1 already exists
   reserved="$REQUESTS/$request_id"
   mkdir -p "$REQUESTS"
   if ( set -C; printf '%s\n' "$note_id" >"$reserved" ) 2>/dev/null; then
+    inbox_store sync "$REQUESTS" "$reserved" || die 'could not persist request reservation'
     return 0
   fi
   return 1
@@ -449,12 +451,17 @@ publish_from_reservation() {  # <request-id> <source> <body> <extra>
   local request_id=$1 source=$2 body=$3 extra=$4
   local reserved="$REQUESTS/$request_id" id tmp
   [ -f "$reserved" ] || return 1
+  inbox_store sync "$REQUESTS" "$reserved" || return 1
   id=$(tr -d '\r' <"$reserved")
   id=${id%%$'\n'*}
   valid_note_id "$id" || return 1
   if [ ! -f "$INBOX/$id.note" ] && [ ! -f "$INBOX/handled/$id.note" ]; then
-    tmp=$(mktemp "$INBOX/.staging-XXXXXX")
-    if ! write_note_file "$tmp" "$id" "$source" "$body" "$extra" "$request_id" || ! mv "$tmp" "$INBOX/$id.note"; then
+    if [ "$source" = jarvis ]; then
+      tmp="$INBOX/.jarvis-writing"
+    else
+      tmp=$(mktemp "$INBOX/.staging-XXXXXX") || return 1
+    fi
+    if ! write_note_file "$tmp" "$id" "$source" "$body" "$extra" "$request_id" || ! inbox_store commit "$tmp" "$INBOX/$id.note"; then
       rm -f "$tmp"
       return 1
     fi
@@ -485,7 +492,10 @@ queue_note() {
     tmp=$(mktemp "$INBOX/.staging-XXXXXX")
     staging_name=$(basename "$tmp")
     id="$(date +%s)-${staging_name#.staging-}"
-    write_note_file "$tmp" "$id" "$source" "$body" "$extra" "$request_id"
+    if ! write_note_file "$tmp" "$id" "$source" "$body" "$extra" "$request_id"; then
+      rm -f "$tmp"
+      die 'could not write note'
+    fi
     if ! claim_request_id "$request_id" "$id"; then
       rm -f "$tmp"
       id=$(publish_from_reservation "$request_id" "$source" "$body" "$extra") \
@@ -494,7 +504,7 @@ queue_note() {
       finish_note_result replay "$id" "$request_id" "$json" "$strict" "$summary"
       return $?
     fi
-    mv "$tmp" "$INBOX/$id.note"
+    inbox_store commit "$tmp" "$INBOX/$id.note"
     summary=$(note_summary_from_body "$body")
     finish_note_result created "$id" "$request_id" "$json" "$strict" "$summary"
     return $?
@@ -503,8 +513,11 @@ queue_note() {
   tmp=$(mktemp "$INBOX/.staging-XXXXXX")
   staging_name=$(basename "$tmp")
   id="$(date +%s)-${staging_name#.staging-}"
-  write_note_file "$tmp" "$id" "$source" "$body" "$extra" ""
-  mv "$tmp" "$INBOX/$id.note"
+  if ! write_note_file "$tmp" "$id" "$source" "$body" "$extra" ""; then
+    rm -f "$tmp"
+    die 'could not write note'
+  fi
+  inbox_store commit "$tmp" "$INBOX/$id.note"
   summary=$(note_summary_from_body "$body")
   finish_note_result created "$id" "" "$json" "$strict" "$summary"
 }
@@ -638,6 +651,18 @@ next_reply_seq() {
   printf '%s\n' "$seq"
 }
 
+write_reply_file() {
+  local path=$1 id=$2 seq=$3 body=$4 at
+  at=$(date -u +%Y-%m-%dT%H:%M:%SZ) || return 1
+  {
+    printf 'id=%s\nat=%s\nseq=%s\n' "$id" "$at" "$seq" || return 1
+    if [ "${FM_JARVIS_INTERNAL:-}" = 1 ] && [[ "${FM_JARVIS_RELEASE:-}" =~ ^[0-9a-f]{64}$ ]]; then
+      printf 'jarvis_release=%s\n' "$FM_JARVIS_RELEASE" || return 1
+    fi
+    write_record_body "$body"
+  } >"$path"
+}
+
 cmd_reply() {
   local json=0 id body path staging seq reply_digest domain_header domain run_outcome=0
   local -a outcome_env=(env -u FM_DISCORD_DOMAIN "FM_HOME=$FM_HOME")
@@ -671,22 +696,18 @@ cmd_reply() {
     fm_lock_release "$REPLY_SEQ_LOCK"
     die "could not claim the reply sequence"
   fi
-  staging=$(mktemp "$REPLIES/.staging-XXXXXX")
-  {
-    printf 'id=%s\n' "$id"
-    printf 'at=%s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-    printf 'seq=%s\n' "$seq"
-    if [ "${FM_JARVIS_INTERNAL:-}" = 1 ] && [[ "${FM_JARVIS_RELEASE:-}" =~ ^[0-9a-f]{64}$ ]]; then
-      printf 'jarvis_release=%s\n' "$FM_JARVIS_RELEASE"
-    fi
-    printf -- '--\n'
-    printf '%s' "$body"
-    case "$body" in
-      *$'\n') ;;
-      *) printf '\n' ;;
-    esac
-  } >"$staging"
-  mv "$staging" "$REPLIES/$id"
+  if [ "${FM_JARVIS_INTERNAL:-}" = 1 ]; then
+    staging="$REPLIES/.jarvis-writing"
+  elif ! staging=$(mktemp "$REPLIES/.staging-XXXXXX"); then
+    fm_lock_release "$REPLY_SEQ_LOCK"
+    die 'could not stage reply'
+  fi
+  if ! write_reply_file "$staging" "$id" "$seq" "$body" ||
+    ! inbox_store sync "$REPLIES" || ! inbox_store commit "$staging" "$REPLIES/$id"; then
+    rm -f "$staging"
+    fm_lock_release "$REPLY_SEQ_LOCK"
+    die 'could not publish reply'
+  fi
   fm_lock_release "$REPLY_SEQ_LOCK"
   # The trusted capture header owns the outcome binding; never infer it from
   # the reply session, the note body or the mere existence of domain configs.
@@ -1302,7 +1323,9 @@ cmd_drain() {
     mkdir -p "$INBOX/handled"
     local id
     for id in "$@"; do
-      if [ -f "$INBOX/$id.note" ]; then
+      if [[ "$id" =~ ^jarvis-[0-9a-f]{32}$ && -d "$INBOX/.jarvis" ]]; then
+        inbox_store ack "$INBOX" "$id"
+      elif [ -f "$INBOX/$id.note" ]; then
         mv "$INBOX/$id.note" "$INBOX/handled/$id.note"
         printf 'acked %s\n' "$id"
       else
@@ -1312,7 +1335,7 @@ cmd_drain() {
     return 0
   fi
   cmd_list
-  printf '\nWork requests: keep pending until finished; record the final outcome with fm-inbox.sh reply <id> - BEFORE drain --ack. See fm-inbox.sh --help for the reply contract.\n'
+  printf '\nWork requests: keep pending until finished. For non-Jarvis notes, record the final outcome with fm-inbox.sh reply <id> - BEFORE drain --ack. See fm-inbox.sh --help for the reply contract.\n'
   printf 'Ack with: fm-inbox.sh drain --ack <id>...\n'
 }
 

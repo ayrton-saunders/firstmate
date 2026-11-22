@@ -113,11 +113,14 @@ class Bridge:
             require(re.fullmatch(ID, slot), 'denied')
             delivered = regular(folder, slot+'.delivered')
             deadline = delivered.st_mtime + 7*DAY if delivered else terminal + 30*DAY if terminal else None
-            if deadline and now >= deadline:
-                if not regular(folder, slot+'.expired'):
-                    create(folder, slot+'.expired', b'')
-                remove(folder, slot)
-            if regular(folder, slot+'.expired'):
+            expired = regular(folder, slot+'.expired')
+            if not expired and deadline and now >= deadline:
+                create(folder, slot+'.expired', b'')
+                expired = True
+            if expired:
+                if regular(folder, slot):
+                    os.fsync(folder)
+                    remove(folder, slot)
                 f['expired'] = True
 
     def manifest(self, fd, req, direction, expected):
@@ -129,6 +132,8 @@ class Bridge:
         return m
 
     def sweep(self):
+        for folder in (self.inbox, self.replies, self.requests):
+            remove(folder, '.jarvis-writing')
         used = 0
         for note in os.listdir(self.spool):
             require(re.fullmatch('jarvis-'+ID, note), 'denied')
@@ -154,16 +159,20 @@ class Bridge:
                             with directory(side, direction, private=True) as fd:
                                 m = self.manifest(fd, req, direction, expected)
                                 self.expire_slots(fd, m['files'], terminal)
-                                for leaf in os.listdir(fd):
-                                    s = regular(fd, leaf)
-                                    used += max(s.st_size, s.st_blocks * 512)
+                                for f in m['files']:
+                                    s = regular(fd, f['slot'])
+                                    if s:
+                                        used += s.st_size
                 if not os.listdir(side):
                     os.rmdir(note, dir_fd=self.spool)
         return used
 
     def released_hash(self, note):
         if regular(self.replies, note):
-            return headers(self.replies, note).get('jarvis_release')
+            release = headers(self.replies, note).get('jarvis_release')
+            if release:
+                os.fsync(self.replies)
+                return release
         return None
 
     def save(self, req, packet, reply):
@@ -171,10 +180,6 @@ class Bridge:
         note = receipt(req)
         key = 'jarvis-v1:' + req
         direction = 'reply' if reply else 'request'
-        if reply:
-            projected = result('answered', receipt=note, observed=int(time.time()), text=body,
-                               files=[dict(f, slot='0'*32, expired=True) for f in files])
-            require(len(json_bytes(projected)) <= MANIFEST)
         used = self.sweep()
         binding = self.binding(req)
         marker = regular(self.markers, note)
@@ -191,7 +196,7 @@ class Bridge:
             require(not marker and not regular(self.inbox, note+'.note') and not regular(self.handled, note+'.note')
                     and not regular(self.replies, note), 'denied')
         if reply or not binding:
-            require(used + sum(map(len, blobs)) + MANIFEST + 4096 <= 256*M, 'overload')
+            require(not blobs or used + sum(map(len, blobs)) <= 256*M, 'overload')
             with directory(self.spool, note, **PRIVATE) as side:
                 meta = dict(audience='jarvis', request=req, receipt=note, direction=direction)
                 if reply:
@@ -236,8 +241,6 @@ class Bridge:
                         require(not f.get('expired'), 'expired')
                         blob = read(fd, selector, FILE)
                         require(len(blob) == f['length'] and digest(blob) == f['sha256'], 'denied')
-                        if not regular(fd, selector+'.delivered'):
-                            create(fd, selector+'.delivered', b'')
                         return result('attachment', **out, **f), blob
                     # Only the explicit final commit releases the single inbox reply body.
                     raw = read(self.replies, note, 16*K + 1024)
@@ -253,6 +256,12 @@ class Bridge:
         else:
             state = 'pending' if wait else 'announced'
         return result(state, **out), None
+
+    def delivered(self, note, slot):
+        with self.locked(), directory(self.spool, note, private=True) as side, directory(side, 'reply', private=True) as fd:
+            if regular(fd, slot) and not regular(fd, slot+'.expired') and not regular(fd, slot+'.delivered'):
+                create(fd, slot+'.delivered', b'')
+                os.fsync(fd)
 
     def report(self, verb, slug, data, expiry):
         name = digest(('jarvis:'+slug).encode())
@@ -329,15 +338,22 @@ def main():
         except Exception:
             answer = result('server-error')
         bridge.audit(verb, answer['result'], reader.count + len(blob or b''), time.monotonic()-started)
-    sys.stdout.buffer.write(json_bytes(answer) + b'\n')
-    if blob is not None:
-        sys.stdout.buffer.write(struct.pack('>I', len(blob)) + blob)
+        try:
+            sys.stdout.buffer.write(json_bytes(answer) + b'\n')
+            if blob is not None:
+                sys.stdout.buffer.write(struct.pack('>I', len(blob)) + blob)
+            sys.stdout.buffer.flush()
+        except OSError:
+            os._exit(1)
+        if blob is not None:
+            try:
+                bridge.delivered(answer['receipt'], answer['slot'])
+            except (OSError, Refusal):
+                sys.exit(1)
 
 
 if __name__ == '__main__':
     try:
         main()
-    except BrokenPipeError:
-        pass  # replay is safe after a lost response
     except Exception:
         print('{"v":1,"result":"server-error"}')

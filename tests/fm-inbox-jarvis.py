@@ -5,6 +5,7 @@ from hashlib import sha256
 import io
 import json
 import os
+import re
 import resource
 import signal
 from pathlib import Path
@@ -51,8 +52,25 @@ def envelope(text, *files):
     return frame(json.dumps(dict(v=1, text=text, files=metadata)).encode()) + b''.join(frame(f[2]) for f in files)
 
 
-pdf = ('review only.pdf', 'application/pdf', b'%PDF-1.4\nsynthetic fixture\n%%EOF\n')
-png = ('sample.png', 'image/png', base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Y9ZQmcAAAAASUVORK5CYII='))
+def pdf_document(padding=0):
+    doc = b'%PDF-1.4\n%' + b' '*padding + b'\n'
+    offsets = [b'0000000000 65535 f \n']
+    for i, body in enumerate((b'<< /Type /Catalog /Pages 2 0 R >>', b'<< /Type /Pages /Kids [3 0 R] /Count 1 >>',
+                              b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 1 1] >>'), 1):
+        offsets.append(f'{len(doc):010d} 00000 n \n'.encode())
+        doc += f'{i} 0 obj\n'.encode() + body + b'\nendobj\n'
+    return (doc + b'xref\n0 4\n' + b''.join(offsets) + b'trailer\n<< /Size 4 /Root 1 0 R >>\n'
+            + f'startxref\n{len(doc)}\n%%EOF\n'.encode())
+
+
+pdf = ('review only.pdf', 'application/pdf', pdf_document())
+png = ('sample.png', 'image/png', base64.b64decode('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII='))
+webp = ('thumb.webp', 'image/webp', bytes.fromhex('524946461a000000574542505650384c0d0000002f00000010071011118888fe0700'))
+huffman = b'\x01' + b'\x00'*16
+jpeg = ('photo.jpg', 'image/jpeg', b'\xff\xd8\xff\xdb\x00\x43\x00' + b'\x01'*64
+        + b'\xff\xc0\x00\x0b\x08\x00\x01\x00\x01\x01\x01\x11\x00'
+        + b'\xff\xc4\x00\x26\x00' + huffman + b'\x10' + huffman
+        + b'\xff\xda\x00\x08\x01\x01\x00\x00\x3f\x00\x3f\xff\xd9')
 mem = io.BytesIO()
 with zipfile.ZipFile(mem, 'w') as archive:
     archive.writestr('example.txt', b'synthetic bytes')
@@ -63,14 +81,25 @@ selector = lambda slot: json.dumps(dict(attachment=slot)).encode()
 # Invalid envelopes, including late failures, never leave a published unit.
 badframes = [packet[:-1], packet+b'!', packet[:-1]+b'!', struct.pack('>I', 24577),
              frame(b'{"v":1,"text":"one","text":"two"}'), frame(b'{"v":1,"text":"\xff"}'),
-             envelope('x'*16385), envelope('x', pdf, pdf), envelope('x', *([png]*5)),
+             envelope('x'*16385), envelope('x', *([png]*5)),
              envelope('x', ('../x.pdf', *pdf[1:])), envelope('x', ('x.pdf', 'image/png', png[2])),
              envelope('x', ('x.png', 'image/png', b'<svg/>')), envelope('x', ('x.pdf', pdf[1], b'#!/bin/sh\n')),
              envelope('x', ('x.zip', zip_file[1], zip_file[2][:6]+b'\x01\x00'+zip_file[2][8:])),
              envelope('x', ('x.zip', zip_file[1], zip_file[2][:-18]+b'\x01\x00'+zip_file[2][-16:]))]
+for filename, mime, blob in (
+    (*png[:2], png[2][:29] + png[2][-12:]),
+    (*jpeg[:2], jpeg[2][:20] + jpeg[2][-2:]),
+    (*webp[:2], webp[2][:16] + b'\xff\x00\x00\x00' + webp[2][20:]),
+    (*pdf[:2], pdf[2].split(b'xref\n', 1)[0] + b'%%EOF\n'),
+    (*zip_file[:2], zip_file[2][:28] + b'\xff\x00' + zip_file[2][30:]),
+):
+    badframes.append(envelope('malformed container', (filename, mime, blob)))
 for bad in badframes:
     call('bridge-submit', a, data=bad, want='invalid')
-eight = b'%PDF-1.4\n' + b' '*(8*1024*1024-14) + b'%%EOF'
+eight_size = 8*1024*1024
+padding = eight_size-len(pdf[2])-6
+while len(eight := pdf_document(padding)) != eight_size:
+    padding += eight_size-len(eight)
 assert len(eight) == 8*1024*1024
 call('bridge-submit', a, data=envelope('per file', ('big.pdf', pdf[1], eight+b'\n')), want='invalid')
 call('bridge-submit', a, data=envelope('total', ('a.pdf', pdf[1], eight), ('b.pdf', pdf[1], eight), pdf), want='invalid')
@@ -81,7 +110,7 @@ def file_limit():
     signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
     resource.setrlimit(resource.RLIMIT_FSIZE, (32768, 32768))
 
-larger = ('large.pdf', pdf[1], b'%PDF-1.7\n' + b' '*65536 + b'%%EOF')
+larger = ('large.pdf', pdf[1], pdf_document(65536))
 call('bridge-submit', a, data=envelope('disk error', pdf, larger), preexec_fn=file_limit, want='server-error')
 assert not list(spool.rglob('manifest.json')) and not list(spool.rglob('.stage'))
 assert not list(inbox.glob('*.note')) and not (state/'.wake-queue').exists()
@@ -108,6 +137,52 @@ with ThreadPoolExecutor(3) as pool:
     assert all(j.result()['receipt'] == first for j in jobs)
 assert len(list(inbox.glob('*.note'))) == len((state/'.wake-queue').read_text().splitlines()) == 1
 assert 'fixture content' not in (state/'.wake-queue').read_text()
+
+lost = 'e'*32
+lost_packet = envelope('response discarded', pdf, pdf)
+with open(os.devnull, 'wb') as sink:
+    p = subprocess.run([str(script), 'bridge-submit', lost], input=lost_packet, stdout=sink,
+                       stderr=subprocess.PIPE, env=env, timeout=45)
+assert p.returncode == 0 and not p.stderr
+lost_note = call('bridge-submit', lost, data=lost_packet, want='announced')['receipt']
+assert len(list(inbox.glob('*.note'))) == len((state/'.wake-queue').read_text().splitlines()) == 2
+slots = json.loads((spool/lost_note/'request'/'manifest.json').read_bytes())['files']
+assert [f['name'] for f in slots] == ['review_only.pdf']*2 and slots[0]['slot'] != slots[1]['slot']
+
+(inbox/'.announced'/first).unlink()
+drain = script.with_name('fm-wake-drain.sh')
+p = run(binary=drain, check=False)
+assert p.returncode == 0, p.stderr
+ack = re.search(rb'--ack-through ([0-9]+) --recovery-generation ([A-Za-z0-9._-]+)', p.stderr)
+assert ack, p.stderr
+run('--ack-through', ack[1].decode(), '--recovery-generation', ack[2].decode(), binary=drain, check=False)
+assert not (state/'.wake-queue').read_bytes()
+assert (inbox/(first+'.note')).exists()
+call('bridge-status', a, want='announced')
+call('bridge-submit', a, data=packet, want='announced')
+assert not (state/'.wake-queue').read_bytes()
+
+
+def publisher_limit():
+    signal.signal(signal.SIGXFSZ, signal.SIG_IGN)
+    resource.setrlimit(resource.RLIMIT_FSIZE, (8192, 8192))
+
+
+cut = '1'*32
+long_packet = envelope('x'*12000 + '\n')
+call('bridge-submit', cut, data=long_packet, preexec_fn=publisher_limit, want='server-error')
+assert len(list(inbox.glob('*.note'))) == 2 and not (state/'.wake-queue').read_bytes()
+assert call('bridge-status', cut, want='saved-not-announced')['receipt']
+call('jarvis-release', lost, data=long_packet, preexec_fn=publisher_limit, want='server-error')
+assert not (inbox/'.replies'/lost_note).exists() and not (spool/lost_note/'reply').exists()
+for parent in (inbox, inbox/'.replies'):
+    scratch = parent/'.jarvis-writing'
+    if not scratch.exists():
+        scratch.write_bytes(b'interrupted publisher')
+call('jarvis-expire', want='cleaned')
+assert not any(inbox.rglob('.jarvis-writing'))
+cut_note = call('bridge-submit', cut, data=long_packet, want='announced')['receipt']
+assert (inbox/(cut_note+'.note')).read_bytes().partition(b'\n--\n')[2] == b'x'*12000 + b'\n'
 call('bridge-submit', a, data=envelope('changed'), want='conflict')
 call('bridge-status', first, want='invalid')
 assert run('note', '--request-id', 'JARVIS-v1:'+a, 'no', check=False).returncode != 0
@@ -133,6 +208,12 @@ assert call('bridge-wait', a, want='answered')['files'] == final['files']
 assert set(call('bridge-status', a, want='answered')) == {'v','receipt','observed','result'}
 call('jarvis-release', a, data=reply, want='conflict')
 slot = final['files'][0]['slot']
+undelivered_slot = final['files'][1]['slot']
+with subprocess.Popen([str(script), 'bridge-wait', a], env=env, stdin=subprocess.PIPE,
+                      stdout=subprocess.PIPE, stderr=subprocess.PIPE) as p:
+    p.stdout.close()
+    p.communicate(selector(undelivered_slot), timeout=45)
+assert not (spool/first/'reply'/(undelivered_slot+'.delivered')).exists()
 assert call('bridge-wait', a, data=selector(slot), want='attachment') == png[2]
 call('bridge-wait', a, data=selector(f['slot']), want='not-available')
 for p in (spool, *spool.rglob('*')):
@@ -184,15 +265,22 @@ assert not (folder/slot).exists() and not (reqfolder/request['files'][0]['slot']
 # A sparse quota fixture refuses both sides without a wake, partial release,
 # or eviction of the unhandled request. Abandoned staging is reclaimable.
 pending = spool/fresh/'request'
-extra = pending/'quota-fixture'
-with extra.open('wb') as out:
+pending_slot = json.loads((pending/'manifest.json').read_bytes())['files'][0]['slot']
+extra = pending/pending_slot
+with extra.open('r+b') as out:
     out.truncate(256*1024*1024)
 wakes = (state/'.wake-queue').read_bytes()
 call('bridge-submit', unknown, data=packet, want='overload')
 call('jarvis-release', c, data=reply, want='overload')
 assert not (spool/fresh/'reply').exists() and not (inbox/'.replies'/fresh).exists()
 assert (state/'.wake-queue').read_bytes() == wakes and (pending/'manifest.json').exists()
-extra.unlink()
+text_only = 'f'*32
+call('bridge-submit', text_only, data=envelope('text only at quota'), want='announced')
+long_text = '\n'*8100 + 'a'*8284
+call('jarvis-release', text_only, data=envelope(long_text), want='answered')
+assert call('bridge-wait', text_only, want='answered')['text'] == long_text
+wakes = (state/'.wake-queue').read_bytes()
+extra.write_bytes(pdf[2])
 stage = spool/fresh/'.stage'
 stage.mkdir(mode=0o700)
 (stage/'partial').write_bytes(b'synthetic')
@@ -209,10 +297,7 @@ spool.unlink()
 (inbox/'.saved').rename(spool)
 call('jarvis-release', c, data=envelope('disk error', pdf, larger), preexec_fn=file_limit, want='server-error')
 assert not (spool/fresh/'reply').exists() and not (inbox/'.replies'/fresh).exists()
-# Additional image signatures; their bytes are only copied and checked.
-jpeg = ('photo.jpg', 'image/jpeg', b'\xff\xd8\xff\xe0\x00\x10JFIF\x00'+b'\x00'*9+b'\xff\xd9')
-webpbytes = bytes.fromhex('524946461a000000574542505650384c0d0000002f00000010071011118888fe0700')
-webp = ('thumb.webp', 'image/webp', webpbytes+b'\x00'*(34-len(webpbytes)))
+call('jarvis-release', c, data=badframes[-1], want='invalid')
 call('jarvis-release', c, data=envelope('final', jpeg, webp), want='answered')
 call('bridge-wait', c, data=selector(slot), want='not-available')
 third = call('bridge-submit', unknown, data=envelope('no answer needed'), want='announced')['receipt']
@@ -234,6 +319,8 @@ call('jarvis-publish', 'fixture', data=b'new projection', want='published')
 assert call('bridge-lookup', 'fixture', want='available')['version'] != report['version']
 call('jarvis-publish', 'fixture', '1', data=b'expired', want='published')
 assert call('bridge-lookup', 'fixture', want='not-available') == unavailable
+call('jarvis-publish', 'fixture', data=b'current projection', want='published')
+assert call('bridge-lookup', 'fixture', want='available')['text'] == 'current projection'
 call('jarvis-withdraw', 'fixture', want='withdrawn')
 assert call('bridge-lookup', 'fixture', want='not-available') == unavailable
 for row in (inbox/'.jarvis'/'audit.jsonl').read_bytes().splitlines():

@@ -75,7 +75,7 @@ pass "plain note, list, and wake stay on the historical human path"
 # A saved note whose wake fails still exits 1 for callers that omit the new flags.
 isolated="$TMP_ROOT/isolated"
 mkdir -p "$isolated/bin"
-cp "$INBOX_BIN" "$isolated/bin/fm-inbox.sh"
+cp "$INBOX_BIN" "$ROOT/bin/fm_jarvis_store.py" "$ROOT/bin/fm_jarvis_wire.py" "$isolated/bin/"
 chmod +x "$isolated/bin/fm-inbox.sh"
 home=$(make_home human-wake-fail)
 set +e
