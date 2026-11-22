@@ -457,8 +457,7 @@ cleanup() {
   retire_arm "$SUCCESSOR_PID" "$SUCCESSOR_OUT"
   retire_arm "$ARM_PID" "$ARM_OUT"
   if [ "$GRANT_ACTIVE" -eq 1 ]; then
-    "$SCRIPT_DIR/fm-wake-grant.sh" release "$GEN" >/dev/null 2>&1 || true
-    "$SCRIPT_DIR/fm-wake-grant.sh" deactivate "$HOST_PID" "$GEN" >/dev/null 2>&1 || true
+    fm_run_timed 1 "$SCRIPT_DIR/fm-wake-grant.sh" deactivate "$HOST_PID" "$GEN" >/dev/null 2>&1 || true
   fi
   release_branch_leases
   rm -f "$TURN_FILE" "$ENGINE_PID_FILE" 2>/dev/null || true
@@ -1021,8 +1020,9 @@ health_record() {  # <engine-error 0|1> <reports>
 # A proven routine close needs no engine turn. Return its exact queue rows,
 # or an empty set only for rearm-resurface with no queued work. A mixed,
 # malformed or unrelated batch stays on the normal routing path.
-attended_routine_rows() {  # <reason>
-  local reason=$1 queue='' seq kind key payload epoch extra rows='' pending row_reason
+attended_routine_rows() {  # <reason> <decision keys>
+  local reason=$1 decision_keys=$2 queue='' seq kind key payload epoch extra rows='' pending row_reason f exclude
+  local proven_answers=' '
   # A first cycle that closes before readiness is streamed still has its
   # normal arm status line in ARM_TEXT. No other diagnostics are ignorable.
   case "$ARM_TEXT" in
@@ -1038,6 +1038,12 @@ attended_routine_rows() {  # <reason>
     'check: rearm-resurface')
       pending=$("$SCRIPT_DIR/fm-branch-outcome.sh" present) || return 1
       [ "$(printf '%s\n' "$pending" | jq -rs 'any(.verdict == "captain")')" = false ] || return 1
+      _fm_wake_require_classify || return 1
+      exclude=$(status_scan_parent_channel_exclude "$STATE")
+      for f in "$STATE"/*.status; do
+        [ -e "$f" ] && [ "$f" != "$exclude" ] && [ ! -L "$f" ] || continue
+        attended_no_unread_decision "$f" || return 1
+      done
       [ -n "$queue" ] || return 0
       ;;
     signal:*|stale:*) [ -n "$queue" ] || return 1 ;;
@@ -1057,6 +1063,16 @@ attended_routine_rows() {  # <reason>
   printf '%s\n' "$rows"
 }
 
+attended_no_unread_decision() {  # <status-file>
+  local start folded opening rc=0
+  [ -e "$1" ] || { [ ! -L "$1" ]; return; }
+  start=$(status_presentation_cursor_offset "$1") || return 1
+  folded=$(status_open_decisions_cursor_offset "$1") || return 1
+  [ "$folded" -le "$start" ] || start=$folded
+  status_span_first_actionable_record "$1" "$start" '' '' '' opening >/dev/null || rc=$?
+  [ "$rc" -le 1 ] && [ "$opening" -eq 0 ]
+}
+
 attended_routine_row() {  # <kind> <key> <reason>
   local kind=$1 key=$2 reason=$3 record task target f found=0
   local -a files
@@ -1070,7 +1086,11 @@ attended_routine_row() {  # <kind> <key> <reason>
         task=${f##*/}; task=${task%.status}
         case "$task" in ''|*[!A-Za-z0-9._-]*|.|..) return 1 ;; esac
         [ "${f##*/}" != "$key" ] || found=1
-        status_unread_only_home_answers "$f" || return 1
+        case "$proven_answers" in
+          *" $f "*) ;;
+          *) status_unread_only_home_answers "$f" || return 1
+             proven_answers="$proven_answers$f " ;;
+        esac
       done
       [ "$found" -eq 1 ]
       ;;
@@ -1081,7 +1101,9 @@ attended_routine_row() {  # <kind> <key> <reason>
       [ "$key" = "$target" ] || return 1
       _fm_wake_require_classify || return 1
       task=$(window_to_task "$target" "$STATE")
-      [ -n "$task" ] && [ "$record" = "$STATE/$task.inbox/${record##*/}" ]
+      [ -n "$task" ] && [ "$record" = "$STATE/$task.inbox/${record##*/}" ] || return 1
+      case " $decision_keys " in *" $target "*) return 1 ;; esac
+      attended_no_unread_decision "$STATE/$task.status"
       ;;
     *) return 1 ;;
   esac
@@ -1109,7 +1131,6 @@ publish_wake_grant() {  # <space-separated rows>
 
 acknowledge_routine_close() {  # <exact rows, or empty for rearm-resurface>
   local rows=$1 marker="$STATE/.watcher-down" generation rc=0 unacked
-  host_still_owner || return 1
   fm_recovery_marker_snapshot "$marker" || return 1
   generation=${FM_RECOVERY_MARKER_TOKEN##*:}
   [ -n "$generation" ] || return 1
@@ -1150,8 +1171,12 @@ handle_wake() {  # <reason-lines>
   if [ "$TURN_POSTURE" = attended ]; then
     attended_acceptor "$reason" || return 2
     if [ "$ATTENDED_ROUTINE" -eq 1 ]; then
-      boundary_reached && boundary_exit
-      if acknowledge_routine_close "$ATTENDED_ROUTINE_ROWS"; then
+      host_still_owner || return 1
+      rc=0
+      attended_park_worker acknowledge_routine_close "$ATTENDED_ROUTINE_ROWS" || rc=$?
+      [ -z "$ATTENDED_ROUTINE_ROWS" ] || GRANT_ACTIVE=1
+      if [ "$rc" -eq 124 ]; then boundary_exit; fi
+      if [ "$rc" -eq 0 ]; then
         log_line "routine-ack	$first"
         return 0
       fi
@@ -1317,11 +1342,33 @@ turn_captain_seqs() {  # <turn>
   awk -F '\t' -v turn="$1" '$1 == turn && $3 == "captain" { printf "%s%s", sep, $2; sep = ", " }' "$RECEIPTS" 2>/dev/null
 }
 
+attended_park_run() {  # <command> [args...]
+  local remaining
+  park_elapsed
+  remaining=$((PARK_SECONDS - PARK_ELAPSED))
+  [ "$remaining" -gt 0 ] || return 124
+  fm_run_timed "$remaining" "$@"
+}
+
+attended_park_worker() {  # <function> [args...]
+  FM_STATE_OVERRIDE="$STATE" attended_park_run bash -uc '
+    SCRIPT_DIR=$1 ARM_TEXT=$2 HOST_PID=$3 GEN=$4 GRANT_ACTIVE=$5
+    . "$SCRIPT_DIR/fm-wake-lib.sh"
+    . "$SCRIPT_DIR/fm-task-inbox-lib.sh"
+    eval "$6"
+    shift 6
+    "$@"
+  ' _ "$SCRIPT_DIR" "$ARM_TEXT" "$HOST_PID" "$GEN" "$GRANT_ACTIVE" \
+    "$(declare -f attended_routine_rows attended_routine_row attended_no_unread_decision \
+      acknowledge_routine_close publish_wake_grant branch_env)" "$@"
+}
+
 # Why an attended close stays with main exactly as the plain arm delivers it,
 # or nothing when the supervision session may take it. Sets ATTENDED_WHY, and
 # ATTENDED_OFFER to the offer's verdict and the scope it judged.
 attended_acceptor() {  # <reason-lines>
-  local offer='' first=${1%%$'\n'*}
+  local offer='' first=${1%%$'\n'*} rc=0 decision_keys
+  boundary_reached && boundary_exit
   ATTENDED_WHY=
   ATTENDED_OFFER=
   ATTENDED_ROUTINE=0
@@ -1330,14 +1377,24 @@ attended_acceptor() {  # <reason-lines>
     ATTENDED_WHY=$FM_SUPERVISION_HOST_UNREADY
   elif ! fm_supervision_host_main_key "$STATE" >/dev/null; then
     ATTENDED_WHY="the main session could not be identified"
-  elif health_cooling; then
-    ATTENDED_WHY="the supervision session is cooling down after engine errors"
-  elif ! offer=$(printf '%s\n' "$first" | node "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer 2>/dev/null); then
-    ATTENDED_WHY="branch eligibility could not be computed"
-  elif ATTENDED_ROUTINE_ROWS=$(attended_routine_rows "$1"); then
-    ATTENDED_ROUTINE=1
-  elif [ "$(printf '%s\n' "$offer" | sed -n 's/^eligible=//p')" != 1 ]; then
-    ATTENDED_WHY="main-only"
+  else
+    offer=$(attended_park_run node "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer 2>/dev/null <<< "$first") || rc=$?
+    if [ "$rc" -eq 124 ]; then boundary_exit; fi
+    if [ "$rc" -ne 0 ]; then
+      ATTENDED_WHY="branch eligibility could not be computed"
+    else
+      decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
+      ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows "$1" "$decision_keys") || rc=$?
+      if [ "$rc" -eq 124 ]; then boundary_exit; fi
+      boundary_reached && boundary_exit
+      if [ "$rc" -eq 0 ]; then
+        ATTENDED_ROUTINE=1
+      elif health_cooling; then
+        ATTENDED_WHY="the supervision session is cooling down after engine errors"
+      elif [ "$(printf '%s\n' "$offer" | sed -n 's/^eligible=//p')" != 1 ]; then
+        ATTENDED_WHY="main-only"
+      fi
+    fi
   fi
   ATTENDED_OFFER=$offer
   [ -z "$ATTENDED_WHY" ]

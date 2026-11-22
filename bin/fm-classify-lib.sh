@@ -2475,7 +2475,7 @@ EOF
 # be acknowledged without presenting the signal. Do not infer authorship from
 # an `answered:` note alone, or treat the open-decision fold as presentation.
 status_unread_only_home_answers() {  # <status-file>
-  local f=$1 start end ident span line note unstamped open
+  local f=$1 start end ident span line note unstamped
   [ -f "${f%/*}/.status-presentation-cursor" ] || return 1
   _fm_status_read_ident_size "$f" || return 1
   ident=$_FM_STAT_IDENTITY end=${_FM_STAT_SIZE//[[:space:]]/}
@@ -2491,8 +2491,6 @@ status_unread_only_home_answers() {  # <status-file>
     status_line_note "$line" note
     case "$note" in answered|answered:*) ;; *) return 1 ;; esac
   done <<< "$span"
-  open=$(status_open_decisions "$f") || return 1
-  [ -z "$open" ] || return 1
   _fm_status_read_ident_size "$f" || return 1
   [ "$_FM_STAT_IDENTITY" = "$ident" ] && [ "${_FM_STAT_SIZE//[[:space:]]/}" = "$end" ]
 }
@@ -2606,8 +2604,10 @@ _fm_status_open_decision_origins() {  # <status-file> [<kind>]
   printf '%s' "$origins"
 }
 
-status_span_first_actionable_record() {  # <status-file> <start-offset> [record-var] [needs-decision-var] [ignored-blocked-key]
-  local f=$1 start=${2:-0} output_var=${3-} needs_var=${4-} ignored_blocked_key=${5-} size ident cur_ident scratch chunk_file result
+status_span_first_actionable_record() {  # <status-file> <start-offset> [record-var] [needs-decision-var] [ignored-blocked-key] [has-opening-var]
+  local f=$1 start=${2:-0} output_var=${3-} needs_var=${4-} ignored_blocked_key=${5-} opening_var=${6-} size ident cur_ident scratch chunk_file result
+  local _fm_span_has_opening=0
+  [ -z "$opening_var" ] || printf -v "$opening_var" '%s' 0
   local line verb key origins='' folded=0 rc=1 failed=0 line_number=0 live_line='' events='' _line _key _fm_span_needs_decision=0
   [ -e "$f" ] || { [ -L "$f" ] && return 2; return 1; }
   [ -f "$f" ] && [ -r "$f" ] && [ ! -L "$f" ] || return 2
@@ -2677,6 +2677,7 @@ $origins
 EOF
 )
         [ -n "$live_line" ] && [ "$line_number" -eq "$live_line" ] || continue
+        _fm_span_has_opening=1
         [ -n "$events" ] && events="${events} ; "
         events="${events}${line}"
         if [ "$verb" = needs-decision ] || { [ "$verb" = blocked ] &&
@@ -2694,6 +2695,7 @@ EOF
   done < "$chunk_file"
   rm -f "$chunk_file"
   [ "$failed" -eq 0 ] || return 2
+  [ -z "$opening_var" ] || printf -v "$opening_var" '%s' "$_fm_span_has_opening"
   if [ "$rc" -eq 0 ]; then result="${size}"$'\t'"${ident}"$'\t'"${events}"; else result="${size}"$'\t'"${ident}"; fi
   if [ -n "$output_var" ]; then
     printf -v "$output_var" '%s' "$result"

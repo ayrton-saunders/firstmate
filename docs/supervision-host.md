@@ -109,8 +109,8 @@ Only an away record is away: no record, or the record daemon-backed quiet mode w
 
 The host asks the Pi branch's offer rule (`branchOfferForWake`, through `bin/fm-branch-dispatch.mjs offer`) whether the branch may take the close.
 Check triggers, decision-owned signal or stale triggers, and scans unsafe or empty for the branch normally stay main's.
-The attended host can instead acknowledge a whole close without running the engine when it proves that the only unread signal lines are its own keyed answers, the exact record named by a stuck-busy escalation has since been handled, or a rearm resurface has no pending captain outcome and every recovered row meets one of those same proofs (including when there are no rows).
-Any batch containing consequential work, and any unhandled stuck inbox, stays on ordinary routing.
+The attended host can instead acknowledge a whole close without an engine turn. A routine signal contains only the home’s own unread keyed answers. A routine stuck-busy escalation names an exact inbox record that has since been handled, with no unread decision or decision ownership for the stale row in the branch offer.
+Routine rearm recovery requires no pending captain outcome or unread open decision, and every recovered row must meet the same proof as a direct row. Already-presented open decisions alone do not force a recovery turn. Consequential batches and unhandled stuck inboxes keep their ordinary routing. Routine acknowledgement bypasses the engine cooldown, not the park deadline.
 On a main-only pass-through the host starts the successor watcher cycle and leaves it running, then prints the close unchanged.
 That successor, like one a turn hands back at its start (see [Away](#away)), runs in a process group of its own, so the harness tearing down the hook's group after the rewake does not stop it.
 The host confirms no handling handoff and republishes the watcher's recovery marker as downtime, even when an earlier engine turn left it reading handling, because the re-arm owner delivers a close to main only while that marker reads downtime.

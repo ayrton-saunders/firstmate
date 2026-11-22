@@ -397,11 +397,19 @@ SH
     || fail "fixture: could not write an inbox record"
   if [ "$mode" = handled ]; then
     install_first_offer_action "$home" 'mv "$FM_HOME/state/demo.inbox/001.msg" "$FM_HOME/state/demo.inbox/handled/"'
+  elif [ "$mode" = decision ]; then
+    install_first_offer_action "$home" 'mv "$FM_HOME/state/demo.inbox/001.msg" "$FM_HOME/state/demo.inbox/handled/"
+    printf "needs-decision [key=inbox-choice]: choose an approach\n" >> "$FM_HOME/state/demo.status"'
   fi
   FM_BUSY_REGEX=BUSYTOKEN FM_TASK_INBOX_GRACE_SECS=0 start_host "$home"
   if [ "$mode" = handled ]; then
     assert_routine_close_acknowledged "$home" 'stale: .*stuck-busy'
     [ -f "$home/state/demo.inbox/handled/${rec##*/}" ] || fail "fixture: the worker did not handle the named record"
+  elif [ "$mode" = decision ]; then
+    wait_until_deadline 60 host_exited "$home" || fail "a handled stale hid a decision-owned wake"
+    assert_re '^stale: .*stuck-busy' "$home/host.out" "the decision-owned stale must reach main"
+    assert_grep 'stuck-busy' "$home/state/.wake-queue" "the decision-owned row must remain queued"
+    [ "$(engine_calls "$home")" = 0 ] || fail "the branch took a decision-owned stale row"
   else
     wait_until_deadline 60 grep -q 'stuck-busy' "$home/engine-drain.1" 2>/dev/null \
       || fail "a branch-eligible stuck inbox did not reach the branch engine"
@@ -412,10 +420,21 @@ SH
 }
 
 test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-captain-outcome>
-  local mode=$1 home rec reason seq
+  local mode=$1 home rec reason seq f
   home=$(make_home "attended-resurface-$mode" quiet)
   : > "$home/state/.wake-queue"
   case "$mode" in
+    new-decision|presented-decision|reopened-decision)
+      f="$home/state/demo.status"
+      printf 'blocked [key=recovery-choice]: choose an approach\n' > "$f"
+      if [ "$mode" != new-decision ]; then
+        main_drain_and_ack "$home"
+      fi
+      if [ "$mode" = reopened-decision ]; then
+        printf 'resolved [key=recovery-choice]: answered\nblocked [key=recovery-choice]: choose an approach\n' >> "$f"
+      fi
+      routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$f" || fail "fixture: decision would wake independently"
+      ;;
     credential) routine_wake_lib "$home" fm_wake_append check needs-gh-auth 'check: GitHub login required' || fail "fixture: no credential check" ;;
     routine)
       rec=$(FM_HOME="$home" bash -c '. "$1"; fm_task_inbox_write "$2" demo steer' _ "$ROOT/bin/fm-task-inbox-lib.sh" "$home/state") || fail "fixture: no inbox record"
@@ -440,12 +459,16 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
   esac
   routine_wake_lib "$home" fm_recovery_marker_publish "$home/state/.watcher-down" downtime || fail "fixture: no recovery episode"
   printf '0\n' > "$home/park-clock"
-  if [ "$mode" = routine ]; then
-    install_first_offer_action "$home" 'printf "105\n" > "$FM_HOME/park-clock"'
-  fi
+  case "$mode" in
+    routine) install_first_offer_action "$home" 'printf "105\n" > "$FM_HOME/park-clock"' ;;
+    cooldown)
+      install_first_offer_action "$home" 'key=$(bash -c '\''. "$1/fm-wake-lib.sh"; . "$1/fm-supervision-engine-lib.sh"; fm_supervision_host_config "$FM_HOME/config" claude; fm_supervision_host_health_key "$FM_HOME/state"'\'' _ "${1%/*}") || exit 1
+      printf "key=%s\nerrors=2\ncooldown=300\nretry_after=%s\n" "$key" "$(( $(date +%s) + 300 ))" > "$FM_HOME/state/.supervision-host-health"'
+      ;;
+  esac
   FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 \
     FM_SUPERVISION_HOST_TURN_TIMEOUT=20 FM_SUPERVISION_ENGINE_GRACE=1 start_host "$home"
-  if [ "$mode" = empty ] || [ "$mode" = routine ]; then
+  if [ "$mode" = empty ] || [ "$mode" = routine ] || [ "$mode" = presented-decision ] || [ "$mode" = cooldown ]; then
     assert_routine_close_acknowledged "$home" 'check: rearm-resurface$'
     assert_re '^acked:' "$home/state/.watcher-down" "resurfacing did not acknowledge recovery"
   else
@@ -455,6 +478,7 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
     drain=$(FM_HOME="$home" "$FAKE_CLAUDE" -c '"$0" 2>&1' "$ROOT/bin/fm-wake-drain.sh")
     case "$mode" in
       credential) assert_contains "$drain" 'GitHub login required' "the credentials request was lost" ;;
+      new-decision|reopened-decision) assert_contains "$drain" '[key=recovery-choice] blocked: choose an approach' "the unread decision was lost" ;;
       captain-outcome|read-captain-outcome) assert_contains "$drain" 'a review requires attention' "the captain outcome was lost" ;;
     esac
   fi
@@ -1311,6 +1335,29 @@ test_mixed_answer_close() { test_attended_answer_close mixed; }
 test_handled_busy_inbox_close() { test_attended_busy_inbox_close handled; }
 test_stuck_busy_inbox_close() { test_attended_busy_inbox_close stuck; }
 test_routine_resurface() { test_attended_resurface routine; }
+test_handled_decision_stale() { test_attended_busy_inbox_close decision; }
+test_new_decision_resurface() { test_attended_resurface new-decision; }
+test_reopened_decision_resurface() { test_attended_resurface reopened-decision; }
+test_presented_decision_resurface() { test_attended_resurface presented-decision; }
+test_cooldown_resurface() { test_attended_resurface cooldown; }
+
+test_routine_resurface_respects_park_deadline() {
+  local home lock
+  home=$(make_home resurface-deadline quiet)
+  lock="$home/state/.branch-outcomes.lock"
+  mkdir "$lock" || fail "fixture: could not hold the outcome lock"
+  printf '%s\n' "$$" > "$lock/pid"
+  routine_wake_lib "$home" fm_recovery_marker_publish "$home/state/.watcher-down" downtime || fail "fixture: no recovery episode"
+  printf '0\n' > "$home/park-clock"
+  install_first_offer_action "$home" 'printf "117\n" > "$FM_HOME/park-clock"'
+  FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 start_host "$home"
+  wait_until_deadline 20 host_exited "$home" || fail "routine proof waited past the park bound for a live lock"
+  assert_re '^supervision-host: cycle boundary' "$home/host.out" "the park deadline must use the normal boundary hand-back"
+  assert_re '^check: rearm-resurface$' "$home/host.out" "recovery must remain visible on hand-back"
+  assert_no_re '^acked:' "$home/state/.watcher-down" "a timed-out proof must not acknowledge recovery"
+  stop_home_processes "$home"
+  pass "host: lock contention cannot extend the routine recovery proof past the park budget"
+}
 test_read_captain_outcome_resurface() { test_attended_resurface read-captain-outcome; }
 test_empty_resurface() { test_attended_resurface empty; }
 test_credential_resurface() { test_attended_resurface credential; }
@@ -1334,6 +1381,12 @@ fm_test_run \
   test_handled_busy_inbox_close \
   test_stuck_busy_inbox_close \
   test_routine_resurface \
+  test_handled_decision_stale \
+  test_new_decision_resurface \
+  test_reopened_decision_resurface \
+  test_presented_decision_resurface \
+  test_cooldown_resurface \
+  test_routine_resurface_respects_park_deadline \
   test_empty_resurface \
   test_credential_resurface \
   test_captain_outcome_resurface \
