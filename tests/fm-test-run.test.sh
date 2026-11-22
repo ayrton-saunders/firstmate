@@ -740,6 +740,17 @@ fi
 exec "$REAL_GIT" "$@"
 SH
   chmod +x "$fake_bin/git"
+  printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$PWD"\n' >"$fake_bin/getconf"
+  chmod +x "$fake_bin/getconf"
+  out=$(cd "$repo" && PATH="$fake_bin:$PATH" REAL_GIT="$real_git" SLOW_GIT_MARKER="$tmp/slow-git" \
+    bin/fm-test-run.sh --changed --base HEAD) || fail 'report-free empty selection needs no scratch'
+  assert_contains "$out" 'FM_TEST_SUMMARY total=0 failed=0' 'report-free empty summary'
+  if (cd "$repo" && PATH="$fake_bin:$PATH" REAL_GIT="$real_git" SLOW_GIT_MARKER="$tmp/slow-git" \
+      bin/fm-test-run.sh --changed --base HEAD --json "$tmp/refused.json") >"$tmp/refused.out" 2>"$tmp/refused.err"; then
+    fail 'empty JSON report must refuse unsafe scratch'
+  fi
+  assert_contains "$(<"$tmp/refused.err")" 'unsafe scratch base' 'empty JSON scratch refusal'
+  rm -f "$tmp/slow-git" "$fake_bin/getconf"
   set +e
   (cd "$repo" && PATH="$fake_bin:$PATH" REAL_GIT="$real_git" SLOW_GIT_MARKER="$tmp/slow-git" \
     bin/fm-test-run.sh --changed --base HEAD --max-wall-ms 100) \
@@ -1551,7 +1562,7 @@ test_concurrent_runs_are_ordered_longest_first() {
 # finishes. A hung script has to become a bounded failure, because an unbounded
 # suite is exactly what silently outruns its caller's invocation budget.
 test_per_script_timeout_bounds_a_hang() {
-  local tmp repo runner hang rc began ended grandchild_pid grandchild waited worker_tmp
+  local tmp repo runner hang rc began ended grandchild_pid grandchild waited run_root
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-hang.XXXXXX")
   repo="$tmp/repo"
   runner="$repo/bin/fm-test-run.sh"
@@ -1564,7 +1575,12 @@ test_per_script_timeout_bounds_a_hang() {
   cat >"$repo/$hang" <<'SH'
 #!/usr/bin/env bash
 echo "ok - fixture is about to hang"
-printf '%s\n' "$TMPDIR" >"$GRANDCHILD_PID.tmpdir"
+run_root=$TMPDIR
+while [ ! -f "$run_root/.fm-test-run-owner" ]; do
+  [ -n "$run_root" ] || exit 1
+  run_root=${run_root%/*}
+done
+printf '%s\n' "$run_root" >"$GRANDCHILD_PID.run-root"
 sh -c 'trap "" TERM; echo $$ >"$1"; exec sleep 600' _ "$GRANDCHILD_PID" &
 sleep 600
 SH
@@ -1588,8 +1604,9 @@ SH
   # The run still completes and accounts for the script, rather than dying.
   grep -Fq 'FM_TEST_SUMMARY total=1 failed=1' "$tmp/out" \
     || fail "the bounded run did not report a complete summary: $(cat "$tmp/out")"
-  worker_tmp=$(<"$grandchild_pid.tmpdir")
-  [ ! -e "${worker_tmp%/w1/t}" ] || fail 'timeout left its run root'
+  [ -s "$grandchild_pid.run-root" ] || fail 'timed test did not find its run owner marker'
+  run_root=$(<"$grandchild_pid.run-root")
+  [ ! -e "$run_root" ] || fail "timeout left its run root: $run_root"
   [ -s "$grandchild_pid" ] || fail "the hanging fixture did not record its grandchild"
   grandchild=$(cat "$grandchild_pid")
   waited=0
@@ -1975,14 +1992,28 @@ assert len(doc["scripts"])==3
 test_scratch_placement_and_lifecycle() {
   local tmp
   tmp=$(fm_test_tmproot fm-run-scratch-contract)
-  python3 - "$tmp" "$RUNNER" "$ROOT" <<'PY' || fail 'runner scratch contract'
+  python3 - "$tmp" "$RUNNER" "$ROOT" "$BASH" <<'PY' || fail 'runner scratch contract'
 import os, pathlib, shutil, signal, subprocess, sys, time
 
-tmp, runner, root = map(pathlib.Path, sys.argv[1:])
+tmp, runner, root = map(pathlib.Path, sys.argv[1:4])
+bash = sys.argv[4]
+
+def convert_path(flag, path):
+    if os.name == 'nt':
+        return subprocess.check_output([bash, '-c', 'cygpath "$1" -- "$2"', '_', flag, str(path)],
+                                       text=True).strip()
+    return str(path)
+
+def shell_path(path):
+    return convert_path('-u', path)
+
+def native_path(path):
+    return pathlib.Path(convert_path('-m', path))
+
 repo = tmp / 'repo'
 (repo / 'bin').mkdir(parents=True)
 (repo / 'tests').mkdir()
-runner = pathlib.Path(shutil.copy2(runner, repo / 'bin'))
+shutil.copy2(runner, repo / 'bin')
 for name in ('fm-path-lib.sh', 'fm-wake-lib.sh', 'fm-timeout-lib.sh'):
     shutil.copy2(root / 'bin' / name, repo / 'bin')
 for name in ('git-config-helpers.sh', 'remote-secondmate-source-copy-helpers.sh'):
@@ -1999,7 +2030,12 @@ mkdir "$TMPDIR/read-only"
 touch "$TMPDIR/read-only/entry"
 chmod 0500 "$TMPDIR/read-only"
 if [ "$PROBE_MODE" = hang ]; then printf '%s\\n' "$$" > "$PROOF.pid"; fi
-printf '%s\\n' "$TMPDIR" > "$PROOF"
+run_root=$TMPDIR
+while [ ! -f "$run_root/.fm-test-run-owner" ]; do
+  [ -n "$run_root" ] || exit 1
+  run_root=${run_root%/*}
+done
+printf '%s\\n%s\\n' "$TMPDIR" "$run_root" > "$PROOF"
 if [ "$PROBE_MODE" = hang ]; then exec sleep 300; fi
 [ "$PROBE_MODE" != fail ]
 ''')
@@ -2020,69 +2056,78 @@ getconf.write_text('''#!/usr/bin/env bash
 ''')
 getconf.chmod(0o755)
 alias = tmp / 'alias'
-alias.symlink_to(legacy, target_is_directory=True)
+aliases = []
+try:
+    alias.symlink_to(legacy, target_is_directory=True)
+except (OSError, NotImplementedError):
+    print('skip: scratch alias check requires directory symlink support')
+else:
+    aliases.append(alias)
 home = tmp / 'home'
 for blocked in (home / '.firstmate-preserved', home / '.treehouse', tmp / 'fm-home', tmp / 'custom-treehouse'):
     blocked.mkdir(parents=True)
-env = dict(os.environ, HOME=str(home), FM_HOME=str(tmp / 'fm-home'),
-           TREEHOUSE_ROOT=str(tmp / 'custom-treehouse'), TMPDIR=str(legacy),
-           TMP=str(legacy), TEMP=str(legacy), PROBE_MODE='pass')
+env = dict(os.environ, HOME=shell_path(home), FM_HOME=shell_path(tmp / 'fm-home'),
+           TREEHOUSE_ROOT=shell_path(tmp / 'custom-treehouse'), TMPDIR=shell_path(legacy),
+           TMP=shell_path(legacy), TEMP=shell_path(legacy), PROBE_MODE='pass')
 env.pop('FM_TASK_ID', None)
-fixture_env = dict(env, PATH=str(fakebin) + os.pathsep + env['PATH'], OS_TEMP_FIXTURE=str(base))
-cmd = [str(runner), str(script.relative_to(repo))]
-for blocked in (legacy, alias, home / '.firstmate-preserved', home / '.treehouse', tmp / 'fm-home', tmp / 'custom-treehouse'):
-    for command in ([str(runner), '--scratch-base'], cmd):
-        result = subprocess.run(command, cwd=repo, env=dict(fixture_env, OS_TEMP_FIXTURE=str(blocked)),
+fixture_env = dict(env, PATH=str(fakebin) + os.pathsep + env['PATH'], OS_TEMP_FIXTURE=shell_path(base))
+runner_cmd = [bash, 'bin/fm-test-run.sh']
+cmd = [*runner_cmd, script.relative_to(repo).as_posix()]
+for blocked in (legacy, *aliases, home / '.firstmate-preserved', home / '.treehouse', tmp / 'fm-home', tmp / 'custom-treehouse'):
+    for command in ([*runner_cmd, '--scratch-base'], cmd):
+        result = subprocess.run(command, cwd=repo, env=dict(fixture_env, OS_TEMP_FIXTURE=shell_path(blocked)),
                                 capture_output=True)
         assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
 
-result = subprocess.run([str(runner), '--scratch-base'], cwd=repo, env=fixture_env, capture_output=True)
-assert result.returncode == 0 and pathlib.Path(os.fsdecode(result.stdout).strip()) == base.resolve(), result
+result = subprocess.run([*runner_cmd, '--scratch-base'], cwd=repo, env=fixture_env, capture_output=True)
+assert result.returncode == 0 and native_path(os.fsdecode(result.stdout).strip()).resolve() == base.resolve(), result
 assert not list(base.iterdir()), 'scratch-base must not allocate'
 for other_arg in ('--list-lanes', '--help', cmd[-1]):
     for args in ((other_arg, '--scratch-base'), ('--scratch-base', other_arg)):
-        result = subprocess.run([str(runner), *args], cwd=repo, env=fixture_env, capture_output=True)
+        result = subprocess.run([*runner_cmd, *args], cwd=repo, env=fixture_env, capture_output=True)
         assert result.returncode == 2 and not result.stdout, result
 
 def launch(name, mode, use_fixture=True, bounded=False):
     proof = tmp / name
-    case_env = dict(fixture_env if use_fixture else env, PROBE_MODE=mode, PROOF=str(proof))
+    case_env = dict(fixture_env if use_fixture else env, PROBE_MODE=mode, PROOF=shell_path(proof))
     log = (tmp / (name + '.log')).open('w')
     with log:
         # A Bash-launched background test may inherit SIGINT ignored. Deliver
         # a catchable signal, as for a directly invoked foreground runner.
-        command = [cmd[0], '--per-script-timeout-secs', '60', *cmd[1:]] if bounded else cmd
+        command = [*runner_cmd, '--per-script-timeout-secs', '60', cmd[-1]] if bounded else cmd
         child = subprocess.Popen(command, cwd=repo, env=case_env, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                                  preexec_fn=(lambda: signal.signal(signal.SIGINT, signal.SIG_DFL)) if os.name == 'posix' else None)
     return child, proof
 
 def scratch(proof):
     for _ in range(300):
-        if proof.exists() and proof.read_text().endswith('\n'):
-            worker_tmp = pathlib.Path(proof.read_text().strip())
-            assert repo.resolve() not in worker_tmp.resolve().parents, worker_tmp
-            return worker_tmp
+        if proof.exists():
+            evidence = proof.read_text()
+            if evidence.endswith('\n') and len(evidence.splitlines()) == 2:
+                worker_tmp, run_root = map(native_path, evidence.splitlines())
+                assert repo.resolve() not in worker_tmp.resolve().parents, worker_tmp
+                assert run_root.resolve() in (worker_tmp.resolve(), *worker_tmp.resolve().parents), run_root
+                return worker_tmp, run_root
         time.sleep(0.05)
     raise AssertionError(f'missing proof: {proof}')
 
 for mode, rc in [('pass', 0), ('fail', 1)]:
     child, proof = launch(mode, mode, use_fixture=(mode == 'fail'))
     assert child.wait(timeout=20) == rc, (tmp / (mode + '.log')).read_text()
-    worker_tmp = scratch(proof)
-    assert not worker_tmp.exists(), worker_tmp
+    worker_tmp, run = scratch(proof)
+    assert not run.exists(), run
     if mode == 'fail':
         assert base.resolve() in worker_tmp.resolve().parents
 assert sorted(p.name for p in legacy.iterdir()) == ['sentinel']
 (private,) = base.iterdir()
 assert not list(private.iterdir())
-result = subprocess.run(cmd, cwd=repo, env=dict(fixture_env, FM_HOME=str(private)), capture_output=True)
+result = subprocess.run(cmd, cwd=repo, env=dict(fixture_env, FM_HOME=shell_path(private)), capture_output=True)
 assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
 
 for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP) if os.name == 'posix' else ():
     child, proof = launch(sig.name, 'hang')
     try:
-        worker_tmp = scratch(proof)
-        run = next(p for p in worker_tmp.parents if (p / '.fm-test-run-owner').is_file())
+        _, run = scratch(proof)
         child.send_signal(sig)
         assert child.wait(timeout=10) == 128 + sig, sig
         assert not run.exists(), run
@@ -2092,7 +2137,7 @@ for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP) if os.name == 'posix' 
             child.wait(timeout=10)
 
 if os.name != 'posix' or subprocess.run(
-        ['bash', '-c', '. bin/fm-wake-lib.sh && fm_pid_start_time "$$" && ps -e -o pid= -o pgid= -o stat='],
+        [bash, '-c', '. bin/fm-wake-lib.sh && fm_pid_start_time "$$" && ps -e -o pid= -o pgid= -o stat='],
         cwd=repo, env=dict(fixture_env, FM_STATE_OVERRIDE=str(tmp)), capture_output=True).returncode:
     print('skip: orphan recovery requires process identity and group liveness support')
     sys.exit(0)
@@ -2100,10 +2145,9 @@ if os.name != 'posix' or subprocess.run(
 child, proof = launch('bounded-term', 'hang', bounded=True)
 worker_group = None
 try:
-    worker_tmp = scratch(proof)
+    _, run = scratch(proof)
     worker = int((tmp / 'bounded-term.pid').read_text())
     worker_group = os.getpgid(worker)
-    run = next(p for p in worker_tmp.parents if (p / '.fm-test-run-owner').is_file())
     child.terminate()
     assert child.wait(timeout=10) == 143
     state = subprocess.run(['ps', '-p', str(worker), '-o', 'stat='], capture_output=True, text=True)
@@ -2123,8 +2167,7 @@ finally:
 live, proof = launch('live', 'hang')
 worker_group = None
 try:
-    worker_tmp = scratch(proof)
-    live_root = next(p for p in worker_tmp.parents if (p / '.fm-test-run-owner').is_file())
+    worker_tmp, live_root = scratch(proof)
     worker = int((tmp / 'live.pid').read_text())
     worker_group = os.getpgid(worker)
     marker = live_root / '.fm-test-run-owner'

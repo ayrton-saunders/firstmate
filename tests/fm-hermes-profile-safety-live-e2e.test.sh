@@ -11,7 +11,7 @@ set -u
 fm_live_gate opt-in FM_HERMES_PROFILE_SAFETY_LIVE hermes tmux python3
 : "${FM_HERMES_PYTHON:?provide the installed Hermes Python environment}"
 HERMES_BIN=$(command -v hermes)
-LAB=$(mktemp -d "${TMPDIR:-/tmp}/hm-safety.XXXXXX")
+LAB=$(mktemp -d "${TMPDIR:-/tmp}/hm.XXXXXX")
 LAB=$(cd "$LAB" && pwd -P)
 cleanup() { rm -rf "$LAB"; }
 trap cleanup EXIT
@@ -29,7 +29,7 @@ home = root / 'profiles/worker'
 assert Path(os.environ['HERMES_HOME']) == home
 assert acquire_gateway_runtime_lock()
 print('native gateway runtime lock: held', flush=True)
-socket = str(root / 'native-safety.sock')
+socket = str(root / 's')
 command = ('env HERMES_HOME=' + shlex.quote(str(root)) + ' ' + shlex.quote(binary)
            + ' -p worker --tui --yolo --in ' + shlex.quote(str(root / 'work')))
 try:

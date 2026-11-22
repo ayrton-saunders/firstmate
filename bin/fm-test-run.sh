@@ -86,7 +86,7 @@
 # the run; a test that starts a separate session/group owns that group's cleanup.
 # A subsequent run recovers aged, marked roots when the runner and workers are gone.
 # If interruption cuts short a nested runner's cleanup, its scratch is recovered on a later run once those workers are gone.
-# PID-directed TERM/HUP to a TTY runner waits for the foreground test to return or time out; non-TTY waits are interruptible.
+# PID-directed TERM/HUP waits for a foreground TTY test to finish or time out, or for blocked output replay to return; background worker waits are interruptible.
 # Keep requested reports and redirected logs outside runner scratch.
 #   --max-wall-ms N fail the run when its measured invocation wall clock exceeds
 #                   N milliseconds, including an empty selection. It is
@@ -2689,7 +2689,9 @@ if [ "$LIST_ONLY" -eq 1 ] || [ "$LIST_SCHEDULED" -eq 1 ]; then
   exit 0
 fi
 
-prepare_run_scratch
+if [ "${#SCRIPTS[@]}" -ne 0 ] || [ -n "$JSON_PATH" ]; then
+  prepare_run_scratch
+fi
 
 # An empty selection is a clean result, not a no-op that falls through. Exiting
 # here also keeps every array expansion below off the empty-array path: under
@@ -3070,7 +3072,7 @@ wait_one_completed_job_worker() {
         return
       fi
     done
-    sleep 0.05
+    sleep 0.01
   done
 }
 

@@ -15,9 +15,9 @@ fm_live_gate opt-in FM_HERMES_GATEWAY_LIVE hermes tmux jq python3
 PROFILE=${FM_HERMES_LIVE_PROFILE:-worker}
 HERMES_BIN=$(command -v hermes)
 PROFILE_HOME="$FM_HERMES_LIVE_HOME/profiles/$PROFILE"
-LAB=$(mktemp -d "${TMPDIR:-/tmp}/hm-gateway.XXXXXX")
+LAB=$(mktemp -d "${TMPDIR:-/tmp}/hm.XXXXXX")
 LAB=$(cd "$LAB" && pwd -P)
-SOCKET="$LAB/gateway.sock"
+SOCKET="$LAB/s"
 mkdir -p "$LAB/home" "$LAB/state" "$LAB/locks"
 [ -f "$PROFILE_HOME/config.yaml" ] || fail "throwaway profile $PROFILE_HOME is not prepared"
 cp -p "$PROFILE_HOME/config.yaml" "$LAB/config.yaml"
