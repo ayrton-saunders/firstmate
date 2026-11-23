@@ -27,7 +27,7 @@ FM_HERMES_PYTHON="$installed_hermes_python" \
 bash bin/fm-test-run.sh tests/fm-hermes-profile-safety-live-e2e.test.sh
 
 bash bin/fm-test-run.sh tests/fm-hermes-harness.test.sh tests/fm-tmux-agent-liveness.test.sh
-FM_TEST_STOCK_BASH=1 FM_TEST_BASH=/bin/bash /bin/bash bin/fm-test-tap-verify.sh tests/fm-backend.test.sh
+FM_TEST_STOCK_BASH=1 /bin/bash bin/fm-test-tap-verify.sh tests/fm-backend.test.sh
 ```
 
 `FM_HERMES_PYTHON` must name the interpreter from the installed Hermes environment, so the native profile-safety guard imports that version's own APIs rather than substituting Firstmate implementations.
