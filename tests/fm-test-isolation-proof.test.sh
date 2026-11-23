@@ -231,13 +231,30 @@ PY
   assert_contains "$(<"$tmp/cleanup.err")" 'could not remove scratch' 'proof reports failed removal'
   assert_contains "$(<"$tmp/cleanup.out")" 'FM_ISOLATION_CLEANUP failed' 'cleanup failure has its own summary line'
   python3 -c 'import json, sys; r = json.load(open(sys.argv[1])); assert r["cleanup_failed"] is True and r["summary"]["failed"] == 0 and all(s["exit"] == 0 for s in r["scripts"]) and not r["fm_test_run_jobs_enabled"]' "$tmp/cleanup.json" || fail 'failed removal was admitted in JSON'
-  set +e
+  mkdir "$tmp/snapshot-tools"
+  cat >"$tmp/snapshot-tools/git" <<'SH'
+#!/usr/bin/env bash
+if [ "$*" = 'config --global --list' ]; then
+  if [ "$TMPDIR" = "$EXPECTED_PROOF_BASE" ] && [ "$TMP" = "$EXPECTED_PROOF_BASE" ] &&
+     [ "$TEMP" = "$EXPECTED_PROOF_BASE" ]; then
+    printf 'validated\n' >>"$PROOF_SNAPSHOT_LOG"
+  else
+    printf 'unvalidated: %s %s %s\n' "$TMPDIR" "$TMP" "$TEMP" >>"$PROOF_SNAPSHOT_LOG"
+  fi
+  exit 0
+fi
+exec "$REAL_GIT" "$@"
+SH
+  chmod +x "$tmp/snapshot-tools/git"
+  rc=0
   (cd "$tmp" && TMPDIR=./proof-tmp TMP="$repo" TEMP="$repo" \
+    EXPECTED_PROOF_BASE="$(cd proof-tmp && pwd -P)" PROOF_SNAPSHOT_LOG="$tmp/snapshots" \
+    REAL_GIT="$(command -v git)" PATH="$tmp/snapshot-tools:$PATH" \
     "$proof" --pool fixture-family --jobs 1 --json "$json") \
-    >"$tmp/out" 2>"$tmp/err"
-  rc=$?
-  set -e
+    >"$tmp/out" 2>"$tmp/err" || rc=$?
   [ "$rc" -eq 0 ] || fail "family pool proof fixture failed: $(cat "$tmp/out") $(cat "$tmp/err")"
+  assert_present "$tmp/snapshots" 'proof ran both parent snapshots'
+  assert_equals $'validated\nvalidated' "$(<"$tmp/snapshots")" 'parent snapshots use the canonical launch-directory base'
   python3 -c '
 import json, sys
 artifact = json.load(open(sys.argv[1], encoding="utf-8"))
