@@ -58,8 +58,7 @@ for auth_file in antigravity-oauth-token installation_id jetski_state.pbtxt sett
   fi
 done
 
-(cd "$ROOT" && tar --exclude=.git --exclude=state --exclude=projects --exclude=node_modules -cf - .) \
-  | (cd "$HOME_DIR" && tar -xf -) \
+fm_test_copy_primary_lab "$ROOT" "$HOME_DIR" \
   || fail "could not stage the working tree into the throwaway home"
 
 git init -q -b main "$HOME_DIR"

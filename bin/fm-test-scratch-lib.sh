@@ -1,6 +1,21 @@
 #!/usr/bin/env bash
 
-fm_test_scratch_exclusion=':(top,exclude,literal).test-phase-tmp'
+fm_test_declared_scratch=.test-phase-tmp
+fm_test_scratch_exclusion=":(top,exclude,literal)$fm_test_declared_scratch"
+
+fm_test_copy_primary_lab() (
+  set -o pipefail
+  local source=$1 dest=$2 entry
+  local -a entries=()
+  cd -- "$source" || return 1
+  shopt -s dotglob nullglob
+  for entry in ./*; do
+    [ "$entry" = "./$fm_test_declared_scratch" ] || entries+=("$entry")
+  done
+  [ "${#entries[@]}" -gt 0 ] || return 0
+  tar --exclude=.git --exclude=state --exclude=projects --exclude=node_modules -cf - "${entries[@]}" |
+    tar -C "$dest" -xf -
+)
 
 # Remove a fixture tree even when it holds a read-only directory, such as the
 # spawn-owned state/<id>.git-hooks strip directory.

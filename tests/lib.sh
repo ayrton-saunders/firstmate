@@ -391,6 +391,18 @@ fm_test_cleanup() {
   return "$rc"
 }
 
+fm_test_finalize() {
+  local status=$1 teardown=${2:-0}
+  trap '' HUP INT QUIT TERM
+  if [ "$teardown" -ne 0 ]; then
+    printf 'fixture teardown unverified; retaining scratch registered in %s\n' "$FM_TEST_CLEANUP_REGISTRY" >&2
+    [ "$status" -ne 0 ] || status=1
+  elif ! fm_test_cleanup; then
+    [ "$status" -ne 0 ] || status=1
+  fi
+  exit "$status"
+}
+
 fm_test_tmproot() (
   local prefix=${1:-fm-test} root= tmp_base
   tmp_base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || return "$?"
@@ -408,7 +420,7 @@ FM_TEST_REGISTRY_DIR=$FM_TEST_SCRATCH
 FM_TEST_CLEANUP_REGISTRY="$FM_TEST_REGISTRY_DIR/cleanup"
 FM_TEST_PROCEVENT_REGISTRY="$FM_TEST_REGISTRY_DIR/procevent"
 FM_TEST_WATCHER_REGISTRY="$FM_TEST_REGISTRY_DIR/watcher"
-trap 'status=$?; trap "" HUP INT QUIT TERM; fm_test_cleanup || { [ "$status" -ne 0 ] || status=1; }; exit "$status"' EXIT
+trap 'fm_test_finalize "$?"' EXIT
 
 TREEHOUSE_ROOT=$(fm_test_tmproot fm-treehouse-pool)
 export TREEHOUSE_ROOT

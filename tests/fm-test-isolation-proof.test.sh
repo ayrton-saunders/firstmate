@@ -159,6 +159,10 @@ SH
   TMPDIR="$tmp/proof-tmp" PROOF_SIGNAL_DIR="$tmp" python3 - "$proof" <<'PY' || fail 'interrupted proof did not drain its candidate before cleanup'
 import os, pathlib, signal, subprocess, sys, time
 
+if os.name != 'posix':
+    print('skip proof cancellation subcase: native Python cannot deliver catchable TERM')
+    sys.exit(0)
+
 base = pathlib.Path(os.environ['PROOF_SIGNAL_DIR'])
 with (base / 'interrupted.log').open('w') as log:
     proof = subprocess.Popen([sys.argv[1], '--pool', 'interrupt-family', '--jobs', '2'],

@@ -268,6 +268,51 @@ test_removal_failure_preserves_existing_status() {
   pass 'standalone and fixture cleanup report failures without replacing an existing status'
 }
 
+test_custom_finalizer_cleans_or_retains_after_teardown() {
+  local harness rc teardown base
+  harness=$(fm_test_tmproot fm-test-custom-finalizer)
+  for teardown in 0 1; do
+    base="$harness/$teardown"
+    mkdir "$base"
+    rc=0
+    TMPDIR="$base" bash -c '
+      . "$1"
+      teardown=$2
+      trap '\''fm_test_finalize "$?" "$teardown"'\'' EXIT
+      root=$(fm_test_tmproot custom-fixture) || exit 2
+      touch "$root/sentinel" || exit 2
+      exit 7
+    ' _ "$LIB" "$teardown" || rc=$?
+    assert_equals 7 "$rc" 'custom finalizer preserves suite failure'
+    if [ "$teardown" -eq 0 ]; then
+      assert_equals '' "$(ls -A "$base")" 'verified teardown cleans roots and registry'
+    else
+      set -- "$base"/custom-fixture.*/sentinel
+      assert_present "$1" 'unverified teardown retains fixture scratch'
+    fi
+  done
+  pass 'custom finalizer cleans only after verified teardown'
+}
+
+test_primary_lab_copy_excludes_only_declared_scratch() {
+  local harness source dest
+  harness=$(fm_test_tmproot fm-test-primary-lab-copy)
+  source="$harness/source"
+  dest="$harness/dest"
+  mkdir -p "$source/.test-phase-tmp" "$source/nested/.test-phase-tmp" "$dest"
+  printf 'working bytes\n' >"$source/tracked"
+  printf 'untracked bytes\n' >"$source/.untracked"
+  touch "$source/.test-phase-tmp/sentinel" "$source/nested/.test-phase-tmp/sentinel"
+  fm_test_copy_primary_lab "$source" "$dest" || fail 'primary lab copy failed'
+  assert_absent "$dest/.test-phase-tmp" 'declared root was excluded'
+  assert_present "$dest/nested/.test-phase-tmp/sentinel" 'nested work was not excluded'
+  assert_equals 'working bytes' "$(<"$dest/tracked")" 'working bytes were copied'
+  assert_equals 'untracked bytes' "$(<"$dest/.untracked")" 'untracked dotfile was copied'
+  pass 'primary lab copies omit only root-level declared scratch'
+}
+
+test_custom_finalizer_cleans_or_retains_after_teardown
+test_primary_lab_copy_excludes_only_declared_scratch
 test_removal_failure_preserves_existing_status
 test_fixture_root_gone_after_normal_exit
 test_fixture_root_gone_after_sigterm

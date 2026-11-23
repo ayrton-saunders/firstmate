@@ -56,8 +56,7 @@ trap cleanup_all EXIT
 # A plain (non-worktree) checkout of the CURRENT working tree, so the guard
 # tests the code under review rather than whatever is committed.
 mkdir -p "$HOME_DIR"
-(cd "$ROOT" && tar --exclude=.git --exclude=state --exclude=projects --exclude=node_modules -cf - .) \
-  | (cd "$HOME_DIR" && tar -xf -) \
+fm_test_copy_primary_lab "$ROOT" "$HOME_DIR" \
   || harness_fail "could not stage the working tree into the throwaway home"
 git init -q "$HOME_DIR"
 git -C "$HOME_DIR" add -A >/dev/null 2>&1 || true
