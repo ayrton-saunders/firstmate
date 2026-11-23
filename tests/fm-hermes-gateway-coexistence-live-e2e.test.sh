@@ -142,6 +142,7 @@ restore_args() {
 print_restore_command() {
   local -a RESTORE_ARGS
   if restore_args && python3 "${RESTORE_ARGS[@]}" verify 2>/dev/null; then
+    printf '%s\n' 'Run the manual restore command only when no probe is running against this profile; the command does not acquire the profile lock.'
     printf 'To restore manually: python3'
     printf ' %q' "${RESTORE_ARGS[@]}"
     printf '\n'

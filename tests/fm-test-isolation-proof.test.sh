@@ -98,6 +98,7 @@ SH
 #!/usr/bin/env bash
 if [ "${PROOF_REPLAY_ORDER:-0}" != 0 ]; then
   trap 'touch "$PROOF_SCHED_EVIDENCE/sibling-stopped"; exit 0' TERM
+  printf '%s\n' "$PPID" > "$PROOF_SCHED_EVIDENCE/sibling-group"
   printf '%s\n' "$$" > "$PROOF_SCHED_EVIDENCE/sibling-ready"
   for ((i=0; i<200; ++i)); do sleep 0.05; done
   exit 1
@@ -338,12 +339,29 @@ assert artifact["summary"]["total"] == 3
 assert artifact["summary"]["failed"] == 0
 ' "$admitted_json" || fail "admitted family pool artifact metadata is incorrect"
   cat >> "$repo/bin/fm-test-scratch-lib.sh" <<'SH'
-if [ "${PROOF_REPLAY_ORDER:-}" = final ]; then
+if [ "${PROOF_REPLAY_ORDER:-0}" != 0 ]; then
   eval "$(declare -f fm_test_drain_groups | awk 'NR == 1 {sub(/^fm_test_drain_groups/, "fixture_drain_groups")} {print}')"
-  fixture_drain_count=0
+  fixture_sibling_refused=0
   fm_test_drain_groups() {
-    fixture_drain_count=$((fixture_drain_count + 1))
-    [ "$fixture_drain_count" -ne 2 ] || return 1
+    local sibling record i
+    sibling=$(<"$PROOF_SCHED_EVIDENCE/sibling-group")
+    for record in "${@:2}"; do
+      case "$record" in
+        "$UID|$sibling|$sibling|"*)
+          if [ "$PROOF_REPLAY_ORDER" = final ] && [ "$fixture_sibling_refused" -eq 0 ]; then
+            fixture_sibling_refused=1
+            return 1
+          fi
+          printf '%s\n' 'fixture sibling drain waiting'
+          for ((i=0; i<160; ++i)); do
+            if [ -f "$PROOF_SCHED_EVIDENCE/release-drain" ]; then break; fi
+            sleep 0.05
+          done
+          [ -f "$PROOF_SCHED_EVIDENCE/release-drain" ] || return 1
+          break
+          ;;
+      esac
+    done
     fixture_drain_groups "$@"
   }
 fi
@@ -363,16 +381,20 @@ with subprocess.Popen([sys.argv[1], '--pool', 'admitted-family', '--jobs', '2'],
     try:
         output = b''
         deadline = time.monotonic() + 8
-        while b'FM_ISOLATION_CANDIDATE_END ' not in output:
+        end = b'FM_ISOLATION_CANDIDATE_END '
+        while b'fixture sibling drain waiting\n' not in output:
             assert select.select([proof.stdout], [], [], max(0, deadline - time.monotonic()))[0], output
             chunk = os.read(proof.stdout.fileno(), 4096)
             assert chunk, output
             output += chunk
-        assert (base / 'sibling-stopped').exists(), output
+            assert end not in output, output
+        assert not (base / 'sibling-stopped').exists(), output
+        (base / 'release-drain').touch()
+        remaining, _ = proof.communicate(timeout=5)
+        assert end in remaining and b'candidate failed:' in remaining, remaining
+        assert (base / 'sibling-stopped').exists(), remaining
         assert not (base / 'replacement-started').exists()
         assert len(list(base.glob('fm-isolation-proof.*'))) == 1
-        remaining, _ = proof.communicate(timeout=5)
-        assert b'candidate failed:' in output + remaining
         assert proof.returncode == 1
     finally:
         if proof.poll() is None:
