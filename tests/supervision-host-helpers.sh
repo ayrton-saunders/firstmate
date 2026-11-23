@@ -192,6 +192,11 @@ HOMES_FILE="$TMP_ROOT/homes"
 # Stop whatever a case left running, by the exact pids its home recorded.
 stop_home_processes() {  # <home>
   local home=$1 pid arms='' i=0
+  # End ownership before interrupting the park, or the Stop hook can retry
+  # while the fixture waits for the calling session to exit.
+  if [ -e "$home/session.stop" ]; then
+    rm -f "$home/state/.lock"
+  fi
   pid=$(cut -f1 "$home/state/.supervision-handoff-owner" 2>/dev/null || true)
   [ -z "$pid" ] || kill -TERM "$pid" 2>/dev/null || true
   if [ -f "$home/state/.supervision-host" ]; then
