@@ -132,7 +132,7 @@ unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME SSH_AUTH_SOCK
 # fixture is a real git repository because provisioning and guarded sync exercise
 # the same clone and fast-forward path as a second Mac.
 # shellcheck source=tests/remote-secondmate-source-copy-helpers.sh
-. "$ROOT/tests/remote-secondmate-source-copy-helpers.sh"
+. "$ROOT/tests/remote-secondmate-source-copy-helpers.sh" || fail 'could not load fixture source copier'
 fm_fixture_copy_remote_source "$ROOT" "$REMOTE_ROOT" || fail 'could not copy fixture code root'
 cat > "$REMOTE_ROOT/bin/tmux" <<SH
 #!/usr/bin/env bash

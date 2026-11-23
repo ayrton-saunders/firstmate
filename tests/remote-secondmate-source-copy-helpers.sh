@@ -1,11 +1,14 @@
 #!/usr/bin/env bash
+# Import in the caller's shell, not inside the copy subshell: ShellCheck
+# otherwise attributes the scratch library's background launches to that subshell.
+# shellcheck source=bin/fm-test-scratch-lib.sh
+. "${BASH_SOURCE[0]%/*}/../bin/fm-test-scratch-lib.sh" || return 1
+
 # Materialize the remote fixture's tracked source from current working-tree
 # bytes; untracked files (including checkout-local scratch) do not belong in it.
 fm_fixture_copy_remote_source() (  # <source checkout> <destination>
   set -o pipefail
   local path parent
-  # shellcheck source=bin/fm-test-scratch-lib.sh
-  . "${BASH_SOURCE[0]%/*}/../bin/fm-test-scratch-lib.sh" || return 1
   git -C "$1" ls-files -z | while IFS= read -r -d '' path; do
     fm_test_is_declared_scratch "$1" "$path" && continue
     parent=$path
