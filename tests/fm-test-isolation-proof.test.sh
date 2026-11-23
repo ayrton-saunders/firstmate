@@ -96,6 +96,12 @@ SH
   done
   cat >"$repo/tests/fm-proof-slow.test.sh" <<'SH'
 #!/usr/bin/env bash
+if [ "${PROOF_REPLAY_ORDER:-0}" = 1 ]; then
+  trap 'touch "$PROOF_SCHED_EVIDENCE/sibling-stopped"; exit 0' TERM
+  printf '%s\n' "$$" > "$PROOF_SCHED_EVIDENCE/sibling-ready"
+  for ((i=0; i<200; ++i)); do sleep 0.05; done
+  exit 1
+fi
 waited=0
 while [ ! -e "$PROOF_SCHED_EVIDENCE/replacement-started" ] && [ "$waited" -lt 200 ]; do
   sleep 0.05
@@ -151,6 +157,14 @@ printf '%s\n' 'retained scratch' >"$TMPDIR/sentinel"
 SH
   cat >"$repo/tests/fm-proof-undrained.test.sh" <<'SH'
 #!/usr/bin/env bash
+if [ "${PROOF_REPLAY_ORDER:-0}" = 1 ]; then
+  for ((i=0; i<100; ++i)); do
+    [ ! -s "$PROOF_SCHED_EVIDENCE/sibling-ready" ] || break
+    sleep 0.05
+  done
+  [ -s "$PROOF_SCHED_EVIDENCE/sibling-ready" ] || exit 1
+  python3 -c 'print("x" * 262144)'
+fi
 sleep 20 &
 printf '%s\n' "$!" >"$PROOF_SCHED_EVIDENCE/lingering-pid"
 echo 'candidate left a background process'
@@ -319,6 +333,40 @@ assert artifact["fm_test_run_jobs_enabled"] is True
 assert artifact["summary"]["total"] == 3
 assert artifact["summary"]["failed"] == 0
 ' "$admitted_json" || fail "admitted family pool artifact metadata is incorrect"
+  mkdir "$tmp/replay-order"
+  TMPDIR="$tmp/replay-order" PROOF_SCHED_EVIDENCE="$tmp/replay-order" PROOF_UNDRAINED=1 PROOF_REPLAY_ORDER=1 \
+    python3 - "$proof" <<'PY' || fail 'proof replayed before stopping the sibling worker'
+import os, pathlib, select, signal, subprocess, sys, time
+
+if os.name != 'posix':
+    sys.exit(0)
+base = pathlib.Path(os.environ['TMPDIR'])
+with subprocess.Popen([sys.argv[1], '--pool', 'admitted-family', '--jobs', '2'],
+                      stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) as proof:
+    try:
+        output = b''
+        deadline = time.monotonic() + 8
+        while b'candidate failed:' not in output:
+            assert select.select([proof.stderr], [], [], max(0, deadline - time.monotonic()))[0], output
+            chunk = os.read(proof.stderr.fileno(), 4096)
+            assert chunk, output
+            output += chunk
+        assert (base / 'sibling-stopped').exists(), output
+        assert not (base / 'replacement-started').exists()
+        assert len(list(base.glob('fm-isolation-proof.*'))) == 1
+        proof.communicate(timeout=5)
+        assert proof.returncode == 1
+    finally:
+        if proof.poll() is None:
+            proof.kill()
+        for name in ('lingering-pid', 'sibling-ready'):
+            pid_file = base / name
+            if pid_file.exists() and (name != 'sibling-ready' or not (base / 'sibling-stopped').exists()):
+                try:
+                    os.kill(int(pid_file.read_text()), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+PY
   mkdir "$tmp/undrained"
   cp "$admitted_json" "$tmp/undrained/proof.json"
   TMPDIR="$tmp/undrained" PROOF_SCHED_EVIDENCE="$tmp/undrained" PROOF_UNDRAINED=1 \

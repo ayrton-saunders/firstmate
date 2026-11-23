@@ -2057,7 +2057,13 @@ PY
 #!/usr/bin/env bash
 touch "$HERMES_HOME/hermes-called"
 case "$3 $4 $5" in
-  'config get platforms') echo null ;;
+  'config get platforms')
+    if [ "${SCENARIO:-}" = preflight-swap ]; then
+      config="$HERMES_HOME/profiles/$2/config.yaml"
+      printf 'editor config\n' > "$config.replacement" && mv -f "$config.replacement" "$config" || exit 1
+    fi
+    echo null
+    ;;
   'config set gateway.standalone')
     config="$HERMES_HOME/profiles/$2/config.yaml"
     if [ "${SCENARIO:-}" = relink ]; then
@@ -2072,6 +2078,15 @@ case "$3 $4 $5" in
 esac
 SH
   printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/path/jq"
+  rc=0
+  SCENARIO=preflight-swap PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" \
+    FM_HERMES_LIVE_PROFILE=worker bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+  assert_equals 1 "$rc" 'preflight refuses a regular config at the old symlink location'
+  assert_absent "$tmp/hermes/mutation-attempted" 'Hermes did not mutate the replacement config'
+  assert_equals 'editor config' "$(<"$profile/config.yaml")" 'replacement config stayed untouched'
+  assert_equals 'original config' "$(<"$profile/original.yaml")" 'old target stayed untouched'
+  rm -- "$profile/config.yaml"
+  ln -s original.yaml "$profile/config.yaml"
   rc=0
   PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
     bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
@@ -2134,7 +2149,11 @@ SH
     SCENARIO="$scenario" PATH="$tmp/path:$PATH" EDIT_CONFIG="$profile/config.yaml" LOCK_OBSERVED="$tmp/held-during-stop" \
       FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
       bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
-    assert_present "$tmp/held-during-stop" 'gateway teardown runs while the live probe holds the profile lock'
+    if [ "$scenario" = relink ]; then
+      assert_contains "$(<"$tmp/out")" 'could not record config identities' 'probe refuses recovery after Hermes replaces the link'
+    else
+      assert_present "$tmp/held-during-stop" 'gateway teardown runs while the live probe holds the profile lock'
+    fi
     [ "$rc" -eq 1 ] && [ "$(<"$profile/config.yaml")" = mutated ] && grep -q 'backup retained at' "$tmp/out" \
       || fail "gateway did not preserve the config and backup for $scenario: $(<"$tmp/out")"
     if grep -q '^To restore manually:' "$tmp/out"; then fail "gateway authorized recovery for $scenario"; fi

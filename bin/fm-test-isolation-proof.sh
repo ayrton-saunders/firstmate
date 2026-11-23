@@ -422,6 +422,7 @@ RUN_ID="fm-isolation-${RUN_STARTED_MS}-$$"
 TOTAL=0
 private_teardown_failed=0
 FAILED=0
+cleanup_failed=0
 failure_output=
 AGG_RC=0
 
@@ -446,24 +447,29 @@ remove_proof_scratch() {
   fi
 }
 
-# shellcheck disable=SC2329 # Invoked by the EXIT trap.
-cleanup_proof() {
-  local status=$? pid
-  trap '' HUP INT QUIT TERM
-  fm_test_drain_groups "$PROOF_ROOT" "${WORKER_OWNERS[@]+"${WORKER_OWNERS[@]}"}" || retain_root=1
+finalize_proof_scratch() {
+  local pid
+  if fm_test_drain_groups "$PROOF_ROOT" "${WORKER_OWNERS[@]+"${WORKER_OWNERS[@]}"}"; then
+    for pid in "${WORKER_PIDS[@]+"${WORKER_PIDS[@]}"}"; do wait "$pid" 2>/dev/null || true; done
+  else
+    retain_root=1
+  fi
   if [ "$retain_root" -ne 0 ]; then
     log "could not confirm worker group exit; retaining scratch: $PROOF_ROOT"
-    [ "$status" -ne 0 ] || status=1
-  else
-    for pid in "${WORKER_PIDS[@]+"${WORKER_PIDS[@]}"}"; do wait "$pid" 2>/dev/null || true; done
-    if [ -n "$PROOF_ROOT" ] && fm_test_scratch_retained "$PROOF_ROOT"; then
-      log "private teardown unverified; retaining scratch: $PROOF_ROOT; delete it by hand once nothing is using it"
-      retain_root=1
-      [ "$status" -ne 0 ] || status=1
-    else
-      remove_proof_scratch || { [ "$status" -ne 0 ] || status=1; }
-    fi
+    return 1
   fi
+  if [ -n "$PROOF_ROOT" ] && fm_test_scratch_retained "$PROOF_ROOT"; then
+    log "private teardown unverified; retaining scratch: $PROOF_ROOT; delete it by hand once nothing is using it"
+    return 1
+  fi
+  remove_proof_scratch || { cleanup_failed=1; return 1; }
+}
+
+# shellcheck disable=SC2329 # Invoked by the EXIT trap.
+cleanup_proof() {
+  local status=$?
+  trap '' HUP INT QUIT TERM
+  finalize_proof_scratch || { [ "$status" -ne 0 ] || status=1; }
   exit "$status"
 }
 
@@ -624,17 +630,6 @@ while [ "$ACTIVE_WORKERS" -gt 0 ] && [ "$retain_root" -eq 0 ]; do
   wait_one_completed_slot
 done
 
-GIT_AFTER=$(global_git_snapshot)
-if [ "$GIT_BEFORE" != "$GIT_AFTER" ]; then
-  log "isolation failure: git config --global changed during the concurrent proof"
-  log "--- before ---"
-  printf '%s\n' "$GIT_BEFORE" >&2
-  log "--- after ---"
-  printf '%s\n' "$GIT_AFTER" >&2
-  AGG_RC=1
-  FAILED=$((FAILED + 1))
-fi
-
 # Cross-process artifact check: no candidate may leave debris outside the
 # proof-owned TMPDIR tree. Workers only receive TMPDIR under PROOF_ROOT, so any
 # residual path under PROOF_ROOT is expected and cleaned by trap. Refuse if a
@@ -644,13 +639,19 @@ if find "$PROOF_ROOT" -type f -name 'fm-arm-pretool-check-claude-stderr.*' 2>/de
   : # allowed only under proof roots; nothing to do
 fi
 
-cleanup_failed=0
 records=$(<"$RECORDS")
-if [ "$retain_root" -eq 0 ] && ! fm_test_scratch_retained "$PROOF_ROOT"; then
-  if ! remove_proof_scratch; then
-    AGG_RC=1
-    cleanup_failed=1
-  fi
+finalize_proof_scratch || AGG_RC=1
+trap - EXIT
+
+GIT_AFTER=$(global_git_snapshot)
+if [ "$GIT_BEFORE" != "$GIT_AFTER" ]; then
+  log "isolation failure: git config --global changed during the concurrent proof"
+  log "--- before ---"
+  printf '%s\n' "$GIT_BEFORE" >&2
+  log "--- after ---"
+  printf '%s\n' "$GIT_AFTER" >&2
+  AGG_RC=1
+  FAILED=$((FAILED + 1))
 fi
 
 printf '%s' "$failure_output" >&2

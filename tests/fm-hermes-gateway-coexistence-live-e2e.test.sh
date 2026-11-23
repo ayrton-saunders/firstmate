@@ -87,7 +87,7 @@ with ExitStack() as stack:
     if not stat.S_ISREG(target_info.st_mode) or not (
         stat.S_ISLNK(config_info.st_mode) and os.readlink(config, dir_fd=profile_fd) == expected_link
         and os.path.realpath(config_path) == target
-        if expected_link else stat.S_ISREG(config_info.st_mode)
+        if expected_link else target == config_path and stat.S_ISREG(config_info.st_mode)
     ):
         sys.exit("config restore found an unexpected file or link")
     target_record = file_record(name, target_fd)
@@ -267,6 +267,8 @@ restore_config() {
   python3 "${RESTORE_ARGS[@]}" || return 1
   discard_backup
 }
+python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$CONFIG_LINK" >/dev/null \
+  || fail 'config target changed before backup'
 CONFIG_MODE=$(python3 -I -c 'import os, stat, sys; print(format(stat.S_IMODE(os.lstat(sys.argv[1]).st_mode), "o"))' "$CONFIG_TARGET") \
   || fail 'could not record profile config mode'
 publication_pending=1
@@ -283,6 +285,8 @@ BACKUP_RECORD=$(backup_fingerprint "$BACKUP") || fail 'could not record config b
 publication_pending=0
 [ "$probe_signal" -eq 0 ] || exit "$probe_signal"
 mutation_attempted=1
+python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$CONFIG_LINK" >/dev/null \
+  || fail 'config target changed before mutation'
 HERMES_HOME="$FM_HERMES_LIVE_HOME" "$HERMES_BIN" -p "$PROFILE" config set gateway.standalone true >/dev/null \
   || fail 'could not mark the throwaway profile gateway standalone'
 WRITTEN_LINK=$(readlink "$PROFILE_HOME/config.yaml" 2>/dev/null) || WRITTEN_LINK=
