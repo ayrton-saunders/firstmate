@@ -2,10 +2,6 @@
 # fm-path-lib.sh - fork-free pathname helpers with no source-time side effects,
 # so read-only callers can load them without any library's state setup.
 #
-fm_effective_home_to() {
-  printf -v "$1" '%s' "${FM_HOME:-${FM_ROOT_OVERRIDE:-${FM_ROOT:-$2}}}"
-}
-
 # Each assigns <output-variable> exactly what `$(dirname -- <path>)` or
 # `$(basename -- <path>)` would: POSIX component rules, and the command
 # substitution's removal of trailing newlines.

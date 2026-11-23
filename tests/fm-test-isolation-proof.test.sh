@@ -152,7 +152,7 @@ SH
   [ ! -e "$tmp/mktemp-called" ] && [ ! -e "$json" ] || fail "proof allocated scratch before refusing it"
   mkdir "$tmp/proof-tmp"
   rc=0
-  (cd "$tmp" && PATH="$tmp/tools:$PATH" TMPDIR="$tmp/proof-tmp" FM_STATE_OVERRIDE=proof-tmp \
+  (cd "$tmp" && PATH="$tmp/tools:$PATH" TMPDIR=./proof-tmp FM_STATE_OVERRIDE=proof-tmp \
     MKTEMP_CALLED="$tmp/mktemp-called" "$proof" --pool fixture-family --jobs 1 --json "$json") \
     >"$tmp/out" 2>"$tmp/err" || rc=$?
   assert_equals 2 "$rc" 'relative operational proof scratch exit status'
@@ -221,7 +221,8 @@ PY
   assert_contains "$(<"$tmp/cleanup.out")" 'FM_ISOLATION_CLEANUP failed' 'cleanup failure has its own summary line'
   python3 -c 'import json, sys; r = json.load(open(sys.argv[1])); assert r["cleanup_failed"] is True and r["summary"]["failed"] == 0 and all(s["exit"] == 0 for s in r["scripts"]) and not r["fm_test_run_jobs_enabled"]' "$tmp/cleanup.json" || fail 'failed removal was admitted in JSON'
   set +e
-  "$proof" --pool fixture-family --jobs 1 --json "$json" >"$tmp/out" 2>"$tmp/err"
+  (cd "$tmp" && TMPDIR=./proof-tmp "$proof" --pool fixture-family --jobs 1 --json "$json") \
+    >"$tmp/out" 2>"$tmp/err"
   rc=$?
   set -e
   [ "$rc" -eq 0 ] || fail "family pool proof fixture failed: $(cat "$tmp/out") $(cat "$tmp/err")"

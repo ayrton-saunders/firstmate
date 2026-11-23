@@ -2260,10 +2260,20 @@ for boundary in ('FM_HOME', 'FM_ROOT_OVERRIDE', 'FM_ROOT', 'FM_STATE_OVERRIDE',
         assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, (boundary, result)
 uid = subprocess.check_output([bash, '-c', 'printf %s "$UID"']).decode()
 parent = base / f'fm{uid}'
-result = subprocess.run([*external_runner, cmd[-1]], cwd=tmp,
-                        env=dict(fixture_env, FM_STATE_OVERRIDE=f'{base.name}/{parent.name}'), capture_output=True)
-assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
-assert not parent.exists(), 'runner created the reserved per-user parent'
+protected_paths = [f'{base.name}/{parent.name}', f'{shell_path(base)}/./{parent.name}',
+                   f'./{base.name}/./{parent.name}/']
+base_alias = tmp / 'os-temp-alias'
+try:
+    base_alias.symlink_to(base, target_is_directory=True)
+except (OSError, NotImplementedError):
+    print('skip: operational parent alias check requires directory symlink support')
+else:
+    protected_paths.append(f'{base_alias.name}/{parent.name}')
+for protected in protected_paths:
+    result = subprocess.run([*external_runner, cmd[-1]], cwd=tmp,
+                            env=dict(fixture_env, FM_STATE_OVERRIDE=protected), capture_output=True)
+    assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, (protected, result)
+    assert not parent.exists(), 'runner created the reserved per-user parent'
 
 result = subprocess.run([*external_runner, '--scratch-base'], cwd=tmp, env=fixture_env, capture_output=True)
 assert result.returncode == 0 and native_path(os.fsdecode(result.stdout).strip()).resolve() == base.resolve(), result

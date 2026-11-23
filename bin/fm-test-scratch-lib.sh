@@ -218,17 +218,33 @@ fm_test_scratch_retained() (
   return 1
 )
 
+fm_test_resolve_boundary() (
+  local path=$1 parent leaf
+  if CDPATH='' cd -P -- "$path" 2>/dev/null; then
+    pwd -P
+    return
+  fi
+  path=${path%"${path##*[!/]}"}
+  [ -n "$path" ] || return 1
+  leaf=${path##*/}
+  case "$path" in
+    */*) parent=$(fm_test_resolve_boundary "${path%/*}/") || return 1 ;;
+    *) parent=$(pwd -P) || return 1 ;;
+  esac
+  case "$leaf" in
+    .) printf '%s\n' "$parent" ;;
+    ..) parent=${parent%/*}; printf '%s\n' "${parent:-/}" ;;
+    *) printf '%s/%s\n' "${parent%/}" "$leaf" ;;
+  esac
+)
+
 fm_test_check_scratch_placement() (
-  local root=$1 base=$2 blocked ancestor effective_home=
+  local root=$1 base=$2 blocked ancestor resolved effective_home=
   if [ "$#" -ge 3 ]; then
     CDPATH='' cd -P -- "$3" || return 2
   fi
-  if [ -n "${FM_ROOT:-}" ]; then
-    effective_home=$(
-      . "${BASH_SOURCE[0]%/*}/fm-path-lib.sh" || exit 2
-      fm_effective_home_to effective_home "$root"
-      printf '%s\n' "$effective_home"
-    ) || return 2
+  if [ -z "${FM_HOME:-}${FM_ROOT_OVERRIDE:-}" ]; then
+    effective_home=${FM_ROOT:-}
   fi
   ancestor=$base
   while :; do
@@ -236,8 +252,9 @@ fm_test_check_scratch_placement() (
       "${FM_STATE_OVERRIDE:-}" "${FM_DATA_OVERRIDE:-}" "${FM_CONFIG_OVERRIDE:-}" "${FM_PROJECTS_OVERRIDE:-}" \
       "$HOME/.firstmate-preserved" "$HOME/.treehouse" "${TREEHOUSE_ROOT:-}"; do
       [ -n "$blocked" ] || continue
-      if [ "$ancestor" = "${blocked%/}" ] || [ "$ancestor" = "${PWD%/}/${blocked%/}" ] ||
-         [ "$ancestor" -ef "$blocked" ]; then
+      if [ "$ancestor" = "${blocked%/}" ] || [ "$ancestor" -ef "$blocked" ] ||
+         { [ ! -e "$ancestor" ] && resolved=$(fm_test_resolve_boundary "$blocked") &&
+           [ "$ancestor" = "$resolved" ]; }; then
         printf 'unsafe scratch base %s resolves inside %s\n' "$base" "$blocked" >&2
         return 2
       fi
@@ -252,15 +269,18 @@ fm_test_check_scratch_placement() (
   done
 )
 
-fm_test_validate_scratch_base() {
+fm_test_validate_scratch_base() (
   local root=$1 requested=$2 base
+  if [ "$#" -ge 3 ]; then
+    CDPATH='' cd -P -- "$3" || return 2
+  fi
   base=$(CDPATH='' cd -P -- "$requested" && pwd -P) || {
     printf 'cannot resolve scratch base: %s\n' "$requested" >&2
     return 2
   }
-  fm_test_check_scratch_placement "$root" "$base" "${@:3}" || return "$?"
+  fm_test_check_scratch_placement "$root" "$base" || return "$?"
   printf '%s\n' "$base"
-}
+)
 
 # An interrupt just after publication can leave complete opt-in evidence without a printed path.
 # During an opt-in copy, runner interruption that escalates to KILL can leave staging in OS temp.
