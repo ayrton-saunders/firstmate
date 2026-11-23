@@ -508,9 +508,13 @@ SH
   elif [ "$mode" = stuck-late ]; then
     printf '0\n' > "$home/park-clock"
     install_first_offer_action "$home" 'printf "121\n" > "$FM_HOME/park-clock"'
-  elif [ "$mode" = final-decision ]; then
+  elif [ "$mode" = final-decision ] || [ "$mode" = final-handled-decision ]; then
+    local first_action=:
+    if [ "$mode" = final-handled-decision ]; then
+      first_action='mv "$FM_HOME/state/demo.inbox/001.msg" "$FM_HOME/state/demo.inbox/handled/"'
+    fi
     printf '0\n' > "$home/park-clock"
-    install_first_offer_action "$home" ':' '
+    install_first_offer_action "$home" "$first_action" '
     printf "120\n" > "$FM_HOME/park-clock"
     printf "needs-decision [key=inbox-choice]: choose an approach\n" >> "$FM_HOME/state/demo.status"'
   elif [ "$mode" = missing ] || [ "$mode" = unhandled-decision ]; then
@@ -534,12 +538,17 @@ SH
     fi
     assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "the ordinary stale offer must not use the routine timeout"
     [ -f "$rec" ] || fail "missing endpoint work was lost"
-  elif [ "$mode" = final-decision ]; then
+  elif [ "$mode" = final-decision ] || [ "$mode" = final-handled-decision ]; then
     wait_until_deadline 60 host_exited "$home" || fail "the final decision-owned stale did not reach main"
     assert_re '^stale: .*stuck-busy' "$home/host.out" "the final main-only close was lost"
     assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "the final hand-back must preserve the successor"
     watcher_live "$home" || fail "the final hand-back left no live successor"
-    [ -f "$rec" ] || fail "the unhandled steer was lost"
+    if [ "$mode" = final-handled-decision ]; then
+      [ -f "${rec%/*}/handled/${rec##*/}" ] || fail "the handled steer receipt was lost"
+      assert_grep 'stuck-busy' "$home/state/.wake-queue" "the decision-owned stale must remain queued"
+    else
+      [ -f "$rec" ] || fail "the unhandled steer was lost"
+    fi
     [ "$(engine_calls "$home")" -eq 0 ] || fail "the branch took a decision-owned stale row"
   elif [ "$mode" = handled ]; then
     if [ "$kind" = secondmate ]; then
@@ -610,7 +619,7 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
       routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$f" || fail "fixture: decisions would wake independently"
       ;;
     credential) routine_wake_lib "$home" fm_wake_append check needs-gh-auth 'check: GitHub login required' || fail "fixture: no credential check" ;;
-    backstop|routine-backstop|routine|cooldown)
+    backstop|routine-backstop|routine|cooldown|away-cooldown)
       if [ "$mode" != backstop ]; then
         printf 'project=demo\nwindow=sess:fm-demo\nkind=%s\nharness=claude\n' "$kind" > "$home/state/demo.meta"
         rec=$(FM_HOME="$home" bash -c '. "$1"; fm_task_inbox_write "$2" demo steer' _ "$ROOT/bin/fm-task-inbox-lib.sh" "$home/state") || fail "fixture: no inbox record"
@@ -659,9 +668,14 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
       } > "$home/fakebin/jq"
       chmod +x "$home/fakebin/jq"
       ;;
-    cooldown)
-      install_first_offer_action "$home" 'key=$(bash -c '\''. "$1/fm-wake-lib.sh"; . "$1/fm-supervision-engine-lib.sh"; fm_supervision_host_config "$FM_HOME/config" claude; fm_supervision_host_health_key "$FM_HOME/state"'\'' _ "${1%/*}") || exit 1
+    cooldown|away-cooldown)
+      local action
+      action='key=$(bash -c '\''. "$1/fm-wake-lib.sh"; . "$1/fm-supervision-engine-lib.sh"; fm_supervision_host_config "$FM_HOME/config" claude; fm_supervision_host_health_key "$FM_HOME/state"'\'' _ "${1%/*}") || exit 1
       printf "key=%s\nerrors=2\ncooldown=300\nretry_after=%s\n" "$key" "$(( $(date +%s) + 300 ))" > "$FM_HOME/state/.supervision-host-health"'
+      if [ "$mode" = away-cooldown ]; then
+        action+=$'\n''FM_AFK_MODE=away "${1%/*}/fm-afk-contract.sh" enter --words "watch the fleet" >/dev/null'
+      fi
+      install_first_offer_action "$home" "$action"
       ;;
   esac
   FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 \
@@ -670,6 +684,12 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
     assert_routine_close_acknowledged "$home" 'check: rearm-resurface$'
     assert_re '^acked:' "$home/state/.watcher-down" "resurfacing did not acknowledge recovery"
     [ ! -e "$home/unexpected-empty-offer" ] || fail "empty routine recovery invoked the offer"
+  elif [ "$mode" = away-cooldown ]; then
+    wait_until_deadline 30 host_exited "$home" || fail "cooldown did not hand the away wake back"
+    assert_re '^check: rearm-resurface$' "$home/host.out" "the away wake must reach main during cooldown"
+    assert_grep 'paused after repeated engine errors' "$home/host.out" "cooldown must explain the hand-back"
+    [ "$(engine_calls "$home")" -eq 0 ] || fail "a cooling engine took the away wake"
+    assert_grep 'stuck-busy' "$home/state/.wake-queue" "cooldown must leave the wake queued"
   else
     wait_until_deadline 60 host_exited "$home" || fail "$mode: recovery did not reach main"
     assert_re '^check: rearm-resurface$' "$home/host.out" "$mode: recovery was suppressed"
@@ -1619,6 +1639,7 @@ test_handled_decision_stale() { test_attended_busy_inbox_close decision; }
 test_missing_endpoint_stale_uses_ordinary_offer() { test_attended_busy_inbox_close missing; }
 test_unhandled_decision_stale_uses_ordinary_offer() { test_attended_busy_inbox_close unhandled-decision; }
 test_final_main_only_stale_keeps_successor() { test_attended_busy_inbox_close final-decision; }
+test_final_handled_decision_keeps_successor() { test_attended_busy_inbox_close final-handled-decision; }
 test_captain_hold_divergence_resurface() { test_attended_resurface divergence; }
 test_new_decision_resurface() { test_attended_resurface new-decision; }
 test_reopened_decision_resurface() { test_attended_resurface reopened-decision; }
@@ -1629,6 +1650,7 @@ test_unread_reply_resurface() { test_attended_resurface unread-reply; }
 test_operator_reply_resurface() { test_attended_resurface operator-reply; }
 test_status_backstop_with_routine_rows_resurface() { test_attended_resurface routine-backstop; }
 test_cooldown_resurface() { test_attended_resurface cooldown; }
+test_away_transition_honors_cooldown() { test_attended_resurface away-cooldown; }
 
 assert_routine_resurface_lock_wait() {  # <park|command>
   local home lock mode=$1 limit=10
@@ -1730,6 +1752,7 @@ fm_test_run \
   test_missing_endpoint_stale_uses_ordinary_offer \
   test_unhandled_decision_stale_uses_ordinary_offer \
   test_final_main_only_stale_keeps_successor \
+  test_final_handled_decision_keeps_successor \
   test_captain_hold_divergence_resurface \
   test_new_decision_resurface \
   test_reopened_decision_resurface \
@@ -1740,6 +1763,7 @@ fm_test_run \
   test_operator_reply_resurface \
   test_status_backstop_with_routine_rows_resurface \
   test_cooldown_resurface \
+  test_away_transition_honors_cooldown \
   test_routine_resurface_respects_park_deadline \
   test_routine_resurface_respects_command_deadline \
   test_empty_resurface \

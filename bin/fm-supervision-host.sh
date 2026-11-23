@@ -1076,7 +1076,7 @@ attended_routine_rows() {  # <reason> <decision keys> [preflight]
           case "$key" in *.status) ;; *) return 1 ;; esac
           case " ${payload#signal:} " in *" $STATE/$key "*) ;; *) return 1 ;; esac
           ;;
-        stale:stale:*) attended_handled_stale_task "$key" "$payload" >/dev/null || return 1 ;;
+        stale:stale:*) attended_handled_stale_task "$key" "$payload" >/dev/null || return $? ;;
         *) return 1 ;;
       esac
     done <<< "$queue"
@@ -1116,7 +1116,7 @@ attended_handled_stale_task() {  # <queue-key> <reason>
   local target=${2#stale: } record meta task
   target=${target%% *}
   [ "$1" = "$target" ] || return 1
-  case " $decision_keys " in *" $target "*) return 1 ;; esac
+  case " $decision_keys " in *" $target "*) return 3 ;; esac
   record=$(fm_task_inbox_stuck_busy_record "$STATE" "$2") || return 1
   [ ! -e "$record" ] && [ ! -L "$record" ] && [ -f "${record%/*}/handled/${record##*/}" ] || return 1
   meta=$(fm_backend_meta_for_window "$target" "$STATE") || return 1
@@ -1149,7 +1149,7 @@ attended_routine_row() {  # <kind> <key> <reason>
       [ "$found" -eq 1 ]
       ;;
     stale:stale:*)
-      task=$(attended_handled_stale_task "$key" "$reason") || return 1
+      task=$(attended_handled_stale_task "$key" "$reason") || return $?
       _fm_wake_require_classify || return 1
       attended_no_open_decision "$STATE/$task.status"
       ;;
@@ -1233,6 +1233,7 @@ handle_wake() {  # <reason-lines> <initially-routine>
     fi
     scope=$ATTENDED_OFFER
   else
+    ROUTINE_HAND_BACK=0
     set --
     case "$first" in heartbeat*) set -- --heartbeat ;; esac
     if ! scope=$(node "$SCRIPT_DIR/fm-branch-dispatch.mjs" scope "$@" --afk 2>/dev/null); then
@@ -1252,6 +1253,10 @@ handle_wake() {  # <reason-lines> <initially-routine>
   if [ "$status" = empty ] || [ -z "$rows" ]; then
     log_line "no-op	nothing for the branch to claim	$first"
     return 0
+  fi
+  if [ "$TURN_POSTURE" = away ] && health_cooling; then
+    HANDLE_WHY="the away session is paused after repeated engine errors until $(fm_supervision_host_clock "$HEALTH_RETRY"); this wake is yours"
+    return 1
   fi
   if [ "$initially_routine" -eq 1 ]; then
     turn_crosses_boundary && boundary_exit
@@ -1473,7 +1478,7 @@ attended_hold_clear() {
 }
 
 attended_acceptor() {  # <reason-lines> [final]
-  local offer='' first=${1%%$'\n'*} rc=0 decision_keys digest status candidate=0
+  local offer='' first=${1%%$'\n'*} rc=0 decision_keys digest status candidate=0 post_offer=1
   if attended_routine_candidate "$1"; then
     candidate=1
   else
@@ -1522,8 +1527,14 @@ attended_acceptor() {  # <reason-lines> [final]
     else
       rc=1
       decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
-      if [ "$candidate" -eq 1 ] ||
-         { [ "${2:-}" != final ] && [[ "$first" = stale:* ]] && attended_routine_candidate "$1" "$decision_keys"; }; then
+      if { [ "$candidate" -eq 1 ] && [ -n "$decision_keys" ]; } ||
+         { [ "${2:-}" != final ] && [[ "$first" = stale:* ]]; }; then
+        post_offer=0
+        attended_routine_candidate "$1" "$decision_keys" || post_offer=$?
+      fi
+      if [ "$post_offer" -eq 3 ]; then
+        rc=3
+      elif [ "$candidate" -eq 1 ] || [ "$post_offer" -eq 0 ]; then
         digest=$(printf '%s\n' "$offer" | sed -n 's/^queue-digest=//p')
         status=$(printf '%s\n' "$offer" | sed -n 's/^status=//p')
         rc=3
