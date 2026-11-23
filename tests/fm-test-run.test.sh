@@ -2105,6 +2105,7 @@ case "$3" in
       mv "$SWAP_PARENT" "$SWAP_PARENT.saved" && ln -s "$OUTSIDE" "$SWAP_PARENT" || exit 98
     else
       printf 'edited\n' > "$EDIT_CONFIG"
+      chmod 0600 "${EDIT_CONFIG%/*}/original.yaml"
     fi
     exit 99
     ;;
@@ -2142,47 +2143,56 @@ PY
     rmdir -- "$endpoint" || fail 'manual restore wrote into a replacement directory'
     mv -- "$endpoint.saved" "$endpoint"
   done
-  local real_python real_chmod
+  local real_python phase changed target_mtime
   real_python=$(command -v python3)
-  real_chmod=$(command -v chmod)
-  cp "$profile/original.yaml" "$tmp/before-save"
-  printf 'private editor save\n' >"$tmp/editor-save"
-  chmod 0600 "$tmp/editor-save"
+  target_mtime=$(python3 -c 'import os, sys; print(os.stat(sys.argv[1]).st_mtime_ns)' "$profile/original.yaml")
   cat >"$tmp/path/python3" <<'SH'
 #!/usr/bin/env bash
 exec "$REAL_PYTHON" -I -c '
 import os, sys
 code = sys.argv[1]
 sys.argv = sys.argv[1:]
-fchmod = os.fchmod
-def save_then_chmod(fd, mode):
-    os.replace(os.environ["EDITOR_SAVE"], os.environ["CONFIG_TARGET"])
+open_file, fchmod = os.open, os.fchmod
+save, changed, phase = (os.environ[key] for key in ("EDITOR_SAVE", "CHANGED", "PHASE"))
+def open_with_save(path, flags, *args, **kwargs):
+    if phase == "open" and flags & os.O_WRONLY and os.path.basename(path) == os.path.basename(changed):
+        os.replace(save, changed)
+    return open_file(path, flags, *args, **kwargs)
+def chmod_with_save(fd, mode):
+    if phase != "open":
+        os.replace(save, changed)
     fchmod(fd, mode)
-os.fchmod = save_then_chmod
+os.open, os.fchmod = open_with_save, chmod_with_save
 exec(code)
 ' "$3" "${@:4}"
 SH
-  cat >"$tmp/path/chmod" <<'SH'
-#!/usr/bin/env bash
-mv -- "$EDITOR_SAVE" "$CONFIG_TARGET"
-exec "$REAL_CHMOD" "$@"
-SH
-  chmod +x "$tmp/path/python3" "$tmp/path/chmod"
-  if PATH="$tmp/path:$PATH" REAL_PYTHON="$real_python" REAL_CHMOD="$real_chmod" \
-      EDITOR_SAVE="$tmp/editor-save" CONFIG_TARGET="$profile/original.yaml" bash -c "$restore_command"; then
-    fail 'manual restore reported success after an atomic editor save'
-  fi
-  rm -- "$tmp/path/python3" "$tmp/path/chmod"
-  python3 - "$profile/original.yaml" <<'PY' || fail 'manual restore changed the private editor save'
+  chmod +x "$tmp/path/python3"
+  for phase in open chmod relink; do
+    changed="$profile/original.yaml"
+    [ "$phase" != relink ] || changed="$profile/config.yaml"
+    ln -- "$changed" "$tmp/before-save"
+    printf 'private editor save\n' >"$tmp/editor-save"
+    chmod 0600 "$tmp/editor-save"
+    if PATH="$tmp/path:$PATH" REAL_PYTHON="$real_python" PHASE="$phase" \
+        EDITOR_SAVE="$tmp/editor-save" CHANGED="$changed" bash -c "$restore_command"; then
+      fail "manual restore reported success after an atomic editor save at $phase"
+    fi
+    python3 - "$changed" <<'PY' || fail "manual restore changed the private editor save at $phase"
 import pathlib, stat, sys
 file = pathlib.Path(sys.argv[1])
-assert file.read_text() == 'private editor save\n'
+assert not file.is_symlink() and file.read_text() == 'private editor save\n'
 assert stat.S_IMODE(file.stat().st_mode) == 0o600
 PY
-  [ ! -L "$profile/config.yaml" ] || fail 'failed manual restore rewrote the config link'
-  mv -- "$tmp/before-save" "$profile/original.yaml"
-  printf 'damaged target\n' >"$profile/original.yaml"
-  chmod 0600 "$profile/original.yaml"
+    [ ! -L "$profile/config.yaml" ] || fail 'failed manual restore rewrote the config link'
+    mv -- "$tmp/before-save" "$changed"
+    python3 - "$profile/original.yaml" "$target_mtime" <<'PY'
+import os, sys
+path, mtime = sys.argv[1:]
+os.chmod(path, 0o600)
+os.utime(path, ns=(os.stat(path).st_atime_ns, int(mtime)))
+PY
+  done
+  rm -- "$tmp/path/python3"
   bash -c "$restore_command" || fail 'manual restore refused the original paths'
   python3 - "$profile/original.yaml" <<'PY' || fail 'manual restore did not restore mode 0644'
 import os, stat, sys
@@ -2210,9 +2220,7 @@ PY
     bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
   [ "$rc" -eq 1 ] && [ -L "$profile/nested" ] && [ ! -L "$profile/config.yaml" ] \
     && grep -q 'backup retained at' "$tmp/out" || fail 'automatic rollback accepted a replaced target parent'
-  restore_command=$(sed -n 's/^To restore manually: //p' "$tmp/out")
-  [ -n "$restore_command" ] || fail 'gateway did not report a command for the replaced parent'
-  if bash -c "$restore_command"; then fail 'manual restore accepted a replaced target parent'; fi
+  if grep -q '^To restore manually:' "$tmp/out"; then fail 'gateway offered a restore command for a replaced parent'; fi
   [ ! -L "$profile/config.yaml" ] && cmp -s "$profile/nested.saved/original.yaml" "$tmp/outside/original.yaml" \
     || fail 'rollback changed an escaped target or the config link'
   pass 'gateway serializes profile edits, restores links, and refuses escaped targets'

@@ -34,41 +34,81 @@ TUI_PID=
 TUI_RETAIN=
 GATEWAY_RETAIN=
 RESTORE_TARGET_CODE='import os, shutil, stat, sys
+from contextlib import ExitStack
 
-backup, target, mode = sys.argv[1:]
+profile, target, expected_link, *restore = sys.argv[1:]
 flags = os.O_NOFOLLOW | os.O_NONBLOCK
-with os.fdopen(os.open(backup, os.O_RDONLY | flags), "rb") as src, \
-     os.fdopen(os.open(target, os.O_WRONLY | flags), "wb") as dst:
-    before = os.fstat(dst.fileno())
-    if not stat.S_ISREG(before.st_mode) or not stat.S_ISREG(os.fstat(src.fileno()).st_mode):
-        sys.exit("config restore requires regular files")
-    dst.truncate(0)
-    shutil.copyfileobj(src, dst)
-    dst.flush()
-    os.fchmod(dst.fileno(), int(mode, 8))
-    if not os.path.samestat(before, os.lstat(target)):
-        sys.exit("config target was replaced during restore")'
+
+def fingerprint(info):
+    return ":".join(map(str, (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns)))
+
+def entry(parent, name):
+    return os.stat(name, dir_fd=parent, follow_symlinks=False)
+
+with ExitStack() as stack:
+    def directory(path, parent=None):
+        fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+        stack.callback(os.close, fd)
+        return fd
+
+    if os.path.commonpath((profile, target)) != profile or profile == target:
+        sys.exit("config target is outside the profile")
+    profile_fd = directory("/")
+    for part in profile.strip("/").split("/"):
+        profile_fd = directory(part, profile_fd)
+    target_fd = profile_fd
+    parts = os.path.relpath(target, profile).split("/")
+    for part in parts[:-1]:
+        target_fd = directory(part, target_fd)
+    name = parts[-1]
+    config = "config.yaml"
+    target_info = entry(target_fd, name)
+    config_info = entry(profile_fd, config)
+    if not stat.S_ISREG(target_info.st_mode) or not (
+        stat.S_ISLNK(config_info.st_mode) and os.readlink(config, dir_fd=profile_fd) == expected_link
+        if expected_link else stat.S_ISREG(config_info.st_mode)
+    ):
+        sys.exit("config restore found an unexpected file or link")
+    record = fingerprint(target_info) + "/" + fingerprint(config_info)
+    if not restore:
+        print(record)
+        sys.exit(0)
+    backup, mode, original_link, expected = restore
+    if record != expected:
+        sys.exit("config entries changed before restore")
+
+    with os.fdopen(os.open(os.path.basename(backup), os.O_RDONLY | flags, dir_fd=profile_fd), "rb") as src, \
+         os.fdopen(os.open(name, os.O_WRONLY | flags, dir_fd=target_fd), "wb") as dst:
+        before = os.fstat(dst.fileno())
+        if fingerprint(before) != fingerprint(target_info) or not stat.S_ISREG(os.fstat(src.fileno()).st_mode):
+            sys.exit("config target changed before restore opened it")
+        config_path = os.path.join(profile, config)
+        if fingerprint(os.lstat(target)) != fingerprint(target_info) or \
+           fingerprint(os.lstat(config_path)) != fingerprint(config_info):
+            sys.exit("config entries changed before restore")
+        dst.truncate(0)
+        shutil.copyfileobj(src, dst)
+        dst.flush()
+        os.fchmod(dst.fileno(), int(mode, 8))
+        if not os.path.samestat(before, os.lstat(target)):
+            sys.exit("config target was replaced during restore")
+        expected_config = os.fstat(dst.fileno()) if target == config_path else config_info
+        if fingerprint(os.lstat(config_path)) != fingerprint(expected_config):
+            sys.exit("config entry was replaced during restore")
+        if original_link and original_link != expected_link:
+            os.unlink(config, dir_fd=profile_fd)
+            os.symlink(original_link, config, dir_fd=profile_fd)'
 print_restore_command() {
-  local config="$PROFILE_HOME/config.yaml" expected_link=$WRITTEN_LINK target_dir=${CONFIG_TARGET%/*}
+  local config="$PROFILE_HOME/config.yaml" expected_link=$WRITTEN_LINK expected
   if [ -z "$WRITTEN_CONFIG" ] && [ -L "$config" ]; then
     expected_link=$CONFIG_LINK
   fi
-  printf 'To restore manually: [ "$(cd -P -- %q && pwd -P)" = %q ]' "$PROFILE_HOME" "$PROFILE_HOME"
-  if [ "$target_dir" != "$PROFILE_HOME" ]; then
-    printf ' && [ "$(cd -P -- %q && pwd -P)" = %q ]' "$target_dir" "$target_dir"
-  fi
-  printf ' && [ -f %q ] && [ ! -L %q ] && [ -f %q ] && [ ! -L %q ]' \
-    "$BACKUP" "$BACKUP" "$CONFIG_TARGET" "$CONFIG_TARGET"
-  if [ -n "$expected_link" ]; then
-    printf ' && [ "$(readlink %q)" = %q ] && [ -f %q ]' "$config" "$expected_link" "$config"
+  if expected=$(python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$expected_link" 2>/dev/null); then
+    printf 'To restore manually: python3 -I -c %q %q %q %q %q %q %q %q\n' \
+      "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$expected_link" "$BACKUP" "$CONFIG_MODE" "$CONFIG_LINK" "$expected"
   else
-    printf ' && [ -f %q ] && [ ! -L %q ]' "$config" "$config"
+    printf 'No safe restore command: inspect the changed config paths before using the backup.\n'
   fi
-  printf ' && python3 -I -c %q %q %q %q' "$RESTORE_TARGET_CODE" "$BACKUP" "$CONFIG_TARGET" "$CONFIG_MODE"
-  if [ -n "$CONFIG_LINK" ] && [ "$CONFIG_LINK" != "$expected_link" ]; then
-    printf ' && ln -sfn -- %q %q' "$CONFIG_LINK" "$config"
-  fi
-  printf '\n'
 }
 cleanup() {
   local status=$? attempt teardown_failed=0 child_lab tui_lab_retained=0
@@ -177,21 +217,13 @@ fi
 # Native Hermes runs a profile-owned gateway only in its standalone mode, the
 # shape of an operator profile whose own gateway serves only itself.
 restore_config() {
-  local link_now
+  local expected
   [ -n "$WRITTEN_CONFIG" ] || return 1
-  [ "$(cd -P -- "$PROFILE_HOME" && pwd -P)" = "$PROFILE_HOME" ] || return 1
-  [ "$(cd -P -- "${CONFIG_TARGET%/*}" && pwd -P)" = "${CONFIG_TARGET%/*}" ] || return 1
-  [ -f "$BACKUP" ] && [ ! -L "$BACKUP" ] || return 1
-  link_now=$(readlink "$PROFILE_HOME/config.yaml" 2>/dev/null) || link_now=
-  [ "$link_now" = "$WRITTEN_LINK" ] || return 1
-  [ ! -L "$CONFIG_TARGET" ] && [ -f "$CONFIG_TARGET" ] || return 1
+  expected=$(python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$WRITTEN_LINK" 2>/dev/null) || return 1
   cmp -s -- "$LAB/written-target" "$CONFIG_TARGET" &&
     cmp -s -- "$WRITTEN_CONFIG" "$PROFILE_HOME/config.yaml" || return 1
-  python3 -I -c "$RESTORE_TARGET_CODE" "$BACKUP" "$CONFIG_TARGET" "$CONFIG_MODE" || return 1
-  if [ -n "$CONFIG_LINK" ] && [ "$(readlink "$PROFILE_HOME/config.yaml" 2>/dev/null)" != "$CONFIG_LINK" ]; then
-    [ ! -d "$PROFILE_HOME/config.yaml" ] || return 1
-    ln -sfn -- "$CONFIG_LINK" "$PROFILE_HOME/config.yaml" || return 1
-  fi
+  python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$WRITTEN_LINK" \
+    "$BACKUP" "$CONFIG_MODE" "$CONFIG_LINK" "$expected" || return 1
   rm -f -- "$BACKUP"
 }
 CONFIG_MODE=$(python3 -I -c 'import os, stat, sys; print(format(stat.S_IMODE(os.lstat(sys.argv[1]).st_mode), "o"))' "$CONFIG_TARGET") \
