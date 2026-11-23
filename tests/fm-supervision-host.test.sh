@@ -237,7 +237,10 @@ test_attended_failed_status_reaches_main() {
   local home drain
   home=$(make_home attended-failed-status attended)
   printf 'captain\n' > "$home/stub-mode"
-  start_host "$home"
+  printf '0\n' > "$home/park-clock"
+  install_first_offer_action "$home" 'printf "121\n" > "$FM_HOME/park-clock"'
+  FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 \
+    FM_SUPERVISION_HOST_PARK_LIMIT=240 FM_SUPERVISION_HOST_TURN_TIMEOUT=30 start_host "$home"
   wait_until 150 watcher_live "$home" || fail "failed status: watcher never started"
   append_status "$home" 'build could not complete' failed
   wait_until_deadline 60 host_exited "$home" || fail "failed status: failure did not reach main"

@@ -1076,6 +1076,9 @@ attended_routine_rows() {  # <reason> <decision keys> [preflight]
         signal:signal:*)
           case "$key" in *.status) ;; *) return 1 ;; esac
           case " ${payload#signal:} " in *" $STATE/$key "*) ;; *) return 1 ;; esac
+          if [ "$mode" = preflight ]; then
+            attended_routine_row "$kind" "$key" "$payload" || rejected=1
+          fi
           ;;
         stale:stale:*)
           if [ "$mode" = preflight ]; then
@@ -1167,7 +1170,11 @@ attended_routine_row() {  # <kind> <key> <reason>
         case " ${answer_files[*]-} " in
           *" $f "*) ;;
           *) decision_rc=0
-             attended_no_open_decision "$f" || decision_rc=$?
+             if [ "$mode" = preflight ]; then
+               status_unread_only_home_answers "$f" content-only || decision_rc=$?
+             else
+               attended_no_open_decision "$f" || decision_rc=$?
+             fi
              [ "$decision_rc" -ne 3 ] || return 3
              if [ "$decision_rc" -eq 0 ]; then
                answer_files+=("$f")
