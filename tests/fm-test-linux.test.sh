@@ -174,21 +174,31 @@ test_attach_failure_verifies_container_stop() {
 #!/usr/bin/env bash
 case "$1" in
   ps)
-    if [ -f "$STATE/running" ] || { [ "$2" = -aq ] && [ -f "$STATE/created" ]; }; then
+    if [ "$MODE" = prelaunch ]; then touch "$STATE/daemon-contacted"; exit 1; fi
+    pattern=.
+    if [ "${3:-}" = --filter ]; then pattern=${4#name=}; fi
+    name=$(<"$STATE/container-name")
+    if [[ "/$name" =~ $pattern ]] && { [ -f "$STATE/running" ] || { [ "$2" = -aq ] && [ -f "$STATE/created" ]; }; }; then
       printf '%s\n' container-id
+    fi
+    if [[ "/$name-neighbor" =~ $pattern ]] && [ -f "$STATE/neighbor" ]; then
+      printf '%s\n' neighbor-id
     fi
     ;;
   rm)
+    if [[ "${!#}" == *neighbor-id* ]]; then rm "$STATE/neighbor"; fi
     [ "${!#}" = container-id ] && [ -d "$(<"$STATE/scratch-path")" ] || exit 2
     touch "$STATE/remove-called"
     if [ "$MODE" != unresolved ]; then rm -f "$STATE/running" "$STATE/created"; fi
     ;;
   run)
     while [ "$#" -gt 1 ]; do
+      if [ "$1" = --name ]; then printf '%s\n' "$2" >"$STATE/container-name"; fi
       if [ "$1" = -v ]; then
         [ ! -f "$STATE/running" ] && [ ! -f "$STATE/created" ] || { touch "$STATE/overlap"; exit 2; }
         if [ -f "$STATE/scratch-path" ]; then touch "$STATE/next-test"; exit 0; fi
         printf '%s\n' "${2%:/work}" >"$STATE/scratch-path"
+        touch "$STATE/neighbor"
         if [ "$MODE" = created ]; then touch "$STATE/created"; else touch "$STATE/running"; fi
         if [ "$MODE" = killed ]; then kill -KILL "$WRAPPER_PID" || exit 2; fi
         exit 7
@@ -228,6 +238,7 @@ SH
     assert_equals 1 "$rc" "client failure fails validation: $out"
     assert_present "$state/remove-called" 'validator tried to remove its daemon-side container before cleanup'
     assert_absent "$state/overlap" 'a new test did not start while a container was running'
+    assert_present "$state/neighbor" 'teardown did not remove the similarly named container'
     if [ "$mode" != unresolved ]; then
       assert_present "$state/next-test" 'tests continue after confirmed teardown'
       assert_absent "$scratch" 'confirmed teardown allows scratch removal'

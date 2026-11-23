@@ -101,21 +101,25 @@ scratch=$FM_TEST_SCRATCH
 ROOT=$(cd "$script_dir/.." && pwd -P)
 . "$ROOT/bin/fm-timeout-lib.sh"
 probe_owner=
+probe_pid=
 container=
 
 stop_linux_container() {
   local remaining filter
   [ -n "$container" ] || return 0
-  filter="name=^/?${container//./[.]}\$"
-  remaining=$(fm_run_timed 5 "$runtime" ps -aq --filter "$filter") || return 1
-  if [ -n "$remaining" ]; then
-    fm_run_timed 5 "$runtime" rm -f "$remaining" >/dev/null || true
+  if [ -n "$probe_pid" ]; then
+    filter="name=^/?${container//./[.]}\$"
     remaining=$(fm_run_timed 5 "$runtime" ps -aq --filter "$filter") || return 1
-    [ -z "$remaining" ] || return 1
+    if [ -n "$remaining" ]; then
+      fm_run_timed 5 "$runtime" rm -f "$remaining" >/dev/null || true
+      remaining=$(fm_run_timed 5 "$runtime" ps -aq --filter "$filter") || return 1
+      [ -z "$remaining" ] || return 1
+    fi
   fi
   if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
     rm -f -- "$FM_TEST_RETAIN_MARKER.$$.linux" || return 1
   fi
+  probe_pid=
   container=
 }
 
