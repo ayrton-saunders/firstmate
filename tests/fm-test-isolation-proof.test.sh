@@ -82,6 +82,7 @@ SH
   for fixture in fm-proof-fixture-a.test.sh fm-proof-fixture-b.test.sh; do
     cat >"$repo/tests/$fixture" <<'SH'
 #!/usr/bin/env bash
+[ -d "$TMPDIR" ] && [ "$TMP" = "$TMPDIR" ] && [ "$TEMP" = "$TMPDIR" ] || exit 1
 echo "ok - proof fixture"
 SH
     chmod +x "$repo/tests/$fixture"
@@ -221,7 +222,8 @@ PY
   assert_contains "$(<"$tmp/cleanup.out")" 'FM_ISOLATION_CLEANUP failed' 'cleanup failure has its own summary line'
   python3 -c 'import json, sys; r = json.load(open(sys.argv[1])); assert r["cleanup_failed"] is True and r["summary"]["failed"] == 0 and all(s["exit"] == 0 for s in r["scripts"]) and not r["fm_test_run_jobs_enabled"]' "$tmp/cleanup.json" || fail 'failed removal was admitted in JSON'
   set +e
-  (cd "$tmp" && TMPDIR=./proof-tmp "$proof" --pool fixture-family --jobs 1 --json "$json") \
+  (cd "$tmp" && TMPDIR=./proof-tmp TMP="$repo" TEMP="$repo" \
+    "$proof" --pool fixture-family --jobs 1 --json "$json") \
     >"$tmp/out" 2>"$tmp/err"
   rc=$?
   set -e

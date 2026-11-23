@@ -41,6 +41,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=bin/fm-test-scratch-lib.sh
 . "$ROOT/bin/fm-test-scratch-lib.sh"
 FM_TEST_TMPDIR=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || exit "$?"
+export TMPDIR="$FM_TEST_TMPDIR" TMP="$FM_TEST_TMPDIR" TEMP="$FM_TEST_TMPDIR"
 
 # Fixture Git isolation for every suite that reaches this library; the helper's
 # header owns the invariant and the layers it deliberately leaves in force.
@@ -413,8 +414,15 @@ fm_test_finalize() {
   exit "$status"
 }
 
+FM_TEST_FIXTURE_PREFIXES=('fm-*' oenv)
+
 fm_test_tmproot() (
-  local prefix=${1:-fm-test} root= tmp_base
+  local prefix=${1:-fm-test} root= tmp_base pattern
+  case "$prefix" in */*) return 2 ;; esac
+  for pattern in "${FM_TEST_FIXTURE_PREFIXES[@]}"; do
+    [[ "$prefix" == $pattern ]] && break
+  done
+  [[ "$prefix" == $pattern ]] || return 2
   tmp_base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || return "$?"
   trap '' HUP INT QUIT TERM
   trap '[ -z "$root" ] || fm_test_remove_tree "$root"' EXIT
@@ -439,16 +447,20 @@ export TREEHOUSE_ROOT
 # fm_test_reap_orphans: best-effort sweep for fixture roots left behind by a
 # prior run that was killed hard enough to skip the traps above (e.g. a
 # SIGKILL timeout). Only removes directories carrying the .fm-test-fixture
-# marker fm_test_tmproot writes, so it never touches unrelated fm-* tmp dirs
+# marker fm_test_tmproot writes, so it never touches unrelated temp dirs
 # from real (non-test) firstmate commands. The marker identifies the owning
 # shell across PID reuse, so the same live owner always wins over the age
 # fallback for dead or unowned roots.
 FM_TEST_ORPHAN_MAX_AGE_SECONDS=${FM_TEST_ORPHAN_MAX_AGE_SECONDS:-3600}
 
 fm_test_reap_orphans() {
-  local marker dir mtime now owner_pid owner_identity current_identity
+  local marker dir mtime now owner_pid owner_identity current_identity pattern
+  local -a markers=()
   now=$(date +%s)
-  for marker in "$FM_TEST_TMPDIR"/fm-*/.fm-test-fixture "$FM_TEST_TMPDIR"/.fm-test-registry.*/.fm-test-fixture; do
+  for pattern in "${FM_TEST_FIXTURE_PREFIXES[@]}"; do
+    markers+=("$FM_TEST_TMPDIR"/$pattern.*/.fm-test-fixture)
+  done
+  for marker in ${markers[@]+"${markers[@]}"} "$FM_TEST_TMPDIR"/.fm-test-registry.*/.fm-test-fixture; do
     [ -e "$marker" ] || continue
     dir=${marker%/*}
     [ "$dir" != "$FM_TEST_REGISTRY_DIR" ] || continue

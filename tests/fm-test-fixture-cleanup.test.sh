@@ -114,10 +114,11 @@ test_orphan_sweep_respects_fixture_ownership() {
   local harness dirfile active_dir registry_dir stale_dir fresh_dir pid tries
   harness=$(fm_test_tmproot fm-test-cleanup-orphan-harness)
   dirfile="$harness/active-dir"
-  TMPDIR="$harness" bash -c '
+  TMPDIR="$harness" TMP="$ROOT" TEMP="$ROOT" bash -ec '
     # shellcheck source=tests/lib.sh
     . "'"$LIB"'"
-    d=$(fm_test_tmproot fm-test-cleanup-active)
+    [ "$TMPDIR" -ef "'"$harness"'" ] && [ "$TMP" = "$TMPDIR" ] && [ "$TEMP" = "$TMPDIR" ] || exit 1
+    d=$(fm_test_tmproot oenv)
     printf "%s\n%s\n" "$d" "$FM_TEST_REGISTRY_DIR" > "'"$dirfile"'"
     while :; do sleep 0.1; done
   ' &
@@ -154,7 +155,7 @@ test_orphan_sweep_respects_fixture_ownership() {
   kill -KILL "$pid"
   wait "$pid" 2>/dev/null || true
   TMPDIR="$harness" bash -ec '. "$1"' _ "$LIB"
-  assert_absent "$active_dir" 'orphan recovery removed the killed suite fixture'
+  assert_absent "$active_dir" 'orphan recovery removed the killed suite oenv fixture'
   assert_absent "$registry_dir" 'orphan recovery removed the killed suite registry'
   rm -rf "$fresh_dir"
   pass "the orphan sweep reaps only old fixtures without a live owner"
