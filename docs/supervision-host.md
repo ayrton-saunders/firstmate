@@ -118,6 +118,7 @@ Routine rearm recovery requires no pending captain outcome, no captain-hold reco
 - A Pi foreground progress write may still be in flight when the watcher samples it.
 - Cursor activity without a tracked progress marker may still produce an extra stuck-busy notification.
 - Continued task-wide progress can defer, but not permanently suppress, a wake for an unhandled message.
+- If a secondmate acknowledges an inbox message during the final branch offer, the host can still take the normal engine path and hand the wake to main if that turn fails.
 - An answer can reach main if preflight races with publication of its ownership receipt.
 - A nearby routine worker status update can make an otherwise owned answer unprovable and send the notification to main.
 - In homes with long status histories, routine recovery proof can hit its time limit and hand the notification to main.
