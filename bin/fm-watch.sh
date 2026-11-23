@@ -627,9 +627,15 @@ inbox_steer_busy() {  # <window> <backend> <task> <tail40>
 # Runs for secondmates too: their pane-staleness exemption is about quiet panes
 # being healthy, while an unacknowledged instruction can still be a stuck steer.
 inbox_steer_progress_fingerprint() {  # <window> <task>
-  local base="$STATE/$2" marker record stamp fingerprint
+  local base="$STATE/$2" marker record stamp fingerprint harness
+  harness=$(window_harness "$1")
   local -a markers=("$base.progress" "$base.turn-ended")
-  case "$(window_harness "$1")" in
+  case "$harness" in
+    pi|pi-signed)
+      if [ "$STREAM_SILENT_MAX_SECS" -gt 0 ] && fm_busy_model_progress_ts "$STATE" "$2" "$harness" >/dev/null; then
+        markers+=("$base.model-progress")
+      fi
+      ;;
     claude*)
       if record=$(fm_busy_record_read "$STATE" "$2"); then
         case "$record" in 'busy claude-hook stop-blocked '*)

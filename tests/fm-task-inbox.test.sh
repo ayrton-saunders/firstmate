@@ -945,6 +945,32 @@ test_watcher_busy_budget_resets_on_progress() {
   pass "watcher: native activity resets the same message's busy budget without a new turn"
 }
 
+test_pi_stream_progress_resets_busy_budget() {
+  local dir state gen event="$ROOT/bin/fm-busy-event.sh"
+  dir=$(busy_case pi-stream-progress)
+  state="$dir/state"
+  fm_write_meta "$state/t1.meta" 'window=sess:fm-t1' 'kind=secondmate' 'harness=pi'
+  gen=$("$event" arm "$state" t1) || fail "fixture: could not arm Pi busy state"
+  "$event" apply "$state" t1 busy --gen "$gen" --source pi-ext --event agent-start || fail "fixture: Pi turn refused"
+  "$event" stream "$state" t1 open --gen "$gen" --request 1 || fail "fixture: stream open refused"
+  "$event" stream "$state" t1 progress --gen "$gen" --request 1 || fail "fixture: stream progress refused"
+  perl -MTime::HiRes=utime -e 'utime(1700000000.1, 1700000000.1, $ARGV[0]) or die $!' "$state/t1.model-progress"
+  FM_STREAM_SILENT_MAX_SECS=60 busy_steer_check "$dir"
+  [ ! -s "$state/.wake-queue" ] || fail "the first Pi deferral did not wait"
+  "$event" stream "$state" t1 progress --gen "$gen" --request 1 || fail "fixture: second progress refused"
+  perl -MTime::HiRes=utime -e 'utime(1700000000.2, 1700000000.2, $ARGV[0]) or die $!' "$state/t1.model-progress"
+  FM_STREAM_SILENT_MAX_SECS=60 busy_steer_check "$dir"
+  [ ! -s "$state/.wake-queue" ] || fail "advancing Pi stream progress surfaced a stuck inbox"
+  [ -f "$state/t1.inbox/001.msg" ] || fail "stream progress removed the unhandled steer"
+  cp "$state/t1.model-progress" "$dir/old-progress"
+  gen=$("$event" arm "$state" t1) || fail "fixture: could not rearm Pi busy state"
+  "$event" apply "$state" t1 busy --gen "$gen" --source pi-ext --event agent-start || fail "fixture: replacement Pi turn refused"
+  cp "$dir/old-progress" "$state/t1.model-progress"
+  FM_STREAM_SILENT_MAX_SECS=60 busy_steer_check "$dir"
+  grep -q 'stuck-busy' "$state/.wake-queue" || fail "progress from a retired Pi generation reset the budget"
+  pass "watcher: only current-generation Pi stream progress resets the busy budget"
+}
+
 test_claude_stop_continuation_resets_busy_budget() {
   local dir state gen event="$ROOT/bin/fm-busy-event.sh"
   dir=$(busy_case claude-continuation)
@@ -1456,6 +1482,7 @@ test_ring_ladder_policy
 test_watcher_rerings_idle_pane_quietly
 test_watcher_waits_on_busy_pane
 test_watcher_busy_budget_resets_on_progress
+test_pi_stream_progress_resets_busy_budget
 test_claude_stop_continuation_resets_busy_budget
 test_watcher_busy_retry_is_not_progress
 test_watcher_busy_budget_resets_on_ring_and_ack

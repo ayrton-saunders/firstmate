@@ -1068,7 +1068,7 @@ attended_routine_rows() {  # <reason> <decision keys> [preflight]
           case "$key" in *.status) ;; *) return 1 ;; esac
           case " ${payload#signal:} " in *" $STATE/$key "*) ;; *) return 1 ;; esac
           ;;
-        stale:stale:*) fm_task_inbox_stuck_busy_record "$STATE" "$payload" >/dev/null || return 1 ;;
+        stale:stale:*) attended_handled_stale_record "$key" "$payload" >/dev/null || return 1 ;;
         *) return 1 ;;
       esac
     done <<< "$queue"
@@ -1104,6 +1104,16 @@ attended_no_open_decision() {  # <status-file>
   [ -z "$open" ]
 }
 
+attended_handled_stale_record() {  # <queue-key> <reason>
+  local target=${2#stale: } record
+  target=${target%% *}
+  [ "$1" = "$target" ] || return 1
+  case " $decision_keys " in *" $target "*) return 1 ;; esac
+  record=$(fm_task_inbox_stuck_busy_record "$STATE" "$2") || return 1
+  [ ! -e "$record" ] && [ ! -L "$record" ] && [ -f "${record%/*}/handled/${record##*/}" ] || return 1
+  printf '%s\n' "$record"
+}
+
 attended_routine_row() {  # <kind> <key> <reason>
   local kind=$1 key=$2 reason=$3 record task target f found=0
   local -a files
@@ -1127,14 +1137,11 @@ attended_routine_row() {  # <kind> <key> <reason>
       [ "$found" -eq 1 ]
       ;;
     stale:stale:*)
-      record=$(fm_task_inbox_stuck_busy_record "$STATE" "$reason") || return 1
-      [ ! -e "$record" ] && [ ! -L "$record" ] && [ -f "${record%/*}/handled/${record##*/}" ] || return 1
-      target=${reason#stale: }; target=${target%% *}
-      [ "$key" = "$target" ] || return 1
+      record=$(attended_handled_stale_record "$key" "$reason") || return 1
+      target=$key
       _fm_wake_require_classify || return 1
       task=$(window_to_task "$target" "$STATE")
       [ -n "$task" ] && [ "$record" = "$STATE/$task.inbox/${record##*/}" ] || return 1
-      case " $decision_keys " in *" $target "*) return 1 ;; esac
       attended_no_open_decision "$STATE/$task.status"
       ;;
     *) return 1 ;;
@@ -1432,11 +1439,11 @@ attended_park_worker() {  # [handback] <function> [args...]
       "$@"
     fi
   ' _ "$SCRIPT_DIR" "$HOST_PID" "$GEN" "$GRANT_ACTIVE" \
-    "$(declare -f attended_routine_rows attended_routine_row attended_no_open_decision \
+    "$(declare -f attended_routine_rows attended_routine_row attended_handled_stale_record attended_no_open_decision \
       acknowledge_routine_close publish_wake_grant branch_env record_acknowledged_handback)" "$@"
 }
 
-attended_routine_candidate() {  # <reason>
+attended_routine_candidate() {  # <reason> [decision keys]
   case "$1" in *$'\n'*) return 1 ;; esac
   case "$ARM_TEXT" in
     "$1") ;;
@@ -1445,7 +1452,7 @@ attended_routine_candidate() {  # <reason>
     *) return 1 ;;
   esac
   case "$1" in
-    'check: rearm-resurface'|stale:*|signal:*) attended_routine_rows "$1" '' preflight ;;
+    'check: rearm-resurface'|stale:*|signal:*) attended_routine_rows "$1" "${2:-}" preflight ;;
     *) return 1 ;;
   esac
 }
@@ -1472,7 +1479,8 @@ attended_acceptor() {  # <reason-lines> [final]
     ATTENDED_WHY="the main session could not be identified"
   else
     if [ "$candidate" -eq 1 ]; then
-      if [[ "$first" != signal:* ]] && { [ "$PRIMARY" != codex ] || [ "${FM_CODEX_MODEL_FREE_PARK:-0}" != 1 ]; }; then
+      if [ "$first" = 'check: rearm-resurface' ] && [ ! -s "$FM_WAKE_QUEUE" ] &&
+         { [ "$PRIMARY" != codex ] || [ "${FM_CODEX_MODEL_FREE_PARK:-0}" != 1 ]; }; then
         offer_runner=(attended_park_run_with_limit "$PARK_SECONDS")
       fi
     elif health_cooling; then
@@ -1486,14 +1494,15 @@ attended_acceptor() {  # <reason-lines> [final]
       ATTENDED_WHY="branch eligibility could not be computed"
     else
       rc=1
-      if [ "$candidate" -eq 1 ] && attended_routine_candidate "$1"; then
-        rc=0
-        if [ "${2:-}" = final ]; then
-          decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
+      decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
+      if [ "${2:-}" = final ]; then
+        if [ "$candidate" -eq 1 ]; then
+          rc=0
           ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows <<< "$1"$'\n'"$decision_keys") || rc=$?
+          if [ "$rc" -eq 124 ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
         fi
-        if [ "$rc" -eq 124 ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
-
+      elif { [ "$candidate" -eq 1 ] || [[ "$first" = stale:* ]]; } && attended_routine_candidate "$1" "$decision_keys"; then
+        rc=0
       fi
       case "$rc" in
         0|75) ROUTINE_HAND_BACK=1 ;;

@@ -498,17 +498,22 @@ SH
   elif [ "$mode" = decision ]; then
     install_first_offer_action "$home" 'mv "$FM_HOME/state/demo.inbox/001.msg" "$FM_HOME/state/demo.inbox/handled/"
     printf "needs-decision [key=inbox-choice]: choose an approach\n" >> "$FM_HOME/state/demo.status"'
-  elif [ "$mode" = missing ]; then
-    : > "$home/missing-endpoint"
+  elif [ "$mode" = missing ] || [ "$mode" = unhandled-decision ]; then
+    if [ "$mode" = missing ]; then : > "$home/missing-endpoint"; fi
     printf '117\n' > "$home/park-clock"
     install_first_offer_action "$home" 'sleep 4
     printf "needs-decision [key=inbox-choice]: choose an approach\n" >> "$FM_HOME/state/demo.status"'
   fi
   FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 \
-    FM_BUSY_REGEX=BUSYTOKEN FM_TASK_INBOX_GRACE_SECS=0 start_host "$home"
-  if [ "$mode" = missing ]; then
-    wait_until_deadline 30 host_exited "$home" || fail "missing endpoint did not reach main"
-    assert_re '^stale: .*endpoint is missing' "$home/host.out" "the missing endpoint reason must reach main"
+    FM_SUPERVISION_HOST_TURN_TIMEOUT=20 FM_BUSY_REGEX=BUSYTOKEN FM_TASK_INBOX_GRACE_SECS=0 start_host "$home"
+  if [ "$mode" = missing ] || [ "$mode" = unhandled-decision ]; then
+    wait_until_deadline 30 host_exited "$home" || fail "ordinary stale did not reach main"
+    if [ "$mode" = missing ]; then
+      assert_re '^stale: .*endpoint is missing' "$home/host.out" "the missing endpoint reason must reach main"
+    else
+      assert_re '^stale: .*stuck-busy' "$home/host.out" "the unhandled decision-owned stale must reach main"
+      [ "$(engine_calls "$home")" -eq 0 ] || fail "the branch took a decision-owned stale row"
+    fi
     assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "the ordinary stale offer must not use the routine timeout"
     [ -f "$rec" ] || fail "missing endpoint work was lost"
   elif [ "$mode" = handled ]; then
@@ -1486,6 +1491,7 @@ test_stuck_busy_inbox_close() { test_attended_busy_inbox_close stuck; }
 test_routine_resurface() { test_attended_resurface routine; }
 test_handled_decision_stale() { test_attended_busy_inbox_close decision; }
 test_missing_endpoint_stale_uses_ordinary_offer() { test_attended_busy_inbox_close missing; }
+test_unhandled_decision_stale_uses_ordinary_offer() { test_attended_busy_inbox_close unhandled-decision; }
 test_captain_hold_divergence_resurface() { test_attended_resurface divergence; }
 test_new_decision_resurface() { test_attended_resurface new-decision; }
 test_reopened_decision_resurface() { test_attended_resurface reopened-decision; }
@@ -1583,6 +1589,7 @@ fm_test_run \
   test_routine_resurface \
   test_handled_decision_stale \
   test_missing_endpoint_stale_uses_ordinary_offer \
+  test_unhandled_decision_stale_uses_ordinary_offer \
   test_captain_hold_divergence_resurface \
   test_new_decision_resurface \
   test_reopened_decision_resurface \
