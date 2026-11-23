@@ -118,17 +118,17 @@ ROOT=$(cd "$script_dir/.." && pwd -P)
 . "$ROOT/bin/fm-timeout-lib.sh"
 probe_owner=
 probe_pid=
-container=
+container_token=
 
 stop_linux_container() {
   local remaining filter
-  [ -n "$container" ] || return 0
+  [ -n "$container_token" ] || return 0
   if [ -n "$probe_pid" ]; then
-    filter="name=^/?${container//./[.]}\$"
-    remaining=$(fm_run_timed 5 "$runtime" ps -aq --filter "$filter") || return 1
+    filter="label=firstmate.test-launch=$container_token"
+    remaining=$(fm_run_timed 5 "$runtime" ps -aq --no-trunc --filter "$filter") || return 1
     if [ -n "$remaining" ]; then
       fm_run_timed 5 "$runtime" rm -f "$remaining" >/dev/null || true
-      remaining=$(fm_run_timed 5 "$runtime" ps -aq --filter "$filter") || return 1
+      remaining=$(fm_run_timed 5 "$runtime" ps -aq --no-trunc --filter "$filter") || return 1
       [ -z "$remaining" ] || return 1
     fi
   fi
@@ -136,7 +136,7 @@ stop_linux_container() {
     rm -f -- "$FM_TEST_RETAIN_MARKER.$$.linux" || return 1
   fi
   probe_pid=
-  container=
+  container_token=
 }
 
 finish_linux() {
@@ -190,12 +190,13 @@ case "$(basename "$runtime")" in
 esac
 failed=()
 for t in "${tests[@]}"; do
-  container="${scratch##*/}"
+  container_token=$(LC_ALL=C od -An -N16 -tx1 /dev/urandom | tr -d '[:space:]') || die 'could not generate Linux container ownership token'
+  [[ "$container_token" =~ ^[0-9a-f]{32}$ ]] || die 'invalid Linux container ownership token'
   if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
     : > "$FM_TEST_RETAIN_MARKER.$$.linux" || die 'could not arm Linux retention marker'
   fi
   rc=0
-  fm_test_probe_run "$runtime" run --rm --name "$container" "${identity[@]}" -v "$scratch:/work" -w /work -e HOME=/tmp -e TMPDIR=/tmp "$image" bash "$t" || rc=$?
+  fm_test_probe_run "$runtime" run --rm --name "${scratch##*/}" --label "firstmate.test-launch=$container_token" "${identity[@]}" -v "$scratch:/work" -w /work -e HOME=/tmp -e TMPDIR=/tmp "$image" bash "$t" || rc=$?
   [ -z "$probe_owner" ] || exit 1
   stop_linux_container || finish_linux 1 1
   if [ "$rc" -eq 0 ]; then

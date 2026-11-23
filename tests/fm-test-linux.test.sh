@@ -176,17 +176,30 @@ case "$1" in
     if [ "$MODE" = prelaunch ]; then touch "$FAKE_RUNTIME_STATE/daemon-contacted"; exit 1; fi
     if [ "$MODE" = undrained ]; then touch "$FAKE_RUNTIME_STATE/daemon-contacted"; exit 0; fi
     pattern=.
-    if [ "${3:-}" = --filter ]; then pattern=${4#name=}; fi
+    label=
+    while [ "$#" -gt 0 ]; do
+      case "$1" in
+        name=*) pattern=${1#name=} ;;
+        label=*) label=${1#label=} ;;
+      esac
+      shift
+    done
     name=$(<"$FAKE_RUNTIME_STATE/container-name")
-    if [[ "/$name" =~ $pattern ]] && { [ -f "$FAKE_RUNTIME_STATE/running" ] || { [ "$2" = -aq ] && [ -f "$FAKE_RUNTIME_STATE/created" ]; }; }; then
+    if [[ "/$name" =~ $pattern ]] && { [ -z "$label" ] || [ "$label" = "$(<"$FAKE_RUNTIME_STATE/launch-label")" ]; } &&
+        { [ -f "$FAKE_RUNTIME_STATE/running" ] || [ -f "$FAKE_RUNTIME_STATE/created" ]; }; then
       printf '%s\n' container-id
     fi
-    if [[ "/$name-neighbor" =~ $pattern ]] && [ -f "$FAKE_RUNTIME_STATE/neighbor" ]; then
+    if [[ "/$name-neighbor" =~ $pattern ]] && [ -z "$label" ] && [ -f "$FAKE_RUNTIME_STATE/neighbor" ]; then
       printf '%s\n' neighbor-id
+    fi
+    if [[ "/$name" =~ $pattern ]] && [ -f "$FAKE_RUNTIME_STATE/collision" ] &&
+        { [ -z "$label" ] || [ "$label" = firstmate.test-launch=previous ]; }; then
+      printf '%s\n' previous-id
     fi
     ;;
   rm)
     if [[ "${!#}" == *neighbor-id* ]]; then rm "$FAKE_RUNTIME_STATE/neighbor"; fi
+    if [[ "${!#}" == *previous-id* ]]; then rm "$FAKE_RUNTIME_STATE/collision"; fi
     [ "${!#}" = container-id ] && [ -d "$(<"$FAKE_RUNTIME_STATE/scratch-path")" ] || exit 2
     touch "$FAKE_RUNTIME_STATE/remove-called"
     if [ "$MODE" != unresolved ]; then rm -f "$FAKE_RUNTIME_STATE/running" "$FAKE_RUNTIME_STATE/created"; fi
@@ -194,11 +207,24 @@ case "$1" in
   run)
     while [ "$#" -gt 1 ]; do
       if [ "$1" = --name ]; then printf '%s\n' "$2" >"$FAKE_RUNTIME_STATE/container-name"; fi
+      if [ "$1" = --label ]; then printf '%s\n' "$2" >>"$FAKE_RUNTIME_STATE/labels"; fi
       if [ "$1" = -v ]; then
         [ ! -f "$FAKE_RUNTIME_STATE/running" ] && [ ! -f "$FAKE_RUNTIME_STATE/created" ] || { touch "$FAKE_RUNTIME_STATE/overlap"; exit 2; }
-        if [ -f "$FAKE_RUNTIME_STATE/scratch-path" ]; then touch "$FAKE_RUNTIME_STATE/next-test"; exit 0; fi
+        if [ -f "$FAKE_RUNTIME_STATE/scratch-path" ]; then
+          touch "$FAKE_RUNTIME_STATE/next-test"
+          [ "$MODE" != collision ] || exit 125
+          exit 0
+        fi
+        if [ -f "$FAKE_RUNTIME_STATE/labels" ]; then cp "$FAKE_RUNTIME_STATE/labels" "$FAKE_RUNTIME_STATE/launch-label"; fi
         printf '%s\n' "${2%:/work}" >"$FAKE_RUNTIME_STATE/scratch-path"
         touch "$FAKE_RUNTIME_STATE/neighbor"
+        case "$MODE" in
+          collision|collision-interrupt)
+            touch "$FAKE_RUNTIME_STATE/collision"
+            if [ "$MODE" = collision-interrupt ]; then kill -TERM "$WRAPPER_PID" || exit 2; fi
+            exit 125
+            ;;
+        esac
         if [ "$MODE" = undrained ]; then
           kill -TERM "$WRAPPER_PID" || exit 2
           exec sleep 3
@@ -224,7 +250,7 @@ elif [ "$MODE" = undrained ]; then
   }
 fi
 SH
-  for mode in resolved unresolved created killed prelaunch undrained; do
+  for mode in resolved unresolved created killed prelaunch undrained collision collision-interrupt; do
     state="$TMP_ROOT/$mode"
     mkdir "$state"
     rc=0
@@ -237,6 +263,17 @@ SH
       continue
     fi
     scratch=$(<"$state/scratch-path")
+    if [ "$mode" = collision ] || [ "$mode" = collision-interrupt ]; then
+      if [ "$mode" = collision ]; then
+        assert_equals 1 "$rc" "name collision fails validation: $out"
+      else
+        assert_equals 143 "$rc" "interrupted name collision exits on TERM: $out"
+      fi
+      assert_present "$state/collision" 'exact-name container from a prior launch survives'
+      assert_absent "$scratch" 'name collision did not leave probe scratch behind'
+      if fm_test_scratch_retained "$state"; then fail 'name collision left a retention marker'; fi
+      continue
+    fi
     if [ "$mode" = undrained ]; then
       assert_equals 143 "$rc" "TERM with an unverified client: $out"
       assert_contains "$out" 'retaining scratch:' 'unverified drain retains scratch'
@@ -258,6 +295,7 @@ SH
     assert_present "$state/neighbor" 'teardown did not remove the similarly named container'
     if [ "$mode" != unresolved ]; then
       assert_present "$state/next-test" 'tests continue after confirmed teardown'
+      assert_equals 2 "$(sort -u "$state/labels" | awk 'END {print NR}')" 'sequential launches carry distinct identities'
       assert_absent "$scratch" 'confirmed teardown allows scratch removal'
       if fm_test_scratch_retained "$state"; then fail 'confirmed removal left a retention marker'; fi
     else
