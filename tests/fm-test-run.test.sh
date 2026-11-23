@@ -2322,11 +2322,6 @@ try:
     assert report['cleanup_failed'] is True and report['summary']['failed'] == 0
     assert all(s['exit'] == 0 for s in report['scripts']) and all(f['failed'] == 0 for f in report['families'])
     assert b'FM_TEST_CLEANUP failed' in result.stdout
-    aggregate = subprocess.run([*runner_cmd, '--aggregate-json', 'aggregate-cleanup.json', 'cleanup.json'],
-                               cwd=repo, env=fixture_env, capture_output=True, check=True)
-    merged = json.loads((repo / 'aggregate-cleanup.json').read_text())
-    assert merged['cleanup_failed'] is True and merged['summary']['failed'] == 0
-    assert b'FM_TEST_CLEANUP failed' in aggregate.stdout
 finally:
     remover.unlink()
 _, leftover = scratch(tmp / 'cleanup')

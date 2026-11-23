@@ -3,15 +3,21 @@
 fm_test_declared_scratch=.test-phase-tmp
 
 fm_test_is_declared_scratch() {
-  local top=${2%%/*} candidate declared identities
+  local top=${2%%/*} candidate declared identities entry found_candidate=0 found_declared=0
   [ "$top" != "$fm_test_declared_scratch" ] || return 0
   candidate="$1/$top"
   declared="$1/$fm_test_declared_scratch"
   if [ -L "$declared" ]; then
     [ -L "$candidate" ] || return 1
+    (shopt -s nocasematch; [[ "$top" == "$fm_test_declared_scratch" ]]) || return 1
     identities=$(stat -c '%d:%i' -- "$candidate" "$declared" 2>/dev/null) ||
       identities=$(stat -f '%d:%i' "$candidate" "$declared") || return 1
-    [ "${identities%%$'\n'*}" = "${identities#*$'\n'}" ]
+    [ "${identities%%$'\n'*}" = "${identities#*$'\n'}" ] || return 1
+    for entry in "$1"/.*; do
+      [ "$entry" != "$candidate" ] || found_candidate=1
+      [ "$entry" != "$declared" ] || found_declared=1
+    done
+    [ "$found_candidate$found_declared" != 11 ]
   else
     [ -d "$candidate" ] && [ ! -L "$candidate" ] && [ "$candidate" -ef "$declared" ]
   fi

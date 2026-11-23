@@ -331,6 +331,12 @@ test_primary_lab_copy_excludes_only_declared_scratch() {
   assert_absent "$harness/symlink-copy/.test-phase-tmp" 'the declared symlink was excluded'
   assert_equals 'real work' "$(<"$harness/symlink-copy/notes/draft")" 'the declared symlink target was copied normally'
   assert_equals notes "$(readlink "$harness/symlink-copy/notes-link")" 'an unrelated symlink to the same work was kept'
+  if ln -P "$source/.test-phase-tmp" "$source/notes-hardlink" 2>/dev/null; then
+    mkdir "$harness/hardlink-copy"
+    fm_test_copy_primary_lab "$source" "$harness/hardlink-copy" || fail 'primary lab copy with hardlinked symlink failed'
+    assert_absent "$harness/hardlink-copy/.test-phase-tmp" 'declared entry was excluded despite its hard link'
+    assert_equals notes "$(readlink "$harness/hardlink-copy/notes-hardlink")" 'distinct hardlinked symlink was preserved'
+  fi
   mv "$source/.test-phase-tmp" "$harness/declared-link"
   mv "$harness/declared-link" "$source/.TEST-PHASE-TMP"
   mkdir "$harness/symlink-alias-copy"

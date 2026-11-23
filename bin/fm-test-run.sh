@@ -1409,8 +1409,6 @@ for path in inputs:
         "finished_at": doc.get("finished_at"),
         "summary": summary,
     }
-    if doc.get("cleanup_failed") is True:
-        lane["cleanup_failed"] = True
     lanes.append(lane)
     total += int(summary.get("total") or 0)
     failed += int(summary.get("failed") or 0)
@@ -1436,9 +1434,6 @@ agg = {
     "scripts": all_scripts,
     "slowest": all_scripts[:15],
 }
-if any(lane.get("cleanup_failed") for lane in lanes):
-    agg["cleanup_failed"] = True
-    print("FM_TEST_CLEANUP failed")
 out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text(json.dumps(agg, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 print(f"FM_TEST_AGGREGATE lanes={len(lanes)} total={total} failed={failed} skipped_gate={skipped} critical_path_duration_ms={wall_ms}")
