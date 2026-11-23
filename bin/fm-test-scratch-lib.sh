@@ -5,7 +5,7 @@
 fm_test_remove_tree() {
   local dir=$1
   if [ -d "$dir" ] && [ ! -L "$dir" ]; then
-    find "$dir" -type d -exec chmod u+rwx {} \; 2>/dev/null || true
+    find "$dir" -type d ! -perm -0700 -exec chmod u+rwx {} \; 2>/dev/null || true
   fi
   rm -rf -- "$dir"
 }
@@ -29,12 +29,12 @@ fm_test_copy_hermes_evidence() (
 )
 
 fm_test_arm_private_tmux() {
-  local marker=
+  local marker_var=$1
   if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
     # An unresolved teardown marker excludes this root from automatic reaping, even after its owners exit.
-    marker=$(mktemp "$FM_TEST_RETAIN_MARKER.XXXXXX") || return 1
+    printf -v "$marker_var" '%s' "$FM_TEST_RETAIN_MARKER.$$.$marker_var"
+    : >"${!marker_var}"
   fi
-  printf '%s\n' "$marker"
 }
 
 fm_test_stop_private_tmux() (

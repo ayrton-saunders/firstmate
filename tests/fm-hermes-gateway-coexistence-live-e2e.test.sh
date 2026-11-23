@@ -15,12 +15,15 @@ fm_live_gate opt-in FM_HERMES_GATEWAY_LIVE hermes tmux jq python3
 : "${FM_HERMES_LIVE_HOME:?provide a configured throwaway Hermes root}"
 PROFILE=${FM_HERMES_LIVE_PROFILE:-worker}
 HERMES_BIN=$(command -v hermes)
-PROFILE_HOME="$FM_HERMES_LIVE_HOME/profiles/$PROFILE"
-LAB=$(mktemp -d "${TMPDIR:-/tmp}/h.XXXXXX") || fail 'could not allocate gateway scratch'
-LAB=$(cd "$LAB" && pwd -P)
-SOCKET="$LAB/s"
-mkdir -p "$LAB/home" "$LAB/state" "$LAB/locks"
-[ -f "$PROFILE_HOME/config.yaml" ] || fail "throwaway profile $PROFILE_HOME is not prepared"
+FM_HERMES_LIVE_HOME=$(cd -- "$FM_HERMES_LIVE_HOME" && pwd -P) || fail 'could not resolve throwaway root'
+case "$PROFILE" in ''|.|..|*/*|*\\*) fail 'invalid throwaway profile name' ;; esac
+PROFILE_HOME=$(cd -- "$FM_HERMES_LIVE_HOME/profiles/$PROFILE" && pwd -P) || fail 'could not resolve throwaway profile'
+case "$PROFILE_HOME" in "$FM_HERMES_LIVE_HOME"/profiles/*) ;; *) fail 'profile resolves outside the throwaway root' ;; esac
+CONFIG_TARGET=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$PROFILE_HOME/config.yaml") \
+  && [ -f "$CONFIG_TARGET" ] || fail 'could not resolve profile config'
+case "$CONFIG_TARGET" in "$PROFILE_HOME"/*) ;; *) fail 'config resolves outside the throwaway profile' ;; esac
+LAB=
+SOCKET=
 BACKUP=
 publication_pending=0
 mutation_attempted=0
@@ -52,7 +55,7 @@ cleanup() {
       TUI_PID=
     fi
   fi
-  if [ -z "$TUI_PID" ] && ! compgen -G "$LAB/hm.??????" >/dev/null; then
+  if [ -z "$TUI_PID" ] && { [ -z "$LAB" ] || ! compgen -G "$LAB/hm.??????" >/dev/null; }; then
     if [ -n "$TUI_RETAIN" ]; then rm -f -- "$TUI_RETAIN"; fi
   else
     printf 'not ok - TUI teardown unverified; retaining %s; delete it by hand once nothing is using it\n' "$LAB" >&2
@@ -61,7 +64,7 @@ cleanup() {
   fm_test_stop_private_tmux "$SOCKET" tmux "$GATEWAY_RETAIN" || teardown_failed=1
   fm_test_cleanup
   if [ "$teardown_failed" -eq 0 ]; then
-    fm_test_remove_tree "$LAB" || { [ "$status" -ne 0 ] || status=1; }
+    [ -z "$LAB" ] || fm_test_remove_tree "$LAB" || { [ "$status" -ne 0 ] || status=1; }
   else
     [ "$status" -ne 0 ] || status=1
   fi
@@ -76,6 +79,14 @@ trap 'interrupt_probe 129' HUP
 trap 'interrupt_probe 130' INT
 trap 'interrupt_probe 131' QUIT
 trap 'interrupt_probe 143' TERM
+publication_pending=1
+LAB=$(trap '' HUP INT QUIT TERM; mktemp -d "${TMPDIR:-/tmp}/h.XXXXXX") || fail 'could not allocate gateway scratch'
+publication_pending=0
+[ "$probe_signal" -eq 0 ] || exit "$probe_signal"
+lab_path=$(cd "$LAB" && pwd -P) || fail 'could not resolve gateway scratch'
+LAB=$lab_path
+SOCKET="$LAB/s"
+mkdir -p "$LAB/home" "$LAB/state" "$LAB/locks" || fail 'could not prepare gateway scratch'
 for file in "$FM_HERMES_LIVE_HOME/.env" "$PROFILE_HOME/.env"; do
   [ ! -s "$file" ] || fail "$file may configure a messaging platform; use a profile without one"
 done
@@ -102,12 +113,10 @@ CONFIG_LINK=
 if [ -L "$PROFILE_HOME/config.yaml" ]; then
   CONFIG_LINK=$(readlink "$PROFILE_HOME/config.yaml") || fail 'could not read profile config link'
 fi
-CONFIG_TARGET=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$PROFILE_HOME/config.yaml") \
-  && [ -f "$CONFIG_TARGET" ] || fail 'could not resolve profile config'
 # Native Hermes runs a profile-owned gateway only in its standalone mode, the
 # shape of an operator profile whose own gateway serves only itself.
 restore_config() {
-  [ ! -d "$CONFIG_TARGET" ] && cp -p "$BACKUP" "$CONFIG_TARGET" || return 1
+  [ ! -d "$CONFIG_TARGET" ] && [ ! -L "$CONFIG_TARGET" ] && cp -p "$BACKUP" "$CONFIG_TARGET" || return 1
   if [ -n "$CONFIG_LINK" ] && [ "$(readlink "$PROFILE_HOME/config.yaml" 2>/dev/null)" != "$CONFIG_LINK" ]; then
     [ ! -d "$PROFILE_HOME/config.yaml" ] || return 1
     ln -sfn -- "$CONFIG_LINK" "$PROFILE_HOME/config.yaml" || return 1
@@ -135,7 +144,7 @@ gateway_state() { jq -c '{pid, gateway_state, active_agents, active_work, update
 # visible to it.
 printf 'exec env -i PATH=%q TERM=xterm-256color HOME=%q XDG_STATE_HOME=%q HERMES_GATEWAY_LOCK_DIR=%q HERMES_HOME=%q %q -p %q gateway run\n' \
   "$PATH" "$LAB/home" "$LAB/state" "$LAB/locks" "$FM_HERMES_LIVE_HOME" "$HERMES_BIN" "$PROFILE" > "$LAB/gateway.sh"
-GATEWAY_RETAIN=$(fm_test_arm_private_tmux) || fail 'could not protect gateway scratch'
+fm_test_arm_private_tmux GATEWAY_RETAIN || fail 'could not protect gateway scratch'
 tmux -S "$SOCKET" new-session -d -s gateway -x 160 -y 50 "bash '$LAB/gateway.sh'; sleep 600" || fail 'gateway launch failed'
 for _ in $(seq 1 240); do
   # A previous run leaves its state file behind; wait for a live writer.
@@ -152,9 +161,7 @@ printf 'idle gateway before: %s\n' "$(gateway_state)"
 . "$ROOT/bin/fm-hermes-lib.sh"
 HERMES_GATEWAY_LOCK_DIR="$LAB/locks" fm_hermes_gateway_check "$PROFILE_HOME" "$PROFILE" || fail 'idle own gateway refused'
 pass 'real idle profile gateway accepted by the read-only preflight'
-if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
-  TUI_RETAIN=$(mktemp "$FM_TEST_RETAIN_MARKER.XXXXXX") || fail 'could not protect pending TUI teardown'
-fi
+fm_test_arm_private_tmux TUI_RETAIN || fail 'could not protect pending TUI teardown'
 publication_pending=1
 TMPDIR="$LAB" TMP="$LAB" TEMP="$LAB" FM_HERMES_SIGNALS_LIVE=1 HERMES_GATEWAY_LOCK_DIR="$LAB/locks" \
   bash "$ROOT/tests/fm-hermes-signals-live-e2e.test.sh" &

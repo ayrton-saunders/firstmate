@@ -2496,7 +2496,7 @@ reap_orphan_runs() {
       [ -f "$timed" ] && [ ! -L "$timed" ] && [ -O "$timed" ] || continue 2
       run_owners_gone "$timed" "$snapshot" || continue 2
     done
-    compgen -G "$dir/.retain-scratch.??????" >/dev/null && continue
+    compgen -G "$dir/.retain-scratch.*" >/dev/null && continue
     fm_test_remove_tree "$dir" || true
   done
 }
@@ -2631,7 +2631,7 @@ cleanup_run() {
     exit "$status"
   fi
   if [ -n "$RUN_TMP" ]; then
-    if compgen -G "$RUN_TMP/.retain-scratch.??????" >/dev/null; then
+    if compgen -G "$RUN_TMP/.retain-scratch.*" >/dev/null; then
       log "private teardown unverified; retaining scratch: $RUN_TMP; delete it by hand once nothing is using it"
       [ "$status" -ne 0 ] || status=1
       exit "$status"

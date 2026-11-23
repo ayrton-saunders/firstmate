@@ -13,21 +13,22 @@ PROFILE=${FM_HERMES_LIVE_PROFILE:-worker}
 HERMES_BIN=$(command -v hermes)
 REAL_TMUX=$(command -v tmux)
 VERSION="hermes $($HERMES_BIN --version 2>/dev/null | head -1)"
-LAB=$(mktemp -d "${TMPDIR:-/tmp}/hm.XXXXXX")
-LAB=$(cd "$LAB" && pwd -P)
-SOCKET="$LAB/s"
+LAB=
+SOCKET=
+allocating=1
+probe_signal=0
 TMUX_RETAIN=
 cleanup() {
   local status=$? base stopped=0
   fm_test_stop_private_tmux "$SOCKET" "$REAL_TMUX" "$TMUX_RETAIN" && stopped=1
-  if [ "${FM_HERMES_LIVE_KEEP:-0}" = 1 ]; then
+  if [ -n "$LAB" ] && [ "${FM_HERMES_LIVE_KEEP:-0}" = 1 ]; then
     if ! base=$(bash "$ROOT/bin/fm-test-run.sh" --scratch-base) || ! fm_test_copy_hermes_evidence "$LAB" "$base"; then
       printf '%s\n' 'not ok - could not preserve Hermes evidence' >&2
       [ "$status" -ne 0 ] || status=1
     fi
   fi
   if [ "$stopped" -eq 1 ]; then
-    fm_test_remove_tree "$LAB" || { [ "$status" -ne 0 ] || status=1; }
+    [ -z "$LAB" ] || fm_test_remove_tree "$LAB" || { [ "$status" -ne 0 ] || status=1; }
   else
     [ "$status" -ne 0 ] || status=1
   fi
@@ -35,10 +36,20 @@ cleanup() {
   exit "$status"
 }
 trap cleanup EXIT
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 131' QUIT
-trap 'exit 143' TERM
+interrupt_probe() {
+  probe_signal=$1
+  [ "$allocating" -ne 0 ] || exit "$probe_signal"
+}
+trap 'interrupt_probe 129' HUP
+trap 'interrupt_probe 130' INT
+trap 'interrupt_probe 131' QUIT
+trap 'interrupt_probe 143' TERM
+LAB=$(trap '' HUP INT QUIT TERM; mktemp -d "${TMPDIR:-/tmp}/hm.XXXXXX") || fail 'could not allocate TUI scratch'
+allocating=0
+[ "$probe_signal" -eq 0 ] || exit "$probe_signal"
+lab_path=$(cd "$LAB" && pwd -P) || fail 'could not resolve TUI scratch'
+LAB=$lab_path
+SOCKET="$LAB/s"
 fail() { printf 'not ok - %s: %s (evidence %s)\n' "$VERSION" "$1" "$LAB" >&2; exit 1; }
 # shellcheck source=bin/fm-busy-lib.sh
 . "$ROOT/bin/fm-busy-lib.sh"
@@ -54,7 +65,7 @@ CONSENT_ROOT="$LAB/consent-root"
 mkdir -p "$CONSENT_ROOT/profiles/consent"
 printf '%s\n' '{"model":{"default":"gpt-6-astra","provider":"openai-codex"}}' > "$CONSENT_ROOT/profiles/consent/config.yaml"
 printf 'exec env HERMES_HOME=%q %q -p consent --tui\n' "$CONSENT_ROOT" "$HERMES_BIN" > "$LAB/consent.sh"
-TMUX_RETAIN=$(fm_test_arm_private_tmux) || fail 'could not protect TUI scratch'
+fm_test_arm_private_tmux TMUX_RETAIN || fail 'could not protect TUI scratch'
 "$REAL_TMUX" -S "$SOCKET" new-session -d -s native-consent -x 140 -y 44 "bash '$LAB/consent.sh'" || fail 'consent pane launch failed'
 consent_seen=0
 for _ in $(seq 1 240); do

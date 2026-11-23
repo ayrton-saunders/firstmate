@@ -2022,6 +2022,7 @@ with sqlite3.connect(sys.argv[1]) as db:
 PY
   cat >"$tmp/path/hermes" <<'SH'
 #!/usr/bin/env bash
+touch "$HERMES_HOME/hermes-called"
 case "$3 $4 $5" in
   'config get platforms') echo null ;;
   'config set gateway.standalone')
@@ -2039,7 +2040,17 @@ SH
     || fail "gateway did not exercise mutation and rollback: $(<"$tmp/out")"
   [ -L "$profile/config.yaml" ] && [ "$(readlink "$profile/config.yaml")" = original.yaml ] \
     && [ "$(<"$profile/original.yaml")" = 'original config' ] || fail 'gateway rollback changed the config link or target'
-  pass 'gateway refusal and rollback preserve the profile config link'
+  rm -f "$profile/config.yaml" "$tmp/hermes/hermes-called"
+  printf 'operator config\n\n' >"$tmp/operator.yaml"
+  cp "$tmp/operator.yaml" "$tmp/expected.yaml"
+  ln -s "$tmp/operator.yaml" "$profile/config.yaml"
+  rc=0
+  PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
+    bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+  [ "$rc" -eq 1 ] && grep -q 'config resolves outside the throwaway profile' "$tmp/out" \
+    && [ ! -e "$tmp/hermes/hermes-called" ] && cmp -s "$tmp/expected.yaml" "$tmp/operator.yaml" \
+    || fail "gateway crossed the profile boundary: $(<"$tmp/out")"
+  pass 'gateway preserves in-profile config links and refuses escaped targets'
 }
 
 test_readonly_probe_scratch_cleanup() {
@@ -2144,6 +2155,28 @@ replaced.mkdir()
 legacy = repo / '.test-phase-tmp'
 legacy.mkdir()
 (legacy / 'sentinel').touch()
+tracked_dir = repo / 'tracked-dir'
+tracked_dir.mkdir()
+(tracked_dir / 'file').write_bytes(b'tracked contents\n')
+subprocess.run(['git', '-C', str(repo), 'add', 'tracked-dir/file'], check=True)
+ancestor = tmp / 'scratch-ancestor'
+ancestor.mkdir()
+(ancestor / 'file').write_bytes(b'not tracked\n')
+saved = tmp / 'tracked-dir-saved'
+tracked_dir.rename(saved)
+try:
+    tracked_dir.symlink_to(ancestor, target_is_directory=True)
+except (OSError, NotImplementedError):
+    print('skip: tracked ancestor check requires directory symlink support')
+else:
+    dest = tmp / 'copy-result'
+    dest.mkdir()
+    result = subprocess.run([bash, '-c', '. tests/remote-secondmate-source-copy-helpers.sh; fm_fixture_copy_remote_source . "$1"',
+                             '_', shell_path(dest)], cwd=repo, capture_output=True)
+    assert result.returncode != 0 and b'symlinked ancestor' in result.stderr, result
+    assert not (dest / 'tracked-dir/file').exists()
+    tracked_dir.unlink()
+saved.rename(tracked_dir)
 base = tmp / 'dedicated'
 base.mkdir()
 fakebin = tmp / 'fakebin'
