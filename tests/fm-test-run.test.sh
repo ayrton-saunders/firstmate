@@ -1998,7 +1998,7 @@ test_scratch_placement_and_lifecycle() {
   local tmp
   tmp=$(fm_test_tmproot fm-run-scratch-contract)
   python3 - "$tmp" "$RUNNER" "$ROOT" "$BASH" <<'PY' || fail 'runner scratch contract'
-import os, pathlib, shutil, signal, subprocess, sys, time
+import json, os, pathlib, shutil, signal, subprocess, sys, time
 
 tmp, runner, root = map(pathlib.Path, sys.argv[1:4])
 bash = sys.argv[4]
@@ -2102,14 +2102,15 @@ for other_arg in ('--list-lanes', '--help', cmd[-1]):
         result = subprocess.run([*runner_cmd, *args], cwd=repo, env=fixture_env, capture_output=True)
         assert result.returncode == 2 and not result.stdout, result
 
-def launch(name, mode, use_fixture=True, bounded=False):
+def launch(name, mode, use_fixture=True, bounded=False, options=(), siblings=()):
     proof = tmp / name
     case_env = dict(fixture_env if use_fixture else env, PROBE_MODE=mode, PROOF=shell_path(proof))
     log = (tmp / (name + '.log')).open('w')
     with log:
         # A Bash-launched background test may inherit SIGINT ignored. Deliver
         # a catchable signal, as for a directly invoked foreground runner.
-        command = [*runner_cmd, '--per-script-timeout-secs', '60', cmd[-1]] if bounded else cmd
+        bound = ['--per-script-timeout-secs', '60'] if bounded else []
+        command = [*runner_cmd, *bound, *options, cmd[-1], *siblings]
         child = subprocess.Popen(command, cwd=repo, env=case_env, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
                                  preexec_fn=(lambda: signal.signal(signal.SIGINT, signal.SIG_DFL)) if os.name == 'posix' else None)
     return child, proof
@@ -2138,6 +2139,23 @@ assert sorted(p.name for p in legacy.iterdir()) == ['sentinel']
 assert not list(private.iterdir())
 result = subprocess.run(cmd, cwd=repo, env=dict(fixture_env, FM_HOME=shell_path(private)), capture_output=True)
 assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
+
+if os.name == 'posix':
+    allocator = fakebin / 'mktemp'
+    allocator.write_bytes(b'''#!/usr/bin/env bash
+allocated=$("$REAL_MKTEMP" "$@") || exit 1
+kill -TERM 0
+printf '%s\\n' "$allocated"
+''')
+    allocator.chmod(0o755)
+    try:
+        interrupted = subprocess.run(cmd, cwd=repo, stdin=subprocess.DEVNULL, start_new_session=True,
+                                     env=dict(fixture_env, REAL_MKTEMP=shutil.which('mktemp')),
+                                     capture_output=True, timeout=10)
+        assert interrupted.returncode == 143, interrupted
+        assert not list(private.iterdir()), 'interruption stranded the allocated run directory'
+    finally:
+        allocator.unlink()
 
 for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP) if os.name == 'posix' else ():
     child, proof = launch(sig.name, 'hang')
@@ -2234,8 +2252,13 @@ timeout_lib.write_bytes(b'''fm_run_timed() {
 }
 ''')
 try:
+    sibling = 'tests/after.test.sh'
+    (repo / sibling).write_bytes(b'exit 0\n')
     for name, bounded, code in (('leaderless-exit', False, 1), ('leaderless-timeout', True, 124)):
-        child, proof = launch(name, 'leaderless', bounded=bounded)
+        report = tmp / (name + '.json')
+        child, proof = launch(name, 'leaderless', bounded=bounded,
+                              options=('--json', shell_path(report), '--max-wall-ms', '60000'),
+                              siblings=(sibling,) if not bounded else ())
         stubborn = None
         try:
             _, run = scratch(proof)
@@ -2243,6 +2266,12 @@ try:
             assert child.wait(timeout=10) == 1
             log = (tmp / (name + '.log')).read_text()
             assert f'exit={code} ' in log and f'retaining scratch: {run}' in log, log
+            expected = [code] if bounded else [code, 0]
+            assert f'FM_TEST_SUMMARY total={len(expected)} failed=1 ' in log, log
+            assert 'FM_TEST_BUDGET max_wall_ms=60000 ' in log, log
+            artifact = json.loads(report.read_text())
+            assert artifact['summary']['failed'] == 1
+            assert [script['exit'] for script in artifact['scripts']] == expected, artifact
             assert live_processes(stubborn) == [stubborn]
             assert not (tmp / (name + '.child.term')).exists(), log
             assert not (tmp / (name + '.removing')).exists() and run.is_dir()

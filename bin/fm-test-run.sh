@@ -2629,7 +2629,7 @@ prepare_run_scratch() {
   trap 'interrupt_run 130' INT
   trap 'interrupt_run 143' TERM
   RUN_CRITICAL=1
-  RUN_TMP=$(mktemp -d "$parent/r.XXXXXX") || die "cannot allocate test scratch under $parent"
+  RUN_TMP=$(trap '' HUP INT TERM; mktemp -d "$parent/r.XXXXXX") || die "cannot allocate test scratch under $parent"
   record_run_owner "$$"
   RUN_CRITICAL=0
   [ "$RUN_INTERRUPT" -eq 0 ] || exit "$RUN_INTERRUPT"
@@ -3091,7 +3091,7 @@ run_one_serial() {
 }
 
 collect_worker() {
-  local slot=$1 stream=$2 pid work script rc duration mode out end_iso
+  local slot=$1 stream=$2 pid work script rc duration mode out end_iso undrained=0
   pid=${WORKER_PIDS[$slot]:-}
   script=${WORKER_SCRIPTS[$slot]}
   work="$RUN_TMP/w$slot"
@@ -3101,9 +3101,10 @@ collect_worker() {
     rm -f "$work/timed-owner"
   else
     KEEP_RUN_TMP=1
+    undrained=1
   fi
   rc=$(cat "$work/exit" 2>/dev/null || echo 1)
-  if [ "$KEEP_RUN_TMP" -eq 1 ] && [ "$rc" -eq 0 ]; then rc=1; fi
+  if [ "$undrained" -eq 1 ] && [ "$rc" -eq 0 ]; then rc=1; fi
   duration=$(cat "$work/duration_ms" 2>/dev/null || echo 0)
   unset 'WORKER_PIDS[slot]' 'WORKER_SCRIPTS[slot]'
   end_iso=$(now_iso)
@@ -3117,12 +3118,11 @@ collect_worker() {
       700|0700) ;;
       *)
         log "isolation failure: worker root mode is $mode, expected 0700 ($work)"
-        [ "$rc" -ne 0 ] || rc=1
+        rc=1
         ;;
     esac
   fi
   record_script_result "$script" "$rc" "$duration" "$out" "$end_iso"
-  if [ "$KEEP_RUN_TMP" -eq 1 ]; then exit 1; fi
   active_workers=$((active_workers - 1))
 }
 
