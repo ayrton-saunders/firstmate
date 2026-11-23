@@ -1,0 +1,14 @@
+$ bash tests/fm-test-run.test.sh
+fm-test-run: no tests selected for changes vs HEAD (map is conservative; use --all for the complete suite)
+fm-test-run: no tests selected for changes vs HEAD (map is conservative; use --all for the complete suite)
+fm-test-run: nothing to run
+fm-test-run: no tests selected for changes vs HEAD (map is conservative; use --all for the complete suite)
+fm-test-run: nothing to run
+ok - runner scratch stays out of snapshots and is cleaned after results, signals and owner death
+
+$ bash tests/fm-test-fixture-cleanup.test.sh
+fixture teardown unverified; retaining scratch registered in /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/fm-test-custom-finalizer.NG3PoN/1/.fm-test-registry.uB4iHE/cleanup
+ok - fm_test_tmproot cleans up its fixture root on normal exit
+ok - fm_test_tmproot cleans up its fixture root on SIGTERM
+ok - the orphan sweep reaps only old fixtures without a live owner
+ok - the orphan sweep reaps read-only package fixtures

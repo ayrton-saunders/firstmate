@@ -1,0 +1,131 @@
+$ git init -q
+[exit 0]
+$ git add -f tracked .test-phase-tmp/forced-tracked
+[exit 0]
+
+=== Inherited checkout-local TMPDIR: before and after ===
+$ bash bin/legacy.sh tests/smoke.test.sh
+FM_TEST_BEGIN 2026-11-23T06:39:27Z tests/smoke.test.sh family=unclassified expected_gate_skip=none
+worker TMPDIR={run-worktree}/.scratch-host-v0saw16p/repo/.test-phase-tmp
+FM_TEST_END 2026-11-23T06:39:27Z tests/smoke.test.sh exit=0 duration_ms=21 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=85
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=21 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/smoke.test.sh duration_ms=21
+[exit 0]
+worker temp under checkout: True; worker temp exists after exit: True
+$ bash bin/fm-test-run.sh tests/smoke.test.sh
+FM_TEST_BEGIN 2026-11-23T06:39:27Z tests/smoke.test.sh family=unclassified expected_gate_skip=none
+worker TMPDIR=/private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/fm501/r.Ar4hwJ/w1/t
+FM_TEST_END 2026-11-23T06:39:27Z tests/smoke.test.sh exit=0 duration_ms=21 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=209
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=21 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/smoke.test.sh duration_ms=21
+[exit 0]
+worker temp under checkout: False; worker temp exists after exit: False
+macOS user temp: /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T
+
+=== success ===
+$ bash bin/fm-test-run.sh tests/smoke.test.sh
+FM_TEST_BEGIN 2026-11-23T06:39:27Z tests/smoke.test.sh family=unclassified expected_gate_skip=none
+worker TMPDIR=/private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/fm501/r.X5R6Hz/w1/t
+tracked source copy entries:
+tracked
+tracked content: dirty working-tree revision
+FM_TEST_END 2026-11-23T06:39:27Z tests/smoke.test.sh exit=0 duration_ms=38 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=233
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=38 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/smoke.test.sh duration_ms=38
+[exit 0]
+worker temp under macOS temp: true; worker temp exists after exit: False
+
+=== fail ===
+$ bash bin/fm-test-run.sh tests/smoke.test.sh
+FM_TEST_BEGIN 2026-11-23T06:39:27Z tests/smoke.test.sh family=unclassified expected_gate_skip=none
+worker TMPDIR=/private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/fm501/r.agvcVQ/w1/t
+tracked source copy entries:
+tracked
+tracked content: dirty working-tree revision
+FM_TEST_END 2026-11-23T06:39:27Z tests/smoke.test.sh exit=17 duration_ms=36 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=1 skipped_gate=0 duration_ms=222
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=36 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/smoke.test.sh duration_ms=36
+[exit 1]
+worker temp under macOS temp: true; worker temp exists after exit: False
+
+=== timeout ===
+$ bash bin/fm-test-run.sh --per-script-timeout-secs 2 tests/smoke.test.sh
+FM_TEST_BEGIN 2026-11-23T06:39:27Z tests/smoke.test.sh family=unclassified expected_gate_skip=none
+worker TMPDIR=/private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/fm501/r.bquyjJ/w1/t
+tracked source copy entries:
+tracked
+tracked content: dirty working-tree revision
+not ok - tests/smoke.test.sh exceeded the per-script bound of 2s and was terminated
+FM_TEST_END 2026-11-23T06:39:30Z tests/smoke.test.sh exit=124 duration_ms=2105 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=1 skipped_gate=0 duration_ms=2294
+FM_TEST_SUMMARY_FAMILY family=unclassified count=1 duration_ms=2105 failed=1
+FM_TEST_SLOWEST rank=1 script=tests/smoke.test.sh duration_ms=2105
+[exit 1]
+worker temp under macOS temp: true; worker temp exists after exit: False
+
+=== TERM while a local worker owns scratch ===
+$ bash bin/fm-test-run.sh tests/smoke.test.sh
+worker temp exists before TERM: True
+FM_TEST_BEGIN 2026-11-23T06:39:30Z tests/smoke.test.sh family=unclassified expected_gate_skip=none
+worker TMPDIR=/private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/fm501/r.MzW2Rk/w1/t
+tracked source copy entries:
+tracked
+tracked content: dirty working-tree revision
+[exit 143]; worker temp exists after TERM: False
+
+=== Scratch path refusal by the actual CLI entry points ===
+requested TMPDIR: repo/.test-phase-tmp
+$ bash {run-worktree}/bin/fm-test-tap-verify.sh tests/tap.test.sh
+unsafe scratch base {run-worktree}/.scratch-host-v0saw16p/repo/.test-phase-tmp resolves inside checkout {run-worktree}/.scratch-host-v0saw16p/repo
+[exit 2]
+requested TMPDIR: repo/.test-phase-tmp
+$ bash {run-worktree}/bin/fm-test-linux.sh tests/tap.test.sh
+unsafe scratch base {run-worktree}/.scratch-host-v0saw16p/repo/.test-phase-tmp resolves inside {run-worktree}/.scratch-host-v0saw16p/repo
+[exit 2]
+requested TMPDIR: alias
+$ bash {run-worktree}/bin/fm-test-tap-verify.sh tests/tap.test.sh
+unsafe scratch base {run-worktree}/.scratch-host-v0saw16p/repo/.test-phase-tmp resolves inside checkout {run-worktree}/.scratch-host-v0saw16p/repo
+[exit 2]
+requested TMPDIR: alias
+$ bash {run-worktree}/bin/fm-test-linux.sh tests/tap.test.sh
+unsafe scratch base {run-worktree}/.scratch-host-v0saw16p/repo/.test-phase-tmp resolves inside {run-worktree}/.scratch-host-v0saw16p/repo
+[exit 2]
+requested TMPDIR: fmhome
+$ bash {run-worktree}/bin/fm-test-tap-verify.sh tests/tap.test.sh
+unsafe scratch base {run-worktree}/.scratch-host-v0saw16p/fmhome resolves inside {run-worktree}/.scratch-host-v0saw16p/fmhome
+[exit 2]
+requested TMPDIR: fmhome
+$ bash {run-worktree}/bin/fm-test-linux.sh tests/tap.test.sh
+unsafe scratch base {run-worktree}/.scratch-host-v0saw16p/fmhome resolves inside {run-worktree}/.scratch-host-v0saw16p/fmhome
+[exit 2]
+requested TMPDIR: home/.firstmate-preserved
+$ bash {run-worktree}/bin/fm-test-tap-verify.sh tests/tap.test.sh
+unsafe scratch base {run-worktree}/.scratch-host-v0saw16p/home/.firstmate-preserved resolves inside {run-worktree}/.scratch-host-v0saw16p/home/.firstmate-preserved
+[exit 2]
+requested TMPDIR: home/.firstmate-preserved
+$ bash {run-worktree}/bin/fm-test-linux.sh tests/tap.test.sh
+unsafe scratch base {run-worktree}/.scratch-host-v0saw16p/home/.firstmate-preserved resolves inside {run-worktree}/.scratch-host-v0saw16p/home/.firstmate-preserved
+[exit 2]
+requested TMPDIR: treehouse
+$ bash {run-worktree}/bin/fm-test-tap-verify.sh tests/tap.test.sh
+unsafe scratch base {run-worktree}/.scratch-host-v0saw16p/treehouse resolves inside {run-worktree}/.scratch-host-v0saw16p/treehouse
+[exit 2]
+requested TMPDIR: treehouse
+$ bash {run-worktree}/bin/fm-test-linux.sh tests/tap.test.sh
+unsafe scratch base {run-worktree}/.scratch-host-v0saw16p/treehouse resolves inside {run-worktree}/.scratch-host-v0saw16p/treehouse
+[exit 2]
+$ bash {run-worktree}/bin/fm-test-isolation-proof.sh --pool pure-contract-unit
+unsafe scratch base {run-worktree}/.scratch-host-v0saw16p/repo/.test-phase-tmp resolves inside checkout {run-worktree}/.scratch-host-v0saw16p/repo
+[exit 2]
+
+=== Actual preservation copier, before launching any primary ===
+$ bash -ec . "$1"; fm_test_copy_primary_lab "$2" "$3" _ {run-worktree}/bin/fm-test-scratch-lib.sh {run-worktree}/.scratch-host-v0saw16p/repo {run-worktree}/.scratch-host-v0saw16p/home/.firstmate-preserved/copy
+[exit 0]
+preserved tracked: dirty working-tree revision
+preserved notes: untracked notes
+preserved nested/.test-phase-tmp/keep: ordinary nested file
+preserved root .test-phase-tmp exists: False

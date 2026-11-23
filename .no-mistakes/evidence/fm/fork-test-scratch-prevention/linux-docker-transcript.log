@@ -1,0 +1,33 @@
+Provisioning disposable Debian ARM64 VM inside worktree
+Image resized.
+Guest connected; installing Docker and Git only in its disposable disk image
+Docker client 20.10.24+dfsg1, dedicated server 20.10.24+dfsg1
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+tar: Ignoring unknown extended header keyword 'LIBARCHIVE.xattr.com.apple.provenance'
+=== Linux overlay on a dedicated Docker daemon ===
+fm-test-linux: 1 on Linux 6.1.0-56-cloud-arm64
+container kernel: Linux 6.1.0-56-cloud-arm64
+container tracked file: dirty work
+container untracked file: new work
+container root scratch absent
+PASS tests/overlay.test.sh
+guest scratch entries: (none); Docker probe containers: (none)
+=== Failed container ===
+fm-test-linux: 1 on Linux 6.1.0-56-cloud-arm64
+intentional failure in container
+FAIL tests/failure.test.sh
+fm-test-linux: 1 failed
+guest scratch entries: (none); Docker probe containers: (none)
+=== TERM during mounted container ===
+fm-test-linux: 1 on Linux 6.1.0-56-cloud-arm64
+container waiting for TERM
+active container: fm-test-linux.67qRvD Up Less than a second
+~/product/bin/fm-test-scratch-lib.sh: line 97:  5474 Killed                  "$@" 0<&0
+runner exit after TERM: 143
+guest scratch entries: (none); Docker probe containers: (none)
+qemu-system-aarch64: terminating on signal 15 from pid 17776 (<unknown process>)
