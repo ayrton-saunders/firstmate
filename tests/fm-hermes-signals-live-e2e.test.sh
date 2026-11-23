@@ -16,9 +16,10 @@ VERSION="hermes $($HERMES_BIN --version 2>/dev/null | head -1)"
 LAB=$(mktemp -d "${TMPDIR:-/tmp}/hm.XXXXXX")
 LAB=$(cd "$LAB" && pwd -P)
 SOCKET="$LAB/s"
+TMUX_RETAIN=
 cleanup() {
   local status=$? base stopped=0
-  fm_test_stop_private_tmux "$SOCKET" "$REAL_TMUX" && stopped=1
+  fm_test_stop_private_tmux "$SOCKET" "$REAL_TMUX" "$TMUX_RETAIN" && stopped=1
   if [ "${FM_HERMES_LIVE_KEEP:-0}" = 1 ]; then
     if ! base=$(bash "$ROOT/bin/fm-test-run.sh" --scratch-base) || ! fm_test_copy_hermes_evidence "$LAB" "$base"; then
       printf '%s\n' 'not ok - could not preserve Hermes evidence' >&2
@@ -53,6 +54,7 @@ CONSENT_ROOT="$LAB/consent-root"
 mkdir -p "$CONSENT_ROOT/profiles/consent"
 printf '%s\n' '{"model":{"default":"gpt-6-astra","provider":"openai-codex"}}' > "$CONSENT_ROOT/profiles/consent/config.yaml"
 printf 'exec env HERMES_HOME=%q %q -p consent --tui\n' "$CONSENT_ROOT" "$HERMES_BIN" > "$LAB/consent.sh"
+TMUX_RETAIN=$(fm_test_arm_private_tmux) || fail 'could not protect TUI scratch'
 "$REAL_TMUX" -S "$SOCKET" new-session -d -s native-consent -x 140 -y 44 "bash '$LAB/consent.sh'" || fail 'consent pane launch failed'
 consent_seen=0
 for _ in $(seq 1 240); do

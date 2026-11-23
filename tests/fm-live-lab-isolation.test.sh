@@ -35,6 +35,8 @@ DEFAULT_SOCKET="/tmp/tmux-$(id -u)/default"
 STUCK_SOCKET=
 DECOY_PID=''
 STUCK_PID=''
+GATE_RETAIN=
+STUCK_RETAIN=
 
 # Poll steps (0.05s each) a process gets to exit after each escalation step.
 DECOY_POLLS=100
@@ -88,11 +90,11 @@ isolation_cleanup() {
   # Only the servers this suite started, each by its own explicit socket, and
   # only while it is still there; the decoy is gone before the suite returns.
   local rc=0
-  fm_test_stop_private_tmux "$GATE_SOCKET" tmux || rc=1
+  fm_test_stop_private_tmux "$GATE_SOCKET" tmux "$GATE_RETAIN" || rc=1
   if [ -n "$STUCK_PID" ]; then
     kill -CONT "$STUCK_PID" 2>/dev/null
-    stop_decoy "$STUCK_PID" "$STUCK_SOCKET" || rc=1
   fi
+  fm_test_stop_private_tmux "$STUCK_SOCKET" tmux "$STUCK_RETAIN" || rc=1
   if [ -n "$DECOY_PID" ]; then
     stop_decoy "$DECOY_PID" "$DEFAULT_SOCKET" || rc=1
   fi
@@ -129,6 +131,7 @@ if [ -z "${FM_LAB_ISO_HOST_MARKER:-}" ] && [ -z "${FM_LAB_ISO_TMP_COPY:-}" ]; th
   assert_equals RAN "$out" "the gate runs the suite where no tmux server can answer"
 
   mkdir -m 700 "${GATE_SOCKET%/*}"
+  GATE_RETAIN=$(fm_test_arm_private_tmux) || fail 'could not protect gate scratch'
   tmux -S "$GATE_SOCKET" -f /dev/null new-session -d -s live 'exec sleep 600' || fail "cannot start the gate's own server"
   out=$(gate_run "$TMP_ROOT")
   expect_code 0 "$?" "the gate skips cleanly beside a live server: $out"
@@ -141,7 +144,7 @@ if [ -z "${FM_LAB_ISO_HOST_MARKER:-}" ] && [ -z "${FM_LAB_ISO_TMP_COPY:-}" ]; th
   assert_contains "$out" "skip: tmux isolation" "under CI the gate still says why it skips"
   assert_not_contains "$out" RAN "under CI the gate stops the suite beside a live server"
 
-  fm_test_stop_private_tmux "$GATE_SOCKET" tmux || fail 'could not stop the gate server'
+  fm_test_stop_private_tmux "$GATE_SOCKET" tmux "$GATE_RETAIN" || fail 'could not stop the gate server'
   out=$(gate_run "$TMP_ROOT")
   assert_equals RAN "$out" "the gate runs again once only a dead socket is left"
   pass "fm_tmux_isolation_gate runs isolated and skips beside a live server"
@@ -150,7 +153,9 @@ if [ -z "${FM_LAB_ISO_HOST_MARKER:-}" ] && [ -z "${FM_LAB_ISO_TMP_COPY:-}" ]; th
   # not hold the gate: it gives up at its probe deadline and skips.
   mkdir -p "$TMP_ROOT/b"
   mkdir -m 700 "${STUCK_SOCKET%/*}"
+  STUCK_RETAIN=$(fm_test_arm_private_tmux) || fail 'could not protect stuck-server scratch'
   tmux -S "$STUCK_SOCKET" -f /dev/null new-session -d -s stuck 'exec sleep 600' || fail "cannot start the stuck server"
+  [ -z "${FM_TEST_RETAIN_MARKER:-}" ] || [ -f "$STUCK_RETAIN" ] || fail 'running server lacks scratch protection'
   STUCK_PID=$(tmux -S "$STUCK_SOCKET" display-message -p '#{pid}')
   [ -n "$STUCK_PID" ] || fail "the stuck server has no pid"
   kill -STOP "$STUCK_PID" || fail "cannot stop the stuck server"
@@ -159,11 +164,13 @@ if [ -z "${FM_LAB_ISO_HOST_MARKER:-}" ] && [ -z "${FM_LAB_ISO_TMP_COPY:-}" ]; th
   out=$(FM_TMUX_ISOLATION_PROBE_SECONDS=1 fm_run_timed 30 bash -c '. "$1/tests/lib.sh"; fm_tmux_isolation_gate "$2"; echo RAN' _ "$ROOT" "$TMP_ROOT/b" 2>&1)
   code=$?
   shutdown_rc=0
-  shutdown=$(FM_TEST_RETAIN_MARKER="$TMP_ROOT/retain" fm_test_stop_private_tmux "$STUCK_SOCKET" tmux 2>&1) || shutdown_rc=$?
+  shutdown=$(fm_test_stop_private_tmux "$STUCK_SOCKET" tmux "$STUCK_RETAIN" 2>&1) || shutdown_rc=$?
   kill -CONT "$STUCK_PID" 2>/dev/null
   expect_code 1 "$shutdown_rc" "shutdown returns when the private server does not answer"
   assert_contains "$shutdown" "retained socket: $STUCK_SOCKET" 'unverified teardown names the retained socket'
+  [ -z "${FM_TEST_RETAIN_MARKER:-}" ] || [ -f "$STUCK_RETAIN" ] || fail 'unverified teardown released scratch protection'
   stop_decoy "$STUCK_PID" "$STUCK_SOCKET" || fail "cannot stop the stuck server"
+  if [ -n "$STUCK_RETAIN" ]; then rm -f -- "$STUCK_RETAIN"; fi
   STUCK_PID=''
   expect_code 0 "$code" "the gate returns from a server that never answers: $out"
   assert_contains "$out" "skip: tmux isolation: the tmux server on $STUCK_SOCKET did not answer within 1s" "the skip names the silent socket and the deadline"

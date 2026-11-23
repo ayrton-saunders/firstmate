@@ -745,11 +745,11 @@ SH
   out=$(cd "$repo" && PATH="$fake_bin:$PATH" REAL_GIT="$real_git" SLOW_GIT_MARKER="$tmp/slow-git" \
     bin/fm-test-run.sh --changed --base HEAD) || fail 'report-free empty selection needs no scratch'
   assert_contains "$out" 'FM_TEST_SUMMARY total=0 failed=0' 'report-free empty summary'
-  if (cd "$repo" && PATH="$fake_bin:$PATH" REAL_GIT="$real_git" SLOW_GIT_MARKER="$tmp/slow-git" \
-      bin/fm-test-run.sh --changed --base HEAD --json "$tmp/refused.json") >"$tmp/refused.out" 2>"$tmp/refused.err"; then
-    fail 'empty JSON report must refuse unsafe scratch'
-  fi
-  assert_contains "$(<"$tmp/refused.err")" 'unsafe scratch base' 'empty JSON scratch refusal'
+  (cd "$repo" && PATH="$fake_bin:$PATH" REAL_GIT="$real_git" SLOW_GIT_MARKER="$tmp/slow-git" \
+    bin/fm-test-run.sh --changed --base HEAD --json "$tmp/no-scratch.json") \
+    || fail 'empty JSON report needs no scratch'
+  python3 -c 'import json,sys; doc=json.load(open(sys.argv[1])); assert doc["scripts"] == doc["families"] == []; assert doc["summary"]["total"] == 0' \
+    "$tmp/no-scratch.json" || fail 'missing or incorrect empty JSON report'
   rm -f "$tmp/slow-git" "$fake_bin/getconf"
   set +e
   (cd "$repo" && PATH="$fake_bin:$PATH" REAL_GIT="$real_git" SLOW_GIT_MARKER="$tmp/slow-git" \
@@ -2015,14 +2015,31 @@ test_gateway_preflight_preserves_symlink() {
   [ -L "$profile/config.yaml" ] && [ "$(<"$profile/config.yaml")" = 'original config' ] \
     || fail 'gateway refusal changed the untouched config'
   rm -f "$profile/.env"
+  python3 - "$profile/state.db" <<'PY'
+import sqlite3, sys
+with sqlite3.connect(sys.argv[1]) as db:
+    db.executescript('create table sessions(id); create table messages(id, session_id);')
+PY
+  cat >"$tmp/path/hermes" <<'SH'
+#!/usr/bin/env bash
+case "$3 $4 $5" in
+  'config get platforms') echo null ;;
+  'config set gateway.standalone')
+    printf 'mutated\n' >"$HERMES_HOME/profiles/$2/config.yaml"
+    touch "$HERMES_HOME/mutation-attempted"
+    ;;
+  *) exit 99 ;;
+esac
+SH
+  printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/path/jq"
   rc=0
   PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
     bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
-  [ "$rc" -eq 1 ] && grep -q 'requires a non-symlinked profile config' "$tmp/out" \
-    || fail "gateway accepted a symlinked config: $(<"$tmp/out")"
-  [ -L "$profile/config.yaml" ] && [ "$(<"$profile/config.yaml")" = 'original config' ] \
-    || fail 'gateway symlink refusal changed the untouched config'
-  pass 'gateway preflight refuses symlinked config without changing it'
+  [ "$rc" -eq 1 ] && grep -q 'gateway launch failed' "$tmp/out" && [ -f "$tmp/hermes/mutation-attempted" ] \
+    || fail "gateway did not exercise mutation and rollback: $(<"$tmp/out")"
+  [ -L "$profile/config.yaml" ] && [ "$(readlink "$profile/config.yaml")" = original.yaml ] \
+    && [ "$(<"$profile/original.yaml")" = 'original config' ] || fail 'gateway rollback changed the config link or target'
+  pass 'gateway refusal and rollback preserve the profile config link'
 }
 
 test_readonly_probe_scratch_cleanup() {
@@ -2081,6 +2098,7 @@ mktemp_dir=$(mktemp -d "$TMPDIR/copy.XXXXXX")
 fm_fixture_copy_remote_source "$PWD" "$mktemp_dir"
 [ "$(cat "$mktemp_dir/tracked")" = 'tracked working-tree bytes' ]
 [ ! -e "$mktemp_dir/.test-phase-tmp/sentinel" ]
+[ ! -e "$mktemp_dir/replaced/sentinel" ]
 mkdir "$TMPDIR/read-only"
 touch "$TMPDIR/read-only/entry"
 chmod 0500 "$TMPDIR/read-only"
@@ -2116,7 +2134,12 @@ fi
 ''')
 (repo / 'tracked').write_bytes(b'staged index bytes\n')
 subprocess.run(['git', 'init', '-q', str(repo)], check=True)
-subprocess.run(['git', '-C', str(repo), 'add', 'tracked'], check=True)
+replaced = repo / 'replaced'
+replaced.write_bytes(b'indexed file\n')
+subprocess.run(['git', '-C', str(repo), 'add', 'tracked', 'replaced'], check=True)
+replaced.unlink()
+replaced.mkdir()
+(replaced / 'sentinel').touch()
 (repo / 'tracked').write_bytes(b'tracked working-tree bytes\n')
 legacy = repo / '.test-phase-tmp'
 legacy.mkdir()

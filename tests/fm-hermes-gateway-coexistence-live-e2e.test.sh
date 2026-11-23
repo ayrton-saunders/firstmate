@@ -27,6 +27,7 @@ mutation_attempted=0
 probe_signal=0
 TUI_PID=
 TUI_RETAIN=
+GATEWAY_RETAIN=
 cleanup() {
   local status=$? attempt teardown_failed=0
   trap '' HUP INT QUIT TERM
@@ -34,7 +35,7 @@ cleanup() {
   if [ -n "$BACKUP" ]; then
     if [ "$mutation_attempted" -eq 0 ]; then
       rm -f "$BACKUP" || { [ "$status" -ne 0 ] || status=1; }
-    elif [ -d "$PROFILE_HOME/config.yaml" ] || ! mv -f "$BACKUP" "$PROFILE_HOME/config.yaml"; then
+    elif ! restore_config; then
       printf 'not ok - config restore failed; backup retained at %s\n' "$BACKUP" >&2
       [ "$status" -ne 0 ] || status=1
     fi
@@ -57,7 +58,7 @@ cleanup() {
     printf 'not ok - TUI teardown unverified; retaining %s; delete it by hand once nothing is using it\n' "$LAB" >&2
     teardown_failed=1
   fi
-  fm_test_stop_private_tmux "$SOCKET" tmux || teardown_failed=1
+  fm_test_stop_private_tmux "$SOCKET" tmux "$GATEWAY_RETAIN" || teardown_failed=1
   fm_test_cleanup
   if [ "$teardown_failed" -eq 0 ]; then
     fm_test_remove_tree "$LAB" || { [ "$status" -ne 0 ] || status=1; }
@@ -78,7 +79,6 @@ trap 'interrupt_probe 143' TERM
 for file in "$FM_HERMES_LIVE_HOME/.env" "$PROFILE_HOME/.env"; do
   [ ! -s "$file" ] || fail "$file may configure a messaging platform; use a profile without one"
 done
-[ ! -L "$PROFILE_HOME/config.yaml" ] || fail 'gateway probe requires a non-symlinked profile config'
 HERMES_HOME="$FM_HERMES_LIVE_HOME" "$HERMES_BIN" -p "$PROFILE" config get platforms --json > "$LAB/platforms.json" 2>/dev/null || echo null > "$LAB/platforms.json"
 jq -e '. == null or . == {} or ([.[]? | objects | select(.enabled == true)] | length == 0)' "$LAB/platforms.json" >/dev/null \
   || fail 'throwaway profile configures a messaging platform'
@@ -98,13 +98,27 @@ out.write_text(json.dumps({'integrity': ok, 'sessions': sessions, 'memory': dige
 PY
 }
 snapshot "$LAB/before.json" || fail 'could not snapshot the throwaway session store'
+CONFIG_LINK=
+if [ -L "$PROFILE_HOME/config.yaml" ]; then
+  CONFIG_LINK=$(readlink "$PROFILE_HOME/config.yaml") || fail 'could not read profile config link'
+fi
+CONFIG_TARGET=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$PROFILE_HOME/config.yaml") \
+  && [ -f "$CONFIG_TARGET" ] || fail 'could not resolve profile config'
 # Native Hermes runs a profile-owned gateway only in its standalone mode, the
 # shape of an operator profile whose own gateway serves only itself.
+restore_config() {
+  [ ! -d "$CONFIG_TARGET" ] && cp -p "$BACKUP" "$CONFIG_TARGET" || return 1
+  if [ -n "$CONFIG_LINK" ] && [ "$(readlink "$PROFILE_HOME/config.yaml" 2>/dev/null)" != "$CONFIG_LINK" ]; then
+    [ ! -d "$PROFILE_HOME/config.yaml" ] || return 1
+    ln -sfn -- "$CONFIG_LINK" "$PROFILE_HOME/config.yaml" || return 1
+  fi
+  rm -f -- "$BACKUP"
+}
 publication_pending=1
 BACKUP=$(
   trap '' HUP INT QUIT TERM
   backup=$(mktemp "$PROFILE_HOME/.fm-gateway-config.XXXXXX") || exit 1
-  if ! cp -p "$PROFILE_HOME/config.yaml" "$backup"; then
+  if ! cp -p "$CONFIG_TARGET" "$backup"; then
     rm -f "$backup"
     exit 1
   fi
@@ -121,6 +135,7 @@ gateway_state() { jq -c '{pid, gateway_state, active_agents, active_work, update
 # visible to it.
 printf 'exec env -i PATH=%q TERM=xterm-256color HOME=%q XDG_STATE_HOME=%q HERMES_GATEWAY_LOCK_DIR=%q HERMES_HOME=%q %q -p %q gateway run\n' \
   "$PATH" "$LAB/home" "$LAB/state" "$LAB/locks" "$FM_HERMES_LIVE_HOME" "$HERMES_BIN" "$PROFILE" > "$LAB/gateway.sh"
+GATEWAY_RETAIN=$(fm_test_arm_private_tmux) || fail 'could not protect gateway scratch'
 tmux -S "$SOCKET" new-session -d -s gateway -x 160 -y 50 "bash '$LAB/gateway.sh'; sleep 600" || fail 'gateway launch failed'
 for _ in $(seq 1 240); do
   # A previous run leaves its state file behind; wait for a live writer.

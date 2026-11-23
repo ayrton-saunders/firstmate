@@ -2155,7 +2155,9 @@ import json, sys
 out, started, finished, run_id, total, failed, skipped, duration, selection, records_file, families_file = sys.argv[1:]
 
 scripts = []
-with open(records_file, encoding="utf-8") as fh:
+from contextlib import nullcontext
+
+with (open(records_file, encoding="utf-8") if records_file else nullcontext(())) as fh:
     for line in fh:
         line = line.rstrip("\n")
         if not line:
@@ -2172,7 +2174,7 @@ with open(records_file, encoding="utf-8") as fh:
         })
 
 families = []
-with open(families_file, encoding="utf-8") as fh:
+with (open(families_file, encoding="utf-8") if families_file else nullcontext(())) as fh:
     for line in fh:
         line = line.rstrip("\n")
         if not line:
@@ -2780,7 +2782,7 @@ if [ "$LIST_ONLY" -eq 1 ] || [ "$LIST_SCHEDULED" -eq 1 ]; then
   exit 0
 fi
 
-if [ "${#SCRIPTS[@]}" -ne 0 ] || [ -n "$JSON_PATH" ]; then
+if [ "${#SCRIPTS[@]}" -ne 0 ]; then
   prepare_run_scratch
 fi
 
@@ -2807,16 +2809,11 @@ if [ "${#SCRIPTS[@]}" -eq 0 ]; then
     fi
   fi
   if [ -n "$JSON_PATH" ]; then
-    empty_rec="$RUN_TMP/empty-records.tsv"
-    empty_fam="$RUN_TMP/empty-families.tsv"
-    : >"$empty_rec"
-    : >"$empty_fam"
     empty_finished_iso=$(now_iso)
     mkdir -p "$(dirname "$JSON_PATH")"
     write_json_artifact "$JSON_PATH" "$RUN_STARTED_ISO" "$empty_finished_iso" \
       "fm-test-run-${RUN_STARTED_MS}-$$" 0 0 0 "$empty_duration" \
-      "$SELECTION_DESC" "$empty_rec" "$empty_fam"
-    rm -f "$empty_rec" "$empty_fam"
+      "$SELECTION_DESC" '' ''
   fi
   exit "$empty_rc"
 fi

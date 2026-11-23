@@ -18,9 +18,10 @@ TMP_ROOT=$(fm_test_tmproot fm-s) || fail 'cannot allocate fixture scratch'
 version=$(claude --version 2>/dev/null | head -n 1)
 server_pid=''
 tmux_socket=''
+TMUX_RETAIN=
 stop_server() {
   local teardown=0
-  fm_test_stop_private_tmux "$tmux_socket" tmux || teardown=1
+  fm_test_stop_private_tmux "$tmux_socket" tmux "$TMUX_RETAIN" || teardown=1
   tmux_socket=''
   [ -z "$server_pid" ] || kill "$server_pid" 2>/dev/null || true
   [ -z "$server_pid" ] || wait "$server_pid" 2>/dev/null || true
@@ -76,6 +77,7 @@ config.mkdir(parents=True, exist_ok=True)
 PY
   for width in 180 64 40; do
     tmux_socket="$TMP_ROOT/${category:0:1}$width"
+    TMUX_RETAIN=$(fm_test_arm_private_tmux) || fail 'could not protect Claude probe scratch'
     env -i PATH="$PATH" HOME="$TMP_ROOT/home-$category" TERM=xterm-256color \
       CLAUDE_CONFIG_DIR="$TMP_ROOT/config-$category" \
       ANTHROPIC_API_KEY=sk-ant-synthetic-loopback-only \
@@ -92,7 +94,8 @@ PY
     done
     fm_busy_safeguard_pause claude "$pane" \
       || fail "Claude $version: unrecognized interactive $category refusal at $width columns: $pane"
-    fm_test_stop_private_tmux "$tmux_socket" tmux || exit 1
+    fm_test_stop_private_tmux "$tmux_socket" tmux "$TMUX_RETAIN" || exit 1
+    TMUX_RETAIN=
     tmux_socket=''
     pass "Claude Code $version: interactive $category refusal is recognized at $width columns"
   done

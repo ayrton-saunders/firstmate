@@ -14,9 +14,10 @@ HERMES_BIN=$(command -v hermes)
 LAB=$(mktemp -d "${TMPDIR:-/tmp}/hm.XXXXXX")
 LAB=$(cd "$LAB" && pwd -P)
 SOCKET="$LAB/s"
+TMUX_RETAIN=
 cleanup() {
   local status=$?
-  if fm_test_stop_private_tmux "$SOCKET" tmux; then
+  if fm_test_stop_private_tmux "$SOCKET" tmux "$TMUX_RETAIN"; then
     fm_test_remove_tree "$LAB" || { [ "$status" -ne 0 ] || status=1; }
   else
     [ "$status" -ne 0 ] || status=1
@@ -32,6 +33,7 @@ mkdir -p "$LAB/profiles/worker" "$LAB/work"
 printf '%s\n' '{"model":{"default":"gpt-6-astra","provider":"openai-codex"},"telemetry":{"shared_metrics":{"enabled":false,"send":false,"offer_version":2}}}' > "$LAB/profiles/worker/config.yaml"
 VERSION=$(HERMES_HOME="$LAB" "$HERMES_BIN" --version 2>/dev/null | head -1)
 VERSION=${VERSION:-Hermes version unknown}
+TMUX_RETAIN=$(fm_test_arm_private_tmux) || fail 'could not protect profile scratch'
 HERMES_HOME="$LAB/profiles/worker" "$FM_HERMES_PYTHON" - "$LAB" "$HERMES_BIN" "$ROOT" "$SOCKET" <<'PY'
 import os, shlex, shutil, subprocess, sys, time
 from pathlib import Path

@@ -28,12 +28,20 @@ fm_test_copy_hermes_evidence() (
   printf 'Hermes guard evidence: %s\n' "$evidence"
 )
 
-fm_test_stop_private_tmux() (
-  local socket=$1 tmux_bin=$2 marker= diagnostics output status=0
-  [ -S "$socket" ] || return 0
+fm_test_arm_private_tmux() {
+  local marker=
   if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
     # An unresolved teardown marker excludes this root from automatic reaping, even after its owners exit.
     marker=$(mktemp "$FM_TEST_RETAIN_MARKER.XXXXXX") || return 1
+  fi
+  printf '%s\n' "$marker"
+}
+
+fm_test_stop_private_tmux() (
+  local socket=$1 tmux_bin=$2 marker=${3:-} diagnostics output status=0
+  if [ ! -S "$socket" ]; then
+    [ -z "$marker" ] || rm -f -- "$marker"
+    return
   fi
   # shellcheck source=bin/fm-timeout-lib.sh
   . "${BASH_SOURCE[0]%/*}/fm-timeout-lib.sh" || return 1
