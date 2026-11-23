@@ -360,7 +360,7 @@ test_attended_answer_close() {  # <owned|external|mixed|capped|divergence>
       ;;
   esac
   local kind=secondmate
-  [ "$mode" != coalesced-preflight-rejected ] || kind=ship
+  case "$mode" in coalesced-preflight-*) kind=ship ;; esac
   printf 'kind=%s\n' "$kind" >> "$state/demo.meta"
   printf 'needs-decision [key=%s]: %s\n' "$key" "$opening" > "$f"
   routine_wake_lib "$home" fm_wake_status_mark_current "$state" "$f" || fail "fixture: could not baseline the decision"
@@ -434,8 +434,10 @@ SH
   if [[ "$mode" = coalesced-* ]]; then
     printf '0\n' > "$home/park-clock"
     printf -v second_action '%q "$@" || exit 1\nprintf "110\\n" > "$FM_HOME/park-clock"\n' "$(command -v node)"
-    if [ "$mode" = coalesced-preflight-rejected ]; then
-      printf -v second_action '%q "$@" > "$FM_HOME/final-offer" || exit 1\ncat "$FM_HOME/final-offer"\nprintf "110\\n" > "$FM_HOME/park-clock"\n' "$(command -v node)"
+    if [[ "$mode" = coalesced-preflight-* ]]; then
+      local elapsed=110
+      [ "$mode" != coalesced-preflight-expired ] || elapsed=120
+      printf -v second_action '%q "$@" > "$FM_HOME/final-offer" || exit 1\ncat "$FM_HOME/final-offer"\nprintf "%s\\n" > "$FM_HOME/park-clock"\n' "$(command -v node)" "$elapsed"
     elif [ "$mode" = coalesced-locked ]; then
       second_action+='lock="$FM_HOME/state/.demo.home-appends.lock"
       mkdir "$lock" && cp "$FM_HOME/state/.lock" "$lock/pid" || exit 1
@@ -444,8 +446,11 @@ SH
       second_action+='printf "working: continuing\n" >> "$FM_HOME/state/demo.status"
 '
     fi
-    second_action+='printf "needs-decision [key=late-zed]: choose again\n" >> "$FM_HOME/state/zed.status"
-    exit'
+    if [ "$mode" != coalesced-preflight-expired ]; then
+      second_action+='printf "needs-decision [key=late-zed]: choose again\n" >> "$FM_HOME/state/zed.status"
+'
+    fi
+    second_action+='exit'
     install_first_offer_action "$home" "$action" "$second_action"
   elif [ "$mode" = late-rejection ]; then
     : > "$home/config/supervision-handoff-ack"
@@ -459,7 +464,7 @@ SH
     install_first_offer_action "$home" "$action"
   fi
   case "$mode" in
-    coalesced-preflight-rejected)
+    coalesced-preflight-*)
       fm_test_tasks_toml "$home/.tasks.toml"
       mkdir -p "$home/data"
       printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
@@ -521,7 +526,7 @@ SH
         rm "$state/.demo.home-appends.lock/pid"
         rmdir "$state/.demo.home-appends.lock"
       fi
-      if [ "$mode" = coalesced-preflight-rejected ]; then
+      if [[ "$mode" = coalesced-preflight-* ]]; then
         [ -e "$home/preflight-progress" ] || fail "fixture: no progress before final preflight"
         assert_re '^eligible=1$' "$home/final-offer" "fixture: final offer must predate the decision"
       fi
@@ -1643,6 +1648,7 @@ test_external_answer_close() { test_attended_answer_close external; }
 test_mixed_answer_close() { test_attended_answer_close mixed; }
 test_coalesced_late_answer_decision() { test_attended_answer_close coalesced-late; }
 test_decision_after_rejected_final_preflight() { test_attended_answer_close coalesced-preflight-rejected; }
+test_expired_final_decision_check_keeps_successor() { test_attended_answer_close coalesced-preflight-expired; }
 test_coalesced_decision_precedes_receipt_wait() { test_attended_answer_close coalesced-locked; }
 test_capped_answer_close() { test_attended_answer_close capped; }
 test_direct_answer_preserves_hold_divergence() { test_attended_answer_close divergence; }
@@ -1807,6 +1813,7 @@ fm_test_run \
   test_mixed_answer_close \
   test_coalesced_late_answer_decision \
   test_decision_after_rejected_final_preflight \
+  test_expired_final_decision_check_keeps_successor \
   test_coalesced_decision_precedes_receipt_wait \
   test_capped_answer_close \
   test_direct_answer_preserves_hold_divergence \

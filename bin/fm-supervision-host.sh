@@ -1170,7 +1170,10 @@ attended_routine_row() {  # <kind> <key> <reason>
         case "$task" in ''|*[!A-Za-z0-9._-]*|.|..) rejected=1; continue ;; esac
         [ "${f##*/}" != "$key" ] || found=1
         if [ "$mode" = decisions ]; then
-          attended_no_open_decision "$f" || { [ "$?" -ne 3 ] || return 3; }
+          decision_rc=0
+          attended_no_open_decision "$f" || decision_rc=$?
+          [ "$decision_rc" -ne 3 ] || return 3
+          [ "$decision_rc" -eq 0 ] || rejected=1
           continue
         fi
         case " ${answer_files[*]-} " in
@@ -1189,7 +1192,7 @@ attended_routine_row() {  # <kind> <key> <reason>
              fi ;;
         esac
       done
-      [ "$rejected" -eq 0 ] && [ "$found" -eq 1 ]
+      [ "$rejected" -eq 0 ] && { [ "$mode" = decisions ] || [ "$found" -eq 1 ]; }
       ;;
     stale:stale:*)
       if [ "$mode" = decisions ]; then
@@ -1490,12 +1493,15 @@ attended_park_worker() {  # [handback] <function> [args...]
     . "$SCRIPT_DIR/fm-backend.sh"
     eval "$5"
     shift 5
-    if [ "$1" = attended_routine_rows ]; then
-      IFS= read -r reason && IFS= read -r decision_keys || exit 1
-      attended_routine_rows "$reason" "$decision_keys" "${2:-}"
-    else
-      "$@"
-    fi
+    case "$1" in
+      attended_routine_rows)
+        IFS= read -r reason && IFS= read -r decision_keys || exit 1
+        attended_routine_rows "$reason" "$decision_keys" "${2:-}" ;;
+      attended_routine_row)
+        IFS= read -r reason || exit 1
+        attended_routine_row "${reason%%:*}" "" "$reason" decisions ;;
+      *) "$@" ;;
+    esac
   ' _ "$SCRIPT_DIR" "$HOST_PID" "$GEN" "$GRANT_ACTIVE" \
     "$(declare -f attended_routine_rows attended_routine_row attended_handled_stale_task attended_no_open_decision \
       acknowledge_routine_close publish_wake_grant branch_env record_acknowledged_handback)" "$@"
@@ -1578,7 +1584,7 @@ attended_acceptor() {  # <reason-lines> [final] [initially-routine]
         fi
       elif [ "${3:-0}" -eq 1 ] && [ "$(printf '%s\n' "$offer" | sed -n 's/^eligible=//p')" = 1 ]; then
         case "$first" in
-          signal:*|stale:*) attended_routine_row "${first%%:*}" '' "$first" decisions || rc=$? ;;
+          signal:*|stale:*) attended_park_worker attended_routine_row <<< "$first" || rc=3 ;;
         esac
       fi
       case "$rc" in
