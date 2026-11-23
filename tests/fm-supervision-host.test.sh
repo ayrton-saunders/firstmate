@@ -269,7 +269,7 @@ assert_routine_close_acknowledged() {  # <home> <reason pattern>
 
 # Delay only the release of evidence until the watcher has already closed.
 # The real offer and host still classify at their normal boundaries.
-install_first_offer_action() {  # <home> <shell command>
+install_first_offer_action() {  # <home> <shell command> [second offer action]
   local real_node
   real_node=$(command -v node)
   cat > "$1/fakebin/node" <<SH
@@ -277,6 +277,9 @@ install_first_offer_action() {  # <home> <shell command>
 if [ "\${2:-}" = offer ] && [ ! -e "\$FM_HOME/offer-action-ran" ]; then
   : > "\$FM_HOME/offer-action-ran"
   $2 || exit 1
+elif [ "\${2:-}" = offer ] && [ ! -e "\$FM_HOME/second-offer-action-ran" ]; then
+  : > "\$FM_HOME/second-offer-action-ran"
+  ${3:-:} || exit 1
 fi
 exec "$real_node" "\$@"
 SH
@@ -404,7 +407,17 @@ SH
   if [ "$mode" = mixed ]; then
     action+=$'\n''  printf "needs-decision [key=new-choice]: choose again\n" >> "$FM_HOME/state/demo.status"'
   fi
-  install_first_offer_action "$home" "$action"
+  if [ "$mode" = late-rejection ]; then
+    : > "$home/config/supervision-handoff-ack"
+    install_first_offer_action "$home" "$action" '
+      printf "needs-decision [key=late]: choose again\n" >> "$FM_HOME/state/demo.status"
+      lock="$FM_HOME/state/.wake-queue.lock"
+      mkdir "$lock" || exit 1
+      ( sleep 6; rm -f "$lock/pid"; rmdir "$lock" ) </dev/null >/dev/null 2>&1 &
+      printf "%s\n" "$!" > "$lock/pid"'
+  else
+    install_first_offer_action "$home" "$action"
+  fi
   case "$mode" in
     unreadable-hold)
       printf '#!/usr/bin/env bash\nexit 1\n' > "$home/fakebin/tasks-axi"
@@ -430,6 +443,8 @@ SH
     rmdir "$state/.wake-queue.lock"
     rm -f "$state/.fm-lease-command.lock/pid"
     rmdir "$state/.fm-lease-command.lock"
+  elif [ "$mode" = late-rejection ]; then
+    FM_STATUS_PRESENTATION_LOCK_TIMEOUT=2 start_host "$home"
   else
     start_host "$home"
   fi
@@ -443,7 +458,10 @@ SH
     wait_until_deadline 60 host_exited "$home" || fail "$mode: did not hand the signal back to main"
     assert_re '^signal: .*demo.status' "$home/host.out" "$mode: the signal did not reach main"
     [ -s "$state/.wake-queue" ] || fail "$mode: the host consumed consequential work"
-    if [ "$mode" = divergence ]; then
+    if [ "$mode" = late-rejection ]; then
+      expect_code 0 "$(<"$home/host.rc")" "a late rejection must not time out its ordinary hand-back"
+      assert_grep 'check: supervision-handoff' "$state/.wake-queue" "ordinary hand-back must publish its check"
+    elif [ "$mode" = divergence ]; then
       initial=$(FM_HOME="$home" "$ROOT/bin/fm-wake-drain.sh" 2>&1)
       assert_contains "$initial" 'answer-test [key=answer-test] reads resolved' "the open structured hold must reach main"
     fi
@@ -1460,6 +1478,7 @@ test_capped_answer_close() { test_attended_answer_close capped; }
 test_direct_answer_preserves_hold_divergence() { test_attended_answer_close divergence; }
 test_unreadable_hold_does_not_acknowledge_answer() { test_attended_answer_close unreadable-hold; }
 test_acknowledged_handback_bounds_queue_lock() { test_attended_answer_close handback-lock; }
+test_late_routine_rejection_waits_for_queue_lock() { test_attended_answer_close late-rejection; }
 test_operator_pending_reply_answer() { test_attended_answer_close operator; }
 test_other_pending_reply_answer() { test_attended_answer_close other-reply; }
 test_handled_busy_inbox_close() { test_attended_busy_inbox_close handled; }
@@ -1516,8 +1535,10 @@ test_credential_handback_waits_for_queue_lock() {
   : > "$home/config/supervision-handoff-ack"
   install_first_offer_action "$home" 'lock="$FM_HOME/state/.wake-queue.lock"
     mkdir "$lock" || exit 1
-    ( sleep 4; rm -f "$lock/pid"; rmdir "$lock" ) </dev/null >/dev/null 2>&1 &
-    printf "%s\n" "$!" > "$lock/pid"'
+    proof="$FM_HOME/state/.branch-outcomes.lock"
+    mkdir "$proof" || exit 1
+    ( sleep 6; rm -f "$lock/pid" "$proof/pid"; rmdir "$lock" "$proof" ) </dev/null >/dev/null 2>&1 &
+    printf "%s\n" "$!" | tee "$lock/pid" > "$proof/pid"'
   routine_wake_lib "$home" fm_wake_append check needs-gh-auth 'check: GitHub login required' || fail "fixture: no credential row"
   routine_wake_lib "$home" fm_recovery_marker_publish "$home/state/.watcher-down" downtime || fail "fixture: no recovery episode"
   FM_STATUS_PRESENTATION_LOCK_TIMEOUT=2 start_host "$home"
@@ -1549,6 +1570,7 @@ fm_test_run \
   test_direct_answer_preserves_hold_divergence \
   test_unreadable_hold_does_not_acknowledge_answer \
   test_acknowledged_handback_bounds_queue_lock \
+  test_late_routine_rejection_waits_for_queue_lock \
   test_operator_pending_reply_answer \
   test_other_pending_reply_answer \
   test_handled_busy_inbox_close \

@@ -2393,7 +2393,7 @@ list_has_line() {  # <newline-separated-list> <value>
 }
 
 command_diverged() {
-  local ids resolve f origin tokens id keys key show title strict=0 root data backend file
+  local ids resolve f origin tokens id keys key show title strict=0 root data backend file authorized_root
   if [ "${1:-}" = --require-readable ]; then strict=1; shift; fi
   [ "$#" -eq 0 ] || { usage >&2; exit 2; }
   # Both records must belong to the SAME home or the comparison is meaningless:
@@ -2415,10 +2415,16 @@ command_diverged() {
     else
       return 1
     fi
+    authorized_root=$(fm_backlog_authorized_root "$DATA") || return 1
+    fm_backlog_config_present "$root" "$authorized_root" || return 1
     backend=$(fm_tasks_axi_backend_resolve "$root") || return 1
     if [ "$backend" = markdown ] && [ ! -e "$file" ] && [ ! -L "$file" ]; then
+      if [ -n "$data" ]; then
+        fm_backlog_record_parent_authorized "$file" "backlog data directory" "$DATA" parent-only || return 1
+      fi
       return 0
     fi
+    fm_backlog_source_present "$data" "$DATA" "$root" "$authorized_root" || return 1
   fi
   command -v tasks-axi >/dev/null 2>&1 || return "$strict"
   ids=$(open_task_ids) || return "$strict"

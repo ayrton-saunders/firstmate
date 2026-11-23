@@ -2498,7 +2498,7 @@ status_unread_only_home_answers() {  # <status-file> [preflight]
         ) || return 1
         case "$note" in "$expected"|"$expected "?*) ;; *) return 1 ;; esac
         ;;
-      *) case "$note" in answered|answered:*) ;; *) return 1 ;; esac ;;
+      *) case "$note" in answered:*) ;; *) return 1 ;; esac ;;
     esac
   done <<< "$span"
   if [ "${2:-}" = preflight ]; then

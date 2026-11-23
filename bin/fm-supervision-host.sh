@@ -458,7 +458,12 @@ cleanup() {
   retire_arm "$SUCCESSOR_PID" "$SUCCESSOR_OUT"
   retire_arm "$ARM_PID" "$ARM_OUT"
   if [ "$GRANT_ACTIVE" -eq 1 ]; then
-    fm_run_timed 1 "$SCRIPT_DIR/fm-wake-grant.sh" deactivate "$HOST_PID" "$GEN" >/dev/null 2>&1 || true
+    if [ "${ROUTINE_HAND_BACK:-0}" -eq 1 ]; then
+      fm_run_timed 1 "$SCRIPT_DIR/fm-wake-grant.sh" deactivate "$HOST_PID" "$GEN" >/dev/null 2>&1 || true
+    else
+      "$SCRIPT_DIR/fm-wake-grant.sh" release "$GEN" >/dev/null 2>&1 || true
+      "$SCRIPT_DIR/fm-wake-grant.sh" deactivate "$HOST_PID" "$GEN" >/dev/null 2>&1 || true
+    fi
   fi
   if [ "${ROUTINE_HAND_BACK:-0}" -eq 1 ]; then
     FM_SUPERVISION_ACTOR=branch fm_run_timed "$HAND_BACK_TIMEOUT" "$SCRIPT_DIR/fm-lease.sh" release-actor --actor branch >/dev/null 2>&1 || true
@@ -1041,15 +1046,31 @@ health_record() {  # <engine-error 0|1> <reports>
 # A proven routine close needs no engine turn. Return its exact queue rows,
 # or an empty set only for rearm-resurface with no queued work. A mixed,
 # malformed or unrelated batch stays on the normal routing path.
-attended_routine_rows() {  # <reason> <decision keys>
-  local reason=$1 decision_keys=$2 queue='' seq kind key payload epoch extra rows='' pending f exclude rc
+attended_routine_rows() {  # <reason> <decision keys> [preflight]
+  local reason=$1 decision_keys=$2 mode=${3:-} queue='' seq kind key payload epoch extra rows='' pending f exclude rc
   local proven_answers=' '
   if [ -e "$FM_WAKE_QUEUE" ] || [ -L "$FM_WAKE_QUEUE" ]; then
     [ -f "$FM_WAKE_QUEUE" ] && [ ! -L "$FM_WAKE_QUEUE" ] || return 1
     queue=$(cat "$FM_WAKE_QUEUE") || return 1
   fi
   case "$reason" in
-    'check: rearm-resurface')
+    'check: rearm-resurface') ;;
+    signal:*|stale:*) [ -n "$queue" ] || return 1 ;;
+    *) return 1 ;;
+  esac
+  if [ -n "$queue" ]; then
+    while IFS=$'\t' read -r epoch seq kind key payload extra; do
+      case "$epoch:$seq" in *[!0-9:]*|:*|*:) return 1 ;; esac
+      [ -z "$extra" ] || return 1
+      [ "$reason" = 'check: rearm-resurface' ] || [ "$payload" = "$reason" ] || return 1
+      rc=0
+      attended_routine_row "$kind" "$key" "$payload" queue-preflight || rc=$?
+      [ "$rc" -eq 0 ] || return "$rc"
+    done <<< "$queue"
+  fi
+  [ "$mode" != preflight ] || return 0
+  proven_answers=' '
+  if [ "$reason" = 'check: rearm-resurface' ]; then
       pending=$("$SCRIPT_DIR/fm-branch-outcome.sh" present) || return 1
       [ "$(printf '%s\n' "$pending" | jq -rs 'any(.verdict == "captain")')" = false ] || return 1
       FM_SUPERVISION_ACTOR=main "$SCRIPT_DIR/fm-wake-drain.sh" --recovery-presentation-clear || return 1
@@ -1060,14 +1081,8 @@ attended_routine_rows() {  # <reason> <decision keys>
         attended_no_open_decision "$f" || return 1
       done
       [ -n "$queue" ] || return 0
-      ;;
-    signal:*|stale:*) [ -n "$queue" ] || return 1 ;;
-    *) return 1 ;;
-  esac
+  fi
   while IFS=$'\t' read -r epoch seq kind key payload extra; do
-    case "$epoch:$seq" in *[!0-9:]*|:*|*:) return 1 ;; esac
-    [ -z "$extra" ] || return 1
-    [ "$reason" = 'check: rearm-resurface' ] || [ "$payload" = "$reason" ] || return 1
     rc=0
     attended_routine_row "$kind" "$key" "$payload" || rc=$?
     [ "$rc" -eq 0 ] || return "$rc"
@@ -1099,7 +1114,11 @@ attended_routine_row() {  # <kind> <key> <reason> [preflight]
         [ "${f##*/}" != "$key" ] || found=1
         case "$proven_answers" in
           *" $f "*) ;;
-          *) status_unread_only_home_answers "$f" "$mode" || return 1
+          *) if [ -n "$mode" ]; then
+               status_unread_only_home_answers "$f" preflight || return 1
+             else
+               status_unread_only_home_answers "$f" || return 1
+             fi
              if [ "$mode" != preflight ]; then
                attended_no_open_decision "$f" || return 3
              fi
@@ -1191,6 +1210,7 @@ handle_wake() {  # <reason-lines>
       diverged=$(attended_park_run_with_limit "$divergence_limit" "$SCRIPT_DIR/fm-captain-hold.sh" diverged --require-readable 2>/dev/null) || rc=$?
       if [ "$rc" -eq 124 ]; then boundary_exit; fi
       if [ "$rc" -ne 0 ] || [ -n "$diverged" ]; then
+        if [ "$rc" -ne 75 ]; then ROUTINE_HAND_BACK=0; fi
         ATTENDED_WHY=main-only
         return 2
       fi
@@ -1440,6 +1460,7 @@ attended_routine_candidate() {  # <reason>
 attended_acceptor() {  # <reason-lines>
   local offer='' first=${1%%$'\n'*} rc=0 decision_keys candidate=0
   local -a offer_runner=()
+  ROUTINE_HAND_BACK=0
   boundary_reached && boundary_exit
   ATTENDED_WHY=
   ATTENDED_OFFER=
@@ -1468,7 +1489,10 @@ attended_acceptor() {  # <reason-lines>
       if [ "$candidate" -eq 1 ] || { [[ "$1" = signal:* ]] && attended_routine_candidate "$1"; }; then
         decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
         rc=0
-        ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows <<< "$1"$'\n'"$decision_keys") || rc=$?
+        attended_routine_rows "$1" "$decision_keys" preflight >/dev/null || rc=$?
+        if [ "$rc" -eq 0 ]; then
+          ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows <<< "$1"$'\n'"$decision_keys") || rc=$?
+        fi
         if [ "$rc" -eq 124 ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
         if [ "$rc" -eq 75 ]; then ROUTINE_HAND_BACK=1; rc=3; fi
       fi
