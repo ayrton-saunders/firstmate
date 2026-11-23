@@ -449,10 +449,14 @@ cleanup_proof() {
       exit "$status"
     elif fm_test_scratch_retained "$PROOF_ROOT"; then
       log "private teardown unverified; retaining scratch: $PROOF_ROOT; delete it by hand once nothing is using it"
+      retain_root=1
       [ "$status" -ne 0 ] || status=1
     else
       fm_test_cleanup_scratch "$PROOF_ROOT" || { [ "$status" -ne 0 ] || status=1; }
     fi
+  fi
+  if [ "$retain_root" -ne 0 ] && [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
+    : > "$FM_TEST_RETAIN_MARKER.$$.proof" || log 'could not publish proof retention marker'
   fi
   exit "$status"
 }

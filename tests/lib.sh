@@ -538,6 +538,12 @@ fm_test_finalize() {
   exit "$status"
 }
 
+fm_test_register_scratch() {
+  local root=$1
+  printf '%s\n%s\n' "$$" "$FM_TEST_OWNER_IDENTITY" > "$root/.fm-test-fixture" &&
+    printf '%s\n' "$root" >> "$FM_TEST_CLEANUP_REGISTRY"
+}
+
 fm_test_tmproot() (
   local prefix=${1:-fm-test} root='' tmp_base
   case "$prefix" in */*|*[[:cntrl:]]*) return 2 ;; esac
@@ -545,8 +551,7 @@ fm_test_tmproot() (
   trap '' HUP INT QUIT TERM
   trap '[ -z "$root" ] || fm_test_remove_tree "$root"' EXIT
   root=$(mktemp -d "${tmp_base%/}/${prefix}.XXXXXX") || return 1
-  printf '%s\n%s\n' "$$" "$FM_TEST_OWNER_IDENTITY" > "$root/.fm-test-fixture" || return 1
-  printf '%s\n' "$root" >> "$FM_TEST_CLEANUP_REGISTRY" || return 1
+  fm_test_register_scratch "$root" || return 1
   trap - EXIT
   printf '%s\n' "$root"
 )

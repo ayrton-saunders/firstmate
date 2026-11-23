@@ -477,8 +477,12 @@ test_successful_cleanup_can_be_repeated() {
   FM_TEST_RETAIN_MARKER="$harness/retained" TMPDIR="$harness" bash -ec '
     . "$1"
     fixture=$(fm_test_tmproot fm-repeat)
+    manual="$FM_TEST_TMPDIR/manual-fixture"
+    mkdir "$manual"
+    fm_test_register_scratch "$manual"
     fm_test_cleanup
     [ ! -e "$fixture" ]
+    [ ! -e "$manual" ]
     fm_test_cleanup
   ' _ "$LIB" >"$harness/out" 2>&1 || rc=$?
   assert_equals 0 "$rc" "explicit cleanup followed by cleanup and EXIT: $(<"$harness/out")"
@@ -507,6 +511,7 @@ script = '''
 . "$1"
 root=$(fm_test_tmproot r)
 printf '%s\\n' "$root" > "$2/root"
+printf '%s\\n' "$FM_TEST_REGISTRY_DIR" > "$2/registry"
 marker=
 fm_test_arm_private_tmux marker "$root"
 tmux -S "$root/s" -f /dev/null new-session -d 'exec sleep 60'
@@ -522,7 +527,10 @@ try:
     result = subprocess.run([bash, '-ec', script, '_', lib, base, 'stopped'], env=env, timeout=10)
     assert result.returncode == -signal.SIGKILL, result.returncode
     root = pathlib.Path((base / 'root').read_text().strip())
+    registry = pathlib.Path((base / 'registry').read_text().strip())
+    assert registry.is_dir(), 'killed fixture did not leave a registry to reap'
     subprocess.run([bash, '-ec', '. "$1"; fm_test_reap_orphans', '_', lib], env=env, check=True, timeout=10)
+    assert not registry.exists(), 'orphan recovery did not remove the abandoned registry'
     assert (root / 's').is_socket(), 'recovery deleted scratch below the stopped server'
 finally:
     if (base / 'root').is_file():

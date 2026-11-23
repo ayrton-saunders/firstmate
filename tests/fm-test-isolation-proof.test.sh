@@ -215,14 +215,18 @@ with (base / 'interrupted.log').open('w') as log:
                     pass
 PY
   mkdir "$tmp/retained [SSD]"
+  local wrapper="$tmp/nested-proof.sh" verify="$ROOT/bin/fm-test-tap-verify.sh"
+  printf '%s\n' 'exec "$NESTED_PROOF" --pool "$NESTED_POOL" --jobs 2 --json "$NESTED_REPORT"' > "$wrapper"
   rc=0
-  TMPDIR="$tmp/retained [SSD]" "$proof" --pool retaining-family --jobs 2 --json "$tmp/retained.json" >"$tmp/retained.out" 2>"$tmp/retained.err" || rc=$?
+  TMPDIR="$tmp/retained [SSD]" NESTED_PROOF="$proof" NESTED_POOL=retaining-family NESTED_REPORT="$tmp/retained.json" \
+    "$verify" "$wrapper" >"$tmp/retained.out" 2>"$tmp/retained.err" || rc=$?
   assert_equals 1 "$rc" 'unverified private teardown fails the proof'
   assert_contains "$(<"$tmp/retained.out")" 'FM_ISOLATION_SUMMARY total=1 failed=1' 'retained worker fails the summary'
   python3 -c 'import json, sys; r = json.load(open(sys.argv[1])); assert r["summary"]["failed"] == 1 and not r["fm_test_run_jobs_enabled"] and r["scripts"][0]["exit"] == 1' "$tmp/retained.json" || fail 'retained worker was admitted in JSON'
-  set -- "$tmp/retained [SSD]"/fm-isolation-proof.*
-  [ "$#" -eq 1 ] && [ -f "$1/w1/tmp/sentinel" ] || fail 'proof deleted explicitly retained scratch'
-  assert_contains "$(<"$tmp/retained.err")" "retaining scratch: $(cd "$1" && pwd -P)" 'retained scratch diagnostic names its root'
+  set -- "$tmp/retained [SSD]"/fm-test-tap-verify.*/tmp/fm-isolation-proof.*
+  [ "$#" -eq 1 ] && [ -f "$1/w1/tmp/sentinel" ] || fail 'enclosing verifier deleted explicitly retained proof scratch'
+  assert_contains "$(<"$tmp/retained.out")" "retaining scratch: $(cd "$1" && pwd -P)" 'proof diagnostic names its retained root'
+  assert_contains "$(<"$tmp/retained.err")" 'fixture teardown unverified' 'enclosing verifier honors proof retention'
   # shellcheck disable=SC2016 # Expand arguments when the stub runs.
   printf '%s\n' '#!/usr/bin/env bash' 'case "${!#}" in */fm-isolation-proof.??????) exit 1 ;; esac' 'exec "$REAL_RM" "$@"' >"$tmp/tools/rm"
   chmod +x "$tmp/tools/rm"
@@ -289,7 +293,8 @@ assert artifact["summary"]["failed"] == 0
   mkdir "$tmp/undrained"
   cp "$admitted_json" "$tmp/undrained/proof.json"
   TMPDIR="$tmp/undrained" PROOF_SCHED_EVIDENCE="$tmp/undrained" PROOF_UNDRAINED=1 \
-    python3 - "$proof" <<'PY' || fail 'undrained proof did not publish a failed artifact'
+    NESTED_PROOF="$proof" NESTED_POOL=admitted-family NESTED_REPORT="$tmp/undrained/proof.json" \
+    python3 - "$verify" "$wrapper" <<'PY' || fail 'undrained proof did not publish a failed artifact'
 import json, os, pathlib, signal, subprocess, sys
 
 if os.name != 'posix':
@@ -299,14 +304,14 @@ if os.name != 'posix':
 base = pathlib.Path(os.environ['TMPDIR'])
 artifact = base / 'proof.json'
 try:
-    result = subprocess.run([sys.argv[1], '--pool', 'admitted-family', '--jobs', '2', '--json', str(artifact)],
-                            capture_output=True, text=True, timeout=10)
+    result = subprocess.run(sys.argv[1:], capture_output=True, text=True, timeout=10)
     assert result.returncode == 1, result
     assert 'FM_ISOLATION_SUMMARY total=1 failed=1' in result.stdout, result
-    assert 'candidate left a background process' in result.stderr, result
-    assert 'could not confirm worker group exit; retaining scratch:' in result.stderr, result
+    assert 'candidate left a background process' in result.stdout, result
+    assert 'could not confirm worker group exit; retaining scratch:' in result.stdout, result
+    assert 'fixture teardown unverified' in result.stderr, result
     assert not (base / 'replacement-started').exists()
-    assert len(list(base.glob('fm-isolation-proof.*'))) == 1
+    assert len(list(base.glob('fm-test-tap-verify.*/tmp/fm-isolation-proof.*'))) == 1
     report = json.loads(artifact.read_text())
     assert report['summary']['failed'] == 1 and not report['fm_test_run_jobs_enabled'], report
     assert [(s['path'], s['exit']) for s in report['scripts']] == [('tests/fm-proof-undrained.test.sh', 1)], report
