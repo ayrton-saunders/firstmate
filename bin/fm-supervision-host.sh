@@ -1048,7 +1048,8 @@ health_record() {  # <engine-error 0|1> <reports>
 # malformed or unrelated batch stays on the normal routing path.
 attended_routine_rows() {  # <reason> <decision keys> [preflight]
   local reason=$1 decision_keys=$2 mode=${3:-} queue='' seq kind key payload epoch extra rows='' pending f exclude rc
-  local proven_answers=' ' digest rejected=0
+  local digest rejected=0
+  local -a answer_files=()
   if [ -e "$FM_WAKE_QUEUE" ] || [ -L "$FM_WAKE_QUEUE" ]; then
     [ -f "$FM_WAKE_QUEUE" ] && [ ! -L "$FM_WAKE_QUEUE" ] || return 1
     queue=$(cat "$FM_WAKE_QUEUE") || return 1
@@ -1092,8 +1093,6 @@ attended_routine_rows() {  # <reason> <decision keys> [preflight]
     return
   fi
   if [ "$reason" = 'check: rearm-resurface' ]; then
-      pending=$("$SCRIPT_DIR/fm-branch-outcome.sh" present) || return 1
-      [ "$(printf '%s\n' "$pending" | jq -rs 'any(.verdict == "captain")')" = false ] || return 1
       _fm_wake_require_classify || return 1
       exclude=$(status_scan_parent_channel_exclude "$STATE")
       for f in "$STATE"/*.status; do
@@ -1103,17 +1102,29 @@ attended_routine_rows() {  # <reason> <decision keys> [preflight]
         [ "$rc" -ne 3 ] || return 3
         [ "$rc" -eq 0 ] || rejected=1
       done
-      [ "$rejected" -eq 0 ] || return 1
-      FM_SUPERVISION_ACTOR=main "$SCRIPT_DIR/fm-wake-drain.sh" --recovery-presentation-clear || return 1
-      [ -n "$queue" ] || return 0
   fi
-  while IFS=$'\t' read -r epoch seq kind key payload extra; do
+  if [ -n "$queue" ]; then
+    while IFS=$'\t' read -r epoch seq kind key payload extra; do
+      rc=0
+      attended_routine_row "$kind" "$key" "$payload" || rc=$?
+      [ "$rc" -ne 3 ] || return 3
+      [ "$rc" -eq 0 ] || rejected=1
+      rows=${rows:+$rows }$seq
+    done <<< "$queue"
+  fi
+  [ "$rejected" -eq 0 ] || return 1
+  if [ "$reason" = 'check: rearm-resurface' ]; then
+    pending=$("$SCRIPT_DIR/fm-branch-outcome.sh" present) || return 1
+    [ "$(printf '%s\n' "$pending" | jq -rs 'any(.verdict == "captain")')" = false ] || return 1
+    FM_SUPERVISION_ACTOR=main "$SCRIPT_DIR/fm-wake-drain.sh" --recovery-presentation-clear || return 1
+  fi
+  for f in ${answer_files[@]+"${answer_files[@]}"}; do
+    status_unread_only_home_answers "$f" || rejected=1
     rc=0
-    attended_routine_row "$kind" "$key" "$payload" || rc=$?
+    attended_no_open_decision "$f" || rc=$?
     [ "$rc" -ne 3 ] || return 3
     [ "$rc" -eq 0 ] || rejected=1
-    rows=${rows:+$rows }$seq
-  done <<< "$queue"
+  done
   [ "$rejected" -eq 0 ] || return 1
   printf '%s\n' "$rows"
 }
@@ -1141,7 +1152,7 @@ attended_handled_stale_task() {  # <queue-key> <reason>
 }
 
 attended_routine_row() {  # <kind> <key> <reason>
-  local kind=$1 key=$2 reason=$3 task f found=0 answer_rc decision_rc rejected=0
+  local kind=$1 key=$2 reason=$3 task f found=0 decision_rc rejected=0
   local -a files
   case "$kind:$reason" in
     signal:signal:*)
@@ -1153,14 +1164,13 @@ attended_routine_row() {  # <kind> <key> <reason>
         task=${f##*/}; task=${task%.status}
         case "$task" in ''|*[!A-Za-z0-9._-]*|.|..) rejected=1; continue ;; esac
         [ "${f##*/}" != "$key" ] || found=1
-        case "$proven_answers" in
+        case " ${answer_files[*]-} " in
           *" $f "*) ;;
-          *) answer_rc=0; decision_rc=0
-             status_unread_only_home_answers "$f" || answer_rc=$?
+          *) decision_rc=0
              attended_no_open_decision "$f" || decision_rc=$?
              [ "$decision_rc" -ne 3 ] || return 3
-             if [ "$answer_rc" -eq 0 ] && [ "$decision_rc" -eq 0 ]; then
-               proven_answers="$proven_answers$f "
+             if [ "$decision_rc" -eq 0 ]; then
+               answer_files+=("$f")
              else
                rejected=1
              fi ;;

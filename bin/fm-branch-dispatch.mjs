@@ -99,7 +99,8 @@ if (command === "scope") {
   }
   const message = readFileSync(0, "utf8").split(/\r?\n/)[0] ?? "";
   const verdict = dispatch.branchOfferForWake(stateDir(), message, afk, true);
-  process.stdout.write(`eligible=${verdict.eligible ? 1 : 0}\ndecision-keys=${verdict.scope.needsDecisionKeys.join(" ")}\nqueue-digest=${verdict.scope.queueDigest ?? ""}\n${scopeLines(verdict.scope, verdict.heartbeat)}`);
+  const proof = afk ? "" : `decision-keys=${verdict.scope.needsDecisionKeys.join(" ")}\nqueue-digest=${verdict.scope.queueDigest ?? ""}\n`;
+  process.stdout.write(`eligible=${verdict.eligible ? 1 : 0}\n${proof}${scopeLines(verdict.scope, verdict.heartbeat)}`);
 } else if (command === "wake-prompt") {
   let report = "";
   let away = false;

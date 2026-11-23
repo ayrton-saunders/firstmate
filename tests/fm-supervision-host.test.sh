@@ -372,7 +372,7 @@ test_attended_answer_close() {  # <owned|external|mixed|capped|divergence>
   else
     routine_wake_lib "$home" fm_wake_append signal demo.status "needs-decision: $f" || fail "fixture: could not queue the decision"
   fi
-  if [ "$mode" = coalesced-late ]; then
+  if [[ "$mode" = coalesced-* ]]; then
     other="$state/zed.status"
     printf 'project=zed\nwindow=fm-zed\nkind=secondmate\n' > "$state/zed.meta"
     printf 'needs-decision [key=zed-answer]: choose\n' > "$other"
@@ -380,7 +380,7 @@ test_attended_answer_close() {  # <owned|external|mixed|capped|divergence>
   fi
   main_drain_and_ack "$home"
   [ ! -s "$state/.wake-queue" ] || fail "fixture: prior decision is still queued"
-  if [ "$mode" = coalesced-late ]; then
+  if [[ "$mode" = coalesced-* ]]; then
     other_size=$(wc -c < "$other" | tr -d ' ')
     other_sig=$(routine_wake_lib "$home" fm_wake_signal_sig "$other")
     routine_wake_lib "$home" fm_wake_status_append_self_announced "$state" "$other" 'resolved [key=zed-answer]: answered: proceed'
@@ -426,11 +426,18 @@ SH
       ( sleep 5; rm -f "$lock/pid"; rmdir "$lock" ) </dev/null >/dev/null 2>&1 &
       printf "%s\n" "$!" > "$lock/pid"'
   fi
-  if [ "$mode" = coalesced-late ]; then
+  if [[ "$mode" = coalesced-* ]]; then
     printf '0\n' > "$home/park-clock"
     printf -v second_action '%q "$@" || exit 1\nprintf "110\\n" > "$FM_HOME/park-clock"\n' "$(command -v node)"
-    second_action+='printf "working: continuing\n" >> "$FM_HOME/state/demo.status"
-    printf "needs-decision [key=late-zed]: choose again\n" >> "$FM_HOME/state/zed.status"
+    if [ "$mode" = coalesced-locked ]; then
+      second_action+='lock="$FM_HOME/state/.demo.home-appends.lock"
+      mkdir "$lock" && cp "$FM_HOME/state/.lock" "$lock/pid" || exit 1
+'
+    else
+      second_action+='printf "working: continuing\n" >> "$FM_HOME/state/demo.status"
+'
+    fi
+    second_action+='printf "needs-decision [key=late-zed]: choose again\n" >> "$FM_HOME/state/zed.status"
     exit'
     install_first_offer_action "$home" "$action" "$second_action"
   elif [ "$mode" = late-rejection ]; then
@@ -469,7 +476,7 @@ SH
     rmdir "$state/.wake-queue.lock"
     rm -f "$state/.fm-lease-command.lock/pid"
     rmdir "$state/.fm-lease-command.lock"
-  elif [ "$mode" = coalesced-late ]; then
+  elif [[ "$mode" = coalesced-* ]]; then
     FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 \
       FM_SUPERVISION_HOST_TURN_TIMEOUT=20 start_host "$home"
   elif [ "$mode" = late-rejection ] || [ "$mode" = divergence ]; then
@@ -487,7 +494,12 @@ SH
     wait_until_deadline 60 host_exited "$home" || fail "$mode: did not hand the signal back to main"
     assert_re '^signal: .*demo.status' "$home/host.out" "$mode: the signal did not reach main"
     [ -s "$state/.wake-queue" ] || fail "$mode: the host consumed consequential work"
-    if [ "$mode" = coalesced-late ]; then
+    if [[ "$mode" = coalesced-* ]]; then
+      if [ "$mode" = coalesced-locked ]; then
+        [ -s "$state/.demo.home-appends.lock/pid" ] || fail "fixture: no answer receipt lock was held"
+        rm "$state/.demo.home-appends.lock/pid"
+        rmdir "$state/.demo.home-appends.lock"
+      fi
       [ -e "$home/second-offer-action-ran" ] || fail "fixture: no final offer"
       assert_re '^signal: .*demo.status .*zed.status' "$home/host.out" "the coalesced close must reach main"
       assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "the older offer must not force a deadline hand-back"
@@ -1608,6 +1620,7 @@ test_owned_answer_close() { test_attended_answer_close owned; }
 test_external_answer_close() { test_attended_answer_close external; }
 test_mixed_answer_close() { test_attended_answer_close mixed; }
 test_coalesced_late_answer_decision() { test_attended_answer_close coalesced-late; }
+test_coalesced_decision_precedes_receipt_wait() { test_attended_answer_close coalesced-locked; }
 test_capped_answer_close() { test_attended_answer_close capped; }
 test_direct_answer_preserves_hold_divergence() { test_attended_answer_close divergence; }
 test_unreadable_hold_does_not_acknowledge_answer() { test_attended_answer_close unreadable-hold; }
@@ -1772,6 +1785,7 @@ fm_test_run \
   test_external_answer_close \
   test_mixed_answer_close \
   test_coalesced_late_answer_decision \
+  test_coalesced_decision_precedes_receipt_wait \
   test_capped_answer_close \
   test_direct_answer_preserves_hold_divergence \
   test_unreadable_hold_does_not_acknowledge_answer \

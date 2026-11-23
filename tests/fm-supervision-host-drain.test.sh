@@ -132,7 +132,8 @@ test_dispatch_entry_scopes_rows_and_renders_the_away_tail() {
   out=$(printf 'check: merge landed: fixture\n' | FM_HOME="$home" node "$DISPATCH" offer)
   assert_contains "$out" "eligible=0" "an attended check trigger must stay main's"
   out=$(printf 'check: merge landed: fixture\n' | FM_HOME="$home" node "$DISPATCH" offer --afk)
-  assert_contains "$out" "eligible=1" "an away check trigger must be the branch's"
+  [ "$out" = $'eligible=1\nstatus=safe\ncorrupted=0\nrows=1 2\ntasks=demo\nunscoped=1' ] \
+    || fail "an away offer must retain the original scope-only output: $out"
   out=$(printf 'signal: %s\n' "$state/demo.status" | FM_HOME="$home" node "$DISPATCH" offer)
   assert_contains "$out" "eligible=1" "an attended signal trigger with a claimable row must be the branch's"
   assert_contains "$out" "rows=1" "the offer must carry the scope it judged"
