@@ -534,7 +534,7 @@ SH
 }
 
 test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-captain-outcome>
-  local mode=$1 home rec reason seq f i note initial
+  local mode=$1 home rec reason seq f i note initial lock_timeout=10
   home=$(make_home "attended-resurface-$mode" quiet)
   : > "$home/state/.wake-queue"
   case "$mode" in
@@ -567,7 +567,7 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
       routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$f" || fail "fixture: decisions would wake independently"
       ;;
     credential) routine_wake_lib "$home" fm_wake_append check needs-gh-auth 'check: GitHub login required' || fail "fixture: no credential check" ;;
-    backstop|routine-backstop|routine)
+    backstop|routine-backstop|routine|cooldown)
       if [ "$mode" != backstop ]; then
         rec=$(FM_HOME="$home" bash -c '. "$1"; fm_task_inbox_write "$2" demo steer' _ "$ROOT/bin/fm-task-inbox-lib.sh" "$home/state") || fail "fixture: no inbox record"
         mv "$rec" "${rec%/*}/handled/"
@@ -581,13 +581,13 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
         routine_wake_lib "$home" fm_wake_append signal demo.status "signal: $home/state/demo.status" || fail "fixture: no recovered answer row"
         routine_wake_lib "$home" fm_wake_append stale sess:fm-demo "$reason" || fail "fixture: no recovered stale row"
       fi
-      if [ "$mode" != routine ]; then
+      if [ "$mode" = backstop ] || [ "$mode" = routine-backstop ]; then
         f="$home/state/review.status"
         printf 'failed: review build failed without a branch outcome\n' > "$f"
         routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$f" || fail "fixture: failure would wake independently"
       fi
       ;;
-    captain-outcome|read-captain-outcome)
+    captain-outcome|read-captain-outcome|locked-captain-outcome)
       seq=$(FM_HOME="$home" "$ROOT/bin/fm-branch-outcome.sh" append --task demo --verdict captain \
         --summary 'a review requires attention') || fail "fixture: no captain outcome"
       if [ "$mode" = read-captain-outcome ]; then
@@ -598,17 +598,26 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
   routine_wake_lib "$home" fm_recovery_marker_publish "$home/state/.watcher-down" downtime || fail "fixture: no recovery episode"
   printf '0\n' > "$home/park-clock"
   case "$mode" in
+    empty) install_first_offer_action "$home" ': > "$FM_HOME/unexpected-empty-offer"; exit 1' ;;
     routine) install_first_offer_action "$home" 'printf "105\n" > "$FM_HOME/park-clock"' ;;
+    locked-captain-outcome)
+      lock_timeout=2
+      install_first_offer_action "$home" 'lock="$FM_HOME/state/.watcher-down.lock"
+        mkdir "$lock" || exit 1
+        ( sleep 5; rm -f "$lock/pid"; rmdir "$lock" ) </dev/null >/dev/null 2>&1 &
+        printf "%s\n" "$!" > "$lock/pid"'
+      ;;
     cooldown)
       install_first_offer_action "$home" 'key=$(bash -c '\''. "$1/fm-wake-lib.sh"; . "$1/fm-supervision-engine-lib.sh"; fm_supervision_host_config "$FM_HOME/config" claude; fm_supervision_host_health_key "$FM_HOME/state"'\'' _ "${1%/*}") || exit 1
       printf "key=%s\nerrors=2\ncooldown=300\nretry_after=%s\n" "$key" "$(( $(date +%s) + 300 ))" > "$FM_HOME/state/.supervision-host-health"'
       ;;
   esac
   FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 \
-    FM_SUPERVISION_HOST_TURN_TIMEOUT=20 FM_SUPERVISION_ENGINE_GRACE=1 start_host "$home"
+    FM_STATUS_PRESENTATION_LOCK_TIMEOUT="$lock_timeout" FM_SUPERVISION_HOST_TURN_TIMEOUT=20 FM_SUPERVISION_ENGINE_GRACE=1 start_host "$home"
   if [ "$mode" = empty ] || [ "$mode" = routine ] || [ "$mode" = cooldown ]; then
     assert_routine_close_acknowledged "$home" 'check: rearm-resurface$'
     assert_re '^acked:' "$home/state/.watcher-down" "resurfacing did not acknowledge recovery"
+    [ ! -e "$home/unexpected-empty-offer" ] || fail "empty routine recovery invoked the offer"
   else
     wait_until_deadline 60 host_exited "$home" || fail "$mode: recovery did not reach main"
     assert_re '^check: rearm-resurface$' "$home/host.out" "$mode: recovery was suppressed"
@@ -626,7 +635,7 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
         assert_contains "$drain" 'STATUS OUTCOME BACKSTOP (' "recovery did not preserve the backstop surface"
         assert_contains "$drain" 'review build failed without a branch outcome' "recovery lost the uncovered failure"
         ;;
-      captain-outcome|read-captain-outcome) assert_contains "$drain" 'a review requires attention' "the captain outcome was lost" ;;
+      captain-outcome|read-captain-outcome|locked-captain-outcome) assert_contains "$drain" 'a review requires attention' "the captain outcome was lost" ;;
     esac
   fi
   stop_home_processes "$home"
@@ -1510,7 +1519,7 @@ assert_routine_resurface_lock_wait() {  # <park|command>
   routine_wake_lib "$home" fm_recovery_marker_publish "$home/state/.watcher-down" downtime || fail "fixture: no recovery episode"
   printf '0\n' > "$home/park-clock"
   if [ "$mode" = park ]; then
-    install_first_offer_action "$home" 'printf "117\n" > "$FM_HOME/park-clock"'
+    printf '117\n' > "$home/park-clock"
   else
     limit=2
   fi
@@ -1561,6 +1570,7 @@ test_credential_handback_waits_for_queue_lock() {
   pass "host: credential recovery does not lose its close under brief contention"
 }
 test_captain_outcome_resurface() { test_attended_resurface captain-outcome; }
+test_locked_captain_outcome_resurface() { test_attended_resurface locked-captain-outcome; }
 
 fm_test_run \
   test_park_exit_probe_uses_half_second_child_sleeps \
@@ -1604,6 +1614,7 @@ fm_test_run \
   test_credential_resurface \
   test_credential_handback_waits_for_queue_lock \
   test_captain_outcome_resurface \
+  test_locked_captain_outcome_resurface \
   test_read_captain_outcome_resurface \
   test_off_written_while_parked_passes_the_next_attended_close_to_main \
   test_main_only_pass_through_leaves_the_successor_watcher_running \

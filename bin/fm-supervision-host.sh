@@ -1053,6 +1053,7 @@ attended_routine_rows() {  # <reason> <decision keys> [preflight]
     [ -f "$FM_WAKE_QUEUE" ] && [ ! -L "$FM_WAKE_QUEUE" ] || return 1
     queue=$(cat "$FM_WAKE_QUEUE") || return 1
   fi
+  if [ "$mode" = empty ] && [ -n "$queue" ]; then return 2; fi
   case "$reason" in
     'check: rearm-resurface') ;;
     signal:*|stale:*) [ -n "$queue" ] || return 1 ;;
@@ -1434,7 +1435,7 @@ attended_park_worker() {  # [handback] <function> [args...]
     shift 5
     if [ "$1" = attended_routine_rows ]; then
       IFS= read -r reason && IFS= read -r decision_keys || exit 1
-      attended_routine_rows "$reason" "$decision_keys"
+      attended_routine_rows "$reason" "$decision_keys" "${2:-}"
     else
       "$@"
     fi
@@ -1462,7 +1463,6 @@ attended_routine_candidate() {  # <reason> [decision keys]
 # ATTENDED_OFFER to the offer's verdict and the scope it judged.
 attended_acceptor() {  # <reason-lines> [final]
   local offer='' first=${1%%$'\n'*} rc=0 decision_keys candidate=0
-  local -a offer_runner=()
   if attended_routine_candidate "$1"; then
     candidate=1
   else
@@ -1478,31 +1478,33 @@ attended_acceptor() {  # <reason-lines> [final]
   elif ! fm_supervision_host_main_key "$STATE" >/dev/null; then
     ATTENDED_WHY="the main session could not be identified"
   else
-    if [ "$candidate" -eq 1 ]; then
-      if [ "$first" = 'check: rearm-resurface' ] && [ ! -s "$FM_WAKE_QUEUE" ] &&
-         { [ "$PRIMARY" != codex ] || [ "${FM_CODEX_MODEL_FREE_PARK:-0}" != 1 ]; }; then
-        offer_runner=(attended_park_run_with_limit "$PARK_SECONDS")
+    if [ "$candidate" -eq 1 ] && [ "$1" = 'check: rearm-resurface' ] && [ ! -s "$FM_WAKE_QUEUE" ]; then
+      attended_park_worker attended_routine_rows empty >/dev/null <<< "$1"$'\n' || rc=$?
+      if [ "$rc" -eq 0 ]; then
+        ROUTINE_HAND_BACK=1
+        ATTENDED_ROUTINE=1
+        boundary_reached && boundary_exit
+        return 0
       fi
-    elif health_cooling; then
+      [ "$rc" -eq 2 ] || candidate=0
+      if [ "$rc" -eq 124 ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
+      ROUTINE_HAND_BACK=0
+    fi
+    if [ "$candidate" -eq 0 ] && [ "$rc" -ne 75 ] && health_cooling; then
       ATTENDED_WHY="the supervision session is cooling down after engine errors"
       return 1
     fi
-    offer=$("${offer_runner[@]+${offer_runner[@]}}" node "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer 2>/dev/null <<< "$first") || rc=$?
-    if [ "$rc" -eq 124 ] && [ -n "${offer_runner[0]:-}" ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
-    if [ "$rc" -ne 0 ]; then
+    if ! offer=$(node "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer 2>/dev/null <<< "$first"); then
       ROUTINE_HAND_BACK=0
       ATTENDED_WHY="branch eligibility could not be computed"
     else
-      rc=1
+      [ "$rc" -eq 75 ] || rc=1
       decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
-      if [ "${2:-}" = final ]; then
-        if [ "$candidate" -eq 1 ]; then
-          rc=0
-          ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows <<< "$1"$'\n'"$decision_keys") || rc=$?
-          if [ "$rc" -eq 124 ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
-        fi
-      elif { [ "$candidate" -eq 1 ] || [[ "$first" = stale:* ]]; } && attended_routine_candidate "$1" "$decision_keys"; then
+      if { [ "${2:-}" = final ] && [ "$candidate" -eq 1 ]; } ||
+         { [ "${2:-}" != final ] && { [ "$candidate" -eq 1 ] || [[ "$first" = stale:* ]]; } && attended_routine_candidate "$1" "$decision_keys"; }; then
         rc=0
+        ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows <<< "$1"$'\n'"$decision_keys") || rc=$?
+        if [ "$rc" -eq 124 ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
       fi
       case "$rc" in
         0|75) ROUTINE_HAND_BACK=1 ;;
