@@ -77,18 +77,22 @@ fm_test_allocate_scratch "${base%/}/fm-test-tap-verify.XXXXXX" || exit 1
 OUT="$FM_TEST_SCRATCH/output"
 probe_owner=
 parent_marker=${FM_TEST_RETAIN_MARKER:+$FM_TEST_RETAIN_MARKER.$$.tap}
+remove_verify_scratch() {
+  if ! fm_test_probe_drain || { [ -n "$FM_TEST_SCRATCH" ] && fm_test_scratch_retained "$FM_TEST_SCRATCH"; }; then
+    printf 'fixture teardown unverified; retaining scratch: %s\n' "$FM_TEST_SCRATCH" >&2
+    return 1
+  fi
+  fm_test_cleanup_scratch "$FM_TEST_SCRATCH" || return 1
+  FM_TEST_SCRATCH=
+  if [ -n "$parent_marker" ]; then
+    rm -f -- "$parent_marker" || return 1
+    parent_marker=
+  fi
+}
 cleanup_verify() {
   local status=$?
   trap '' HUP INT QUIT TERM
-  if ! fm_test_probe_drain || fm_test_scratch_retained "$FM_TEST_SCRATCH"; then
-    printf 'fixture teardown unverified; retaining scratch: %s\n' "$FM_TEST_SCRATCH" >&2
-    [ "$status" -ne 0 ] || status=1
-  else
-    if [ -n "$parent_marker" ]; then
-      rm -f -- "$parent_marker" || { [ "$status" -ne 0 ] || status=1; }
-    fi
-    fm_test_cleanup_scratch "$FM_TEST_SCRATCH" || { [ "$status" -ne 0 ] || status=1; }
-  fi
+  remove_verify_scratch || { [ "$status" -ne 0 ] || status=1; }
   exit "$status"
 }
 trap cleanup_verify EXIT
@@ -109,8 +113,6 @@ if [ -n "$parent_marker" ]; then
 fi
 FM_TEST_RETAIN_MARKER="$FM_TEST_SCRATCH/.retain-scratch" run_suite || STATUS=$?
 
-cat "$OUT"
-
 PLAN_COUNT=$(count_matches '^1\.\.[1-9][0-9]*$' "$OUT")
 OK_COUNT=$(count_matches '^ok - ' "$OUT")
 NOT_OK_COUNT=$(count_matches '^not ok' "$OUT")
@@ -122,6 +124,12 @@ case "$PLANNED" in
 esac
 
 LABEL=${SCRIPT##*/}
+
+exec 3< "$OUT"
+cleanup_status=0
+remove_verify_scratch || cleanup_status=1
+cat <&3
+exec 3<&-
 
 if [ "$STATUS" -ne 0 ]; then
   fail_verify "$LABEL exited $STATUS (planned $PLANNED, ok $OK_COUNT, not ok $NOT_OK_COUNT, complete $COMPLETE_COUNT)"
@@ -139,10 +147,6 @@ if [ "$OK_COUNT" -ne "$PLANNED" ]; then
   fail_verify "$LABEL planned $PLANNED ok lines, got $OK_COUNT"
 fi
 
-if fm_test_scratch_retained "$FM_TEST_SCRATCH"; then
-  fail_verify "suite retained scratch: $FM_TEST_SCRATCH"
-fi
-fm_test_remove_tree "$FM_TEST_SCRATCH" || fail_verify "could not remove scratch: $FM_TEST_SCRATCH"
-FM_TEST_SCRATCH=
+[ "$cleanup_status" -eq 0 ] || fail_verify "suite scratch cleanup failed: $FM_TEST_SCRATCH"
 printf 'fm-test-tap-verify: %s: %s planned, %s ok, complete, exit 0\n' \
   "$LABEL" "$PLANNED" "$OK_COUNT"

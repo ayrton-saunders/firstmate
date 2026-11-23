@@ -2190,6 +2190,24 @@ PY
     rmdir -- "$endpoint" || fail 'manual restore wrote into a replacement directory'
     mv -- "$endpoint.saved" "$endpoint"
   done
+  python3 - "$restore_command" "$profile/original.yaml" "$profile"/.fm-gateway-config.?????? <<'PY' || fail 'manual restore accepted changed bytes with unchanged metadata'
+import os, pathlib, subprocess, sys
+command, *paths = sys.argv[1:]
+files = [pathlib.Path(path) for path in paths]
+originals = [file.read_bytes() for file in files]
+for file, original in zip(files, originals):
+    before = file.stat()
+    changed = b'X' + original[1:]
+    file.write_bytes(changed)
+    os.utime(file, ns=(before.st_atime_ns, before.st_mtime_ns))
+    after = file.stat()
+    assert (after.st_ino, after.st_size, after.st_mode, after.st_mtime_ns) == (before.st_ino, before.st_size, before.st_mode, before.st_mtime_ns)
+    assert subprocess.run(['bash', '-c', command]).returncode != 0, file
+    assert file.read_bytes() == changed, file
+    assert all(other.read_bytes() == data for other, data in zip(files, originals) if other != file)
+    file.write_bytes(original)
+    os.utime(file, ns=(before.st_atime_ns, before.st_mtime_ns))
+PY
   local phase changed target_mtime
   target_mtime=$(python3 -c 'import os, sys; print(os.stat(sys.argv[1]).st_mtime_ns)' "$profile/original.yaml")
   cat >"$tmp/path/python3" <<'SH'
@@ -2201,7 +2219,7 @@ sys.argv = sys.argv[1:]
 open_file, fchmod = os.open, os.fchmod
 save, changed, phase = (os.environ[key] for key in ("EDITOR_SAVE", "CHANGED", "PHASE"))
 def open_with_save(path, flags, *args, **kwargs):
-    if phase == "open" and flags & os.O_WRONLY and os.path.basename(path) == os.path.basename(changed):
+    if phase == "open" and flags & (os.O_WRONLY | os.O_RDWR) and os.path.basename(path) == os.path.basename(changed):
         os.replace(save, changed)
     return open_file(path, flags, *args, **kwargs)
 def chmod_with_save(fd, mode):

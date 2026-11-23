@@ -30,7 +30,7 @@ test_family_pool_json_identifies_admission() {
   repo="$tmp/repo"
   proof="$repo/bin/fm-test-isolation-proof.sh"
   json="$tmp/proof.json"
-  admitted_json="$tmp/admitted-proof.json"
+  admitted_json="$tmp/admitted/proof.json"
   capped_json="$tmp/capped-proof.json"
   skipped_json="$tmp/skipped-proof.json"
   mkdir -p "$repo/bin" "$repo/tests"
@@ -277,10 +277,22 @@ assert artifact["production_sharding_enabled"] is False
 assert artifact["summary"]["total"] == 2
 assert artifact["summary"]["failed"] == 0
 ' "$json" || fail "serial family pool artifact metadata is incorrect"
-  set +e
-  PROOF_SCHED_EVIDENCE="$tmp" "$proof" --pool admitted-family --jobs 2 --json "$admitted_json" >"$tmp/admitted.out" 2>"$tmp/admitted.err"
-  rc=$?
-  set -e
+  mkdir -p "$tmp/report-tools" "$tmp/report-scratch"
+  cat > "$tmp/report-tools/mkdir" <<'SH'
+#!/usr/bin/env bash
+if [ "$*" = "-p $REPORT_DIR" ]; then
+  for entry in "$PROOF_BASE"/fm-isolation-proof.* "$PROOF_BASE"/.retain-scratch.*; do
+    [ ! -e "$entry" ] || exit 9
+  done
+fi
+exec "$REAL_MKDIR" "$@"
+SH
+  chmod +x "$tmp/report-tools/mkdir"
+  rc=0
+  TMPDIR="$tmp/report-scratch" FM_TEST_RETAIN_MARKER="$tmp/report-scratch/.retain-scratch" \
+    PROOF_BASE="$tmp/report-scratch" REPORT_DIR="${admitted_json%/*}" REAL_MKDIR="$(command -v mkdir)" \
+    PATH="$tmp/report-tools:$PATH" PROOF_SCHED_EVIDENCE="$tmp" \
+    "$proof" --pool admitted-family --jobs 2 --json "$admitted_json" >"$tmp/admitted.out" 2>"$tmp/admitted.err" || rc=$?
   [ "$rc" -eq 0 ] || fail "admitted family proof fixture failed: $(cat "$tmp/admitted.out") $(cat "$tmp/admitted.err")"
   python3 -c '
 import json, sys

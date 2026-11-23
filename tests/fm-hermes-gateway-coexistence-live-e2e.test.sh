@@ -35,9 +35,25 @@ probe_signal=0
 TUI_PID=
 TUI_RETAIN=
 GATEWAY_RETAIN=
-FINGERPRINT_CODE='def fingerprint(info):
-    return ":".join(map(str, (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns)))'
-RESTORE_TARGET_CODE='import os, shutil, stat, sys
+FINGERPRINT_CODE='import hashlib, stat
+
+def fingerprint(info):
+    return ":".join(map(str, (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns)))
+
+def read_record(file):
+    before = os.fstat(file.fileno())
+    if not stat.S_ISREG(before.st_mode):
+        sys.exit("config recovery requires regular files")
+    data = file.read()
+    record = fingerprint(before)
+    if record != fingerprint(os.fstat(file.fileno())):
+        sys.exit("file changed while reading config recovery data")
+    return record + ":" + hashlib.sha256(data).hexdigest(), data
+
+def file_record(path, parent=None):
+    with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent), "rb") as file:
+        return read_record(file)[0]'
+RESTORE_TARGET_CODE='import os, sys
 from contextlib import ExitStack
 
 profile, target, expected_link, *restore = sys.argv[1:]
@@ -64,14 +80,18 @@ with ExitStack() as stack:
         target_fd = directory(part, target_fd)
     name = parts[-1]
     config = "config.yaml"
+    config_path = os.path.join(profile, config)
     target_info = entry(target_fd, name)
     config_info = entry(profile_fd, config)
     if not stat.S_ISREG(target_info.st_mode) or not (
         stat.S_ISLNK(config_info.st_mode) and os.readlink(config, dir_fd=profile_fd) == expected_link
+        and os.path.realpath(config_path) == target
         if expected_link else stat.S_ISREG(config_info.st_mode)
     ):
         sys.exit("config restore found an unexpected file or link")
-    record = fingerprint(target_info) + "/" + fingerprint(config_info)
+    target_record = file_record(name, target_fd)
+    config_record = fingerprint(config_info) if expected_link else file_record(config, profile_fd)
+    record = target_record + "/" + config_record
     if not restore:
         print(record)
         sys.exit(0)
@@ -79,23 +99,25 @@ with ExitStack() as stack:
     if record != expected:
         sys.exit("config entries changed before restore")
     if verify_only:
-        if fingerprint(os.lstat(backup)) != backup_record:
+        if file_record(backup) != backup_record:
             sys.exit("config backup changed")
         sys.exit(0)
 
     with os.fdopen(os.open(os.path.basename(backup), os.O_RDONLY | flags, dir_fd=profile_fd), "rb") as src, \
-         os.fdopen(os.open(name, os.O_WRONLY | flags, dir_fd=target_fd), "wb") as dst:
+         os.fdopen(os.open(name, os.O_RDWR | flags, dir_fd=target_fd), "r+b") as dst:
         before = os.fstat(dst.fileno())
-        if fingerprint(os.fstat(src.fileno())) != backup_record or fingerprint(os.lstat(backup)) != backup_record:
+        actual_backup, data = read_record(src)
+        if actual_backup != backup_record or file_record(backup) != backup_record:
             sys.exit("config backup changed")
-        if fingerprint(before) != fingerprint(target_info):
+        if read_record(dst)[0] != target_record or fingerprint(before) != fingerprint(target_info):
             sys.exit("config target changed before restore opened it")
-        config_path = os.path.join(profile, config)
         if fingerprint(os.lstat(target)) != fingerprint(target_info) or \
-           fingerprint(os.lstat(config_path)) != fingerprint(config_info):
+           fingerprint(os.lstat(config_path)) != fingerprint(config_info) or \
+           (os.path.realpath(config_path) != target if expected_link else file_record(config_path) != config_record):
             sys.exit("config entries changed before restore")
-        dst.truncate(0)
-        shutil.copyfileobj(src, dst)
+        dst.seek(0)
+        dst.write(data)
+        dst.truncate()
         dst.flush()
         os.fchmod(dst.fileno(), int(mode, 8))
         if not os.path.samestat(before, os.lstat(target)):
@@ -103,7 +125,7 @@ with ExitStack() as stack:
         expected_config = os.fstat(dst.fileno()) if target == config_path else config_info
         if fingerprint(os.lstat(config_path)) != fingerprint(expected_config):
             sys.exit("config entry was replaced during restore")
-        if fingerprint(os.lstat(backup)) != backup_record:
+        if file_record(backup) != backup_record:
             sys.exit("config backup was replaced during restore")'
 restore_args() {
   [ -n "$WRITTEN_RECORD" ] && [ "$CONFIG_LINK" = "$WRITTEN_LINK" ] || return 1
@@ -124,7 +146,7 @@ print_restore_command() {
 backup_fingerprint() {
   python3 -I -c 'import os, sys
 '"$FINGERPRINT_CODE"'
-print(fingerprint(os.lstat(sys.argv[1])))' "$1"
+print(file_record(sys.argv[1]))' "$1"
 }
 discard_backup() {
   [ -n "$BACKUP_RECORD" ] && [ "$(backup_fingerprint "$BACKUP")" = "$BACKUP_RECORD" ] || return 1
@@ -237,8 +259,6 @@ fi
 restore_config() {
   local -a RESTORE_ARGS
   restore_args || return 1
-  cmp -s -- "$LAB/written-target" "$CONFIG_TARGET" &&
-    cmp -s -- "$LAB/written-config" "$PROFILE_HOME/config.yaml" || return 1
   python3 "${RESTORE_ARGS[@]}" || return 1
   discard_backup
 }
@@ -263,8 +283,6 @@ HERMES_HOME="$FM_HERMES_LIVE_HOME" "$HERMES_BIN" -p "$PROFILE" config set gatewa
 WRITTEN_LINK=$(readlink "$PROFILE_HOME/config.yaml" 2>/dev/null) || WRITTEN_LINK=
 written_record=$(python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$WRITTEN_LINK") \
   || fail 'could not record config identities after the gateway probe write'
-cp -- "$CONFIG_TARGET" "$LAB/written-target" &&
-  cp -- "$PROFILE_HOME/config.yaml" "$LAB/written-config" || fail 'could not record the gateway probe config'
 WRITTEN_RECORD=$written_record
 gateway_state() { jq -c '{pid, gateway_state, active_agents, active_work, updated_at, session_store}' "$PROFILE_HOME/gateway_state.json"; }
 # The gateway's environment, HOME and state are private, so no inherited

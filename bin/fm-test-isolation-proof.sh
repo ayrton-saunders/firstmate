@@ -436,6 +436,15 @@ pending_signal=0
 retain_root=0
 parent_marker=${FM_TEST_RETAIN_MARKER:+$FM_TEST_RETAIN_MARKER.$$.proof}
 
+remove_proof_scratch() {
+  fm_test_cleanup_scratch "$PROOF_ROOT" || return 1
+  PROOF_ROOT=
+  if [ -n "$parent_marker" ]; then
+    rm -f -- "$parent_marker" || return 1
+    parent_marker=
+  fi
+}
+
 # shellcheck disable=SC2329 # Invoked by the EXIT trap.
 cleanup_proof() {
   local status=$? pid
@@ -451,11 +460,8 @@ cleanup_proof() {
       retain_root=1
       [ "$status" -ne 0 ] || status=1
     else
-      fm_test_cleanup_scratch "$PROOF_ROOT" || { [ "$status" -ne 0 ] || status=1; }
+      remove_proof_scratch || { [ "$status" -ne 0 ] || status=1; }
     fi
-  fi
-  if [ "$retain_root" -eq 0 ] && [ -n "$parent_marker" ]; then
-    rm -f -- "$parent_marker" || { [ "$status" -ne 0 ] || status=1; }
   fi
   exit "$status"
 }
@@ -640,11 +646,10 @@ fi
 cleanup_failed=0
 records=$(<"$RECORDS")
 if [ "$retain_root" -eq 0 ] && ! fm_test_scratch_retained "$PROOF_ROOT"; then
-  if ! fm_test_cleanup_scratch "$PROOF_ROOT"; then
+  if ! remove_proof_scratch; then
     AGG_RC=1
     cleanup_failed=1
   fi
-  PROOF_ROOT=
 fi
 
 RUN_FINISHED_ISO=$(now_iso)

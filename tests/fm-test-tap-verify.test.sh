@@ -193,6 +193,20 @@ PY
   pass 'TAP verifier preserves foreground terminal input'
 }
 
+test_replay_starts_after_releasing_scratch() {
+  local base="$TMP_ROOT/replay" suite="$TMP_ROOT/replay.sh" out
+  mkdir -p "$base/tools"
+  write_suite "$suite" 'printf "1..1\nok - replayed\nFM_TEST_COMPLETE\n"'
+  printf '%s\n' '#!/usr/bin/env bash' 'for entry in "$REPLAY_BASE"/.retain-scratch.* "$REPLAY_BASE"/fm-test-tap-verify.*; do' \
+    '  [ ! -e "$entry" ] || exit 9' 'done' 'exec "$REAL_CAT" "$@"' > "$base/tools/cat"
+  chmod +x "$base/tools/cat"
+  out=$(TMPDIR="$base" FM_TEST_RETAIN_MARKER="$base/.retain-scratch" REPLAY_BASE="$base" \
+    REAL_CAT="$(command -v cat)" PATH="$base/tools:$PATH" run_verify "$suite" </dev/null) \
+    || fail "replay began before scratch and parent marker were removed: $out"
+  assert_contains "$out" 'ok - replayed' 'replay still emits the TAP output'
+  pass 'TAP verifier releases scratch before replay'
+}
+
 test_early_exit_zero_fails() {
   local suite out rc=0
   suite="$TMP_ROOT/early.sh"
@@ -315,6 +329,7 @@ test_failed_suite_scratch_is_removed
 test_retained_suite_scratch_survives_verifier_exit
 test_term_drains_stalled_suite
 test_suite_reads_foreground_terminal
+test_replay_starts_after_releasing_scratch
 test_early_exit_zero_fails
 test_not_ok_fails_even_with_exit_zero
 test_nonzero_exit_fails
