@@ -132,7 +132,7 @@ test_attended_captain_outcome_reaches_main_through_branch_outcomes() {
   echo captain > "$home/stub-mode"
   start_host "$home"
   wait_until 150 watcher_live "$home" || fail "captain: the host never started a watcher cycle"
-  append_status "$home" 'PR ready for review' 'done'
+  append_status "$home" 'ready for review'
   wait_until_deadline 60 host_exited "$home" || fail "captain: the captain outcome did not wake main: $(cat "$home/state/.supervision-host.log")"
   expect_code 0 "$(cat "$home/host.rc")" "a captain-outcome exit must exit 0 for the owner to deliver"
   assert_re '^supervision-host: branch-outcome: .*\(store rows 1\); run bin/fm-wake-drain.sh' "$home/host.out" \
@@ -339,7 +339,7 @@ seed_open_captain_hold() {  # <home> <key>
 }
 
 test_attended_answer_close() {  # <owned|external|mixed|capped|divergence>
-  local mode=$1 home state f baseline action real_mv i note initial prior_size
+  local mode=$1 home state f baseline action real_mv i note initial prior_size other other_size other_sig second_action
   local key=answer-test answer='answered: go ahead' opening=choose
   home=$(make_home "attended-answer-$mode" quiet)
   state="$home/state"
@@ -372,8 +372,21 @@ test_attended_answer_close() {  # <owned|external|mixed|capped|divergence>
   else
     routine_wake_lib "$home" fm_wake_append signal demo.status "needs-decision: $f" || fail "fixture: could not queue the decision"
   fi
+  if [ "$mode" = coalesced-late ]; then
+    other="$state/zed.status"
+    printf 'project=zed\nwindow=fm-zed\nkind=secondmate\n' > "$state/zed.meta"
+    printf 'needs-decision [key=zed-answer]: choose\n' > "$other"
+    routine_wake_lib "$home" fm_wake_append signal zed.status "needs-decision: $other"
+  fi
   main_drain_and_ack "$home"
   [ ! -s "$state/.wake-queue" ] || fail "fixture: prior decision is still queued"
+  if [ "$mode" = coalesced-late ]; then
+    other_size=$(wc -c < "$other" | tr -d ' ')
+    other_sig=$(routine_wake_lib "$home" fm_wake_signal_sig "$other")
+    routine_wake_lib "$home" fm_wake_status_append_self_announced "$state" "$other" 'resolved [key=zed-answer]: answered: proceed'
+    routine_wake_lib "$home" fm_wake_status_seen_commit "$state" "$other" "$other_size" "$other_size"
+    routine_wake_lib "$home" fm_wake_status_reported_commit "$state" "$other" "$other_sig"
+  fi
   prior_size=$(wc -c < "$f" | tr -d ' ')
   baseline=$(routine_wake_lib "$home" fm_wake_signal_sig "$f")
   routine_wake_lib "$home" fm_wake_status_reported_commit "$state" "$f" "$baseline" || fail "fixture: prior decision could still wake"
@@ -413,7 +426,14 @@ SH
       ( sleep 5; rm -f "$lock/pid"; rmdir "$lock" ) </dev/null >/dev/null 2>&1 &
       printf "%s\n" "$!" > "$lock/pid"'
   fi
-  if [ "$mode" = late-rejection ]; then
+  if [ "$mode" = coalesced-late ]; then
+    printf '0\n' > "$home/park-clock"
+    printf -v second_action '%q "$@" || exit 1\nprintf "110\\n" > "$FM_HOME/park-clock"\n' "$(command -v node)"
+    second_action+='printf "working: continuing\n" >> "$FM_HOME/state/demo.status"
+    printf "needs-decision [key=late-zed]: choose again\n" >> "$FM_HOME/state/zed.status"
+    exit'
+    install_first_offer_action "$home" "$action" "$second_action"
+  elif [ "$mode" = late-rejection ]; then
     : > "$home/config/supervision-handoff-ack"
     install_first_offer_action "$home" "$action" '
       printf "needs-decision [key=late]: choose again\n" >> "$FM_HOME/state/demo.status"
@@ -449,6 +469,9 @@ SH
     rmdir "$state/.wake-queue.lock"
     rm -f "$state/.fm-lease-command.lock/pid"
     rmdir "$state/.fm-lease-command.lock"
+  elif [ "$mode" = coalesced-late ]; then
+    FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 \
+      FM_SUPERVISION_HOST_TURN_TIMEOUT=20 start_host "$home"
   elif [ "$mode" = late-rejection ] || [ "$mode" = divergence ]; then
     FM_STATUS_PRESENTATION_LOCK_TIMEOUT=2 start_host "$home"
   else
@@ -464,7 +487,13 @@ SH
     wait_until_deadline 60 host_exited "$home" || fail "$mode: did not hand the signal back to main"
     assert_re '^signal: .*demo.status' "$home/host.out" "$mode: the signal did not reach main"
     [ -s "$state/.wake-queue" ] || fail "$mode: the host consumed consequential work"
-    if [ "$mode" = late-rejection ]; then
+    if [ "$mode" = coalesced-late ]; then
+      [ -e "$home/second-offer-action-ran" ] || fail "fixture: no final offer"
+      assert_re '^signal: .*demo.status .*zed.status' "$home/host.out" "the coalesced close must reach main"
+      assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "the older offer must not force a deadline hand-back"
+      [ "$(engine_calls "$home")" -eq 0 ] || fail "the older offer took the coalesced wake"
+      watcher_live "$home" || fail "the late decision hand-back left no successor"
+    elif [ "$mode" = late-rejection ]; then
       expect_code 0 "$(<"$home/host.rc")" "a late rejection must not time out its ordinary hand-back"
       assert_grep 'check: supervision-handoff' "$state/.wake-queue" "ordinary hand-back must publish its check"
     elif [ "$mode" = divergence ]; then
@@ -1578,6 +1607,7 @@ trap diagnostic_suite_cleanup EXIT
 test_owned_answer_close() { test_attended_answer_close owned; }
 test_external_answer_close() { test_attended_answer_close external; }
 test_mixed_answer_close() { test_attended_answer_close mixed; }
+test_coalesced_late_answer_decision() { test_attended_answer_close coalesced-late; }
 test_capped_answer_close() { test_attended_answer_close capped; }
 test_direct_answer_preserves_hold_divergence() { test_attended_answer_close divergence; }
 test_unreadable_hold_does_not_acknowledge_answer() { test_attended_answer_close unreadable-hold; }
@@ -1741,6 +1771,7 @@ fm_test_run \
   test_owned_answer_close \
   test_external_answer_close \
   test_mixed_answer_close \
+  test_coalesced_late_answer_decision \
   test_capped_answer_close \
   test_direct_answer_preserves_hold_divergence \
   test_unreadable_hold_does_not_acknowledge_answer \

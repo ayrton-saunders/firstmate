@@ -1048,7 +1048,7 @@ health_record() {  # <engine-error 0|1> <reports>
 # malformed or unrelated batch stays on the normal routing path.
 attended_routine_rows() {  # <reason> <decision keys> [preflight]
   local reason=$1 decision_keys=$2 mode=${3:-} queue='' seq kind key payload epoch extra rows='' pending f exclude rc
-  local proven_answers=' ' digest
+  local proven_answers=' ' digest rejected=0
   if [ -e "$FM_WAKE_QUEUE" ] || [ -L "$FM_WAKE_QUEUE" ]; then
     [ -f "$FM_WAKE_QUEUE" ] && [ ! -L "$FM_WAKE_QUEUE" ] || return 1
     queue=$(cat "$FM_WAKE_QUEUE") || return 1
@@ -1076,13 +1076,21 @@ attended_routine_rows() {  # <reason> <decision keys> [preflight]
           case "$key" in *.status) ;; *) return 1 ;; esac
           case " ${payload#signal:} " in *" $STATE/$key "*) ;; *) return 1 ;; esac
           ;;
-        stale:stale:*) attended_handled_stale_task "$key" "$payload" >/dev/null || return $? ;;
+        stale:stale:*)
+          if [ "$mode" = preflight ]; then
+            rc=0
+            attended_handled_stale_task "$key" "$payload" >/dev/null || rc=$?
+            [ "$rc" -ne 3 ] || return 3
+            [ "$rc" -eq 0 ] || rejected=1
+          fi ;;
         *) return 1 ;;
       esac
     done <<< "$queue"
   fi
-  [ "$mode" != preflight ] || return 0
-  proven_answers=' '
+  if [ "$mode" = preflight ]; then
+    [ "$rejected" -eq 0 ]
+    return
+  fi
   if [ "$reason" = 'check: rearm-resurface' ]; then
       pending=$("$SCRIPT_DIR/fm-branch-outcome.sh" present) || return 1
       [ "$(printf '%s\n' "$pending" | jq -rs 'any(.verdict == "captain")')" = false ] || return 1
@@ -1090,17 +1098,23 @@ attended_routine_rows() {  # <reason> <decision keys> [preflight]
       exclude=$(status_scan_parent_channel_exclude "$STATE")
       for f in "$STATE"/*.status; do
         [ -e "$f" ] && [ "$f" != "$exclude" ] && [ ! -L "$f" ] || continue
-        attended_no_open_decision "$f" || return $?
+        rc=0
+        attended_no_open_decision "$f" || rc=$?
+        [ "$rc" -ne 3 ] || return 3
+        [ "$rc" -eq 0 ] || rejected=1
       done
+      [ "$rejected" -eq 0 ] || return 1
       FM_SUPERVISION_ACTOR=main "$SCRIPT_DIR/fm-wake-drain.sh" --recovery-presentation-clear || return 1
       [ -n "$queue" ] || return 0
   fi
   while IFS=$'\t' read -r epoch seq kind key payload extra; do
     rc=0
     attended_routine_row "$kind" "$key" "$payload" || rc=$?
-    [ "$rc" -eq 0 ] || return "$rc"
+    [ "$rc" -ne 3 ] || return 3
+    [ "$rc" -eq 0 ] || rejected=1
     rows=${rows:+$rows }$seq
   done <<< "$queue"
+  [ "$rejected" -eq 0 ] || return 1
   printf '%s\n' "$rows"
 }
 
@@ -1127,28 +1141,32 @@ attended_handled_stale_task() {  # <queue-key> <reason>
 }
 
 attended_routine_row() {  # <kind> <key> <reason>
-  local kind=$1 key=$2 reason=$3 task f found=0 answer_rc
+  local kind=$1 key=$2 reason=$3 task f found=0 answer_rc decision_rc rejected=0
   local -a files
   case "$kind:$reason" in
     signal:signal:*)
       _fm_wake_require_classify || return 1
       read -r -a files <<< "${reason#signal:}"
       for f in "${files[@]}"; do
-        [ "$f" = "$STATE/${f##*/}" ] || return 1
-        case "${f##*/}" in *.status) ;; *) return 1 ;; esac
+        [ "$f" = "$STATE/${f##*/}" ] || { rejected=1; continue; }
+        case "${f##*/}" in *.status) ;; *) rejected=1; continue ;; esac
         task=${f##*/}; task=${task%.status}
-        case "$task" in ''|*[!A-Za-z0-9._-]*|.|..) return 1 ;; esac
+        case "$task" in ''|*[!A-Za-z0-9._-]*|.|..) rejected=1; continue ;; esac
         [ "${f##*/}" != "$key" ] || found=1
         case "$proven_answers" in
           *" $f "*) ;;
-          *) answer_rc=0
+          *) answer_rc=0; decision_rc=0
              status_unread_only_home_answers "$f" || answer_rc=$?
-             attended_no_open_decision "$f" || return $?
-             [ "$answer_rc" -eq 0 ] || return 1
-             proven_answers="$proven_answers$f " ;;
+             attended_no_open_decision "$f" || decision_rc=$?
+             [ "$decision_rc" -ne 3 ] || return 3
+             if [ "$answer_rc" -eq 0 ] && [ "$decision_rc" -eq 0 ]; then
+               proven_answers="$proven_answers$f "
+             else
+               rejected=1
+             fi ;;
         esac
       done
-      [ "$found" -eq 1 ]
+      [ "$rejected" -eq 0 ] && [ "$found" -eq 1 ]
       ;;
     stale:stale:*)
       task=$(attended_handled_stale_task "$key" "$reason") || return $?
