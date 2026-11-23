@@ -1614,7 +1614,7 @@ families_for_changed_path() {
         fm-live-lab-isolation.test.sh fm-claude-safeguard-live.test.sh \
         fm-hermes-gateway-coexistence-live-e2e.test.sh fm-hermes-profile-safety-live-e2e.test.sh \
         fm-hermes-signals-live-e2e.test.sh fm-test-linux.test.sh fm-test-fixture-cleanup.test.sh \
-        fm-test-isolation-proof.test.sh fm-test-tap-verify.test.sh
+        fm-test-isolation-proof.test.sh fm-test-tap-verify.test.sh fm-spawn-orca-worktree.test.sh
       scripts_for_test_reference fm_test_copy_primary_lab remote-secondmate-source-copy-helpers.sh \
         remote-secondmate-lifecycle-fixture.sh || true
       ;;

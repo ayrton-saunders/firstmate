@@ -792,14 +792,26 @@ EOF
   pass "Orca warns when allowlisted names would resolve from the Orca terminal, and stays quiet for an empty allowlist"
 }
 
+orca_tmux_hold=
+orca_tmux_dir=
+orca_tmux_bin=
+stop_orca_source_tmux() {
+  local rc=0
+  [ -n "$orca_tmux_hold" ] || return 0
+  fm_test_stop_private_tmux "$orca_tmux_dir/tmux.sock" "$orca_tmux_bin" "$orca_tmux_hold" || rc=$?
+  orca_tmux_hold=
+  return "$rc"
+}
+trap 'status=$?; trap "" HUP INT QUIT TERM; teardown=0; stop_orca_source_tmux || teardown=$?; fm_test_finalize "$status" "$teardown"' EXIT
+
 # The real tmux client sanitizes control characters without UTF-8 mode. A
 # private socket and synthetic environment catch corruption the stub cannot.
 test_orca_source_preserves_values_without_utf8_locale() {
-  local real_tmux case_dir tmux_hold= status=0
-  real_tmux=$(command -v tmux) || fail "tmux is required for the Orca source locale regression"
-  case_dir=$(TMPDIR=/tmp fm_test_tmproot oenv) || fail 'could not allocate Orca scratch'
-  FM_TEST_RETAIN_MARKER= fm_test_arm_private_tmux tmux_hold "$case_dir" || fail 'could not protect Orca scratch'
-  python3 - "$real_tmux" "$case_dir" "$ROOT/bin/backends/orca.sh" <<'PY' || status=$?
+  local status=0
+  orca_tmux_bin=$(command -v tmux) || fail "tmux is required for the Orca source locale regression"
+  orca_tmux_dir=$(TMPDIR=/tmp fm_test_tmproot oenv) || fail 'could not allocate Orca scratch'
+  FM_TEST_RETAIN_MARKER= fm_test_arm_private_tmux orca_tmux_hold "$orca_tmux_dir" || fail 'could not protect Orca scratch'
+  python3 - "$orca_tmux_bin" "$orca_tmux_dir" "$ROOT/bin/backends/orca.sh" <<'PY' || status=$?
 import os, pathlib, shlex, shutil, subprocess, sys
 tmux, directory, adapter = sys.argv[1:]
 root = pathlib.Path(directory)
@@ -865,12 +877,77 @@ def check_source():
 
 check_source()
 PY
-  fm_test_stop_private_tmux "$case_dir/tmux.sock" "$real_tmux" "$tmux_hold" || fail 'could not verify Orca tmux teardown'
+  stop_orca_source_tmux || fail 'could not verify Orca tmux teardown'
   [ "$status" -eq 0 ] || fail 'real-tmux source must preserve exact values and refuse missing names'
   pass "real tmux preserves absent/C locale values and reported raw bytes, rejects missing/phantom names and excludes the automatic SSH agent"
 }
 
+test_orca_term_stops_source_tmux() {
+  local real_tmux
+  real_tmux=$(command -v tmux) || fail 'tmux is required for the Orca interruption regression'
+  python3 - "$BASH" "$ROOT/tests/fm-spawn-orca-worktree.test.sh" "$real_tmux" "$TMP_ROOT" <<'PY' || fail 'TERM did not stop Orca tmux before scratch cleanup'
+import os, pathlib, shlex, signal, subprocess, sys, time
+
+if os.name != 'posix':
+    sys.exit(0)
+bash, suite, tmux, root = sys.argv[1:]
+root = pathlib.Path(root)
+tools = root / 'pause-tools'
+tools.mkdir()
+ready = tools / 'socket'
+shim = tools / 'tmux'
+shim.write_text('#!/usr/bin/env bash\nREAL_TMUX=' + shlex.quote(tmux) +
+                '\nORCA_READY=' + shlex.quote(str(ready)) + '''
+if [ "$1" = -S ] && [ "$5" = new-session ]; then
+  "$REAL_TMUX" "$@" || exit $?
+  printf '%s\\n' "$2" > "$ORCA_READY"
+  exec sleep 60
+fi
+exec "$REAL_TMUX" "$@"
+''')
+shim.chmod(0o755)
+env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ['PATH'], FM_TEST_SKIP_ORPHAN_REAP='1')
+socket = None
+with (tools / 'suite.log').open('w+') as log:
+    proc = subprocess.Popen([bash, suite], env=env, start_new_session=True, stdout=log, stderr=log)
+    try:
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline and proc.poll() is None:
+            if ready.exists() and (path := ready.read_text().strip()):
+                socket = pathlib.Path(path)
+                break
+            time.sleep(0.02)
+        assert socket is not None and socket.is_socket(), 'real launch never bound its socket'
+        server = subprocess.check_output([tmux, '-S', str(socket), 'display-message', '-p',
+                                          '-t', '=scoped-source', '#{pid}'], text=True, timeout=2).strip()
+        assert int(server) > 0
+        os.killpg(proc.pid, signal.SIGTERM)
+        assert proc.wait(timeout=8) in (143, -signal.SIGTERM), 'suite did not exit on TERM'
+        assert not socket.parent.exists(), 'Orca scratch survived TERM'
+        deadline = time.monotonic() + 2
+        while True:
+            state = subprocess.run(['ps', '-p', server, '-o', 'stat='], capture_output=True,
+                                   text=True, timeout=2).stdout.strip()
+            if not state or state.startswith('Z'):
+                break
+            assert time.monotonic() < deadline, 'Orca server survived TERM'
+            time.sleep(0.02)
+    except Exception:
+        log.seek(0)
+        print(log.read(), file=sys.stderr)
+        raise
+    finally:
+        if proc.poll() is None:
+            os.killpg(proc.pid, signal.SIGKILL)
+            proc.wait()
+        if socket is not None and socket.is_socket():
+            subprocess.run([tmux, '-S', str(socket), 'kill-server'], capture_output=True, timeout=2)
+PY
+  pass 'Orca stops its detached tmux server and removes scratch on TERM'
+}
+
 test_orca_source_preserves_values_without_utf8_locale
+test_orca_term_stops_source_tmux
 test_orca_launch_uses_controlled_tmux_environment
 test_orca_allowlist_without_source_warns
 test_orca_spawn_waits_for_a_slow_pane_before_a_later_failure

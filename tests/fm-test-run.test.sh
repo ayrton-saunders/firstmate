@@ -299,7 +299,7 @@ test_changed_scratch_helper_selects_teardown_coverage() {
   init_changed_fixture_repo "$repo"
   for script in fm-claude-safeguard-live fm-hermes-gateway-coexistence-live-e2e \
     fm-hermes-profile-safety-live-e2e fm-hermes-signals-live-e2e fm-live-lab-isolation \
-    fm-test-fixture-cleanup fm-test-linux fm-test-tap-verify; do
+    fm-spawn-orca-worktree fm-test-fixture-cleanup fm-test-linux fm-test-tap-verify; do
     touch "$repo/tests/$script.test.sh"
   done
   for script in agy cursor; do
@@ -317,7 +317,7 @@ test_changed_scratch_helper_selects_teardown_coverage() {
     fm-cursor-primary-live-e2e fm-hermes-gateway-coexistence-live-e2e \
     fm-hermes-profile-safety-live-e2e fm-hermes-signals-live-e2e fm-live-lab-isolation \
     fm-remote-secondmate-lifecycle-{backends-e2e,e2e,migration-e2e,naming-e2e,recovery-e2e} \
-    fm-test-fixture-cleanup fm-test-fixtures \
+    fm-spawn-orca-worktree fm-test-fixture-cleanup fm-test-fixtures \
     fm-test-isolation-proof fm-test-linux fm-test-run fm-test-tap-verify)
   assert_equals "$expected" "$(printf '%s\n' "$listed" | LC_ALL=C sort)" 'scratch-only changes select teardown and runner regressions'
   pass 'scratch helper changes select private teardown coverage'
