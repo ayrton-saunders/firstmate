@@ -1489,6 +1489,7 @@ attended_park_worker() {  # [handback] <function> [args...]
     runner=(fm_run_timed "$HAND_BACK_TIMEOUT")
     shift
   fi
+  # shellcheck disable=SC2016 # The child Bash expands this script.
   FM_STATE_OVERRIDE="$STATE" "${runner[@]}" bash -uc '
     SCRIPT_DIR=$1 HOST_PID=$2 GEN=$3 GRANT_ACTIVE=$4
     . "$SCRIPT_DIR/fm-wake-lib.sh"
