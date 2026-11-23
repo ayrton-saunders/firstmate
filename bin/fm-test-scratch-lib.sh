@@ -3,9 +3,18 @@
 fm_test_declared_scratch=.test-phase-tmp
 
 fm_test_is_declared_scratch() {
-  local top=${2%%/*}
-  [ "$top" = "$fm_test_declared_scratch" ] ||
-    { [ -d "$1/$top" ] && [ ! -L "$1/$top" ] && [ "$1/$top" -ef "$1/$fm_test_declared_scratch" ]; }
+  local top=${2%%/*} candidate declared identities
+  [ "$top" != "$fm_test_declared_scratch" ] || return 0
+  candidate="$1/$top"
+  declared="$1/$fm_test_declared_scratch"
+  if [ -L "$declared" ]; then
+    [ -L "$candidate" ] || return 1
+    identities=$(stat -c '%d:%i' -- "$candidate" "$declared" 2>/dev/null) ||
+      identities=$(stat -f '%d:%i' "$candidate" "$declared") || return 1
+    [ "${identities%%$'\n'*}" = "${identities#*$'\n'}" ]
+  else
+    [ -d "$candidate" ] && [ ! -L "$candidate" ] && [ "$candidate" -ef "$declared" ]
+  fi
 }
 
 fm_test_copy_primary_lab() (

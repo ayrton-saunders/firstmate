@@ -322,6 +322,24 @@ test_primary_lab_copy_excludes_only_declared_scratch() {
   assert_present "$dest/nested/.test-phase-tmp/sentinel" 'nested work was not excluded'
   assert_equals 'working bytes' "$(<"$dest/tracked")" 'working bytes were copied'
   assert_equals 'untracked bytes' "$(<"$dest/.untracked")" 'untracked dotfile was copied'
+  mkdir -p "$harness/symlink-copy" "$source/notes"
+  printf 'real work\n' >"$source/notes/draft"
+  mv "$source/.TEST-PHASE-TMP" "$harness/old-scratch"
+  ln -s notes "$source/.test-phase-tmp"
+  ln -s notes "$source/notes-link"
+  fm_test_copy_primary_lab "$source" "$harness/symlink-copy" || fail 'primary lab copy with symlink failed'
+  assert_absent "$harness/symlink-copy/.test-phase-tmp" 'the declared symlink was excluded'
+  assert_equals 'real work' "$(<"$harness/symlink-copy/notes/draft")" 'the declared symlink target was copied normally'
+  assert_equals notes "$(readlink "$harness/symlink-copy/notes-link")" 'an unrelated symlink to the same work was kept'
+  mv "$source/.test-phase-tmp" "$harness/declared-link"
+  mv "$harness/declared-link" "$source/.TEST-PHASE-TMP"
+  mkdir "$harness/symlink-alias-copy"
+  fm_test_copy_primary_lab "$source" "$harness/symlink-alias-copy" || fail 'primary lab copy with symlink case variant failed'
+  if [ -L "$source/.test-phase-tmp" ]; then
+    assert_absent "$harness/symlink-alias-copy/.TEST-PHASE-TMP" 'case alias of the declared symlink was excluded'
+  else
+    assert_equals notes "$(readlink "$harness/symlink-alias-copy/.TEST-PHASE-TMP")" 'distinct symlink case variant was preserved'
+  fi
   pass 'primary lab copies omit only root-level declared scratch'
 }
 
