@@ -340,7 +340,10 @@ test_attended_answer_close() {  # <owned|external|mixed|capped|divergence>
   home=$(make_home "attended-answer-$mode" quiet)
   state="$home/state"
   f="$state/demo.status"
-  if [ "$mode" = divergence ]; then seed_open_captain_hold "$home" answer-test; fi
+  case "$mode" in
+    divergence|unreadable-hold) seed_open_captain_hold "$home" answer-test ;;
+    handback-lock) seed_open_captain_hold "$home" unrelated-call ;;
+  esac
   printf 'kind=secondmate\n' >> "$state/demo.meta"
   printf 'needs-decision [key=answer-test]: choose\n' > "$f"
   routine_wake_lib "$home" fm_wake_status_mark_current "$state" "$f" || fail "fixture: could not baseline the decision"
@@ -393,10 +396,35 @@ SH
     action+=$'\n''  printf "needs-decision [key=new-choice]: choose again\n" >> "$FM_HOME/state/demo.status"'
   fi
   install_first_offer_action "$home" "$action"
-  start_host "$home"
+  case "$mode" in
+    unreadable-hold)
+      printf '#!/usr/bin/env bash\nexit 1\n' > "$home/fakebin/tasks-axi"
+      chmod +x "$home/fakebin/tasks-axi"
+      ;;
+    handback-lock)
+      : > "$home/config/supervision-handoff-ack"
+      {
+        printf '#!/usr/bin/env bash\n'
+        printf 'if [ "$1" = list ]; then mkdir "$FM_HOME/state/.wake-queue.lock" && printf "%%s\\n" %s > "$FM_HOME/state/.wake-queue.lock/pid"; fi\n' "$$"
+        printf 'exec %q "$@"\n' "$(command -v tasks-axi)"
+      } > "$home/fakebin/tasks-axi"
+      chmod +x "$home/fakebin/tasks-axi"
+      ;;
+  esac
+  if [ "$mode" = handback-lock ]; then
+    FM_STATUS_PRESENTATION_LOCK_TIMEOUT=2 start_host "$home"
+    wait_until_deadline 35 host_exited "$home" || fail "routine hand-back waited on the stalled queue lock"
+    assert_re '^signal: .*demo.status' "$home/host.out" "hand-back failure must preserve the original close"
+    assert_grep 'the acknowledged hand-back could not be recorded' "$home/host.out" "contended hand-back must report failure"
+    [ -s "$state/.wake-queue" ] || fail "contended hand-back lost the queued wake"
+    rm -f "$state/.wake-queue.lock/pid"
+    rmdir "$state/.wake-queue.lock"
+  else
+    start_host "$home"
+  fi
   if [ "$mode" = owned ]; then
     assert_routine_close_acknowledged "$home" 'signal: .*demo.status'
-  else
+  elif [ "$mode" != handback-lock ]; then
     wait_until_deadline 60 host_exited "$home" || fail "$mode: did not hand the signal back to main"
     assert_re '^signal: .*demo.status' "$home/host.out" "$mode: the signal did not reach main"
     [ -s "$state/.wake-queue" ] || fail "$mode: the host consumed consequential work"
@@ -1415,6 +1443,8 @@ test_external_answer_close() { test_attended_answer_close external; }
 test_mixed_answer_close() { test_attended_answer_close mixed; }
 test_capped_answer_close() { test_attended_answer_close capped; }
 test_direct_answer_preserves_hold_divergence() { test_attended_answer_close divergence; }
+test_unreadable_hold_does_not_acknowledge_answer() { test_attended_answer_close unreadable-hold; }
+test_acknowledged_handback_bounds_queue_lock() { test_attended_answer_close handback-lock; }
 test_handled_busy_inbox_close() { test_attended_busy_inbox_close handled; }
 test_stuck_busy_inbox_close() { test_attended_busy_inbox_close stuck; }
 test_routine_resurface() { test_attended_resurface routine; }
@@ -1480,6 +1510,8 @@ fm_test_run \
   test_mixed_answer_close \
   test_capped_answer_close \
   test_direct_answer_preserves_hold_divergence \
+  test_unreadable_hold_does_not_acknowledge_answer \
+  test_acknowledged_handback_bounds_queue_lock \
   test_handled_busy_inbox_close \
   test_stuck_busy_inbox_close \
   test_routine_resurface \

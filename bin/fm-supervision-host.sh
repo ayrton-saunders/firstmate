@@ -234,6 +234,7 @@ numeric_or() {  # <value> <default>
   case "$1" in ''|0*|*[!0-9]*) printf '%s\n' "$2" ;; *) printf '%s\n' "$1" ;; esac
 }
 
+HAND_BACK_TIMEOUT=$(numeric_or "${FM_STATUS_PRESENTATION_LOCK_TIMEOUT:-}" 10)
 GRACE=${FM_GUARD_GRACE:-$(fm_poll_derived_grace)}
 ENGINE_GRACE=$(numeric_or "${FM_SUPERVISION_ENGINE_GRACE:-}" 30)
 PARK_SECONDS=$(numeric_or "${FM_SUPERVISION_HOST_PARK_SECONDS:-}" 27000)
@@ -708,7 +709,7 @@ retire_successor() {
   retire_arm "$SUCCESSOR_PID" "$SUCCESSOR_OUT"
   SUCCESSOR_PID=
   SUCCESSOR_OUT=
-  "$SCRIPT_DIR/fm-watch-arm.sh" --stop >/dev/null 2>&1 || true
+  fm_run_timed "$HAND_BACK_TIMEOUT" "$SCRIPT_DIR/fm-watch-arm.sh" --stop >/dev/null 2>&1 || true
 }
 
 # Hand the close to main: stop the successor cycle, print the close, why, and
@@ -718,11 +719,7 @@ exit_to_main() {  # <why> [further lines]
   local lines=${2:-} rc=0 restore_rc=0
   retire_successor
   if [ -n "$SUCCESSOR_GENERATION" ]; then
-    if [ "${ATTENDED_ROUTINE:-0}" -eq 1 ]; then
-      attended_park_worker fm_recovery_marker_publish "$STATE/.watcher-down" downtime >/dev/null 2>&1 || restore_rc=$?
-    else
-      fm_recovery_marker_publish "$STATE/.watcher-down" downtime >/dev/null 2>&1 || restore_rc=$?
-    fi
+    attended_park_worker handback fm_recovery_marker_publish "$STATE/.watcher-down" downtime >/dev/null 2>&1 || restore_rc=$?
   fi
   if [ "$restore_rc" -ne 0 ]; then
     log_line "to-main	downtime-unrestored	$1"
@@ -746,9 +743,7 @@ acknowledged_handback() {  # [extra output lines]; returns only when disabled
   retire_successor
   tmp=$(mktemp "$STATE/.supervision-handoff-pending.XXXXXX") || exit 1
   printf '%s\n' "$GEN" > "$tmp" && mv -f "$tmp" "$STATE/.supervision-handoff-pending" || exit 1
-  if ! fm_wake_append check "supervision-handoff:$GEN" \
-    "check: supervision-handoff - the host handed supervision to main; drain, handle, and acknowledge this hand-back" \
-    || ! fm_recovery_marker_publish "$STATE/.watcher-down" downtime >/dev/null; then
+  if ! attended_park_worker handback record_acknowledged_handback; then
     emit "$@" 'supervision-host: the acknowledged hand-back could not be recorded'
     exit 1
   fi
@@ -776,6 +771,12 @@ acknowledged_handback() {  # [extra output lines]; returns only when disabled
   rm -f "$out"
   emit "$@" 'supervision-host: the acknowledged hand-back successor could not be verified'
   exit 1
+}
+
+record_acknowledged_handback() {
+  fm_wake_append check "supervision-handoff:$GEN" \
+    "check: supervision-handoff - the host handed supervision to main; drain, handle, and acknowledge this hand-back" \
+    && fm_recovery_marker_publish "$STATE/.watcher-down" downtime >/dev/null
 }
 
 # The outcome store (bin/fm-branch-outcome.sh) owns and validates these rows.
@@ -895,7 +896,7 @@ leave_successor_for_main() {
     return 1
   fi
   if [ -n "$SUCCESSOR_GENERATION" ] \
-    && ! fm_recovery_marker_publish "$STATE/.watcher-down" downtime >/dev/null 2>&1; then
+    && ! attended_park_worker handback fm_recovery_marker_publish "$STATE/.watcher-down" downtime >/dev/null 2>&1; then
     log_line "pass-through	downtime-unrestored	$(printf '%s\n' "$REASON" | head -n 1)"
     return 2
   fi
@@ -1164,7 +1165,7 @@ acknowledge_routine_close() {  # <exact rows, or empty for rearm-resurface>
 # never a subshell, because it advances the host's grant and turn state.
 handle_wake() {  # <reason-lines>
   local reason=$1 first scope status corrupted rows tasks unscoped rc turn readback
-  local receipts usage result errors unacked mirror
+  local receipts usage result errors unacked mirror diverged divergence_limit
   LAST_TURN=
   ENGINE_ERROR=0
   HEALTH_NOTE=
@@ -1176,6 +1177,13 @@ handle_wake() {  # <reason-lines>
     if [ "$ATTENDED_ROUTINE" -eq 1 ]; then
       host_still_owner || return 1
       rc=0
+      divergence_limit=$(numeric_or "${FM_DIVERGENCE_TIMEOUT:-}" 20)
+      diverged=$(attended_park_run_with_limit "$divergence_limit" "$SCRIPT_DIR/fm-captain-hold.sh" diverged --require-readable 2>/dev/null) || rc=$?
+      if [ "$rc" -eq 124 ]; then boundary_exit; fi
+      if [ "$rc" -ne 0 ] || [ -n "$diverged" ]; then
+        ATTENDED_WHY=main-only
+        return 2
+      fi
       attended_park_worker acknowledge_routine_close "$ATTENDED_ROUTINE_ROWS" || rc=$?
       [ -z "$ATTENDED_ROUTINE_ROWS" ] || GRANT_ACTIVE=1
       if [ "$rc" -eq 124 ]; then boundary_exit; fi
@@ -1347,9 +1355,7 @@ turn_captain_seqs() {  # <turn>
 }
 
 attended_park_run() {  # <command> [args...]
-  local limit
-  limit=$(numeric_or "${FM_STATUS_PRESENTATION_LOCK_TIMEOUT:-}" 10)
-  attended_park_run_with_limit "$limit" "$@"
+  attended_park_run_with_limit "$HAND_BACK_TIMEOUT" "$@"
 }
 
 attended_park_run_with_limit() {  # <seconds> <command> [args...]
@@ -1372,8 +1378,13 @@ attended_park_run_with_limit() {  # <seconds> <command> [args...]
   return "$rc"
 }
 
-attended_park_worker() {  # <function> [args...]
-  FM_STATE_OVERRIDE="$STATE" attended_park_run bash -uc '
+attended_park_worker() {  # [handback] <function> [args...]
+  local -a runner=(attended_park_run)
+  if [ "$1" = handback ]; then
+    runner=(fm_run_timed "$HAND_BACK_TIMEOUT")
+    shift
+  fi
+  FM_STATE_OVERRIDE="$STATE" "${runner[@]}" bash -uc '
     SCRIPT_DIR=$1 HOST_PID=$2 GEN=$3 GRANT_ACTIVE=$4
     . "$SCRIPT_DIR/fm-wake-lib.sh"
     . "$SCRIPT_DIR/fm-task-inbox-lib.sh"
@@ -1387,7 +1398,7 @@ attended_park_worker() {  # <function> [args...]
     fi
   ' _ "$SCRIPT_DIR" "$HOST_PID" "$GEN" "$GRANT_ACTIVE" \
     "$(declare -f attended_routine_rows attended_routine_row attended_no_open_decision \
-      acknowledge_routine_close publish_wake_grant branch_env)" "$@"
+      acknowledge_routine_close publish_wake_grant branch_env record_acknowledged_handback)" "$@"
 }
 
 attended_routine_candidate() {  # <reason>
@@ -1411,7 +1422,7 @@ attended_routine_candidate() {  # <reason>
 # or nothing when the supervision session may take it. Sets ATTENDED_WHY, and
 # ATTENDED_OFFER to the offer's verdict and the scope it judged.
 attended_acceptor() {  # <reason-lines>
-  local offer='' first=${1%%$'\n'*} rc=0 decision_keys candidate=0 diverged divergence_limit
+  local offer='' first=${1%%$'\n'*} rc=0 decision_keys candidate=0
   local -a offer_runner=()
   boundary_reached && boundary_exit
   ATTENDED_WHY=
@@ -1444,12 +1455,6 @@ attended_acceptor() {  # <reason-lines>
         ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows <<< "$1"$'\n'"$decision_keys") || rc=$?
         if [ "$rc" -eq 124 ]; then boundary_exit; fi
         if [ "$rc" -eq 75 ]; then rc=3; fi
-        if [ "$rc" -eq 0 ]; then
-          divergence_limit=$(numeric_or "${FM_DIVERGENCE_TIMEOUT:-}" 20)
-          diverged=$(attended_park_run_with_limit "$divergence_limit" "$SCRIPT_DIR/fm-captain-hold.sh" diverged 2>/dev/null) || rc=$?
-          if [ "$rc" -eq 124 ]; then boundary_exit; fi
-          if [ "$rc" -ne 0 ] || [ -n "$diverged" ]; then rc=3; fi
-        fi
       fi
       boundary_reached && boundary_exit
       if [ "$rc" -eq 0 ]; then
@@ -1587,7 +1592,7 @@ while :; do
     # back as already announced, so the successor left running does not
     # resurface the episode this very close delivers.
     if [ -n "$SUCCESSOR_GENERATION" ] \
-      && ! fm_recovery_marker_handback "$STATE/.watcher-down" >/dev/null 2>&1; then
+      && ! attended_park_worker handback fm_recovery_marker_handback "$STATE/.watcher-down" >/dev/null 2>&1; then
       log_line "pass-through	downtime-unrestored	$(printf '%s\n' "$REASON" | head -n 1)"
       exit 1
     fi
