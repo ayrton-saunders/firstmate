@@ -2085,7 +2085,27 @@ SH
   assert_absent "$tmp/hermes/mutation-attempted" 'Hermes did not mutate the replacement config'
   assert_equals 'editor config' "$(<"$profile/config.yaml")" 'replacement config stayed untouched'
   assert_equals 'original config' "$(<"$profile/original.yaml")" 'old target stayed untouched'
-  rm -- "$profile/config.yaml"
+  printf 'original config\n' > "$profile/config.yaml"
+  cat > "$tmp/path/cat" <<'SH'
+#!/usr/bin/env bash
+"$REAL_CAT" "$@" || exit 1
+if [ "$#" -eq 1 ] && [ "$1" = "$EDIT_CONFIG" ]; then
+  printf 'editor config\n' > "$EDIT_CONFIG.replacement" && mv -f "$EDIT_CONFIG.replacement" "$EDIT_CONFIG"
+fi
+SH
+  chmod +x "$tmp/path/cat"
+  rc=0
+  REAL_CAT="$(command -v cat)" EDIT_CONFIG="$profile/config.yaml" PATH="$tmp/path:$PATH" \
+    FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
+    bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+  rm -- "$tmp/path/cat"
+  assert_equals 1 "$rc" 'prewrite check refuses a regular config replaced during backup'
+  assert_contains "$(<"$tmp/out")" 'changed before mutation' 'refusal occurred after backup and before mutation'
+  assert_absent "$tmp/hermes/mutation-attempted" 'Hermes did not mutate the concurrent save'
+  assert_equals 'editor config' "$(<"$profile/config.yaml")" 'concurrent save survived'
+  set -- "$profile"/.fm-gateway-config.??????
+  assert_equals 'original config' "$(<"$1")" 'verified backup was retained'
+  rm -- "$1" "$profile/config.yaml"
   ln -s original.yaml "$profile/config.yaml"
   rc=0
   PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
@@ -2528,14 +2548,9 @@ alias_dir = tmp / 'operational-aliases'
 alias_dir.mkdir()
 alias_targets = [(alias_dir / 'relative-state', pathlib.Path('..') / base.name / parent.name),
                  (alias_dir / 'absolute-state', parent)]
-case_sample = base / 'case-sample'
-case_sample.mkdir()
-case_insensitive = (base / 'CASE-SAMPLE').is_dir()
-case_sample.rmdir()
-if case_insensitive:
-    upper_parent = parent.with_name(parent.name.upper())
-    protected_paths.append(shell_path(upper_parent))
-    alias_targets.append((alias_dir / 'case-state', upper_parent))
+upper_parent = parent.with_name(parent.name.upper())
+protected_paths.append(shell_path(upper_parent))
+alias_targets.append((alias_dir / 'case-state', upper_parent))
 for alias, target in alias_targets:
     try:
         alias.symlink_to(target, target_is_directory=True)
@@ -2544,11 +2559,18 @@ for alias, target in alias_targets:
     else:
         assert alias.is_symlink() and not alias.exists()
         protected_paths.append(alias.relative_to(tmp).as_posix())
-for protected in protected_paths:
-    result = subprocess.run([*external_runner, cmd[-1]], cwd=tmp,
-                            env=dict(fixture_env, FM_STATE_OVERRIDE=protected), capture_output=True)
-    assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, (protected, result)
-    assert not parent.exists(), 'runner created the reserved per-user parent'
+preflight_mktemp = fakebin / 'mktemp'
+preflight_mktemp.write_text('#!/usr/bin/env bash\necho "unexpected preflight allocation" >&2\nexit 99\n')
+preflight_mktemp.chmod(0o755)
+try:
+    for protected in protected_paths:
+        result = subprocess.run([*external_runner, cmd[-1]], cwd=tmp,
+                                env=dict(fixture_env, FM_STATE_OVERRIDE=protected), capture_output=True)
+        assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, (protected, result)
+        assert b'unexpected preflight allocation' not in result.stderr, (protected, result)
+        assert not parent.exists(), 'runner created the reserved per-user parent'
+finally:
+    preflight_mktemp.unlink()
 
 result = subprocess.run(base_query, cwd=tmp, env=fixture_env, capture_output=True)
 assert result.returncode == 0 and native_path(os.fsdecode(result.stdout).strip()).resolve() == base.resolve(), result

@@ -262,16 +262,12 @@ fm_test_resolve_boundary() (
 )
 
 fm_test_missing_boundary_matches() (
-  local candidate=$1 boundary=$2 case_probe rc=1 LC_ALL=C
+  local candidate=$1 boundary=$2 LC_ALL=C
   [ "$candidate" != "$boundary" ] || return 0
+  [ ! -e "$boundary" ] || return 1
   shopt -s nocasematch
-  [[ "${candidate##*/}" == "${boundary##*/}" ]] || return 1
-  [ "${candidate%/*}/" -ef "${boundary%/*}/" ] || return 1
-  trap '' HUP INT QUIT TERM
-  case_probe=$(mktemp -d -- "${candidate%/*}/.fm-case-a.XXXXXX") || return 2
-  [ "$case_probe" -ef "${case_probe%/*}/.fm-case-A.${case_probe##*.}" ] && rc=0
-  rmdir -- "$case_probe" || return 2
-  return "$rc"
+  [[ "${candidate##*/}" == "${boundary##*/}" ]] &&
+    [ "${candidate%/*}/" -ef "${boundary%/*}/" ]
 )
 
 fm_test_anchor_inherited_paths() {
