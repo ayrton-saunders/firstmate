@@ -15,18 +15,36 @@ fm_live_gate opt-in FM_HERMES_GATEWAY_LIVE hermes tmux jq python3
 PROFILE=${FM_HERMES_LIVE_PROFILE:-worker}
 HERMES_BIN=$(command -v hermes)
 PROFILE_HOME="$FM_HERMES_LIVE_HOME/profiles/$PROFILE"
-LAB=$(mktemp -d "${TMPDIR:-/tmp}/hm.XXXXXX")
+LAB=$(mktemp -d "${TMPDIR:-/tmp}/h.XXXXXX") || fail 'could not allocate gateway scratch'
 LAB=$(cd "$LAB" && pwd -P)
 SOCKET="$LAB/s"
 mkdir -p "$LAB/home" "$LAB/state" "$LAB/locks"
 [ -f "$PROFILE_HOME/config.yaml" ] || fail "throwaway profile $PROFILE_HOME is not prepared"
-cp -p "$PROFILE_HOME/config.yaml" "$LAB/config.yaml"
+BACKUP=$(mktemp "$PROFILE_HOME/.fm-gateway-config.XXXXXX") || fail 'could not allocate profile backup'
+if ! cp -p "$PROFILE_HOME/config.yaml" "$BACKUP"; then
+  rm -f "$BACKUP"
+  fail 'could not back up profile config'
+fi
+TUI_PID=
 cleanup() {
-  tmux -S "$SOCKET" kill-server >/dev/null 2>&1 || true
-  cp -p "$LAB/config.yaml" "$PROFILE_HOME/config.yaml"
+  local status=$? socket
+  trap '' HUP INT TERM
+  if [ -n "$TUI_PID" ]; then kill -TERM "$TUI_PID" 2>/dev/null || true; fi
+  for socket in "$SOCKET" "$LAB"/hm.??????/s; do
+    [ ! -S "$socket" ] || tmux -S "$socket" kill-server >/dev/null 2>&1 || true
+  done
+  if [ -d "$PROFILE_HOME/config.yaml" ] || ! mv -f "$BACKUP" "$PROFILE_HOME/config.yaml"; then
+    printf 'not ok - config restore failed; backup retained at %s\n' "$BACKUP" >&2
+    [ "$status" -ne 0 ] || status=1
+  fi
+  fm_test_cleanup
   rm -rf "$LAB"
+  exit "$status"
 }
 trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 for file in "$FM_HERMES_LIVE_HOME/.env" "$PROFILE_HOME/.env"; do
   [ ! -s "$file" ] || fail "$file may configure a messaging platform; use a profile without one"
 done
@@ -75,8 +93,11 @@ printf 'idle gateway before: %s\n' "$(gateway_state)"
 . "$ROOT/bin/fm-hermes-lib.sh"
 HERMES_GATEWAY_LOCK_DIR="$LAB/locks" fm_hermes_gateway_check "$PROFILE_HOME" "$PROFILE" || fail 'idle own gateway refused'
 pass 'real idle profile gateway accepted by the read-only preflight'
-FM_HERMES_SIGNALS_LIVE=1 HERMES_GATEWAY_LOCK_DIR="$LAB/locks" \
-  bash "$ROOT/tests/fm-hermes-signals-live-e2e.test.sh" || fail 'TUI worker guard failed beside the idle gateway'
+TMPDIR="$LAB" TMP="$LAB" TEMP="$LAB" FM_HERMES_SIGNALS_LIVE=1 HERMES_GATEWAY_LOCK_DIR="$LAB/locks" \
+  bash "$ROOT/tests/fm-hermes-signals-live-e2e.test.sh" &
+TUI_PID=$!
+wait "$TUI_PID" || fail 'TUI worker guard failed beside the idle gateway'
+TUI_PID=
 before_stamp=$(jq -r .updated_at "$PROFILE_HOME/gateway_state.json")
 for _ in $(seq 1 150); do
   [ "$(jq -r .updated_at "$PROFILE_HOME/gateway_state.json")" != "$before_stamp" ] && break

@@ -14,7 +14,7 @@ REAL_TMUX=$(command -v tmux)
 VERSION="hermes $($HERMES_BIN --version 2>/dev/null | head -1)"
 LAB=$(mktemp -d "${TMPDIR:-/tmp}/hm.XXXXXX")
 LAB=$(cd "$LAB" && pwd -P)
-SOCKET="$LAB/tmux.sock"
+SOCKET="$LAB/s"
 cleanup() {
   "$REAL_TMUX" -S "$SOCKET" kill-server >/dev/null 2>&1 || true
   if [ "${FM_HERMES_LIVE_KEEP:-0}" = 1 ]; then

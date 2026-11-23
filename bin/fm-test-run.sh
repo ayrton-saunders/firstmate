@@ -163,6 +163,16 @@
 # tests/fixtures/<dir>/ or a recorded capture under tests/captures/<dir>/ is
 # mapped by that directory instead. Curated family arms above those also name
 # individual tests/ files explicitly.
+remove_run_tree() {
+  local dir=$1
+  if [ -d "$dir" ] && [ ! -L "$dir" ]; then
+    find "$dir" -type d -exec chmod u+rwx {} \; 2>/dev/null || true
+  fi
+  rm -rf -- "$dir"
+}
+
+if [ "${BASH_SOURCE[0]}" != "$0" ]; then return 0; fi
+
 set -eu
 
 now_ms() {
@@ -2448,14 +2458,6 @@ record_run_owner() {
   printf '%s|%s|%s|%s\n' "$UID" "$pid" "$group" "$start" >>"$marker"
 }
 
-remove_run_tree() {
-  local dir=$1
-  if [ -d "$dir" ] && [ ! -L "$dir" ]; then
-    find "$dir" -type d -exec chmod u+rwx {} \; 2>/dev/null || true
-  fi
-  rm -rf -- "$dir"
-}
-
 run_owners_gone() {
   local marker=$1 snapshot=$2 owner pid group start extra current found=0
   while IFS='|' read -r owner pid group start extra; do
@@ -3142,9 +3144,17 @@ wait_one_completed_job_worker() {
   done
 }
 
+run_serial_if_isolated() {
+  if [ "$KEEP_RUN_TMP" -eq 0 ]; then
+    run_one_serial "$1"
+  else
+    log "not run (worker group exit unconfirmed): $1"
+  fi
+}
+
 if [ "$JOBS" -eq 1 ]; then
   for script in "${SCRIPTS[@]}"; do
-    run_one_serial "$script"
+    run_serial_if_isolated "$script"
   done
 else
   for script in "${CONCURRENT_SCRIPTS[@]+"${CONCURRENT_SCRIPTS[@]}"}"; do
@@ -3157,14 +3167,18 @@ else
     while [ "$active_workers" -ge "$JOBS" ]; do
       wait_one_completed_job_worker
     done
-    start_worker "$script" 0 </dev/null
+    if [ "$KEEP_RUN_TMP" -eq 0 ]; then
+      start_worker "$script" 0 </dev/null
+    else
+      log "not run (worker group exit unconfirmed): $script"
+    fi
   done
   while [ "$active_workers" -gt 0 ]; do
     wait_one_completed_job_worker
   done
   # Unproven remainder, after every concurrent worker has finished.
   for script in "${SERIAL_TAIL_SCRIPTS[@]+"${SERIAL_TAIL_SCRIPTS[@]}"}"; do
-    run_one_serial "$script"
+    run_serial_if_isolated "$script"
   done
 fi
 

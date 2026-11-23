@@ -1994,6 +1994,25 @@ assert len(doc["scripts"])==3
   pass "aggregate-json merges lane timing artifacts"
 }
 
+test_readonly_probe_scratch_cleanup() {
+  local tmp probe hooks target
+  tmp=$(fm_test_tmproot fm-probe-cleanup)
+  probe="$tmp/probe"
+  hooks="$probe/h/state/task.git-hooks"
+  target="$tmp/target"
+  mkdir -p "$hooks" "$target"
+  touch "$hooks/prepare-commit-msg" "$target/sentinel"
+  chmod 0500 "$hooks" "$target"
+  ln -s "$target" "$probe/alias" 2>/dev/null || printf '%s\n' 'skip: probe alias requires directory symlink support'
+  ( . "$RUNNER"; remove_run_tree "$probe" ) || fail 'could not remove read-only probe scratch'
+  [ ! -e "$probe" ] && [ -f "$target/sentinel" ] || fail 'probe cleanup left scratch or touched its symlink target'
+  case "$(uname -s)" in
+    MINGW*|MSYS*) ;;
+    *) [ "$(id -u)" -eq 0 ] || [ ! -w "$target" ] || fail 'probe cleanup changed permissions on its symlink target' ;;
+  esac
+  pass 'probe cleanup removes read-only hooks without following symlinks'
+}
+
 test_scratch_placement_and_lifecycle() {
   local tmp
   tmp=$(fm_test_tmproot fm-run-scratch-contract)
@@ -2253,7 +2272,7 @@ timeout_lib.write_bytes(b'''fm_run_timed() {
 ''')
 try:
     sibling = 'tests/after.test.sh'
-    (repo / sibling).write_bytes(b'exit 0\n')
+    (repo / sibling).write_bytes(b'touch "$PROOF.sibling-started"\n')
     for name, bounded, code in (('leaderless-exit', False, 1), ('leaderless-timeout', True, 124)):
         report = tmp / (name + '.json')
         child, proof = launch(name, 'leaderless', bounded=bounded,
@@ -2266,12 +2285,14 @@ try:
             assert child.wait(timeout=10) == 1
             log = (tmp / (name + '.log')).read_text()
             assert f'exit={code} ' in log and f'retaining scratch: {run}' in log, log
-            expected = [code] if bounded else [code, 0]
-            assert f'FM_TEST_SUMMARY total={len(expected)} failed=1 ' in log, log
+            assert not (tmp / (name + '.sibling-started')).exists()
+            if not bounded:
+                assert f'not run (worker group exit unconfirmed): {sibling}' in log, log
+            assert 'FM_TEST_SUMMARY total=1 failed=1 ' in log, log
             assert 'FM_TEST_BUDGET max_wall_ms=60000 ' in log, log
             artifact = json.loads(report.read_text())
             assert artifact['summary']['failed'] == 1
-            assert [script['exit'] for script in artifact['scripts']] == expected, artifact
+            assert [script['exit'] for script in artifact['scripts']] == [code], artifact
             assert live_processes(stubborn) == [stubborn]
             assert not (tmp / (name + '.child.term')).exists(), log
             assert not (tmp / (name + '.removing')).exists() and run.is_dir()
@@ -2329,6 +2350,7 @@ PY
   pass 'runner scratch stays out of snapshots and is cleaned after results, signals and owner death'
 }
 
+test_readonly_probe_scratch_cleanup
 test_scratch_placement_and_lifecycle
 test_list_all_exact_suite_coverage
 test_family_selection
