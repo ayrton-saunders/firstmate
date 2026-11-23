@@ -196,7 +196,7 @@ for t in "${tests[@]}"; do
     : > "$FM_TEST_RETAIN_MARKER.$$.linux" || die 'could not arm Linux retention marker'
   fi
   rc=0
-  fm_test_probe_run "$runtime" run --rm --name "${scratch##*/}" --label "firstmate.test-launch=$container_token" "${identity[@]}" -v "$scratch:/work" -w /work -e HOME=/tmp -e TMPDIR=/tmp "$image" bash "$t" || rc=$?
+  fm_test_probe_run "$runtime" run --rm --label "firstmate.test-launch=$container_token" "${identity[@]}" -v "$scratch:/work" -w /work -e HOME=/tmp -e TMPDIR=/tmp "$image" bash "$t" || rc=$?
   [ -z "$probe_owner" ] || exit 1
   stop_linux_container || finish_linux 1 1
   if [ "$rc" -eq 0 ]; then

@@ -108,8 +108,18 @@ if [ "$TMPDIR" != "$EXPECTED_TMP" ] || [ "$TMP" != "$EXPECTED_TMP" ] || [ "$TEMP
   printf 'unexpected host temp paths for %s: %s %s %s\n' "$1" "$TMPDIR" "$TMP" "$TEMP" >&2
   exit 1
 fi
+case "$1" in
+  build|ps) exit 0 ;;
+  run) ;;
+  *) exit 1 ;;
+esac
 while [ "$#" -gt 1 ]; do
+  if [ "$#" -eq 3 ] && [ "$1" = sh ] && [ "$2" = -c ] && [ "$3" = 'uname -sr' ]; then
+    printf '%s\n' 'Linux fixture'
+    exit 0
+  fi
   if [ "$1" = -v ]; then
+    case "$2" in /*:/work) ;; *) exit 1 ;; esac
     copy=${2%:/work}
     [ ! -e "$copy/.test-phase-tmp" ] &&
       { [ "$CHECK_ALIAS" -eq 0 ] || [ ! -e "$copy/alias/committed" ]; } &&
@@ -122,6 +132,7 @@ while [ "$#" -gt 1 ]; do
   fi
   shift
 done
+exit 1
 SH
   chmod +x "$runtime"
   out=$(cd "$repo" && TMPDIR=../overlay-tmp TMP="$repo/.test-phase-tmp" TEMP="$repo/.test-phase-tmp" \
@@ -175,62 +186,47 @@ case "$1" in
   ps)
     if [ "$MODE" = prelaunch ]; then touch "$FAKE_RUNTIME_STATE/daemon-contacted"; exit 1; fi
     if [ "$MODE" = undrained ]; then touch "$FAKE_RUNTIME_STATE/daemon-contacted"; exit 0; fi
-    pattern=.
     label=
-    while [ "$#" -gt 0 ]; do
-      case "$1" in
-        name=*) pattern=${1#name=} ;;
-        label=*) label=${1#label=} ;;
-      esac
-      shift
+    for arg; do
+      case "$arg" in label=*) label=${arg#label=} ;; esac
     done
-    name=$(<"$FAKE_RUNTIME_STATE/container-name")
-    if [[ "/$name" =~ $pattern ]] && { [ -z "$label" ] || [ "$label" = "$(<"$FAKE_RUNTIME_STATE/launch-label")" ]; } &&
-        { [ -f "$FAKE_RUNTIME_STATE/running" ] || [ -f "$FAKE_RUNTIME_STATE/created" ]; }; then
+    if { [ -f "$FAKE_RUNTIME_STATE/running" ] || [ -f "$FAKE_RUNTIME_STATE/created" ]; } &&
+        { [ -z "$label" ] || [ "$label" = "$(<"$FAKE_RUNTIME_STATE/launch-label")" ]; }; then
       printf '%s\n' container-id
     fi
-    if [[ "/$name-neighbor" =~ $pattern ]] && [ -z "$label" ] && [ -f "$FAKE_RUNTIME_STATE/neighbor" ]; then
-      printf '%s\n' neighbor-id
-    fi
-    if [[ "/$name" =~ $pattern ]] && [ -f "$FAKE_RUNTIME_STATE/collision" ] &&
-        { [ -z "$label" ] || [ "$label" = firstmate.test-launch=previous ]; }; then
-      printf '%s\n' previous-id
+    if [ -f "$FAKE_RUNTIME_STATE/foreign" ] &&
+        { [ -z "$label" ] || [ "$label" = "$(<"$FAKE_RUNTIME_STATE/foreign")" ]; }; then
+      printf '%s\n' foreign-id
     fi
     ;;
   rm)
-    if [[ "${!#}" == *neighbor-id* ]]; then rm "$FAKE_RUNTIME_STATE/neighbor"; fi
-    if [[ "${!#}" == *previous-id* ]]; then rm "$FAKE_RUNTIME_STATE/collision"; fi
+    if [[ "$*" == *foreign-id* ]]; then rm "$FAKE_RUNTIME_STATE/foreign"; fi
     [ "${!#}" = container-id ] && [ -d "$(<"$FAKE_RUNTIME_STATE/scratch-path")" ] || exit 2
     touch "$FAKE_RUNTIME_STATE/remove-called"
     if [ "$MODE" != unresolved ]; then rm -f "$FAKE_RUNTIME_STATE/running" "$FAKE_RUNTIME_STATE/created"; fi
     ;;
   run)
+    label=
     while [ "$#" -gt 1 ]; do
-      if [ "$1" = --name ]; then printf '%s\n' "$2" >"$FAKE_RUNTIME_STATE/container-name"; fi
-      if [ "$1" = --label ]; then printf '%s\n' "$2" >>"$FAKE_RUNTIME_STATE/labels"; fi
+      case "$1" in
+        --name|--name=*) printf 'requested container name is already in use\n' >&2; exit 125 ;;
+        --label) label=$2; shift ;;
+      esac
       if [ "$1" = -v ]; then
         [ ! -f "$FAKE_RUNTIME_STATE/running" ] && [ ! -f "$FAKE_RUNTIME_STATE/created" ] || { touch "$FAKE_RUNTIME_STATE/overlap"; exit 2; }
-        if [ -f "$FAKE_RUNTIME_STATE/scratch-path" ]; then
-          touch "$FAKE_RUNTIME_STATE/next-test"
-          [ "$MODE" != collision ] || exit 125
-          exit 0
-        fi
-        if [ -f "$FAKE_RUNTIME_STATE/labels" ]; then cp "$FAKE_RUNTIME_STATE/labels" "$FAKE_RUNTIME_STATE/launch-label"; fi
+        printf '%s\n' "$label" >>"$FAKE_RUNTIME_STATE/labels"
+        if [ -f "$FAKE_RUNTIME_STATE/scratch-path" ]; then touch "$FAKE_RUNTIME_STATE/next-test"; exit 0; fi
+        printf '%s\n' "$label" >"$FAKE_RUNTIME_STATE/launch-label"
         printf '%s\n' "${2%:/work}" >"$FAKE_RUNTIME_STATE/scratch-path"
-        touch "$FAKE_RUNTIME_STATE/neighbor"
-        case "$MODE" in
-          collision|collision-interrupt)
-            touch "$FAKE_RUNTIME_STATE/collision"
-            if [ "$MODE" = collision-interrupt ]; then kill -TERM "$WRAPPER_PID" || exit 2; fi
-            exit 125
-            ;;
-        esac
         if [ "$MODE" = undrained ]; then
           kill -TERM "$WRAPPER_PID" || exit 2
           exec sleep 3
         fi
         if [ "$MODE" = created ]; then touch "$FAKE_RUNTIME_STATE/created"; else touch "$FAKE_RUNTIME_STATE/running"; fi
-        if [ "$MODE" = killed ]; then kill -KILL "$WRAPPER_PID" || exit 2; fi
+        case "$MODE" in
+          killed) kill -KILL "$WRAPPER_PID" || exit 2 ;;
+          interrupted) kill -TERM "$WRAPPER_PID" || exit 2 ;;
+        esac
         exit 7
       fi
       shift
@@ -250,9 +246,10 @@ elif [ "$MODE" = undrained ]; then
   }
 fi
 SH
-  for mode in resolved unresolved created killed prelaunch undrained collision collision-interrupt; do
+  for mode in resolved unresolved created killed prelaunch undrained interrupted; do
     state="$TMP_ROOT/$mode"
     mkdir "$state"
+    if [ "$mode" != prelaunch ]; then printf '%s\n' 'firstmate.test-launch=previous' >"$state/foreign"; fi
     rc=0
     out=$(cd "$repo" && TMPDIR="$state" FM_CONTAINER_RUNTIME="$runtime" FAKE_RUNTIME_STATE="$state" MODE="$mode" \
       FM_TEST_RETAIN_MARKER="$state/.retain-scratch" "$BASH" -c 'export WRAPPER_PID=$$; exec "$@"' _ \
@@ -262,18 +259,8 @@ SH
       assert_equals '' "$(ls -A "$state")" 'prelaunch cancellation leaves no container state, scratch, or retention marker'
       continue
     fi
+    assert_present "$state/scratch-path" "suite reached the mounted launch: $out"
     scratch=$(<"$state/scratch-path")
-    if [ "$mode" = collision ] || [ "$mode" = collision-interrupt ]; then
-      if [ "$mode" = collision ]; then
-        assert_equals 1 "$rc" "name collision fails validation: $out"
-      else
-        assert_equals 143 "$rc" "interrupted name collision exits on TERM: $out"
-      fi
-      assert_present "$state/collision" 'exact-name container from a prior launch survives'
-      assert_absent "$scratch" 'name collision did not leave probe scratch behind'
-      if fm_test_scratch_retained "$state"; then fail 'name collision left a retention marker'; fi
-      continue
-    fi
     if [ "$mode" = undrained ]; then
       assert_equals 143 "$rc" "TERM with an unverified client: $out"
       assert_contains "$out" 'retaining scratch:' 'unverified drain retains scratch'
@@ -289,13 +276,23 @@ SH
       assert_present "$scratch/tests/kept.test.sh" 'killed wrapper left the backing tree intact'
       continue
     fi
-    assert_equals 1 "$rc" "client failure fails validation: $out"
+    if [ "$mode" = interrupted ]; then
+      assert_equals 143 "$rc" "TERM exits after container teardown: $out"
+    else
+      assert_equals 1 "$rc" "client failure fails validation: $out"
+    fi
     assert_present "$state/remove-called" 'validator tried to remove its daemon-side container before cleanup'
     assert_absent "$state/overlap" 'a new test did not start while a container was running'
-    assert_present "$state/neighbor" 'teardown did not remove the similarly named container'
+    assert_present "$state/foreign" 'teardown leaves a differently labeled container running'
     if [ "$mode" != unresolved ]; then
-      assert_present "$state/next-test" 'tests continue after confirmed teardown'
-      assert_equals 2 "$(sort -u "$state/labels" | awk 'END {print NR}')" 'sequential launches carry distinct identities'
+      if [ "$mode" = interrupted ]; then
+        assert_absent "$state/next-test" 'TERM stops test admission'
+      else
+        assert_present "$state/next-test" 'tests continue after confirmed teardown'
+        assert_equals 2 "$(sort -u "$state/labels" | awk 'END {print NR}')" 'sequential launches carry distinct identities'
+      fi
+      assert_absent "$state/running" 'teardown stopped the owned container'
+      assert_absent "$state/created" 'teardown removed the created container'
       assert_absent "$scratch" 'confirmed teardown allows scratch removal'
       if fm_test_scratch_retained "$state"; then fail 'confirmed removal left a retention marker'; fi
     else
