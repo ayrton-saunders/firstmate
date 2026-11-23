@@ -1565,6 +1565,55 @@ test_handled_ship_busy_inbox_close() { test_attended_busy_inbox_close handled sh
 test_stuck_busy_inbox_close() { test_attended_busy_inbox_close stuck; }
 test_ordinary_attended_offer_can_cross_park_boundary() { test_attended_busy_inbox_close stuck-late; }
 test_routine_resurface() { test_attended_resurface routine; }
+
+test_unsafe_offer_preserves_handled_stales() {
+  local home task rec reason real_node
+  home=$(make_home unsafe-offer quiet)
+  seed_open_captain_hold "$home" routing-call
+  printf 'captain-held [key=routing-call]: tracked by routing-call\n' > "$home/state/demo.status"
+  printf 'working: processing steer\n' > "$home/state/other.status"
+  for task in demo other; do
+    printf 'project=%s\nwindow=sess:fm-%s\nkind=secondmate\nharness=claude\n' "$task" "$task" > "$home/state/$task.meta"
+    routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$home/state/$task.status"
+    rec=$(FM_HOME="$home" bash -c '. "$1"; fm_task_inbox_write "$2" "$3" steer' _ "$ROOT/bin/fm-task-inbox-lib.sh" "$home/state" "$task")
+    mv "$rec" "${rec%/*}/handled/"
+    reason="stale: sess:fm-$task (unread firstmate instruction: stuck-busy after 2 consecutive busy-deferred due doorbells; $rec stays unhandled and no doorbell was typed; inspect the worker)"
+    routine_wake_lib "$home" fm_wake_append stale "sess:fm-$task" "$reason"
+  done
+  routine_wake_lib "$home" fm_recovery_marker_publish "$home/state/.watcher-down" downtime
+  real_node=$(command -v node)
+  cat > "$home/change-status.cjs" <<'JS'
+const fs = require('node:fs');
+const read = fs.readFileSync;
+fs.readFileSync = function (path, ...args) {
+  const contents = read.call(this, path, ...args);
+  if (path === `${process.env.FM_HOME}/state/other.status`) {
+    fs.appendFileSync(path, 'working: progressed during dispatch\n');
+  }
+  return contents;
+};
+require('node:module').syncBuiltinESMExports();
+JS
+  cat > "$home/fakebin/node" <<SH
+#!/usr/bin/env bash
+if [ "\${2:-}" = offer ]; then
+  set -o pipefail
+  "$real_node" --require "\$FM_HOME/change-status.cjs" "\$@" | tee "\$FM_HOME/dispatch-offer"
+  exit \$?
+fi
+exec "$real_node" "\$@"
+SH
+  chmod +x "$home/fakebin/node"
+  start_host "$home"
+  wait_until_deadline 60 host_exited "$home" || fail "an unsafe offer suppressed the rearm close"
+  assert_re '^corrupted=1$' "$home/dispatch-offer" "fixture: the dispatch scan must detect the status change"
+  assert_re '^check: rearm-resurface$' "$home/host.out" "an unsafe offer must reach main"
+  for task in demo other; do
+    assert_grep "stale: sess:fm-$task " "$home/state/.wake-queue" "the unsafe offer must not consume either handled stale"
+  done
+  stop_home_processes "$home"
+  pass "host: unsafe dispatch preserves handled stales for main"
+}
 test_handled_scout_stale_resurface() { test_attended_resurface routine scout; }
 test_handled_decision_stale() { test_attended_busy_inbox_close decision; }
 test_missing_endpoint_stale_uses_ordinary_offer() { test_attended_busy_inbox_close missing; }
@@ -1675,6 +1724,7 @@ fm_test_run \
   test_handled_ship_busy_inbox_close \
   test_stuck_busy_inbox_close \
   test_routine_resurface \
+  test_unsafe_offer_preserves_handled_stales \
   test_handled_scout_stale_resurface \
   test_handled_decision_stale \
   test_missing_endpoint_stale_uses_ordinary_offer \

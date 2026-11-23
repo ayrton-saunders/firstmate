@@ -1048,12 +1048,19 @@ health_record() {  # <engine-error 0|1> <reports>
 # malformed or unrelated batch stays on the normal routing path.
 attended_routine_rows() {  # <reason> <decision keys> [preflight]
   local reason=$1 decision_keys=$2 mode=${3:-} queue='' seq kind key payload epoch extra rows='' pending f exclude rc
-  local proven_answers=' '
+  local proven_answers=' ' digest
   if [ -e "$FM_WAKE_QUEUE" ] || [ -L "$FM_WAKE_QUEUE" ]; then
     [ -f "$FM_WAKE_QUEUE" ] && [ ! -L "$FM_WAKE_QUEUE" ] || return 1
     queue=$(cat "$FM_WAKE_QUEUE") || return 1
   fi
-  if [ "$mode" = empty ] && [ -n "$queue" ]; then return 2; fi
+  case "$mode" in
+    empty) [ -z "$queue" ] || return 2 ;;
+    preflight) ;;
+    *)
+      digest=$(printf '%s' "$queue" | perl -MDigest::SHA=sha256_hex -0777 -ne 'print sha256_hex($_)') || return 3
+      [ -n "$digest" ] && [ "$digest" = "$mode" ] || return 3
+      ;;
+  esac
   case "$reason" in
     'check: rearm-resurface') ;;
     signal:*|stale:*) [ -n "$queue" ] || return 1 ;;
@@ -1466,7 +1473,7 @@ attended_hold_clear() {
 }
 
 attended_acceptor() {  # <reason-lines> [final]
-  local offer='' first=${1%%$'\n'*} rc=0 decision_keys candidate=0
+  local offer='' first=${1%%$'\n'*} rc=0 decision_keys digest status candidate=0
   if attended_routine_candidate "$1"; then
     candidate=1
   else
@@ -1515,14 +1522,21 @@ attended_acceptor() {  # <reason-lines> [final]
     else
       rc=1
       decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
-      if { [ "${2:-}" = final ] && [ "$candidate" -eq 1 ]; } ||
-         { [ "${2:-}" != final ] && { [ "$candidate" -eq 1 ] || [[ "$first" = stale:* ]]; } && attended_routine_candidate "$1" "$decision_keys"; }; then
-        rc=0
-        ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows <<< "$1"$'\n'"$decision_keys") || rc=$?
-        if [ "$rc" -eq 0 ]; then
-          attended_hold_clear || rc=$?
+      if [ "$candidate" -eq 1 ] ||
+         { [ "${2:-}" != final ] && [[ "$first" = stale:* ]] && attended_routine_candidate "$1" "$decision_keys"; }; then
+        digest=$(printf '%s\n' "$offer" | sed -n 's/^queue-digest=//p')
+        status=$(printf '%s\n' "$offer" | sed -n 's/^status=//p')
+        rc=3
+        if [ "$(printf '%s\n' "$offer" | sed -n 's/^corrupted=//p')" = 0 ] &&
+           { [ "$status" = safe ] || { [ "$status" = unsafe ] && [ -n "$decision_keys" ]; }; } &&
+           [[ "$digest" =~ ^[0-9a-f]{64}$ ]]; then
+          rc=0
+          ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows "$digest" <<< "$1"$'\n'"$decision_keys") || rc=$?
+          if [ "$rc" -eq 0 ]; then
+            attended_hold_clear || rc=$?
+          fi
+          if [ "$rc" -eq 124 ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
         fi
-        if [ "$rc" -eq 124 ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
       fi
       case "$rc" in
         0|75) ROUTINE_HAND_BACK=1 ;;

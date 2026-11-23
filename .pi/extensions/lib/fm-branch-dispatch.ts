@@ -1,4 +1,5 @@
 import { execFileSync } from "node:child_process";
+import { createHash } from "node:crypto";
 import { lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { runCommandAsync } from "./fm-async-exec.ts";
@@ -121,6 +122,7 @@ export interface UnreadWakeScope {
    * either mode.
    */
   corrupted: boolean;
+  queueDigest?: string;
   /**
    * The exact "key" field of every decision-owned signal or stale row this
    * scan excluded. Signal rows are marked by bin/fm-watch.sh; stale rows are
@@ -566,6 +568,7 @@ export function scopeForUnreadWake(state: string, heartbeat: boolean, afk = fals
     eligibleSeqs,
     eligibleTasks: [...eligibleTasks],
     corrupted: false,
+    ...(attendedHost ? { queueDigest: createHash("sha256").update(queue.replace(/\n+$/, "")).digest("hex") } : {}),
     needsDecisionKeys,
     checkSeqs,
     heartbeatSeqs,
