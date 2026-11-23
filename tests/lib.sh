@@ -231,6 +231,7 @@ fm_test_launch_command() {  # <launch>
 # real caller, never a subshell.
 
 FM_TEST_CLEANUP_DIRS=()
+FM_TEST_CLEANUP_DONE=0
 
 fm_test_pid_identity() {
   local pid=$1
@@ -482,6 +483,7 @@ fm_test_drain_fixture_jobs() {
 fm_test_cleanup() {
   local d rc=0
   local -a roots=()
+  [ "$FM_TEST_CLEANUP_DONE" -eq 0 ] || return 0
   fm_test_reap_watchers
   fm_test_reap_procevent_homes
   if [ -f "$FM_TEST_CLEANUP_REGISTRY" ]; then
@@ -501,8 +503,8 @@ fm_test_cleanup() {
   for d in "${FM_TEST_CLEANUP_DIRS[@]:-}" "${roots[@]+"${roots[@]}"}"; do
     fm_test_cleanup_scratch "$d" || rc=1
   done
-  fm_test_cleanup_scratch "$FM_TEST_REGISTRY_DIR" || rc=1
-  return "$rc"
+  [ "$rc" -eq 0 ] && fm_test_cleanup_scratch "$FM_TEST_REGISTRY_DIR" || return 1
+  FM_TEST_CLEANUP_DONE=1
 }
 
 fm_test_retain_registered_scratch() {

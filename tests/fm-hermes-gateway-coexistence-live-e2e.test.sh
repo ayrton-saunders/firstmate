@@ -6,7 +6,8 @@
 # cannot attach to any other gateway. The profile must configure no messaging
 # platform; the guard refuses one. It then runs the TUI worker guard beside the
 # idle gateway and checks the session store, memory and gateway afterward.
-# The profile's config is restored after it temporarily sets gateway.standalone.
+# The probe restores config bytes only when the recorded entries still match and no relink is needed.
+# If Hermes replaced a config symlink, inspect the retained backup and repair the link by hand.
 # After SIGKILL, a .fm-gateway-config.* backup may remain beside config.yaml for recovery.
 # A write interrupted before rollback confirmation may require restoring the retained backup by hand.
 # If teardown is unverified, do not run another probe on this profile until both the gateway and TUI are gone.
@@ -24,8 +25,9 @@ case "$PROFILE_HOME" in "$FM_HERMES_LIVE_HOME"/profiles/*) ;; *) fail 'profile r
 LAB=
 SOCKET=
 BACKUP=
+BACKUP_RECORD=
 PROFILE_LOCK=
-WRITTEN_CONFIG=
+WRITTEN_RECORD=
 WRITTEN_LINK=
 publication_pending=0
 mutation_attempted=0
@@ -33,14 +35,14 @@ probe_signal=0
 TUI_PID=
 TUI_RETAIN=
 GATEWAY_RETAIN=
+FINGERPRINT_CODE='def fingerprint(info):
+    return ":".join(map(str, (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns)))'
 RESTORE_TARGET_CODE='import os, shutil, stat, sys
 from contextlib import ExitStack
 
 profile, target, expected_link, *restore = sys.argv[1:]
 flags = os.O_NOFOLLOW | os.O_NONBLOCK
-
-def fingerprint(info):
-    return ":".join(map(str, (info.st_dev, info.st_ino, info.st_mode, info.st_size, info.st_mtime_ns)))
+'"$FINGERPRINT_CODE"'
 
 def entry(parent, name):
     return os.stat(name, dir_fd=parent, follow_symlinks=False)
@@ -73,14 +75,20 @@ with ExitStack() as stack:
     if not restore:
         print(record)
         sys.exit(0)
-    backup, mode, original_link, expected = restore
+    backup, backup_record, mode, expected, *verify_only = restore
     if record != expected:
         sys.exit("config entries changed before restore")
+    if verify_only:
+        if fingerprint(os.lstat(backup)) != backup_record:
+            sys.exit("config backup changed")
+        sys.exit(0)
 
     with os.fdopen(os.open(os.path.basename(backup), os.O_RDONLY | flags, dir_fd=profile_fd), "rb") as src, \
          os.fdopen(os.open(name, os.O_WRONLY | flags, dir_fd=target_fd), "wb") as dst:
         before = os.fstat(dst.fileno())
-        if fingerprint(before) != fingerprint(target_info) or not stat.S_ISREG(os.fstat(src.fileno()).st_mode):
+        if fingerprint(os.fstat(src.fileno())) != backup_record or fingerprint(os.lstat(backup)) != backup_record:
+            sys.exit("config backup changed")
+        if fingerprint(before) != fingerprint(target_info):
             sys.exit("config target changed before restore opened it")
         config_path = os.path.join(profile, config)
         if fingerprint(os.lstat(target)) != fingerprint(target_info) or \
@@ -95,20 +103,32 @@ with ExitStack() as stack:
         expected_config = os.fstat(dst.fileno()) if target == config_path else config_info
         if fingerprint(os.lstat(config_path)) != fingerprint(expected_config):
             sys.exit("config entry was replaced during restore")
-        if original_link and original_link != expected_link:
-            os.unlink(config, dir_fd=profile_fd)
-            os.symlink(original_link, config, dir_fd=profile_fd)'
+        if fingerprint(os.lstat(backup)) != backup_record:
+            sys.exit("config backup was replaced during restore")'
+restore_args() {
+  [ -n "$WRITTEN_RECORD" ] && [ "$CONFIG_LINK" = "$WRITTEN_LINK" ] || return 1
+  RESTORE_ARGS=(-I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$WRITTEN_LINK"
+    "$BACKUP" "$BACKUP_RECORD" "$CONFIG_MODE" "$WRITTEN_RECORD")
+}
 print_restore_command() {
-  local config="$PROFILE_HOME/config.yaml" expected_link=$WRITTEN_LINK expected
-  if [ -z "$WRITTEN_CONFIG" ] && [ -L "$config" ]; then
-    expected_link=$CONFIG_LINK
-  fi
-  if expected=$(python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$expected_link" 2>/dev/null); then
-    printf 'To restore manually: python3 -I -c %q %q %q %q %q %q %q %q\n' \
-      "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$expected_link" "$BACKUP" "$CONFIG_MODE" "$CONFIG_LINK" "$expected"
+  local -a RESTORE_ARGS
+  if restore_args && python3 "${RESTORE_ARGS[@]}" verify 2>/dev/null; then
+    printf 'To restore manually: python3'
+    printf ' %q' "${RESTORE_ARGS[@]}"
+    printf '\n'
   else
-    printf 'No safe restore command: inspect the changed config paths before using the backup.\n'
+    printf 'No safe restore command: inspect %q and %q without changing them before using the backup.\n' \
+      "$PROFILE_HOME/config.yaml" "$BACKUP"
   fi
+}
+backup_fingerprint() {
+  python3 -I -c 'import os, sys
+'"$FINGERPRINT_CODE"'
+print(fingerprint(os.lstat(sys.argv[1])))' "$1"
+}
+discard_backup() {
+  [ -n "$BACKUP_RECORD" ] && [ "$(backup_fingerprint "$BACKUP")" = "$BACKUP_RECORD" ] || return 1
+  rm -f -- "$BACKUP"
 }
 cleanup() {
   local status=$? attempt teardown_failed=0 child_lab tui_lab_retained=0
@@ -142,9 +162,7 @@ cleanup() {
     printf 'A gateway or TUI may still be using %s; do not run another gateway probe on this profile until you confirm both are gone.\n' "$PROFILE_HOME" >&2
   fi
   if [ -n "$BACKUP" ]; then
-    if [ "$mutation_attempted" -eq 0 ]; then
-      rm -f "$BACKUP" || { [ "$status" -ne 0 ] || status=1; }
-    elif ! restore_config; then
+    if ! { if [ "$mutation_attempted" -eq 0 ]; then discard_backup; else restore_config; fi; }; then
       printf 'not ok - config changed or restore failed; backup retained at %s\n' "$BACKUP" >&2
       print_restore_command >&2
       [ "$status" -ne 0 ] || status=1
@@ -217,14 +235,12 @@ fi
 # Native Hermes runs a profile-owned gateway only in its standalone mode, the
 # shape of an operator profile whose own gateway serves only itself.
 restore_config() {
-  local expected
-  [ -n "$WRITTEN_CONFIG" ] || return 1
-  expected=$(python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$WRITTEN_LINK" 2>/dev/null) || return 1
+  local -a RESTORE_ARGS
+  restore_args || return 1
   cmp -s -- "$LAB/written-target" "$CONFIG_TARGET" &&
-    cmp -s -- "$WRITTEN_CONFIG" "$PROFILE_HOME/config.yaml" || return 1
-  python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$WRITTEN_LINK" \
-    "$BACKUP" "$CONFIG_MODE" "$CONFIG_LINK" "$expected" || return 1
-  rm -f -- "$BACKUP"
+    cmp -s -- "$LAB/written-config" "$PROFILE_HOME/config.yaml" || return 1
+  python3 "${RESTORE_ARGS[@]}" || return 1
+  discard_backup
 }
 CONFIG_MODE=$(python3 -I -c 'import os, stat, sys; print(format(stat.S_IMODE(os.lstat(sys.argv[1]).st_mode), "o"))' "$CONFIG_TARGET") \
   || fail 'could not record profile config mode'
@@ -238,15 +254,18 @@ BACKUP=$(
   fi
   printf '%s\n' "$backup"
 ) || fail 'could not back up profile config'
+BACKUP_RECORD=$(backup_fingerprint "$BACKUP") || fail 'could not record config backup'
 publication_pending=0
 [ "$probe_signal" -eq 0 ] || exit "$probe_signal"
 mutation_attempted=1
 HERMES_HOME="$FM_HERMES_LIVE_HOME" "$HERMES_BIN" -p "$PROFILE" config set gateway.standalone true >/dev/null \
   || fail 'could not mark the throwaway profile gateway standalone'
 WRITTEN_LINK=$(readlink "$PROFILE_HOME/config.yaml" 2>/dev/null) || WRITTEN_LINK=
+written_record=$(python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$WRITTEN_LINK") \
+  || fail 'could not record config identities after the gateway probe write'
 cp -- "$CONFIG_TARGET" "$LAB/written-target" &&
   cp -- "$PROFILE_HOME/config.yaml" "$LAB/written-config" || fail 'could not record the gateway probe config'
-WRITTEN_CONFIG="$LAB/written-config"
+WRITTEN_RECORD=$written_record
 gateway_state() { jq -c '{pid, gateway_state, active_agents, active_work, updated_at, session_store}' "$PROFILE_HOME/gateway_state.json"; }
 # The gateway's environment, HOME and state are private, so no inherited
 # platform credential, operator Hermes root, or per-user host rendezvous is

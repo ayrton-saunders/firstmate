@@ -2060,8 +2060,13 @@ case "$3 $4 $5" in
   'config get platforms') echo null ;;
   'config set gateway.standalone')
     config="$HERMES_HOME/profiles/$2/config.yaml"
-    printf 'mutated\n' >"$config.replacement" && mv -f "$config.replacement" "$config" &&
-      [ ! -L "$config" ] && touch "$HERMES_HOME/mutation-attempted"
+    if [ "${SCENARIO:-}" = relink ]; then
+      printf 'mutated\n' >"$config.replacement" && mv -f "$config.replacement" "$config" || exit 1
+    else
+      printf 'mutated\n' >"$config" || exit 1
+      if [ "${SCENARIO:-}" = manual ]; then chmod 0600 "$config" || exit 1; fi
+    fi
+    touch "$HERMES_HOME/mutation-attempted"
     ;;
   *) exit 99 ;;
 esac
@@ -2103,9 +2108,13 @@ case "$3" in
     (cd -- "${2%/*}" && python3 -c 'import socket; socket.socket(socket.AF_UNIX).bind("s")') || exit 98
     if [ -n "${SWAP_PARENT:-}" ]; then
       mv "$SWAP_PARENT" "$SWAP_PARENT.saved" && ln -s "$OUTSIDE" "$SWAP_PARENT" || exit 98
-    else
-      printf 'edited\n' > "$EDIT_CONFIG"
-      chmod 0600 "${EDIT_CONFIG%/*}/original.yaml"
+    elif [ "$SCENARIO" = target ]; then
+      target="${EDIT_CONFIG%/*}/original.yaml"
+      cp "$target" "$target.new" && chmod 0600 "$target.new" && mv -f "$target.new" "$target" || exit 98
+    elif [ "$SCENARIO" = backup ]; then
+      for backup in "${EDIT_CONFIG%/*}"/.fm-gateway-config.??????; do
+        mv "$backup" "$backup.saved" && printf 'replacement backup\n' > "$backup" || exit 98
+      done
     fi
     exit 99
     ;;
@@ -2115,13 +2124,47 @@ case "$3" in
     ;;
 esac
 SH
+  local scenario saved_backup real_python
+  for scenario in target backup relink; do
+    printf 'original config\n' > "$profile/original.yaml"
+    chmod 0644 "$profile/original.yaml"
+    rc=0
+    SCENARIO="$scenario" PATH="$tmp/path:$PATH" EDIT_CONFIG="$profile/config.yaml" LOCK_OBSERVED="$tmp/held-during-stop" \
+      FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
+      bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+    assert_present "$tmp/held-during-stop" 'gateway teardown runs while the live probe holds the profile lock'
+    [ "$rc" -eq 1 ] && [ "$(<"$profile/config.yaml")" = mutated ] && grep -q 'backup retained at' "$tmp/out" \
+      || fail "gateway did not preserve the config and backup for $scenario: $(<"$tmp/out")"
+    if grep -q '^To restore manually:' "$tmp/out"; then fail "gateway authorized recovery for $scenario"; fi
+    set -- "$profile"/.fm-gateway-config.??????
+    saved_backup=$1
+    if [ "$scenario" = backup ]; then
+      assert_equals 'replacement backup' "$(<"$saved_backup")" 'replacement backup is not consumed or deleted'
+      saved_backup+=.saved
+    elif [ "$scenario" = relink ]; then
+      [ ! -L "$profile/config.yaml" ] || fail 'gateway relinked the probe config'
+      rm -- "$profile/config.yaml"
+      ln -s original.yaml "$profile/config.yaml"
+    else
+      python3 -c 'import os, stat, sys; assert stat.S_IMODE(os.stat(sys.argv[1]).st_mode) == 0o600' \
+        "$profile/original.yaml" || fail 'gateway changed the replacement config mode'
+    fi
+    assert_equals 'original config' "$(<"$saved_backup")" 'the recovery backup retains the original bytes'
+    rm -- "$profile"/.fm-gateway-config.*
+  done
+  real_python=$(command -v python3)
+  cat >"$tmp/path/python3" <<'SH'
+#!/usr/bin/env bash
+[ "$#" -ne 10 ] || exit 1
+exec "$REAL_PYTHON" "$@"
+SH
+  chmod +x "$tmp/path/python3"
   rc=0
-  PATH="$tmp/path:$PATH" EDIT_CONFIG="$profile/config.yaml" LOCK_OBSERVED="$tmp/held-during-stop" FM_HERMES_GATEWAY_LIVE=1 \
-    FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
+  SCENARIO=manual PATH="$tmp/path:$PATH" REAL_PYTHON="$real_python" EDIT_CONFIG="$profile/config.yaml" LOCK_OBSERVED="$tmp/held-during-stop" \
+    FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
     bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
-  assert_present "$tmp/held-during-stop" 'gateway teardown runs while the live probe holds the profile lock'
-  [ "$rc" -eq 1 ] && [ "$(<"$profile/config.yaml")" = edited ] && grep -q 'backup retained at' "$tmp/out" \
-    || fail 'gateway rollback overwrote or failed to report a conflicting change'
+  rm -- "$tmp/path/python3"
+  [ "$rc" -eq 1 ] || fail 'expected the injected restore failure'
   restore_command=$(sed -n 's/^To restore manually: //p' "$tmp/out")
   [ -n "$restore_command" ] || fail 'gateway did not print a restore command'
   python3 - "$profile" <<'PY' || fail 'retained config backup was not mode 0600'
@@ -2132,7 +2175,7 @@ PY
   printf 'operator config\n\n' >"$tmp/operator.yaml"
   cp "$tmp/operator.yaml" "$tmp/expected.yaml"
   local endpoint
-  for endpoint in "$profile/original.yaml" "$profile/config.yaml"; do
+  for endpoint in "$profile/original.yaml" "$profile/config.yaml" "$profile"/.fm-gateway-config.??????; do
     mv -- "$endpoint" "$endpoint.saved"
     ln -s "$tmp/operator.yaml" "$endpoint"
     if bash -c "$restore_command"; then fail "manual restore accepted a symlink replacement: $endpoint"; fi
@@ -2143,8 +2186,7 @@ PY
     rmdir -- "$endpoint" || fail 'manual restore wrote into a replacement directory'
     mv -- "$endpoint.saved" "$endpoint"
   done
-  local real_python phase changed target_mtime
-  real_python=$(command -v python3)
+  local phase changed target_mtime
   target_mtime=$(python3 -c 'import os, sys; print(os.stat(sys.argv[1]).st_mtime_ns)' "$profile/original.yaml")
   cat >"$tmp/path/python3" <<'SH'
 #!/usr/bin/env bash
@@ -2167,9 +2209,8 @@ exec(code)
 ' "$3" "${@:4}"
 SH
   chmod +x "$tmp/path/python3"
-  for phase in open chmod relink; do
+  for phase in open chmod; do
     changed="$profile/original.yaml"
-    [ "$phase" != relink ] || changed="$profile/config.yaml"
     ln -- "$changed" "$tmp/before-save"
     printf 'private editor save\n' >"$tmp/editor-save"
     chmod 0600 "$tmp/editor-save"
@@ -2183,11 +2224,13 @@ file = pathlib.Path(sys.argv[1])
 assert not file.is_symlink() and file.read_text() == 'private editor save\n'
 assert stat.S_IMODE(file.stat().st_mode) == 0o600
 PY
-    [ ! -L "$profile/config.yaml" ] || fail 'failed manual restore rewrote the config link'
+    [ -L "$profile/config.yaml" ] || fail 'failed manual restore rewrote the config link'
     mv -- "$tmp/before-save" "$changed"
     python3 - "$profile/original.yaml" "$target_mtime" <<'PY'
 import os, sys
 path, mtime = sys.argv[1:]
+with open(path, 'w') as out:
+    out.write('mutated\n')
 os.chmod(path, 0o600)
 os.utime(path, ns=(os.stat(path).st_atime_ns, int(mtime)))
 PY
@@ -2211,17 +2254,17 @@ PY
   rm -f "$profile/config.yaml"
   mkdir "$profile/nested" "$tmp/outside"
   printf 'original config\n' >"$profile/nested/original.yaml"
-  cp "$profile/nested/original.yaml" "$tmp/outside/original.yaml"
+  printf 'mutated\n' >"$tmp/outside/original.yaml"
   ln -s nested/original.yaml "$profile/config.yaml"
   rc=0
   PATH="$tmp/path:$PATH" EDIT_CONFIG="$profile/config.yaml" LOCK_OBSERVED="$tmp/held-during-stop" \
     SWAP_PARENT="$profile/nested" OUTSIDE="$tmp/outside" FM_HERMES_GATEWAY_LIVE=1 \
     FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
     bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
-  [ "$rc" -eq 1 ] && [ -L "$profile/nested" ] && [ ! -L "$profile/config.yaml" ] \
+  [ "$rc" -eq 1 ] && [ -L "$profile/nested" ] && [ -L "$profile/config.yaml" ] \
     && grep -q 'backup retained at' "$tmp/out" || fail 'automatic rollback accepted a replaced target parent'
   if grep -q '^To restore manually:' "$tmp/out"; then fail 'gateway offered a restore command for a replaced parent'; fi
-  [ ! -L "$profile/config.yaml" ] && cmp -s "$profile/nested.saved/original.yaml" "$tmp/outside/original.yaml" \
+  [ "$(readlink "$profile/config.yaml")" = nested/original.yaml ] && [ "$(<"$tmp/outside/original.yaml")" = mutated ] \
     || fail 'rollback changed an escaped target or the config link'
   pass 'gateway serializes profile edits, restores links, and refuses escaped targets'
 }

@@ -471,6 +471,22 @@ SH
   pass 'MSYS fixture cleanup requires a valid process inventory'
 }
 
+test_successful_cleanup_can_be_repeated() {
+  local harness rc=0
+  harness=$(fm_test_tmproot fm-repeat-cleanup)
+  FM_TEST_RETAIN_MARKER="$harness/retained" TMPDIR="$harness" bash -ec '
+    . "$1"
+    fixture=$(fm_test_tmproot fm-repeat)
+    fm_test_cleanup
+    [ ! -e "$fixture" ]
+    fm_test_cleanup
+  ' _ "$LIB" >"$harness/out" 2>&1 || rc=$?
+  assert_equals 0 "$rc" "explicit cleanup followed by cleanup and EXIT: $(<"$harness/out")"
+  if compgen -G "$harness/retained.*" >/dev/null; then fail 'repeated successful cleanup marked scratch retained'; fi
+  pass 'successful fixture cleanup is safe to repeat from EXIT'
+}
+
+test_successful_cleanup_can_be_repeated
 test_msys_fixture_process_inventory
 test_registry_cleanup_guards
 test_custom_finalizer_cleans_or_retains_after_teardown
