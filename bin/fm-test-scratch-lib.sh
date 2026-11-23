@@ -10,11 +10,12 @@ fm_test_remove_tree() {
   rm -rf -- "$dir"
 }
 
+# An interrupt just after publication can leave complete opt-in evidence without a printed path.
 fm_test_copy_hermes_evidence() (
-  local lab=$1 base=$2 stage= pending= evidence rc=0 entry
+  local lab=$1 base=$2 stage= evidence entry
   local -a entries=()
   set -o pipefail
-  trap '[ -z "$pending" ] || fm_test_remove_tree "$pending"; [ -z "$stage" ] || fm_test_remove_tree "$stage"' EXIT
+  trap '[ -z "$stage" ] || fm_test_remove_tree "$stage"' EXIT
   trap 'exit 129' HUP
   trap 'exit 130' INT
   trap 'exit 131' QUIT
@@ -29,26 +30,8 @@ fm_test_copy_hermes_evidence() (
   set -- "$stage"/*
   [ "$#" -gt 0 ] || return 1
 
-  rename_evidence() {
-    python3 -c '
-import errno, os, sys
-try:
-    os.rename(sys.argv[1], sys.argv[2])
-except OSError as exc:
-    if exc.errno == errno.EXDEV:
-        sys.exit(3)
-    raise
-' "$1" "$evidence"
-  }
-  rename_evidence "$stage" || rc=$?
-  if [ "$rc" -eq 3 ]; then
-    pending="${base%/}/.${stage##*/}.pending"
-    (umask 077; mkdir -- "$pending") || { pending=; return 1; }
-    tar -C "$stage" -cf - . | tar -C "$pending" -xf - || return 1
-    rename_evidence "$pending" || return 1
-  elif [ "$rc" -ne 0 ]; then
-    return "$rc"
-  fi
+  python3 -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' "$stage" "$evidence" || return 1
+  stage=
   printf 'Hermes guard evidence: %s\n' "$evidence"
 )
 

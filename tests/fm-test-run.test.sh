@@ -292,6 +292,25 @@ test_changed_runner_surfaces_select_their_family() {
   pass "runner and its documentation surfaces select their curated family, not just their contract owners"
 }
 
+test_changed_scratch_helper_selects_teardown_coverage() {
+  local tmp repo listed expected script
+  tmp=$(fm_test_tmproot fm-scratch-selection)
+  repo="$tmp/repo"
+  init_changed_fixture_repo "$repo"
+  for script in fm-claude-safeguard-live fm-hermes-gateway-coexistence-live-e2e \
+    fm-hermes-profile-safety-live-e2e fm-hermes-signals-live-e2e fm-live-lab-isolation; do
+    touch "$repo/tests/$script.test.sh"
+  done
+  git -C "$repo" add tests
+  git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm teardown-fixture
+  printf '\n' >>"$repo/bin/fm-test-scratch-lib.sh"
+  listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) || fail 'could not list scratch coverage'
+  expected=$(printf 'tests/%s.test.sh\n' fm-claude-safeguard-live fm-hermes-gateway-coexistence-live-e2e \
+    fm-hermes-profile-safety-live-e2e fm-hermes-signals-live-e2e fm-live-lab-isolation fm-test-fixtures fm-test-run)
+  assert_equals "$expected" "$(printf '%s\n' "$listed" | LC_ALL=C sort)" 'scratch-only changes select teardown and runner regressions'
+  pass 'scratch helper changes select private teardown coverage'
+}
+
 test_shell_line_ending_policy_selects_runner_contract() {
   local tmp repo listed
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-attributes.XXXXXX")
@@ -2545,6 +2564,7 @@ test_single_script_selection
 test_changed_file_selection_is_conservative
 test_task_marker_refuses_the_primary_checkout
 test_changed_runner_surfaces_select_their_family
+test_changed_scratch_helper_selects_teardown_coverage
 test_shell_line_ending_policy_selects_runner_contract
 test_changed_remote_inheritance_selects_generation_contract
 test_changed_dependency_selection_and_unmapped_failure
