@@ -44,7 +44,7 @@ trap 'interrupt_probe 129' HUP
 trap 'interrupt_probe 130' INT
 trap 'interrupt_probe 131' QUIT
 trap 'interrupt_probe 143' TERM
-LAB=$(trap '' HUP INT QUIT TERM; mktemp -d "${TMPDIR:-/tmp}/hm.XXXXXX") || fail 'could not allocate TUI scratch'
+LAB=$(trap '' HUP INT QUIT TERM; mktemp -d "${FM_TEST_TMPDIR%/}/hm.XXXXXX") || fail 'could not allocate TUI scratch'
 allocating=0
 [ "$probe_signal" -eq 0 ] || exit "$probe_signal"
 lab_path=$(cd "$LAB" && pwd -P) || fail 'could not resolve TUI scratch'

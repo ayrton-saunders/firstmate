@@ -95,13 +95,13 @@ image=fm-test-linux:bookworm
 "$runtime" build -q -t "$image" "$dockerfile_dir" >/dev/null ||
   die "$runtime could not build $image; is the container engine running?"
 
-scratch=$(mktemp -d "${scratch_base%/}/fm-test-linux.XXXXXX")
-trap 'rm -rf "$scratch"' EXIT
+fm_test_allocate_scratch -d "${scratch_base%/}/fm-test-linux.XXXXXX" || exit "$?"
+scratch=$FM_TEST_SCRATCH
 git clone -q --local --no-hardlinks "$root" "$scratch" || die "could not clone $root into the scratch directory"
 files=()
 while IFS= read -r -d '' path; do
   [ -e "$root/$path" ] || [ -L "$root/$path" ] && files+=("$path")
-done < <(git -C "$root" ls-files -z --cached --others --exclude-standard)
+done < <(git -C "$root" ls-files -z --cached --others --exclude-standard -- ':(top,exclude,literal).test-phase-tmp')
 (cd "$root" && printf '%s\0' "${files[@]}" | tar --null -T - -cf -) | tar -C "$scratch" -xf -
 while IFS= read -r -d '' path; do
   [ -e "$root/$path" ] || [ -L "$root/$path" ] || rm -f "$scratch/$path"

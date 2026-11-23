@@ -10,7 +10,27 @@ fm_test_remove_tree() {
   rm -rf -- "$dir"
 }
 
-# An interrupt just after publication can leave complete opt-in evidence without a printed path.
+fm_test_allocate_scratch() {
+  local allocated pending=0 rc=0
+  FM_TEST_SCRATCH=
+  trap '[ -z "$FM_TEST_SCRATCH" ] || fm_test_remove_tree "$FM_TEST_SCRATCH"' EXIT
+  trap 'pending=129' HUP
+  trap 'pending=130' INT
+  trap 'pending=131' QUIT
+  trap 'pending=143' TERM
+  if allocated=$(trap '' HUP INT QUIT TERM; mktemp "$@"); then
+    FM_TEST_SCRATCH=$allocated
+  else
+    rc=$?
+  fi
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 131' QUIT
+  trap 'exit 143' TERM
+  [ "$pending" -eq 0 ] || exit "$pending"
+  return "$rc"
+}
+
 fm_test_check_scratch_placement() {
   local root=$1 base=$2 blocked ancestor
   ancestor=$base
@@ -43,6 +63,7 @@ fm_test_validate_scratch_base() {
   printf '%s\n' "$base"
 }
 
+# An interrupt just after publication can leave complete opt-in evidence without a printed path.
 fm_test_copy_hermes_evidence() (
   local lab=$1 base=$2 stage= evidence entry
   local -a entries=()

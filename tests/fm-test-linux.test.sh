@@ -76,6 +76,33 @@ test_checkout_scratch_is_refused_before_build_or_clone() {
   pass "checkout scratch is refused before image build or clone"
 }
 
+test_overlay_keeps_work_but_excludes_legacy_scratch() {
+  local repo="$TMP_ROOT/overlay" runtime="$TMP_ROOT/overlay-runtime" out
+  make_repo "$repo"
+  mkdir -p "$repo/.test-phase-tmp/nested" "$TMP_ROOT/overlay-tmp"
+  printf 'scratch\n' >"$repo/.test-phase-tmp/nested/sentinel"
+  printf 'dirty\n' >"$repo/tests/kept.test.sh"
+  printf 'untracked\n' >"$repo/tests/real work.txt"
+  cat >"$runtime" <<'SH'
+#!/usr/bin/env bash
+while [ "$#" -gt 1 ]; do
+  if [ "$1" = -v ]; then
+    copy=${2%:/work}
+    [ ! -e "$copy/.test-phase-tmp" ] &&
+      [ "$(<"$copy/tests/kept.test.sh")" = dirty ] &&
+      [ "$(<"$copy/tests/real work.txt")" = untracked ]
+    exit $?
+  fi
+  shift
+done
+SH
+  chmod +x "$runtime"
+  out=$(cd "$repo" && TMPDIR="$TMP_ROOT/overlay-tmp" FM_CONTAINER_RUNTIME="$runtime" \
+    "$BASH" "$LINUX_CHECK" tests/kept.test.sh 2>&1) || fail "Linux overlay did not match working-tree contract: $out"
+  assert_contains "$out" 'PASS tests/kept.test.sh' 'container tested the overlay'
+  pass 'Linux overlay skips legacy scratch but keeps dirty and untracked work'
+}
+
 container_ready() {
   local runtime
   [ "${FM_TEST_LINUX_CONTAINER:-}" = 1 ] || return 1
@@ -130,4 +157,4 @@ FIXTURE
 
 fm_test_run test_selects_changed_tests test_no_changed_tests_is_a_clean_pass \
   test_missing_runtime_stops_clearly test_checkout_scratch_is_refused_before_build_or_clone \
-  test_gnu_stat_fixture_red_then_green
+  test_overlay_keeps_work_but_excludes_legacy_scratch test_gnu_stat_fixture_red_then_green

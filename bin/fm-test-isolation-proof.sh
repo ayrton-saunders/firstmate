@@ -400,11 +400,11 @@ done
 
 . "$ROOT/bin/fm-test-scratch-lib.sh"
 proof_base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || exit "$?"
-PROOF_ROOT=$(mktemp -d "${proof_base%/}/fm-isolation-proof.XXXXXX")
+fm_test_allocate_scratch -d "${proof_base%/}/fm-isolation-proof.XXXXXX" || exit "$?"
+PROOF_ROOT=$FM_TEST_SCRATCH
 chmod 0700 "$PROOF_ROOT" || die "could not chmod 0700 proof root $PROOF_ROOT"
 RECORDS="$PROOF_ROOT/records.tsv"
 : >"$RECORDS"
-trap 'rm -rf "$PROOF_ROOT"' EXIT
 
 GIT_BEFORE=$(global_git_snapshot)
 RUN_STARTED_ISO=$(now_iso)

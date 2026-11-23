@@ -51,6 +51,10 @@ if { [ "$1" = --list ] || [ "$1" = --list-scheduled ]; } && [ "$2" = --family ];
       printf '%s\n' tests/fm-proof-skipped.test.sh
       exit 0
       ;;
+    failing-family)
+      printf '%s\n' tests/fm-proof-readonly.test.sh
+      exit 0
+      ;;
   esac
 fi
 if [ "$1" = --list-concurrent-safe-families ]; then
@@ -102,6 +106,15 @@ SH
 echo
 echo "skip: herdr not found"
 SH
+  cat >"$repo/tests/fm-proof-readonly.test.sh" <<'SH'
+#!/usr/bin/env bash
+set -e
+mkdir "$TMPDIR/readonly"
+printf '%s\n' 'scratch' >"$TMPDIR/readonly/file"
+chmod 0500 "$TMPDIR/readonly"
+printf '%s\n' 'readonly fixture ready'
+exit 7
+SH
   chmod +x "$proof" "$repo/bin/fm-test-run.sh" "$repo/tests/fm-proof-"*.test.sh
   mkdir -p "$repo/.test-phase-tmp" "$tmp/tools"
   printf '%s\n' '#!/usr/bin/env bash' 'touch "$MKTEMP_CALLED"; exit 1' >"$tmp/tools/mktemp"
@@ -112,6 +125,12 @@ SH
   assert_equals 2 "$rc" "checkout proof scratch exit status"
   assert_contains "$(<"$tmp/err")" "unsafe scratch base" "checkout proof scratch refusal"
   [ ! -e "$tmp/mktemp-called" ] && [ ! -e "$json" ] || fail "proof allocated scratch before refusing it"
+  mkdir "$tmp/proof-tmp"
+  rc=0
+  TMPDIR="$tmp/proof-tmp" "$proof" --pool failing-family --jobs 1 >"$tmp/readonly.out" 2>"$tmp/readonly.err" || rc=$?
+  assert_equals 1 "$rc" 'proof reports a failing candidate'
+  assert_contains "$(<"$tmp/readonly.err")" 'readonly fixture ready' 'the failing candidate created read-only scratch'
+  [ -z "$(ls -A "$tmp/proof-tmp")" ] || fail 'failing proof left read-only scratch behind'
   set +e
   "$proof" --pool fixture-family --jobs 1 --json "$json" >"$tmp/out" 2>"$tmp/err"
   rc=$?

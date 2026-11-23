@@ -34,6 +34,14 @@ FM_TEST_LIB_SOURCED=1
 # suite's fixtures were written against.
 umask 022
 
+# Resolve the repo root from this library's own location. Consumed by sourcing
+# test files, not by this library, so it reads as "unused" here.
+# shellcheck disable=SC2034
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=bin/fm-test-scratch-lib.sh
+. "$ROOT/bin/fm-test-scratch-lib.sh"
+FM_TEST_TMPDIR=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || exit "$?"
+
 # Fixture Git isolation for every suite that reaches this library; the helper's
 # header owns the invariant and the layers it deliberately leaves in force.
 # shellcheck source=tests/git-config-helpers.sh
@@ -113,13 +121,6 @@ archive = "data/done-archive.md"
 done_keep = 10
 TOML
 }
-
-# Resolve the repo root from this library's own location. Consumed by sourcing
-# test files, not by this library, so it reads as "unused" here.
-# shellcheck disable=SC2034
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-# shellcheck source=bin/fm-test-scratch-lib.sh
-. "$ROOT/bin/fm-test-scratch-lib.sh"
 
 # --- reporters --------------------------------------------------------------
 
@@ -215,8 +216,6 @@ fm_test_launch_command() {  # <launch>
 # directory in a `$$`-keyed registry file instead, and the trap that reaps
 # that file is armed once, here, at source time - which always runs in the
 # real caller, never a subshell.
-
-FM_TEST_TMPDIR=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || exit "$?"
 
 FM_TEST_CLEANUP_DIRS=()
 FM_TEST_CLEANUP_REGISTRY=$(mktemp "$FM_TEST_TMPDIR/.fm-test-cleanup.$$.XXXXXX") || return 1

@@ -32,6 +32,23 @@ test_direct_fixture_refuses_checkout_scratch() {
   pass 'direct fixtures reject a symlink into checkout scratch'
 }
 
+test_direct_fixture_refuses_inherited_home_scratch() {
+  local tmp out rc boundary
+  tmp=$(fm_test_tmproot fm-fixture-active-home) || fail 'could not create active home fixture'
+  mkdir -p "$tmp/home/tmp" "$tmp/tools"
+  printf '%s\n' '#!/usr/bin/env bash' 'touch "$MKTEMP_CALLED"; exit 1' >"$tmp/tools/mktemp"
+  chmod +x "$tmp/tools/mktemp"
+  for boundary in FM_HOME FM_ROOT_OVERRIDE; do
+    rc=0
+    out=$(env "$boundary=$tmp/home" TMPDIR="$tmp/home/tmp" PATH="$tmp/tools:$PATH" \
+      MKTEMP_CALLED="$tmp/mktemp-called" "$BASH" -c '. "$1"' _ "$ROOT/tests/lib.sh" 2>&1) || rc=$?
+    assert_equals 2 "$rc" "$boundary scratch exit status"
+    assert_contains "$out" 'unsafe scratch base' "$boundary scratch refusal"
+    [ ! -e "$tmp/mktemp-called" ] || fail "$boundary scratch reached registry allocation"
+  done
+  pass 'direct fixture preflight sees inherited Firstmate home boundaries'
+}
+
 test_git_config_isolation() (
   local dir="$TMP_ROOT/git-config" helper jobs timeout fakebin rc
   mkdir -p "$dir/runner/bin" "$dir/runner/tests"
@@ -466,6 +483,7 @@ test_inherited_launcher_env_is_cleared() (
 )
 
 test_direct_fixture_refuses_checkout_scratch
+test_direct_fixture_refuses_inherited_home_scratch
 test_git_config_isolation || fail "Git fixture config isolation"
 test_inherited_launcher_env_is_cleared || fail "launcher environment isolation"
 test_inherited_git_location_isolation || fail "Git fixture location isolation"

@@ -74,8 +74,8 @@ ROOT=$(cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P) || exit 1
 . "$ROOT/bin/fm-test-scratch-lib.sh"
 base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || exit "$?"
 export TMPDIR="$base" TMP="$base" TEMP="$base"
-OUT=$(mktemp "${base%/}/fm-test-tap-verify.XXXXXX") || exit 1
-trap 'rm -f "$OUT"' EXIT
+fm_test_allocate_scratch "${base%/}/fm-test-tap-verify.XXXXXX" || exit 1
+OUT=$FM_TEST_SCRATCH
 
 set +e
 "$BASH" "$SCRIPT" >"$OUT" 2>&1

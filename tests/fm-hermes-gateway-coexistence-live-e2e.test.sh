@@ -80,7 +80,7 @@ trap 'interrupt_probe 130' INT
 trap 'interrupt_probe 131' QUIT
 trap 'interrupt_probe 143' TERM
 publication_pending=1
-LAB=$(trap '' HUP INT QUIT TERM; mktemp -d "${TMPDIR:-/tmp}/h.XXXXXX") || fail 'could not allocate gateway scratch'
+LAB=$(trap '' HUP INT QUIT TERM; mktemp -d "${FM_TEST_TMPDIR%/}/h.XXXXXX") || fail 'could not allocate gateway scratch'
 publication_pending=0
 [ "$probe_signal" -eq 0 ] || exit "$probe_signal"
 lab_path=$(cd "$LAB" && pwd -P) || fail 'could not resolve gateway scratch'
