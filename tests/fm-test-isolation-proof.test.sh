@@ -251,6 +251,7 @@ with (base / 'interrupted.log').open('w') as log:
 PY
   mkdir "$tmp/retained [SSD]"
   local wrapper="$tmp/nested-proof.sh" verify="$ROOT/bin/fm-test-tap-verify.sh"
+  # shellcheck disable=SC2016 # Expand variables when the wrapper runs.
   printf '%s\n' 'if [ -n "${PROOF_PID_FILE:-}" ]; then printf "%s\n" "$$" > "$PROOF_PID_FILE"; fi' \
     'exec "$NESTED_PROOF" --pool "$NESTED_POOL" --jobs 2 --json "$NESTED_REPORT"' > "$wrapper"
   rc=0

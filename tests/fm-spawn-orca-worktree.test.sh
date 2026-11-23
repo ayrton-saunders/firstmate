@@ -802,12 +802,18 @@ stop_orca_source_tmux() {
   orca_tmux_hold=
   return "$rc"
 }
-trap 'status=$?; trap "" HUP INT QUIT TERM; teardown=0; stop_orca_source_tmux || teardown=$?; fm_test_finalize "$status" "$teardown"' EXIT
+cleanup_orca_source_tmux() {
+  trap '' HUP INT QUIT TERM
+  local status=$1 teardown=0
+  stop_orca_source_tmux || teardown=$?
+  fm_test_finalize "$status" "$teardown"
+}
+trap 'cleanup_orca_source_tmux "$?"' EXIT
 
 arm_orca_source_tmux() {
   orca_tmux_bin=$(command -v tmux) || fail 'tmux is required for the Orca source fixture'
   orca_tmux_dir=$(TMPDIR="$1" fm_test_tmproot oenv) || fail 'could not allocate Orca scratch'
-  FM_TEST_RETAIN_MARKER= fm_test_arm_private_tmux orca_tmux_hold "$orca_tmux_dir" || fail 'could not protect Orca scratch'
+  FM_TEST_RETAIN_MARKER='' fm_test_arm_private_tmux orca_tmux_hold "$orca_tmux_dir" || fail 'could not protect Orca scratch'
 }
 
 # The real tmux client sanitizes control characters without UTF-8 mode. A

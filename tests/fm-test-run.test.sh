@@ -2078,6 +2078,7 @@ case "$3 $4 $5" in
   *) exit 99 ;;
 esac
 SH
+  # shellcheck disable=SC2016 # Expand variables when the stub runs.
   printf '%s\n' '#!/usr/bin/env bash' 'touch "$FM_HERMES_LIVE_HOME/launch-attempted"; exit 99' > "$tmp/path/tmux"
   rc=0
   PLATFORM_STATUS=1 PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" \
@@ -2216,8 +2217,9 @@ SH
     else
       assert_present "$tmp/held-during-stop" 'gateway teardown runs while the live probe holds the profile lock'
     fi
-    [ "$rc" -eq 1 ] && [ "$(<"$profile/config.yaml")" = mutated ] && grep -q 'backup retained at' "$tmp/out" \
-      || fail "gateway did not preserve the config and backup for $scenario: $(<"$tmp/out")"
+    if ! { [ "$rc" -eq 1 ] && [ "$(<"$profile/config.yaml")" = mutated ] && grep -q 'backup retained at' "$tmp/out"; }; then
+      fail "gateway did not preserve the config and backup for $scenario: $(<"$tmp/out")"
+    fi
     if grep -q '^To restore manually:' "$tmp/out"; then fail "gateway authorized recovery for $scenario"; fi
     set -- "$profile"/.fm-gateway-config.??????
     saved_backup=$1
@@ -2264,7 +2266,9 @@ PY
     mv -- "$endpoint" "$endpoint.saved"
     ln -s "$tmp/operator.yaml" "$endpoint"
     if bash -c "$restore_command"; then fail "manual restore accepted a symlink replacement: $endpoint"; fi
-    [ -L "$endpoint" ] && cmp -s "$tmp/expected.yaml" "$tmp/operator.yaml" || fail 'manual restore wrote through a replacement link'
+    if ! { [ -L "$endpoint" ] && cmp -s "$tmp/expected.yaml" "$tmp/operator.yaml"; }; then
+      fail 'manual restore wrote through a replacement link'
+    fi
     rm -- "$endpoint"
     mkdir -- "$endpoint"
     if bash -c "$restore_command"; then fail "manual restore accepted a directory replacement: $endpoint"; fi
@@ -2381,8 +2385,10 @@ PY
     SWAP_PARENT="$profile/nested" OUTSIDE="$tmp/outside" FM_HERMES_GATEWAY_LIVE=1 \
     FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
     bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
-  [ "$rc" -eq 1 ] && [ -L "$profile/nested" ] && [ -L "$profile/config.yaml" ] \
-    && grep -q 'backup retained at' "$tmp/out" || fail 'automatic rollback accepted a replaced target parent'
+  if ! { [ "$rc" -eq 1 ] && [ -L "$profile/nested" ] && [ -L "$profile/config.yaml" ] \
+    && grep -q 'backup retained at' "$tmp/out"; }; then
+    fail 'automatic rollback accepted a replaced target parent'
+  fi
   assert_present "$tmp/held-during-stop" 'parent-swap case held the profile lock through teardown'
   if grep -q '^To restore manually:' "$tmp/out"; then fail 'gateway offered a restore command for a replaced parent'; fi
   assert_equals nested/original.yaml "$(readlink "$profile/config.yaml")" 'rollback left the config link unchanged'

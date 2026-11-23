@@ -410,6 +410,7 @@ test_msys_fixture_process_inventory() {
   mkdir "$harness/bin"
   sleep 30 &
   poller=$!
+  # shellcheck disable=SC2016 # Expand variables when the stub runs.
   printf '%s\n' '#!/usr/bin/env bash' 'if [ "${1:-}" = -s ]; then echo MSYS_NT-10.0; else exec "$REAL_UNAME" "$@"; fi' > "$harness/bin/uname"
   cat > "$harness/bin/ps" <<'SH'
 #!/usr/bin/env bash

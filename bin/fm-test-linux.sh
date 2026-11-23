@@ -44,13 +44,13 @@ die() {
   exit 2
 }
 
-base=""
+base_ref=""
 list_only=0
 tests=()
 while [ $# -gt 0 ]; do
   case "$1" in
     -h|--help) usage; exit 0 ;;
-    --base) [ $# -ge 2 ] || die "--base needs a ref"; base=$2; shift 2 ;;
+    --base) [ $# -ge 2 ] || die "--base needs a ref"; base_ref=$2; shift 2 ;;
     --list) list_only=1; shift ;;
     -*) die "unknown option: $1" ;;
     *) tests+=("$1"); shift ;;
@@ -64,6 +64,7 @@ dockerfile_dir="$script_dir/../tests/linux"
 . "$script_dir/fm-test-scratch-lib.sh"
 # The exclude rule prunes untracked traversal. The pathspec also excludes
 # indexed entries, including the scratch directory's actual case spelling.
+# shellcheck disable=SC2154 # Defined by fm-test-scratch-lib.sh above.
 scratch_pathspec=(. ":(top,exclude,literal)$fm_test_declared_scratch")
 scratch_excludes=("--exclude=/$fm_test_declared_scratch")
 for entry in "$root"/.*; do
@@ -75,13 +76,13 @@ for entry in "$root"/.*; do
 done
 
 if [ ${#tests[@]} -eq 0 ]; then
-  if [ -z "$base" ]; then
+  if [ -z "$base_ref" ]; then
     for ref in origin/main main; do
-      if git -C "$root" rev-parse --verify --quiet "$ref^{commit}" >/dev/null; then base=$ref; break; fi
+      if git -C "$root" rev-parse --verify --quiet "$ref^{commit}" >/dev/null; then base_ref=$ref; break; fi
     done
   fi
-  [ -n "$base" ] || die "no origin/main or main to compare against; pass --base <git-ref>"
-  merge_base=$(git -C "$root" merge-base HEAD "$base") || die "no merge base with $base"
+  [ -n "$base_ref" ] || die "no origin/main or main to compare against; pass --base <git-ref>"
+  merge_base=$(git -C "$root" merge-base HEAD "$base_ref") || die "no merge base with $base_ref"
   while IFS= read -r path; do
     [ -f "$root/$path" ] && tests+=("$path")
   done < <({
@@ -192,8 +193,8 @@ while IFS= read -r -d '' record; do
     [ ! -L "$root/$parent" ] || continue 2
   done
   if [[ "${record:2}" == '160000 '* && "$record" != '? '* ]] && [ -d "$root/$path" ] && [ ! -L "$root/$path" ]; then
-    entries=$(LC_ALL=C ls -Aq -- "$root/$path") || die "could not inspect gitlink directory '$path'"
-    [ -z "$entries" ] || die "cannot copy Git checkout '$path' recorded as a gitlink; move the checkout out of the working tree before running Linux validation"
+    gitlink_entries=$(LC_ALL=C ls -Aq -- "$root/$path") || die "could not inspect gitlink directory '$path'"
+    [ -z "$gitlink_entries" ] || die "cannot copy Git checkout '$path' recorded as a gitlink; move the checkout out of the working tree before running Linux validation"
   fi
   [ -e "$root/$path" ] || [ -L "$root/$path" ] && files+=("$path")
 done <"$inventory"

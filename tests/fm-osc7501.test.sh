@@ -1166,6 +1166,7 @@ t_hc_terminal_with_inherited_herdr_markers() {
   start_term "$d"
   mkdir "$d/bin"
   printf '%s\n' '#!/usr/bin/env bash' >"$d/bin/sleep"
+  # shellcheck disable=SC2016 # Expansions belong to the generated script at runtime.
   printf 'if [ "$1" = 47 ]; then echo $$ >%q; fi\n' "$d/poll-pid" >>"$d/bin/sleep"
   printf 'exec %q %s\n' "$(command -v sleep)" '"$@"' >>"$d/bin/sleep"
   chmod +x "$d/bin/sleep"

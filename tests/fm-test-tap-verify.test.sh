@@ -137,6 +137,7 @@ PY
 
 test_suite_reads_foreground_terminal() {
   local suite="$TMP_ROOT/interactive.sh"
+  # shellcheck disable=SC2016 # Expand variables when the suite runs.
   write_suite "$suite" '
 printf "input ready\n" > /dev/tty || exit 8
 IFS= read -r reply && [ "$reply" = ready ] || exit 8
@@ -197,6 +198,7 @@ test_replay_starts_after_releasing_scratch() {
   local base="$TMP_ROOT/replay" suite="$TMP_ROOT/replay.sh" out
   mkdir -p "$base/tools"
   write_suite "$suite" 'printf "1..1\nok - replayed\nFM_TEST_COMPLETE\n"'
+  # shellcheck disable=SC2016 # Expand variables when the stub runs.
   printf '%s\n' '#!/usr/bin/env bash' 'for entry in "$REPLAY_BASE"/.retain-scratch.* "$REPLAY_BASE"/fm-test-tap-verify.*; do' \
     '  [ ! -e "$entry" ] || exit 9' 'done' 'exec "$REAL_CAT" "$@"' > "$base/tools/cat"
   chmod +x "$base/tools/cat"
