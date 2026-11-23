@@ -98,8 +98,7 @@ isolation_cleanup() {
   if [ -n "$DECOY_PID" ]; then
     stop_decoy "$DECOY_PID" "$DEFAULT_SOCKET" || rc=1
   fi
-  { [ "$rc" -eq 0 ] && fm_test_cleanup; } || { [ "$status" -ne 0 ] || status=1; }
-  exit "$status"
+  fm_test_finalize "$status" "$rc"
 }
 trap isolation_cleanup EXIT
 trap 'exit 130' INT
