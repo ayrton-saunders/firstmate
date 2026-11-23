@@ -118,6 +118,7 @@ Routine rearm recovery requires no pending captain outcome, no captain-hold reco
 - A Pi foreground progress write may still be in flight when the watcher samples it.
 - Continued task-wide progress can defer, but not permanently suppress, a wake for an unhandled message.
 - An answer can reach main if preflight races with publication of its ownership receipt.
+- A nearby routine worker status update can make an otherwise owned answer unprovable and send the notification to main.
 - In homes with long status histories, routine recovery proof can hit its time limit and hand the notification to main.
 - Write routine timeout overrides as decimal integers without leading zeros, because the host can fall back to its default for padded values.
 

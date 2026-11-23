@@ -894,7 +894,7 @@ busy_steer_check() {  # <case-dir> [capture] [busy-max]
   PATH="$1/fakebin:$PATH" FM_STATE_OVERRIDE="$1/state" FM_SEND_LOG="$1/send.log" \
     FM_FAKE_TMUX_CAPTURE="${2:-$1/busy.capture}" FM_BUSY_REGEX=BUSYTOKEN \
     FM_TASK_INBOX_GRACE_SECS=0 FM_TASK_INBOX_BUSY_MAX="${3-2}" \
-    bash -c '. "$1" && inbox_steer_check sess:fm-t1 t1' _ "$WATCH" > "$1/check.out" 2>&1
+    bash -c '. "$1" && inbox_steer_check sess:fm-t1 t1 "$(window_kind sess:fm-t1)"' _ "$WATCH" > "$1/check.out" 2>&1
 }
 
 busy_case() {
@@ -923,10 +923,10 @@ test_watcher_waits_on_busy_pane() {
 }
 
 test_watcher_busy_budget_resets_on_progress() {
-  local dir state gen event="$ROOT/bin/fm-busy-event.sh"
-  dir=$(busy_case busy-progress)
+  local dir state gen kind=${1:-secondmate} event="$ROOT/bin/fm-busy-event.sh"
+  dir=$(busy_case "busy-progress-$kind")
   state="$dir/state"
-  fm_write_meta "$state/t1.meta" 'window=sess:fm-t1' 'kind=secondmate' 'harness=pi'
+  fm_write_meta "$state/t1.meta" 'window=sess:fm-t1' "kind=$kind" 'harness=pi'
   gen=$("$event" arm "$state" t1) || fail "fixture: could not arm semantic busy state"
   "$event" apply "$state" t1 busy --gen "$gen" --source pi-ext --event agent-start \
     || fail "fixture: could not record the busy turn"
@@ -937,12 +937,14 @@ test_watcher_busy_budget_resets_on_progress() {
   "$event" progress "$state" t1 --gen "$gen" || fail "fixture: could not update native progress"
   perl -MTime::HiRes=utime -e 'utime(1700000000.2, 1700000000.2, $ARGV[0]) or die $!' "$state/t1.progress"
   busy_steer_check "$dir"
-  [ ! -s "$state/.wake-queue" ] || fail "progress between due checks was treated as stuck"
+  if [ "$kind" = secondmate ]; then
+    [ ! -s "$state/.wake-queue" ] || fail "secondmate progress between due checks was treated as stuck"
+    busy_steer_check "$dir"
+  fi
+  grep -q 'stuck-busy after 2 consecutive' "$state/.wake-queue" || fail "$kind did not escalate at its consecutive limit"
   [ -f "$state/t1.inbox/001.msg" ] || fail "progress removed an unhandled steer"
-  busy_steer_check "$dir"
-  grep -q 'stuck-busy' "$state/.wake-queue" || fail "an unchanged progress marker did not escalate"
   [ ! -s "$dir/send.log" ] || fail "busy worker received a doorbell"
-  pass "watcher: native activity resets the same message's busy budget without a new turn"
+  pass "watcher: $kind keeps the correct busy budget across native activity"
 }
 
 test_continued_activity_cannot_hide_unread_steer() {
@@ -1352,7 +1354,7 @@ test_watcher_pays_fire_and_forget_retry_once() {
 steer_check_once() {  # <case-dir>
   PATH="$1/fakebin:$PATH" FM_STATE_OVERRIDE="$1/state" FM_SEND_LOG="$1/send.log" \
     FM_FAKE_TMUX_CAPTURE="$(idle_capture "$1")" FM_TASK_INBOX_GRACE_SECS=1 \
-    bash -c '. "$1" && inbox_steer_check sess:fm-t1 t1' _ "$WATCH" >/dev/null 2>&1
+    bash -c '. "$1" && inbox_steer_check sess:fm-t1 t1 "$(window_kind sess:fm-t1)"' _ "$WATCH" >/dev/null 2>&1
 }
 
 test_watcher_holds_retry_while_the_worker_decides() {
@@ -1505,6 +1507,8 @@ test_ring_ladder_policy
 test_watcher_rerings_idle_pane_quietly
 test_watcher_waits_on_busy_pane
 test_watcher_busy_budget_resets_on_progress
+test_watcher_busy_budget_resets_on_progress ship
+test_watcher_busy_budget_resets_on_progress scout
 test_pi_stream_progress_resets_busy_budget
 test_continued_activity_cannot_hide_unread_steer
 test_continued_activity_cannot_hide_unread_steer 010 20

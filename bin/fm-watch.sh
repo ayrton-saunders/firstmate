@@ -663,8 +663,8 @@ inbox_steer_progress_fingerprint() {  # <window> <task>
   fi
 }
 
-inbox_steer_check() {  # <window> <task>
-  local w=$1 task=$2 action verb rec count tail40 reason='' ring_rc backend agent_state progress counts total max limit_kind
+inbox_steer_check() {  # <window> <task> <kind>
+  local w=$1 task=$2 kind=$3 action verb rec count tail40 reason='' ring_rc backend agent_state progress counts total max limit_kind
   action=$(fm_task_inbox_due_action "$STATE" "$task") || return 0
   verb=${action%% *}
   [ "$verb" != quiet ] || return 0
@@ -695,7 +695,10 @@ inbox_steer_check() {  # <window> <task>
   tail40=$WATCHER_CAPTURE
   if inbox_steer_busy "$w" "$backend" "$task" "$tail40"; then
     [ "$verb" != retry ] || return 0
-    progress=$(inbox_steer_progress_fingerprint "$w" "$task")
+    progress=0
+    if [ "$kind" = secondmate ]; then
+      progress=$(inbox_steer_progress_fingerprint "$w" "$task")
+    fi
     if ! counts=$(fm_task_inbox_record_busy "$STATE" "$task" "$rec" "$progress"); then
       [ -f "$rec" ] || return 0
       reason="stale: $w (steering-inbox busy bookkeeping unwritable: ${rec%/*}/.busy-state cannot be written while $rec stays unhandled; inspect the inbox directory)"
@@ -704,7 +707,7 @@ inbox_steer_check() {  # <window> <task>
       max=$(fm_task_inbox_busy_max)
       if [ "$count" -ge "$max" ]; then
         limit_kind=consecutive
-      elif [ "$total" -ge "$((2 * max))" ]; then
+      elif [ "$kind" = secondmate ] && [ "$total" -ge "$((2 * max))" ]; then
         limit_kind=total
         count=$total
       else
@@ -4669,7 +4672,7 @@ EOF
     task=$(window_to_task "$w" "$STATE")
     # Steering-inbox loss detection runs before the secondmate stale
     # exemption below, because a mate's steers land in an inbox too.
-    [ -z "$task" ] || inbox_steer_check "$w" "$task"
+    [ -z "$task" ] || inbox_steer_check "$w" "$task" "$kind"
     key=$(window_key "$w")
     last=$(status_declared_wait_line "$STATE/$task.status")
     if ! status_is_paused_or_captain_held "$last" && [ -e "$STATE/.paused-$key" ]; then
