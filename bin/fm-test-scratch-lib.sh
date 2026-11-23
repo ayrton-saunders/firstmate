@@ -230,6 +230,7 @@ fm_test_check_scratch_placement() {
   ancestor=$base
   while :; do
     for blocked in "$root" "${FM_HOME:-}" "${FM_ROOT_OVERRIDE:-}" "$effective_home" \
+      "${FM_STATE_OVERRIDE:-}" "${FM_DATA_OVERRIDE:-}" "${FM_CONFIG_OVERRIDE:-}" "${FM_PROJECTS_OVERRIDE:-}" \
       "$HOME/.firstmate-preserved" "$HOME/.treehouse" "${TREEHOUSE_ROOT:-}"; do
       [ -n "$blocked" ] || continue
       if [ "$ancestor" = "${blocked%/}" ] || [ "$ancestor" -ef "$blocked" ]; then

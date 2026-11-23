@@ -77,7 +77,7 @@ test_checkout_scratch_is_refused_before_build_or_clone() {
 }
 
 test_overlay_keeps_work_but_excludes_legacy_scratch() {
-  local repo="$TMP_ROOT/overlay" runtime="$TMP_ROOT/overlay-runtime" out
+  local repo="$TMP_ROOT/overlay" runtime="$TMP_ROOT/overlay-runtime" out check_alias=0
   make_repo "$repo"
   mkdir -p "$repo/.test-phase-tmp/nested" "$TMP_ROOT/overlay-tmp"
   printf 'committed scratch\n' >"$repo/.test-phase-tmp/nested/committed"
@@ -90,7 +90,9 @@ test_overlay_keeps_work_but_excludes_legacy_scratch() {
   printf 'untracked scratch\n' >"$repo/.test-phase-tmp/nested/sentinel"
   rm "$repo/alias/committed" "$repo/replaced"
   rmdir "$repo/alias"
-  ln -s .test-phase-tmp/nested "$repo/alias"
+  if ln -s .test-phase-tmp/nested "$repo/alias" 2>/dev/null && [ -L "$repo/alias" ]; then
+    check_alias=1
+  fi
   mkdir "$repo/replaced"
   printf 'excluded\n' >"$repo/replaced/private"
   printf 'included\n' >"$repo/replaced/public"
@@ -102,7 +104,7 @@ while [ "$#" -gt 1 ]; do
   if [ "$1" = -v ]; then
     copy=${2%:/work}
     [ ! -e "$copy/.test-phase-tmp" ] &&
-      [ ! -e "$copy/alias/committed" ] &&
+      { [ "$CHECK_ALIAS" -eq 0 ] || [ ! -e "$copy/alias/committed" ]; } &&
       [ ! -e "$copy/replaced/private" ] &&
       [ "$(<"$copy/replaced/public")" = included ] &&
       [ "$(<"$copy/tests/kept.test.sh")" = dirty ] &&
@@ -113,7 +115,7 @@ while [ "$#" -gt 1 ]; do
 done
 SH
   chmod +x "$runtime"
-  out=$(cd "$repo" && TMPDIR="$TMP_ROOT/overlay-tmp" FM_CONTAINER_RUNTIME="$runtime" \
+  out=$(cd "$repo" && TMPDIR="$TMP_ROOT/overlay-tmp" FM_CONTAINER_RUNTIME="$runtime" CHECK_ALIAS="$check_alias" \
     "$BASH" "$LINUX_CHECK" tests/kept.test.sh 2>&1) || fail "Linux overlay did not match working-tree contract: $out"
   assert_contains "$out" 'PASS tests/kept.test.sh' 'container tested the overlay'
   pass 'Linux overlay skips legacy scratch but keeps dirty and untracked work'

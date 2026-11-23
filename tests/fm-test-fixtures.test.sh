@@ -20,16 +20,23 @@ set -u
 TMP_ROOT=$(fm_test_tmproot fm-test-fixtures)
 
 test_direct_fixture_refuses_checkout_scratch() {
-  local tmp out rc=0
+  local tmp out rc base
+  local -a bases
   tmp=$(fm_test_tmproot fm-fixture-scratch-refusal) || fail 'could not create scratch test fixture'
   mkdir -p "$tmp/repo/.test-phase-tmp"
   git -C "$tmp/repo" init -q
-  ln -s "$tmp/repo/.test-phase-tmp" "$tmp/alias"
-  out=$(TMPDIR="$tmp/alias" "$BASH" -c '. "$1"; printf "fixture started\n"' _ "$ROOT/tests/lib.sh" 2>&1) || rc=$?
-  assert_equals 2 "$rc" 'checkout fixture scratch exit status'
-  assert_contains "$out" 'unsafe scratch base' 'checkout fixture scratch refusal'
-  assert_not_contains "$out" 'fixture started' 'fixture ran before scratch refusal'
-  pass 'direct fixtures reject a symlink into checkout scratch'
+  bases=("$tmp/repo/.test-phase-tmp")
+  if ln -s "${bases[0]}" "$tmp/alias" 2>/dev/null && [ -L "$tmp/alias" ]; then
+    bases+=("$tmp/alias")
+  fi
+  for base in "${bases[@]}"; do
+    rc=0
+    out=$(TMPDIR="$base" "$BASH" -c '. "$1"; printf "fixture started\n"' _ "$ROOT/tests/lib.sh" 2>&1) || rc=$?
+    assert_equals 2 "$rc" 'checkout fixture scratch exit status'
+    assert_contains "$out" 'unsafe scratch base' 'checkout fixture scratch refusal'
+    assert_not_contains "$out" 'fixture started' 'fixture ran before scratch refusal'
+  done
+  pass 'direct fixtures reject checkout scratch and supported aliases'
 }
 
 test_direct_fixture_refuses_inherited_home_scratch() {
@@ -38,7 +45,7 @@ test_direct_fixture_refuses_inherited_home_scratch() {
   mkdir -p "$tmp/home/tmp" "$tmp/tools"
   printf '%s\n' '#!/usr/bin/env bash' 'touch "$MKTEMP_CALLED"; exit 1' >"$tmp/tools/mktemp"
   chmod +x "$tmp/tools/mktemp"
-  for boundary in FM_HOME FM_ROOT_OVERRIDE FM_ROOT; do
+  for boundary in FM_HOME FM_ROOT_OVERRIDE FM_ROOT FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_CONFIG_OVERRIDE FM_PROJECTS_OVERRIDE; do
     rc=0
     out=$(env -u FM_HOME -u FM_ROOT_OVERRIDE -u FM_ROOT "$boundary=$tmp/home" TMPDIR="$tmp/home/tmp" PATH="$tmp/tools:$PATH" \
       MKTEMP_CALLED="$tmp/mktemp-called" "$BASH" -c '. "$1"' _ "$ROOT/tests/lib.sh" 2>&1) || rc=$?

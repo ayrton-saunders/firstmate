@@ -325,13 +325,16 @@ test_primary_lab_copy_excludes_only_declared_scratch() {
   mkdir -p "$harness/symlink-copy" "$source/notes"
   printf 'real work\n' >"$source/notes/draft"
   mv "$source/.TEST-PHASE-TMP" "$harness/old-scratch"
-  ln -s notes "$source/.test-phase-tmp"
-  ln -s notes "$source/notes-link"
+  if ! ln -s notes "$source/.test-phase-tmp" 2>/dev/null || [ ! -L "$source/.test-phase-tmp" ] ||
+     ! ln -s notes "$source/notes-link" 2>/dev/null || [ ! -L "$source/notes-link" ]; then
+    pass 'primary lab copies omit only root-level declared scratch (symlinks unavailable)'
+    return 0
+  fi
   fm_test_copy_primary_lab "$source" "$harness/symlink-copy" || fail 'primary lab copy with symlink failed'
   assert_absent "$harness/symlink-copy/.test-phase-tmp" 'the declared symlink was excluded'
   assert_equals 'real work' "$(<"$harness/symlink-copy/notes/draft")" 'the declared symlink target was copied normally'
   assert_equals notes "$(readlink "$harness/symlink-copy/notes-link")" 'an unrelated symlink to the same work was kept'
-  if ln -P "$source/.test-phase-tmp" "$source/notes-hardlink" 2>/dev/null; then
+  if ln -P "$source/.test-phase-tmp" "$source/notes-hardlink" 2>/dev/null && [ -L "$source/notes-hardlink" ]; then
     mkdir "$harness/hardlink-copy"
     fm_test_copy_primary_lab "$source" "$harness/hardlink-copy" || fail 'primary lab copy with hardlinked symlink failed'
     assert_absent "$harness/hardlink-copy/.test-phase-tmp" 'declared entry was excluded despite its hard link'
