@@ -34,6 +34,22 @@ test_fixture_root_gone_after_normal_exit() {
   pass "fm_test_tmproot cleans up its fixture root on normal exit"
 }
 
+test_fixture_root_gone_after_exit_from_inside() {
+  local harness rc=0
+  harness=$(fm_test_tmproot fm-test-cleanup-cwd-harness)
+  mkdir "$harness/tmp"
+  TMPDIR="$harness/tmp" bash -ec '
+    . "$1"
+    d=$(fm_test_tmproot fm-test-cleanup-cwd)
+    mkdir "$d/nested"
+    cd "$d/nested"
+    exit 0
+  ' _ "$LIB" >"$harness/out" 2>&1 || rc=$?
+  assert_equals 0 "$rc" "exiting from inside owned scratch: $(<"$harness/out")"
+  assert_equals '' "$(ls -A "$harness/tmp")" 'exiting from inside owned scratch left fixtures behind'
+  pass 'the finalizing shell does not prevent cleanup of its own cwd'
+}
+
 test_fixture_root_gone_after_sigterm() {
   local harness dirfile child_dir pid tries
   harness=$(fm_test_tmproot fm-test-cleanup-sigterm-harness)
@@ -609,6 +625,7 @@ test_custom_finalizer_cleans_or_retains_after_teardown
 test_primary_lab_copy_excludes_only_declared_scratch
 test_removal_failure_preserves_existing_status
 test_fixture_root_gone_after_normal_exit
+test_fixture_root_gone_after_exit_from_inside
 test_fixture_root_gone_after_sigterm
 test_cleanup_registry_resists_precreation
 test_interrupted_registry_allocation_cleans_up

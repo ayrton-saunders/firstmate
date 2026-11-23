@@ -522,7 +522,7 @@ for field in sys.stdin.buffer.read().split(b"\0"):
 )
 
 fm_test_cleanup() {
-  local d rc=0
+  local d cwd rc=0
   local -a roots=()
   [ "$FM_TEST_CLEANUP_DONE" -eq 0 ] || return 0
   fm_test_reap_watchers
@@ -541,6 +541,16 @@ fm_test_cleanup() {
   # Use this shell's job table, including stopped jobs. A live child can use
   # scratch as its cwd without having the path in argv. Do not guess its group.
   fm_test_drain_fixture_jobs || rc=1
+  # Leave owned scratch before inventorying cwd users, without ignoring any
+  # other process. Preserve trailing newlines when comparing physical paths.
+  if cwd=$(pwd -P && printf '.'); then
+    cwd=${cwd%$'\n.'}
+    for d in "$FM_TEST_REGISTRY_DIR" ${roots[@]+"${roots[@]}"}; do
+      case "$cwd" in
+        "$d"|"$d"/*) cd -P -- / || rc=1; break ;;
+      esac
+    done
+  fi
   fm_test_scratch_has_no_users "$FM_TEST_REGISTRY_DIR" ${roots[@]+"${roots[@]}"} || rc=1
   if [ "$rc" -ne 0 ]; then
     fm_test_retain_registered_scratch
