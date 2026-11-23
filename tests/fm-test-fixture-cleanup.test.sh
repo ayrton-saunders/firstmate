@@ -111,7 +111,7 @@ test_fixture_registration_failure_rolls_back_root() {
 }
 
 test_orphan_sweep_respects_fixture_ownership() {
-  local harness dirfile active_dir registry_dir stale_dir fresh_dir pid tries
+  local harness dirfile active_dir custom_dir registry_dir stale_dir fresh_dir unmarked_dir pid tries
   harness=$(fm_test_tmproot fm-test-cleanup-orphan-harness)
   dirfile="$harness/active-dir"
   TMPDIR="$harness" TMP="$ROOT" TEMP="$ROOT" bash -ec '
@@ -119,7 +119,8 @@ test_orphan_sweep_respects_fixture_ownership() {
     . "'"$LIB"'"
     [ "$TMPDIR" -ef "'"$harness"'" ] && [ "$TMP" = "$TMPDIR" ] && [ "$TEMP" = "$TMPDIR" ] || exit 1
     d=$(fm_test_tmproot oenv)
-    printf "%s\n%s\n" "$d" "$FM_TEST_REGISTRY_DIR" > "'"$dirfile"'"
+    custom=$(fm_test_tmproot ".custom fixture")
+    printf "%s\n%s\n%s\n" "$d" "$FM_TEST_REGISTRY_DIR" "$custom" > "'"$dirfile"'"
     while :; do sleep 0.1; done
   ' &
   pid=$!
@@ -130,9 +131,11 @@ test_orphan_sweep_respects_fixture_ownership() {
     tries=$((tries + 1))
   done
   [ -s "$dirfile" ] || fail "the active child never published its fixture root before the wait timed out"
-  { IFS= read -r active_dir; IFS= read -r registry_dir; } < "$dirfile"
+  { IFS= read -r active_dir; IFS= read -r registry_dir; IFS= read -r custom_dir; } < "$dirfile"
   assert_present "$registry_dir/cleanup" 'standalone child registered fixtures'
-  touch -c -t 202001010000 "$active_dir/.fm-test-fixture" "$registry_dir/.fm-test-fixture"
+  touch -c -t 202001010000 "$active_dir/.fm-test-fixture" "$registry_dir/.fm-test-fixture" "$custom_dir/.fm-test-fixture"
+  unmarked_dir=$(mktemp -d "$harness/.custom fixture.XXXXXX")
+  touch -t 202001010000 "$unmarked_dir"
 
   stale_dir=$(mktemp -d "$harness/fm-test-cleanup-stale.XXXXXX")
   printf '%s\n%s\n' "$$" reused-process-identity > "$stale_dir/.fm-test-fixture"
@@ -152,10 +155,13 @@ test_orphan_sweep_respects_fixture_ownership() {
   assert_present "$fresh_dir" \
     "the orphan reaper removed a fresh marked fixture root it does not own yet"
   assert_present "$registry_dir" 'orphan recovery leaves a live registry intact'
+  assert_present "$custom_dir" 'orphan recovery leaves a live hidden fixture intact'
   kill -KILL "$pid"
   wait "$pid" 2>/dev/null || true
   TMPDIR="$harness" bash -ec '. "$1"' _ "$LIB"
   assert_absent "$active_dir" 'orphan recovery removed the killed suite oenv fixture'
+  assert_absent "$custom_dir" 'orphan recovery removed the killed suite hidden fixture'
+  assert_present "$unmarked_dir" 'orphan recovery leaves an old unmarked directory intact'
   assert_absent "$registry_dir" 'orphan recovery removed the killed suite registry'
   rm -rf "$fresh_dir"
   pass "the orphan sweep reaps only old fixtures without a live owner"

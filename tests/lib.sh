@@ -414,15 +414,9 @@ fm_test_finalize() {
   exit "$status"
 }
 
-FM_TEST_FIXTURE_PREFIXES=('fm-*' oenv)
-
 fm_test_tmproot() (
-  local prefix=${1:-fm-test} root= tmp_base pattern
+  local prefix=${1:-fm-test} root= tmp_base
   case "$prefix" in */*) return 2 ;; esac
-  for pattern in "${FM_TEST_FIXTURE_PREFIXES[@]}"; do
-    [[ "$prefix" == $pattern ]] && break
-  done
-  [[ "$prefix" == $pattern ]] || return 2
   tmp_base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || return "$?"
   trap '' HUP INT QUIT TERM
   trap '[ -z "$root" ] || fm_test_remove_tree "$root"' EXIT
@@ -453,15 +447,22 @@ export TREEHOUSE_ROOT
 # fallback for dead or unowned roots.
 FM_TEST_ORPHAN_MAX_AGE_SECONDS=${FM_TEST_ORPHAN_MAX_AGE_SECONDS:-3600}
 
-fm_test_reap_orphans() {
-  local marker dir mtime now owner_pid owner_identity current_identity pattern
-  local -a markers=()
+fm_test_reap_orphans() (
+  local marker dir mtime now owner_pid owner_identity current_identity
+  local -a fixtures=() registries=()
+  unset GLOBIGNORE
+  shopt -u failglob
+  shopt -s dotglob nullglob
   now=$(date +%s)
-  for pattern in "${FM_TEST_FIXTURE_PREFIXES[@]}"; do
-    markers+=("$FM_TEST_TMPDIR"/$pattern.*/.fm-test-fixture)
+  for marker in "$FM_TEST_TMPDIR"/*/.fm-test-fixture; do
+    dir=${marker%/*}
+    [ -f "$marker" ] && [ ! -L "$marker" ] && [ ! -L "$dir" ] || continue
+    case "${dir##*/}" in
+      .fm-test-registry.*) registries+=("$marker") ;;
+      *) fixtures+=("$marker") ;;
+    esac
   done
-  for marker in ${markers[@]+"${markers[@]}"} "$FM_TEST_TMPDIR"/.fm-test-registry.*/.fm-test-fixture; do
-    [ -e "$marker" ] || continue
+  for marker in ${fixtures[@]+"${fixtures[@]}"} ${registries[@]+"${registries[@]}"}; do
     dir=${marker%/*}
     [ "$dir" != "$FM_TEST_REGISTRY_DIR" ] || continue
     owner_pid=$(sed -n '1p' "$marker" 2>/dev/null) || owner_pid=
@@ -481,7 +482,7 @@ fm_test_reap_orphans() {
     fm_test_reap_root_processes "$dir"
     fm_test_remove_tree "$dir"
   done
-}
+)
 
 # A parent coordinator can reap once before it starts isolated child sections.
 # Those children use their own EXIT cleanup and must not spend their bounded
