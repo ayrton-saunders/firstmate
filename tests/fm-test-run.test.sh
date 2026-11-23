@@ -2027,7 +2027,7 @@ assert len(doc["scripts"])==3
 }
 
 test_gateway_preflight_preserves_symlink() {
-  local tmp profile executable rc=0
+  local tmp profile executable owner rc=0 lock restore_command
   tmp=$(fm_test_tmproot fm-gateway-refusal)
   profile="$tmp/hermes/profiles/worker"
   mkdir -p "$profile" "$tmp/path"
@@ -2073,15 +2073,26 @@ SH
     || fail "gateway did not exercise mutation and rollback: $(<"$tmp/out")"
   [ -L "$profile/config.yaml" ] && [ "$(readlink "$profile/config.yaml")" = original.yaml ] \
     && [ "$(<"$profile/original.yaml")" = 'original config' ] || fail 'gateway rollback changed the config link or target'
-  [ ! -e "$profile/.fm-gateway-config-lock" ] || fail 'gateway did not release the profile lock'
   rm -f "$tmp/hermes/mutation-attempted"
-  mkdir "$profile/.fm-gateway-config-lock"
+  lock="$profile/.fm-gateway-config-lock"
+  mkdir "$lock" || fail 'gateway did not release the profile lock'
+  sleep 30 &
+  owner=$!
+  printf '%s\n' "$owner" >"$lock/pid"
+  fm_test_owner_start "$owner" "$tmp" >"$lock/pid-start" || fail 'could not identify lock owner'
   rc=0
   PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
     bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+  kill "$owner" 2>/dev/null || true
+  wait "$owner" 2>/dev/null || true
   [ "$rc" -eq 1 ] && grep -q 'profile is locked' "$tmp/out" && [ ! -e "$tmp/hermes/mutation-attempted" ] \
-    || fail 'overlapping gateway run was not refused before mutation'
-  rmdir "$profile/.fm-gateway-config-lock" || fail 'gateway removed a lock it did not own'
+    && [ "$(<"$lock/pid")" = "$owner" ] || fail 'overlapping gateway run disturbed a live owner'
+  rc=0
+  PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
+    bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+  [ "$rc" -eq 1 ] && grep -q 'gateway launch failed' "$tmp/out" && [ -f "$tmp/hermes/mutation-attempted" ] \
+    && [ -L "$profile/config.yaml" ] && [ "$(<"$profile/config.yaml")" = 'original config' ] \
+    || fail "gateway did not take over the stale lock and restore the config: $(<"$tmp/out")"
   # An editor changes the file after the probe records its write, but before cleanup.
   printf '%s\n' '#!/usr/bin/env bash' 'if [[ " $* " == *" new-session "* ]]; then printf "edited\n" > "$EDIT_CONFIG"; fi' 'exit 99' >"$tmp/path/tmux"
   rc=0
@@ -2089,8 +2100,11 @@ SH
     bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
   [ "$rc" -eq 1 ] && [ "$(<"$profile/config.yaml")" = edited ] && grep -q 'backup retained at' "$tmp/out" \
     || fail 'gateway rollback overwrote or failed to report a conflicting change'
-  compgen -G "$profile/.fm-gateway-config.*" >/dev/null || fail 'gateway did not retain its backup'
-  [ ! -e "$profile/.fm-gateway-config-lock" ] || fail 'conflicting edit left the profile locked'
+  local -a backups=("$profile"/.fm-gateway-config.??????)
+  [ -f "${backups[0]}" ] || fail 'gateway did not retain its backup'
+  restore_command=$(printf 'cp -p -- %q %q && ln -sfn -- original.yaml %q' \
+    "${backups[0]}" "$profile/original.yaml" "$profile/config.yaml")
+  assert_contains "$(<"$tmp/out")" "$restore_command" 'gateway reports the backup restore command'
   rm -f "$profile/config.yaml" "$tmp/hermes/hermes-called"
   printf 'operator config\n\n' >"$tmp/operator.yaml"
   cp "$tmp/operator.yaml" "$tmp/expected.yaml"
@@ -2101,7 +2115,7 @@ SH
   { [ "$rc" -eq 1 ] && grep -q 'config resolves outside the throwaway profile' "$tmp/out" \
     && [ ! -e "$tmp/hermes/hermes-called" ] && cmp -s "$tmp/expected.yaml" "$tmp/operator.yaml"; } \
     || fail "gateway crossed the profile boundary: $(<"$tmp/out")"
-  pass 'gateway preserves in-profile config links and refuses escaped targets'
+  pass 'gateway serializes profile edits, restores links, and refuses escaped targets'
 }
 
 test_readonly_probe_scratch_cleanup() {

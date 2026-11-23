@@ -8,6 +8,7 @@
 # idle gateway and checks the session store, memory and gateway afterward.
 # The profile's config is restored after it temporarily sets gateway.standalone.
 # After SIGKILL, a .fm-gateway-config.* backup may remain beside config.yaml for recovery.
+# A write interrupted before rollback confirmation may require restoring the retained backup by hand.
 set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -43,11 +44,16 @@ cleanup() {
       rm -f "$BACKUP" || { [ "$status" -ne 0 ] || status=1; }
     elif ! restore_config; then
       printf 'not ok - config changed or restore failed; backup retained at %s\n' "$BACKUP" >&2
+      printf 'To restore manually: cp -p -- %q %q' "$BACKUP" "$CONFIG_TARGET" >&2
+      if [ -n "$CONFIG_LINK" ]; then
+        printf ' && ln -sfn -- %q %q' "$CONFIG_LINK" "$PROFILE_HOME/config.yaml" >&2
+      fi
+      printf '\n' >&2
       [ "$status" -ne 0 ] || status=1
     fi
   fi
   if [ -n "$PROFILE_LOCK" ]; then
-    rmdir -- "$PROFILE_LOCK" || { [ "$status" -ne 0 ] || status=1; }
+    fm_lock_release "$PROFILE_LOCK" || { [ "$status" -ne 0 ] || status=1; }
   fi
   if [ -n "$TUI_PID" ]; then
     for ((attempt=0; attempt<60; ++attempt)); do
@@ -120,12 +126,11 @@ out.write_text(json.dumps({'integrity': ok, 'sessions': sessions, 'memory': dige
 PY
 }
 snapshot "$LAB/before.json" || fail 'could not snapshot the throwaway session store'
+# shellcheck source=bin/fm-wake-lib.sh
+FM_STATE_OVERRIDE="$LAB/state" . "$ROOT/bin/fm-wake-lib.sh"
 publication_pending=1
-PROFILE_LOCK=$(
-  trap '' HUP INT QUIT TERM
-  lock="$PROFILE_HOME/.fm-gateway-config-lock"
-  mkdir -- "$lock" && printf '%s\n' "$lock"
-) || fail 'throwaway profile is locked by another gateway probe (or a previous interrupted probe)'
+PROFILE_LOCK="$PROFILE_HOME/.fm-gateway-config-lock"
+fm_lock_try_acquire "$PROFILE_LOCK" || fail 'throwaway profile is locked by another gateway probe (or a previous interrupted probe)'
 publication_pending=0
 [ "$probe_signal" -eq 0 ] || exit "$probe_signal"
 CONFIG_LINK=

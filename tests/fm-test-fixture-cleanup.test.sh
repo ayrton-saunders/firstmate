@@ -404,6 +404,42 @@ test_registry_cleanup_guards() {
   pass 'cleanup guards cwd-only children, fixture ownership, and inherited boundaries'
 }
 
+test_msys_fixture_process_inventory() {
+  local harness mode rc fixture
+  harness=$(fm_test_tmproot fm-test-msys-ps)
+  mkdir "$harness/bin"
+  printf '%s\n' '#!/usr/bin/env bash' 'if [ "${1:-}" = -s ]; then echo MSYS_NT-10.0; else exec "$REAL_UNAME" "$@"; fi' > "$harness/bin/uname"
+  cat > "$harness/bin/ps" <<'SH'
+#!/usr/bin/env bash
+case "$*" in
+  -ef)
+    case "$INVENTORY" in empty) exit 0 ;; failed) exit 1 ;; esac
+    printf ' UID PID PPID TTY STIME COMMAND\n 1000 %s 1 ? 12:00 /usr/bin/bash\n' "$SUITE_PID"
+    ;;
+  *ppid=*|*pgid=*|*-eo*) exit 1 ;;
+  *) exec "$REAL_PS" "$@" ;;
+esac
+SH
+  chmod +x "$harness/bin/uname" "$harness/bin/ps"
+  for mode in ready empty failed; do
+    rc=0
+    REAL_UNAME=$(command -v uname) REAL_PS=$(command -v ps) INVENTORY="$mode" PATH="$harness/bin:$PATH" TMPDIR="$harness" \
+      bash -ec 'export SUITE_PID=$$; . "$1"; fm_test_tmproot fixture > "$2"' _ "$LIB" "$harness/root" \
+      >"$harness/out" 2>&1 || rc=$?
+    fixture=$(<"$harness/root")
+    [ -n "$fixture" ] || fail "MSYS-style suite did not allocate a fixture: $(<"$harness/out")"
+    if [ "$mode" = ready ]; then
+      assert_equals 0 "$rc" 'passing suite with MSYS process columns exits cleanly'
+      assert_absent "$fixture" 'passing suite with MSYS process columns removes scratch'
+    else
+      assert_equals 1 "$rc" "suite with $mode inventory fails cleanup"
+      assert_present "$fixture/.retain-scratch.fixture" "suite with $mode inventory retains scratch"
+    fi
+  done
+  pass 'MSYS fixture cleanup requires a valid process inventory'
+}
+
+test_msys_fixture_process_inventory
 test_registry_cleanup_guards
 test_custom_finalizer_cleans_or_retains_after_teardown
 test_primary_lab_copy_excludes_only_declared_scratch

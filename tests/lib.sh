@@ -353,6 +353,45 @@ fm_test_nonplatform_binary() {
 }
 
 # --- fixture-root process reaping -------------------------------------------
+fm_test_process_inventory() {
+  local kind=$1 snapshot
+  case "$(uname -s)" in
+    CYGWIN*|MINGW*|MSYS*)
+      case "$kind" in
+        args) snapshot=$(LC_ALL=C ps -ef 2>/dev/null) || return 1 ;;
+        groups) snapshot=$(LC_ALL=C ps -e 2>/dev/null) || return 1 ;;
+      esac
+      snapshot=$(awk -v kind="$kind" '
+        NR == 1 {
+          for (i=1; i<=NF; ++i) col[$i]=i
+          if (!col["PID"] || !col["PPID"] || !col[kind == "args" ? "COMMAND" : "PGID"]) exit 1
+          next
+        }
+        {
+          sub(/^[[:blank:]]*[^0-9[:blank:]][[:blank:]]+/, "")
+          pid=$(col["PID"]); parent=$(col["PPID"])
+          if (pid !~ /^[1-9][0-9]*$/ || parent !~ /^[0-9]+$/) next
+          printf "%s %s", pid, parent
+          if (kind == "groups") printf " %s", $(col["PGID"])
+          else {
+            args=$0
+            for (i=1; i<col["COMMAND"]; ++i) sub(/^[[:blank:]]*[^[:blank:]]+/, "", args)
+            printf "%s", args
+          }
+          print ""
+        }' <<<"$snapshot") || return 1
+      ;;
+    *)
+      case "$kind" in
+        args) snapshot=$(LC_ALL=C ps -ww -eo pid=,ppid=,args= 2>/dev/null) || return 1 ;;
+        groups) snapshot=$(LC_ALL=C ps -eo pid=,ppid=,pgid= 2>/dev/null) || return 1 ;;
+      esac
+      ;;
+  esac
+  awk -v self="$$" '$1 == self && $2 ~ /^[0-9]+$/ { found=1 } END { exit !found }' <<<"$snapshot" || return 1
+  printf '%s\n' "$snapshot"
+}
+
 #
 # A fixture process whose command line names a fixture root - a stub, a script
 # run from a fixture checkout whose bin links back here, or a fake harness
@@ -363,21 +402,25 @@ fm_test_nonplatform_binary() {
 # unique per-run root path, never a script or process name, so it cannot reach
 # another home's processes; this shell and its ancestors are never signalled.
 fm_test_reap_root_processes() {  # <root>
-  local root=${1%/} chain pid pids signal i snapshot
+  local root=${1%/} pids signal i snapshot
   [ -n "$root" ] && [ "$root" != / ] || return 0
-  chain=" "
-  pid=$$
-  while [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null; do
-    chain="$chain$pid "
-    pid=$(ps -o ppid= -p "$pid" 2>/dev/null) || return 1
-    pid=${pid//[[:space:]]/}
-  done
   for signal in TERM KILL; do
     i=0
     while [ "$i" -lt 20 ]; do
-      snapshot=$(ps -ww -eo pid=,args= 2>/dev/null) || return 1
-      pids=$(FM_TEST_REAP_ROOT="$root/" awk -v chain="$chain" \
-        'index($0, ENVIRON["FM_TEST_REAP_ROOT"]) && index(chain, " " $1 " ") == 0 { print $1 }' <<<"$snapshot") || return 1
+      snapshot=$(fm_test_process_inventory args) || return 1
+      pids=$(FM_TEST_REAP_ROOT="$root/" awk -v self="$$" '
+        $1 ~ /^[1-9][0-9]*$/ && $2 ~ /^[0-9]+$/ {
+          parent[$1]=$2
+          if (index($0, ENVIRON["FM_TEST_REAP_ROOT"])) matches[$1]=1
+        }
+        END {
+          for (pid=self; pid>1; pid=parent[pid]) {
+            if (!(pid in parent) || seen[pid]++) exit 1
+            delete matches[pid]
+          }
+          delete matches[1]
+          for (pid in matches) print pid
+        }' <<<"$snapshot") || return 1
       [ -n "$pids" ] || return 0
       # shellcheck disable=SC2086 # one argument per pid
       [ "$i" -gt 0 ] || kill -s "$signal" $pids 2>/dev/null
@@ -400,12 +443,14 @@ fm_test_owns_registered_root() {
 }
 
 fm_test_drain_fixture_jobs() {
-  local jobs_file="$FM_TEST_REGISTRY_DIR/jobs" pid row parent group start
+  local jobs_file="$FM_TEST_REGISTRY_DIR/jobs" pid row parent group start snapshot
   local -a records=()
   jobs -p > "$jobs_file" || return 1
+  [ -s "$jobs_file" ] || return 0
+  snapshot=$(fm_test_process_inventory groups) || return 1
   while IFS= read -r pid; do
     [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
-    row=$(ps -o ppid= -o pgid= -p "$pid" 2>/dev/null) || continue
+    row=$(awk -v pid="$pid" '$1 == pid { print $2, $3; exit }' <<<"$snapshot") || return 1
     read -r parent group <<<"$row"
     # Without job control a child shares the suite's group. Don't signal it
     # as a group; the final job inventory below will require retention.

@@ -1161,19 +1161,35 @@ t_retire_waits_for_slow_reporter() {
 # An hc terminal opened from inside a herdr session inherits HERDR_* markers;
 # its own HC_TERMINAL_ID still makes it a known-aware reporter.
 t_hc_terminal_with_inherited_herdr_markers() {
-  local d=$TMP_ROOT/hcinherit
+  local d=$TMP_ROOT/hcinherit leader start wpid poll_pid
   mkhome "$d"
   start_term "$d"
-  env "${CLEAN_UNSET[@]}" HC_TERMINAL_ID=t-2 HERDR_ENV=1 HERDR_PANE_ID=p-1 \
-    FM_OSC7501_TTY="$TERM_SLAVE" bash "$SCRIPT" arm \
-    --task t14 --harness opencode --agent-bin opencode --backend hc --kind ship \
-    --state "$d/state" --config "$d/config"
-  local wpid
+  mkdir "$d/bin"
+  printf '%s\n' '#!/usr/bin/env bash' >"$d/bin/sleep"
+  printf 'if [ "$1" = 47 ]; then echo $$ >%q; fi\n' "$d/poll-pid" >>"$d/bin/sleep"
+  printf 'exec %q %s\n' "$(command -v sleep)" '"$@"' >>"$d/bin/sleep"
+  chmod +x "$d/bin/sleep"
+  set -m
+  (
+    set +m
+    env "${CLEAN_UNSET[@]}" PATH="$d/bin:$PATH" HC_TERMINAL_ID=t-2 HERDR_ENV=1 HERDR_PANE_ID=p-1 \
+      FM_OSC7501_TTY="$TERM_SLAVE" FM_OSC7501_INTERVAL=47 bash "$SCRIPT" arm \
+      --task t14 --harness opencode --agent-bin opencode --backend hc --kind ship \
+      --state "$d/state" --config "$d/config" || exit 1
+    exec sleep 60
+  ) &
+  leader=$!
+  set +m
+  start=$(fm_test_owner_start "$leader" "$d/state") || fail 'hc inside herdr: could not identify the watcher group'
+  wait_cap '' "$d/poll-pid" 60 || fail 'hc inside herdr: watcher did not reach its poll sleep'
+  read -r poll_pid <"$d/poll-pid"
   wpid=$(watcher_pid "$d/state") || fail "hc inside herdr: no watcher armed"
   assert_equals "state=idle " "$(grep -o 'state=[a-z]*' "$d/cap" | sort -u | tr '\n' ' ')" \
     "hc inside herdr: the only bytes are the arm-time idle clear - no capability probe"
-  kill "$wpid" 2>/dev/null
-  wait_gone "$wpid" || true
+  fm_test_drain_groups "$d/state" "$UID|$leader|$leader|$start" || fail 'hc inside herdr: watcher group did not drain'
+  wait "$leader" 2>/dev/null || true
+  wait_gone "$wpid" || fail 'hc inside herdr: watcher survived group teardown'
+  wait_gone "$poll_pid" || fail 'hc inside herdr: poll sleep survived group teardown'
   stop_term
   pass "known-aware: an hc terminal reports despite inherited HERDR markers"
 }

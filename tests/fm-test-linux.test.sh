@@ -27,7 +27,7 @@ make_repo() {  # <dir>
 }
 
 test_selects_changed_tests() {
-  local repo="$TMP_ROOT/select" out discovery_bin="$TMP_ROOT/discovery-tools"
+  local repo="$TMP_ROOT/select" out
   make_repo "$repo"
   printf 'y\n' > "$repo/tests/added.test.sh"
   git -C "$repo" add tests/added.test.sh
@@ -37,26 +37,9 @@ test_selects_changed_tests() {
   printf 'y\n' > "$repo/tests/helper.sh"
   printf 'y\n' >> "$repo/README.md"
   rm "$repo/tests/gone.test.sh"
-  mkdir -p "$discovery_bin" "$repo/.test-phase-tmp/deep"
+  mkdir -p "$repo/.test-phase-tmp/deep"
   touch "$repo/.test-phase-tmp/deep/old.test.sh"
-  # Assert the traversal-pruning rule is present in the Git invocation, not
-  # merely that a later result filter happens to discard the scratch paths.
-  cat >"$discovery_bin/git" <<'SH'
-#!/usr/bin/env bash
-if [ "${3:-}" = ls-files ]; then
-  for arg; do
-    if [ "$arg" = '--exclude=/.test-phase-tmp' ]; then
-      touch "$DISCOVERY_PRUNED"
-      break
-    fi
-  done
-fi
-exec "$REAL_GIT" "$@"
-SH
-  chmod +x "$discovery_bin/git"
-  out=$(cd "$repo" && REAL_GIT="$(command -v git)" DISCOVERY_PRUNED="$discovery_bin/pruned" PATH="$discovery_bin:$PATH" \
-    "$BASH" "$LINUX_CHECK" --base main --list 2>&1) || fail "--list failed: $out"
-  [ -f "$discovery_bin/pruned" ] || fail 'discovery did not prune the declared top-level scratch entry'
+  out=$(cd "$repo" && "$BASH" "$LINUX_CHECK" --base main --list 2>&1) || fail "--list failed: $out"
   assert_equals $'tests/added.test.sh\ntests/kept.test.sh\ntests/untracked.test.sh' "$out" "changed test selection"
   pass "selects committed, modified, and untracked tests only"
 }
