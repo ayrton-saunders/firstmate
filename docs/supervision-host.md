@@ -26,8 +26,7 @@ Today it runs beside a Claude, Cursor, OpenCode, omp, Grok, Codex, or Antigravit
 
 ### Behavior by posture and harness
 
-- Attended (no away record: no `state/.afk-contract`, or quiet mode's) on Claude and Cursor, the engine takes the wakes the Pi branch would take and never wakes main for a routine outcome; see [Postures](#postures).
-  Every other close reaches main exactly as the plain watcher arm delivers it.
+- Attended (no away record: no `state/.afk-contract`, or quiet mode's) on Claude and Cursor, see [Attended routing](#attended) for what the engine handles, what the host acknowledges without a turn, and what reaches main.
 - Attended on OpenCode, omp, Grok, Codex, and agy, the host is a pass-through: every close reaches main as without the host.
 - Away (an away record exists), the host hands each close to the engine.
   Main stays parked unless the host hands the wake back.
@@ -109,18 +108,29 @@ Only an away record is away: no record, or the record daemon-backed quiet mode w
 
 The host asks the Pi branch's offer rule (`branchOfferForWake`, through `bin/fm-branch-dispatch.mjs offer`) whether the branch may take the close.
 Check triggers, decision-owned signal or stale triggers, and scans unsafe or empty for the branch normally stay main's.
-The attended host can instead acknowledge a whole close without an engine turn. A routine signal contains only the home’s own unread keyed answers, with no other open decision on those tasks and no decision-tagged row. A routine stuck-busy escalation names an exact secondmate inbox record that has since been handled, with no unread decision or decision ownership for the stale row in the branch offer.
-Routine rearm recovery requires no pending captain outcome, no captain-hold record divergence, no event eligible for the main drain’s status outcome backstop, and no open decisions whose presentation is unverified. Every recovered row must meet the same proof as a direct row. The status presentation cursor does not record which open keys the drain actually displayed, so open decisions without that proof stay with main. Consequential batches and unhandled stuck inboxes keep their ordinary routing. Routine acknowledgement bypasses the engine cooldown, not a hard park deadline. Codex’s model-free park checkpoint remains quiet.
+On an attended-ready home with an identifiable main session, the host can acknowledge an entire routine close without starting an engine or opening a main turn:
+
+- A signal qualifies only when each referenced status log has an unread span consisting entirely of keyed answers attributable to the home by its append receipt, and there is no open decision on those tasks.
+- A stuck-busy escalation qualifies only when the exact secondmate inbox record named in the wake has moved to `handled/`, its task has no open decision, and the offer does not mark the stale row as decision-owned.
+- `check: rearm-resurface` can qualify with an empty queue or with only rows meeting those same proofs.
+  In either case, recovery must have no unprocessed captain outcome, no status outcome for the main drain's backstop, and no unread status requiring presentation other than proven home answers.
+  Recovery with an open decision is not routine: the status presentation cursor cannot prove that a particular key was shown.
+
+All three require a readable captain-hold check with no record divergence.
+For a nonempty queue, the host binds the proof to the offer's queue snapshot and acknowledges only the exact rows it can claim; this does not advance the status presentation cursor.
+For empty recovery it rechecks the queue under lock before acknowledging the recovery generation.
+Consequential batches and unhandled stuck inboxes keep their ordinary routing.
+Routine acknowledgement bypasses the engine cooldown, not the hard park deadline.
 
 **Known limits:** These cases can produce an extra notification to main; they do not suppress decisions, failures, credentials, or review-ready work.
 
 - A Claude mate may stay in one uninterrupted turn across both inbox polls without reaching Stop.
 - A Pi foreground progress write may still be in flight when the watcher samples it.
 - Cursor activity without a tracked progress marker may still produce an extra stuck-busy notification.
-- Continued task-wide progress can defer, but not permanently suppress, a wake for an unhandled message.
+- The [watcher's inbox budget](../bin/fm-task-inbox-lib.sh) still bounds deferrals for an unhandled message even when task-wide progress continues.
 - If a secondmate acknowledges an inbox message during the final branch offer, the host can still take the normal engine path and hand the wake to main if that turn fails.
-- An answer can reach main if preflight races with publication of its ownership receipt.
-- If a bounded receipt wait times out before the watcher queues a new decision, the decision remains recoverable from the task’s status log. If that wait ends the park, or the final branch offer returns at the park deadline and the host ends the park, main still receives the close but may need to restart supervision.
+- If a bounded receipt wait times out before the watcher queues a new decision, the decision remains recoverable from the task's status log.
+  If that wait ends the park, or the final branch offer returns at the park deadline and the host ends the park, main still receives the close but may need to restart supervision.
 - A nearby routine worker status update can make an otherwise owned answer unprovable and send the notification to main.
 - In homes with long status histories, routine recovery proof can hit its time limit and hand the notification to main.
 - A timeout inside routine proof, such as a backlog read timing out, can end the park before its outer deadline.
@@ -144,7 +154,7 @@ It also passes the close through unchanged, with no added line, when any of thes
 - A tool its turns need is missing: the engine executable, node, jq, or one of perl, timeout, or gtimeout to bound the turn.
 - The primary has no verified dialog mirror.
 - The main session's lock holder cannot be identified.
-- The session is cooling down after engine errors; see [The broken-session latch](#the-broken-session-latch).
+- The session is cooling down after engine errors and the close does not qualify for routine acknowledgement; see [The broken-session latch](#the-broken-session-latch).
 
 A close the engine takes is handled as in [One wake](#one-wake), with the dialog mirror at the head of the wake message.
 A handled wake with only routine outcomes never reaches main.
@@ -162,8 +172,8 @@ A captain who leaves while an attended turn runs turns its captain outcomes into
 
 ### Quiet mode
 
-`/quiet` asks for what the attended host already does: routine wakes stay off a present captain's main.
-So where the attended host runs, `/quiet` is a statement that enters nothing, because the host already gives what a quiet entry would; while [the broken-session latch](#the-broken-session-latch) holds, it says the session is paused instead.
+Where the attended host runs, `/quiet` is a statement that enters nothing and does not change [attended routing](#attended).
+While [the broken-session latch](#the-broken-session-latch) holds, it says the session is paused instead.
 Where the home runs the host but the attended host lacks one of its parts, `/quiet` names the missing part and enters the quiet daemon, and while an away record is live the captain's return comes first.
 `bin/fm-afk-launch.sh` owns the readiness test and refusals in its `quiet-check` contract, and the [quiet skill](../.agents/skills/quiet/SKILL.md) owns the procedure.
 
@@ -313,7 +323,9 @@ When the captain returned during a failed turn that recorded visible outcomes, t
 ### The broken-session latch
 
 The host copies the Pi branch's broken-session policy ([pi-supervision-branch.md](pi-supervision-branch.md#broken-branch-latch-and-recovery)), with an engine error in place of a provider error: a turn that exited nonzero, hit its bound, or ended without a complete successful result.
-Two consecutive engine errors latch the session: every wake reaches main for a five-minute cooldown, the attended close unchanged and the away close with a `supervision-host:` line, after which one wake probes the engine, and each probe that ends in another engine error doubles the cooldown up to one hour.
+Two consecutive engine errors latch the session for a five-minute cooldown.
+During cooldown the host does not start an engine turn: attended closes other than those it acknowledges as routine reach main unchanged, and away closes reach main with a `supervision-host:` line.
+After cooldown, one eligible wake probes the engine, and each probe that ends in another engine error doubles the cooldown up to one hour.
 A turn that records a report without an engine error clears the latch; a turn with a complete engine result but no report neither counts toward it nor clears it, while an engine error counts even if no report was recorded.
 The first trip adds one `supervision-host:` line to the failing turn's handback; a recovery is only recorded in the host ledger, so a routine probe stays off main.
 The away return brief (`bin/fm-afk-return.sh`) reports engine errors in the window and any latch visible at return, using a lower bound for the window's error count because the host ledger is bounded.
@@ -477,7 +489,8 @@ Each arm owner's own suite covers its host mode against a stub host.
 | Test | What it covers |
 |---|---|
 | `tests/fm-supervision-host-drain.test.sh` | Report surface, dispatch entry, and the drain's `BRANCH OUTCOMES` section against the shared stub-engine fixtures. |
-| `tests/fm-supervision-host.test.sh` | Drives the real host against a stub engine for wakes, closes, the dialog mirror, and return outcomes, in both postures. |
+| `tests/fm-supervision-host.test.sh` | Drives the real host against a stub engine in both postures, including routine acknowledgement without an engine, consequential hand-back, the dialog mirror, and return outcomes. |
+| `tests/fm-task-inbox.test.sh` | Covers secondmate progress and both busy-deferral limits. |
 | `tests/fm-supervision-host-park.test.sh` | Latch, park boundary, compaction, and lock ownership against the same stub-engine fixtures. |
 | `tests/fm-supervision-host-hook.test.sh` | Claude Stop-hook re-arm, successor take-over, lost hand-back continuations, and guarded retry submission. |
 | `tests/fm-claude-stop-autoarm.test.sh` | The Claude arm owner's host mode against a stub host. |

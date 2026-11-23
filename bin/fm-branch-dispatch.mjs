@@ -24,9 +24,12 @@
 //   fm-branch-dispatch.mjs offer [--afk]
 //     Read one actionable close's reason line from stdin and print
 //     branchOfferForWake's verdict: eligible=0|1 (whether the branch may take
-//     this close at all, trigger class included), then the same five lines
-//     `scope` prints for the scan it judged. --afk judges it under the away
-//     posture.
+//     this close at all, trigger class included), followed by the scope lines.
+//     Only an attended offer inserts two proof fields before the scope:
+//       decision-keys=<key> ...  decision-owned signal or stale keys
+//       queue-digest=<sha256|empty>  hash without trailing newlines, or `empty`
+//       for a missing or empty queue; blank if no digest was established
+//     --afk judges under the away posture and keeps the scope-only payload.
 //   fm-branch-dispatch.mjs wake-prompt --report <surface> [--mirror-file <path>] [--away [--readback-file <path>]]
 //     Read the watcher's wake reason from stdin and print the branch wake
 //     prompt naming <surface> as the report surface. --mirror-file puts the

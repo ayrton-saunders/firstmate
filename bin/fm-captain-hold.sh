@@ -34,7 +34,7 @@
 #   fm-captain-hold.sh complete <origin-id> (--none | <task-id>...)
 #   fm-captain-hold.sh verify <origin-id>
 #   fm-captain-hold.sh open <task-id> [--identity | --idle-state] [--distinguish-absent]
-#   fm-captain-hold.sh diverged
+#   fm-captain-hold.sh diverged [--require-readable]
 #   fm-captain-hold.sh reconcile list
 #   fm-captain-hold.sh reconcile close <task-id> --evidence-file <path>
 #   fm-captain-hold.sh reconcile note <task-id> --note-file <path>
@@ -224,7 +224,9 @@
 # hashes for the decision.
 #
 # `diverged` is the read-only guard over the seam between the two records of
-# one captain call. See "record divergence" beside command_diverged below.
+# one captain call. The host uses --require-readable to distinguish an
+# unavailable comparison from a clean one before routine acknowledgement.
+# See "record divergence" beside command_diverged below.
 #
 # With config/hold-pr-settle present, pr-policy declares which forge events
 # answer this particular hold. It adds the structured PR link and atomically

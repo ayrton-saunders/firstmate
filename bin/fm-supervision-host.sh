@@ -46,12 +46,11 @@
 #     home names a usable engine, its turns have every tool they need, this
 #     primary has a verified dialog mirror (bin/fm-host-mirror.sh verified;
 #     fm_supervision_host_attended_ready owns the list), the main session's
-#     lock holder can be identified, the session is not cooling down after
-#     engine errors, and the Pi branch's offer rule
-#     (bin/fm-branch-dispatch.mjs offer) says the branch may take this close,
-#     or the host proves it can acknowledge the whole close without a turn
-#     (docs/supervision-host.md "Attended"). Other main-only closes stay main's. That
-#     pass-through starts the successor watcher cycle and leaves it running
+#     lock holder can be identified, and either the host proves it can
+#     acknowledge the whole close without a turn or the engine is not cooling
+#     down and the Pi branch's offer rule (bin/fm-branch-dispatch.mjs offer)
+#     accepts the close. See docs/supervision-host.md "Attended". The
+#     main-only pass-through starts the successor watcher cycle and leaves it running
 #     before the close is printed, so supervision continues when the session
 #     drops the handoff. It confirms no handling handoff and republishes the
 #     recovery marker as downtime, even over handling an earlier engine turn
@@ -181,6 +180,10 @@
 # a new engine conversation after this many turns; every main session start
 # also opens a new one), FM_SUPERVISION_HOST_READY_TIMEOUT (25: how long a
 # successor cycle may take to verify), FM_SUPERVISION_HOST_POLL (1).
+# Routine proof work uses FM_STATUS_PRESENTATION_LOCK_TIMEOUT (10 seconds)
+# and a separate FM_DIVERGENCE_TIMEOUT (20 seconds) for the hold comparison.
+# Both limits accept positive decimal integers without a leading zero and
+# are capped by the remaining hard park time where applicable.
 # Park duration uses Bash's process-relative SECONDS counter (including Bash
 # 3.2), while durable timestamps still use epoch time. This is not a portable
 # monotonic-clock guarantee. Arm exit probes use ordinary 0.5-second child

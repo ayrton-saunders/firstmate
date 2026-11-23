@@ -2380,10 +2380,9 @@ window_to_task() {
 # --resolve-key closes must not each force a captain-facing wake solely because
 # each one appended a status line, while a worker-authored line that is not in
 # this ledger still signals.
-# Wake detection and routine answer classification both use the same receipt. The
-# ledger decides whether growth wakes this home and nothing else: it never
-# removes a line from presentation, so the drain's signal annotation and its
-# UNREAD STATUS section both still print these bytes.
+# Wake detection and routine answer classification both use the same receipt.
+# It proves append ownership, not presentation: neither use advances the
+# presentation cursor or hides bytes from the drain.
 # The ledger does not use lag verbs to hide a worker `resolved` line; only
 # bytes this home itself recorded as owned are ever treated as owned.
 #

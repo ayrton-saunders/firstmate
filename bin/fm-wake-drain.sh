@@ -7,6 +7,8 @@
 # a supervision-host home the supervision session's new and unprocessed
 # outcomes (BRANCH OUTCOMES), then assert liveness. Stale wakes presented to
 # main include a decision-handoff cue, outside the durable wake rows.
+# --recovery-presentation-clear is the host's read-only main-actor probe for
+# pending status presentation; it does not drain, claim, or acknowledge rows.
 #
 # Keep sequence-bound row consumption independent from generation-bound episode
 # retirement; docs/watcher-continuity.md owns the recovery contract.

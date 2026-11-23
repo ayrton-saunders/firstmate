@@ -57,8 +57,11 @@
 # caller owns the busy and recovery-grade endpoint checks: due actions deferred
 # by the caller's delivery guard consume a separate durable consecutive-poll budget,
 # FM_TASK_INBOX_BUSY_MAX. At that bound the same escalation path surfaces a
-# stuck-busy reason without submission. An allowed due check, acknowledgement,
-# or advance of a task runtime progress marker resets this budget.
+# stuck-busy reason without submission. An allowed due check or acknowledgement
+# clears the deferral counts. For secondmates, observed runtime progress (sampled
+# by fm-watch.sh) resets the consecutive streak only. The same message still
+# escalates at twice the limit in total busy deferrals, since task-wide progress
+# does not prove the steer was read. A busy check never submits a doorbell.
 # fm-busy-lib.sh owns the backend-specific delivery guard.
 # Fire-and-forget retries remain outside escalation. A positively
 # dead or missing endpoint skips delivery and the ladder and escalates directly.
