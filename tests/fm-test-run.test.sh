@@ -2019,7 +2019,7 @@ for name in ('fm-path-lib.sh', 'fm-wake-lib.sh', 'fm-timeout-lib.sh'):
 for name in ('git-config-helpers.sh', 'remote-secondmate-source-copy-helpers.sh'):
     shutil.copy2(root / 'tests' / name, repo / 'tests')
 script = repo / 'tests/copy.test.sh'
-script.write_text('''#!/usr/bin/env bash
+script.write_bytes(b'''#!/usr/bin/env bash
 set -eu
 . tests/remote-secondmate-source-copy-helpers.sh
 mktemp_dir=$(mktemp -d "$TMPDIR/copy.XXXXXX")
@@ -2037,12 +2037,15 @@ while [ ! -f "$run_root/.fm-test-run-owner" ]; do
 done
 printf '%s\\n%s\\n' "$TMPDIR" "$run_root" > "$PROOF"
 if [ "$PROBE_MODE" = hang ]; then exec sleep 300; fi
+if [ "$PROBE_MODE" = stale ]; then
+  printf '%s|%s|%s|%s\\n' "$UID" "$DECOY_GROUP" "$DECOY_GROUP" 'different start identity' >"${TMPDIR%/*}/timed-owner"
+fi
 [ "$PROBE_MODE" != fail ]
 ''')
-(repo / 'tracked').write_text('staged index bytes\n')
+(repo / 'tracked').write_bytes(b'staged index bytes\n')
 subprocess.run(['git', 'init', '-q', str(repo)], check=True)
 subprocess.run(['git', '-C', str(repo), 'add', 'tracked'], check=True)
-(repo / 'tracked').write_text('tracked working-tree bytes\n')
+(repo / 'tracked').write_bytes(b'tracked working-tree bytes\n')
 legacy = repo / '.test-phase-tmp'
 legacy.mkdir()
 (legacy / 'sentinel').touch()
@@ -2051,7 +2054,7 @@ base.mkdir()
 fakebin = tmp / 'fakebin'
 fakebin.mkdir()
 getconf = fakebin / 'getconf'
-getconf.write_text('''#!/usr/bin/env bash
+getconf.write_bytes(b'''#!/usr/bin/env bash
 [ "$1" = DARWIN_USER_TEMP_DIR ] && printf '%s\\n' "$OS_TEMP_FIXTURE"
 ''')
 getconf.chmod(0o755)
@@ -2141,6 +2144,19 @@ if os.name != 'posix' or subprocess.run(
         cwd=repo, env=dict(fixture_env, FM_STATE_OVERRIDE=str(tmp)), capture_output=True).returncode:
     print('skip: orphan recovery requires process identity and group liveness support')
     sys.exit(0)
+
+with subprocess.Popen(['sleep', '60'], start_new_session=True) as decoy:
+    fixture_env['DECOY_GROUP'] = str(decoy.pid)
+    try:
+        child, proof = launch('reused-group', 'stale', bounded=True)
+        assert child.wait(timeout=10) == 0, (tmp / 'reused-group.log').read_text()
+        assert decoy.poll() is None, 'cleanup signaled a group with a different start identity'
+        _, run = scratch(proof)
+        assert not run.exists(), run
+    finally:
+        fixture_env.pop('DECOY_GROUP')
+        if decoy.poll() is None:
+            decoy.terminate()
 
 child, proof = launch('bounded-term', 'hang', bounded=True)
 worker_group = None

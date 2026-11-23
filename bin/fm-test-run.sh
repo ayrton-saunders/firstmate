@@ -85,6 +85,7 @@
 # directories. EXIT, INT, HUP and TERM drain owned worker groups before removing
 # the run; a test that starts a separate session/group owns that group's cleanup.
 # A subsequent run recovers aged, marked roots when the runner and workers are gone.
+# Windows-style shells do not support orphan recovery; normal-exit and signal cleanup still apply.
 # If interruption cuts short a nested runner's cleanup, its scratch is recovered on a later run once those workers are gone.
 # PID-directed TERM/HUP waits for a foreground TTY test to finish or time out, or for blocked output replay to return; background worker waits are interruptible.
 # Keep requested reports and redirected logs outside runner scratch.
@@ -2516,32 +2517,39 @@ interrupt_run() {
   [ "$RUN_CRITICAL" -ne 0 ] || exit "$RUN_INTERRUPT"
 }
 
-stop_worker_groups() {
-  local pid signaled=()
-  for pid in "$@"; do
-    if kill -TERM -- "-$pid" 2>/dev/null; then signaled+=("$pid"); fi
-  done
-  if [ "${#signaled[@]}" -gt 0 ]; then
-    sleep 0.2
-    for pid in "${signaled[@]}"; do kill -KILL -- "-$pid" 2>/dev/null || true; done
-  fi
-  for pid in "$@"; do wait "$pid" 2>/dev/null || true; done
+signal_owned_group() {
+  local signal=$1 record=$2 owner pid group start extra current
+  IFS='|' read -r owner pid group start extra <<<"$record"
+  [ "$owner" = "$UID" ] && [ "$pid" = "$group" ] && [ -z "$extra" ] || return 1
+  case "$group" in ''|0*|*[!0-9]*) return 1 ;; esac
+  case "$start" in ''|unknown) return 1 ;; esac
+  current=$(run_owner_start "$pid") || return 1
+  [ "$start" = "$current" ] && kill -"$signal" -- "-$group" 2>/dev/null
 }
 
 stop_owned_workers() {
-  local slot work group owner pid start extra
-  local -a groups=()
+  local slot work pid record
+  local -a signaled=()
   for slot in "$@"; do
     work="$RUN_TMP/w$slot"
     pid=${WORKER_PIDS[$slot]:-}
-    [ -z "$pid" ] || groups+=("$pid")
     : >"$work/stopping"
-    if [ -f "$work/timed-owner" ] && IFS='|' read -r owner pid group start extra <"$work/timed-owner" \
-      && [ "$owner" = "$UID" ] && [ "$pid" = "$group" ] && [ -z "$extra" ]; then
-      case "$group" in ''|0*|*[!0-9]*) ;; *) groups+=("$group") ;; esac
+    if [ -n "$pid" ]; then
+      record=$(awk -F '|' -v pid="$pid" '$2 == pid && $3 == pid { print; exit }' "$RUN_TMP/.fm-test-run-owner")
+      if signal_owned_group TERM "$record"; then signaled+=("$record"); fi
+    fi
+    if [ -f "$work/timed-owner" ] && IFS= read -r record <"$work/timed-owner"; then
+      if signal_owned_group TERM "$record"; then signaled+=("$record"); fi
     fi
   done
-  stop_worker_groups "${groups[@]+"${groups[@]}"}"
+  if [ "${#signaled[@]}" -gt 0 ]; then
+    sleep 0.2
+    for record in "${signaled[@]}"; do signal_owned_group KILL "$record" || true; done
+  fi
+  for slot in "$@"; do
+    pid=${WORKER_PIDS[$slot]:-}
+    if [ -n "$pid" ]; then wait "$pid" 2>/dev/null || true; fi
+  done
 }
 
 # shellcheck disable=SC2329
@@ -2980,7 +2988,7 @@ execute_worker() {
   pid=${BASHPID:-$(exec bash -c 'printf "%s\n" "$PPID"')}
   [ "$foreground" -eq 1 ] || group=$pid
   record_run_owner "$pid" "$group" || exit 1
-  kill -0 "$$" 2>/dev/null || exit 1
+  [ ! -e "$work/stopping" ] && kill -0 "$$" 2>/dev/null || exit 1
   export TMPDIR="$work/t" TMP="$work/t" TEMP="$work/t"
   if [ "$stream" -eq 0 ]; then
     unset FM_HOME FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_ROOT_OVERRIDE \
