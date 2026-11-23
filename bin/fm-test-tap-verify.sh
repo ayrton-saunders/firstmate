@@ -76,17 +76,18 @@ base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || exit "$?"
 fm_test_allocate_scratch "${base%/}/fm-test-tap-verify.XXXXXX" || exit 1
 OUT="$FM_TEST_SCRATCH/output"
 probe_owner=
+parent_marker=${FM_TEST_RETAIN_MARKER:+$FM_TEST_RETAIN_MARKER.$$.tap}
 cleanup_verify() {
   local status=$?
   trap '' HUP INT QUIT TERM
   if ! fm_test_probe_drain || fm_test_scratch_retained "$FM_TEST_SCRATCH"; then
-    if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
-      : > "$FM_TEST_RETAIN_MARKER.$$.tap" || printf 'could not publish TAP retention marker\n' >&2
-    fi
     printf 'fixture teardown unverified; retaining scratch: %s\n' "$FM_TEST_SCRATCH" >&2
     [ "$status" -ne 0 ] || status=1
-  elif ! fm_test_cleanup_scratch "$FM_TEST_SCRATCH"; then
-    [ "$status" -ne 0 ] || status=1
+  else
+    if [ -n "$parent_marker" ]; then
+      rm -f -- "$parent_marker" || { [ "$status" -ne 0 ] || status=1; }
+    fi
+    fm_test_cleanup_scratch "$FM_TEST_SCRATCH" || { [ "$status" -ne 0 ] || status=1; }
   fi
   exit "$status"
 }
@@ -103,6 +104,9 @@ run_suite() {
   fi
 }
 STATUS=0
+if [ -n "$parent_marker" ]; then
+  : > "$parent_marker" || fail_verify 'could not arm TAP retention marker'
+fi
 FM_TEST_RETAIN_MARKER="$FM_TEST_SCRATCH/.retain-scratch" run_suite || STATUS=$?
 
 cat "$OUT"

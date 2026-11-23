@@ -434,6 +434,7 @@ ACTIVE_WORKERS=0
 launching=0
 pending_signal=0
 retain_root=0
+parent_marker=${FM_TEST_RETAIN_MARKER:+$FM_TEST_RETAIN_MARKER.$$.proof}
 
 # shellcheck disable=SC2329 # Invoked by the EXIT trap.
 cleanup_proof() {
@@ -445,9 +446,7 @@ cleanup_proof() {
     [ "$status" -ne 0 ] || status=1
   else
     for pid in "${WORKER_PIDS[@]+"${WORKER_PIDS[@]}"}"; do wait "$pid" 2>/dev/null || true; done
-    if [ -z "$PROOF_ROOT" ]; then
-      exit "$status"
-    elif fm_test_scratch_retained "$PROOF_ROOT"; then
+    if [ -n "$PROOF_ROOT" ] && fm_test_scratch_retained "$PROOF_ROOT"; then
       log "private teardown unverified; retaining scratch: $PROOF_ROOT; delete it by hand once nothing is using it"
       retain_root=1
       [ "$status" -ne 0 ] || status=1
@@ -455,8 +454,8 @@ cleanup_proof() {
       fm_test_cleanup_scratch "$PROOF_ROOT" || { [ "$status" -ne 0 ] || status=1; }
     fi
   fi
-  if [ "$retain_root" -ne 0 ] && [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
-    : > "$FM_TEST_RETAIN_MARKER.$$.proof" || log 'could not publish proof retention marker'
+  if [ "$retain_root" -eq 0 ] && [ -n "$parent_marker" ]; then
+    rm -f -- "$parent_marker" || { [ "$status" -ne 0 ] || status=1; }
   fi
   exit "$status"
 }
@@ -552,6 +551,9 @@ wait_one_completed_slot() {
 }
 
 idx=0
+if [ -n "$parent_marker" ]; then
+  : > "$parent_marker" || die 'could not arm proof retention marker'
+fi
 for script in "${CANDIDATES[@]}"; do
   [ "$private_teardown_failed" -eq 0 ] && [ "$retain_root" -eq 0 ] || break
   idx=$((idx + 1))

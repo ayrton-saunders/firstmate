@@ -4255,11 +4255,7 @@ test_herdr_teardown_presentation_lock_namespace_is_per_account() {
   legacy=/tmp/firstmate-herdr-presentation
   [ ! -e "$own_ns" ] && [ ! -L "$own_ns" ] \
     || fail "herdr-lock-ns: fixture namespace $own_ns already exists; refusing to reuse it"
-  mkdir -m 700 "$own_ns" || fail "herdr-lock-ns: could not stage $own_ns"
-  if ! fm_test_register_scratch "$(cd -P -- /tmp && pwd -P)/${own_ns##*/}"; then
-    fm_test_remove_tree "$own_ns"
-    fail "herdr-lock-ns: could not register $own_ns"
-  fi
+  fm_test_mkdir_scratch "$own_ns" || fail "herdr-lock-ns: could not stage and register $own_ns"
   legacy_before=$(herdr_lock_ns_path_state "$legacy")
 
   # This account's own name, really owned by another uid, is still refused and

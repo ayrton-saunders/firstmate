@@ -544,6 +544,17 @@ fm_test_register_scratch() {
     printf '%s\n' "$root" >> "$FM_TEST_CLEANUP_REGISTRY"
 }
 
+fm_test_mkdir_scratch() (
+  local root=$1 parent
+  parent=$(cd -P -- "${root%/*}" && pwd -P) || return 1
+  root="$parent/${root##*/}"
+  trap '' HUP INT QUIT TERM
+  mkdir -m 700 -- "$root" || return 1
+  trap 'fm_test_remove_tree "$root"' EXIT
+  fm_test_register_scratch "$root" || return 1
+  trap - EXIT
+)
+
 fm_test_tmproot() (
   local prefix=${1:-fm-test} root='' tmp_base
   case "$prefix" in */*|*[[:cntrl:]]*) return 2 ;; esac

@@ -478,8 +478,15 @@ test_successful_cleanup_can_be_repeated() {
     . "$1"
     fixture=$(fm_test_tmproot fm-repeat)
     manual="$FM_TEST_TMPDIR/manual-fixture"
-    mkdir "$manual"
-    fm_test_register_scratch "$manual"
+    mkdir() {
+      local allocator
+      allocator=${BASHPID:-$(exec sh -c '\''printf "%s\n" "$PPID"'\'')}
+      command mkdir "$@" || return 1
+      kill -TERM "$allocator"
+    }
+    fm_test_mkdir_scratch "$manual"
+    unset -f mkdir
+    [ -d "$manual" ]
     fm_test_cleanup
     [ ! -e "$fixture" ]
     [ ! -e "$manual" ]

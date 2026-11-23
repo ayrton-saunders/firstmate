@@ -216,7 +216,8 @@ with (base / 'interrupted.log').open('w') as log:
 PY
   mkdir "$tmp/retained [SSD]"
   local wrapper="$tmp/nested-proof.sh" verify="$ROOT/bin/fm-test-tap-verify.sh"
-  printf '%s\n' 'exec "$NESTED_PROOF" --pool "$NESTED_POOL" --jobs 2 --json "$NESTED_REPORT"' > "$wrapper"
+  printf '%s\n' 'if [ -n "${PROOF_PID_FILE:-}" ]; then printf "%s\n" "$$" > "$PROOF_PID_FILE"; fi' \
+    'exec "$NESTED_PROOF" --pool "$NESTED_POOL" --jobs 2 --json "$NESTED_REPORT"' > "$wrapper"
   rc=0
   TMPDIR="$tmp/retained [SSD]" NESTED_PROOF="$proof" NESTED_POOL=retaining-family NESTED_REPORT="$tmp/retained.json" \
     "$verify" "$wrapper" >"$tmp/retained.out" 2>"$tmp/retained.err" || rc=$?
@@ -322,6 +323,42 @@ finally:
             os.kill(int(pid_file.read_text()), signal.SIGKILL)
         except ProcessLookupError:
             pass
+PY
+  mkdir -p "$tmp/escalate/tmp"
+  TMPDIR="$tmp/escalate/tmp" FM_TEST_RETAIN_MARKER="$tmp/escalate/.retain-scratch" \
+    PROOF_SIGNAL_DIR="$tmp/escalate" PROOF_PID_FILE="$tmp/escalate/proof-pid" \
+    NESTED_PROOF="$proof" NESTED_POOL=interrupt-family NESTED_REPORT="$tmp/escalate/proof.json" \
+    python3 - "$verify" "$wrapper" <<'PY' || fail 'parent escalation lost nested scratch protection'
+import os, pathlib, signal, subprocess, sys, time
+
+if os.name != 'posix':
+    sys.exit(0)
+base = pathlib.Path(os.environ['PROOF_SIGNAL_DIR'])
+proof_pid = candidate_pid = None
+with (base / 'log').open('w') as log:
+    tap = subprocess.Popen(sys.argv[1:], stdin=subprocess.DEVNULL, stdout=log, stderr=log)
+    try:
+        for _ in range(100):
+            if (base / 'ready').exists() and (base / 'ready').read_text().strip():
+                break
+            assert tap.poll() is None
+            time.sleep(0.05)
+        candidate_pid = int((base / 'ready').read_text())
+        proof_pid = int((base / 'proof-pid').read_text())
+        os.kill(proof_pid, signal.SIGSTOP)
+        tap.send_signal(signal.SIGTERM)
+        assert tap.wait(timeout=8) == 143
+        assert (base / f'.retain-scratch.{tap.pid}.tap').exists()
+        assert list((base / 'tmp').glob('fm-test-tap-verify.*/tmp/fm-isolation-proof.*/w1/tmp'))
+        os.kill(candidate_pid, 0)
+    finally:
+        for pid in (tap.pid if tap.poll() is None else None, proof_pid, candidate_pid):
+            if pid is not None:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+        tap.wait()
 PY
   mkdir "$tmp/capped-evidence"
   set +e
