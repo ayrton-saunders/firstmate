@@ -94,13 +94,16 @@ trap cleanup_verify EXIT
 mkdir "$FM_TEST_SCRATCH/tmp"
 export TMPDIR="$FM_TEST_SCRATCH/tmp" TMP="$FM_TEST_SCRATCH/tmp" TEMP="$FM_TEST_SCRATCH/tmp"
 
+run_suite() {
+  if [ -t 0 ]; then
+    "$BASH" "$SCRIPT" >"$OUT" 2>&1
+  else
+    # shellcheck disable=SC2016 # Expand arguments in the probe shell.
+    fm_test_probe_run "$BASH" -c 'out=$1; shift; exec "$@" >"$out" 2>&1' _ "$OUT" "$BASH" "$SCRIPT"
+  fi
+}
 STATUS=0
-# shellcheck disable=SC2016 # Expand arguments in the probe shell.
-FM_TEST_RETAIN_MARKER="$FM_TEST_SCRATCH/.retain-scratch" fm_test_probe_run "$BASH" -c '
-  out=$1
-  shift
-  exec "$@" >"$out" 2>&1
-' _ "$OUT" "$BASH" "$SCRIPT" || STATUS=$?
+FM_TEST_RETAIN_MARKER="$FM_TEST_SCRATCH/.retain-scratch" run_suite || STATUS=$?
 
 cat "$OUT"
 

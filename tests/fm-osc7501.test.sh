@@ -1161,7 +1161,7 @@ t_retire_waits_for_slow_reporter() {
 # An hc terminal opened from inside a herdr session inherits HERDR_* markers;
 # its own HC_TERMINAL_ID still makes it a known-aware reporter.
 t_hc_terminal_with_inherited_herdr_markers() {
-  local d=$TMP_ROOT/hcinherit leader start wpid poll_pid
+  local d=$TMP_ROOT/hcinherit leader start wpid poll_pid snapshot
   mkhome "$d"
   start_term "$d"
   mkdir "$d/bin"
@@ -1188,8 +1188,12 @@ t_hc_terminal_with_inherited_herdr_markers() {
     "hc inside herdr: the only bytes are the arm-time idle clear - no capability probe"
   fm_test_drain_groups "$d/state" "$UID|$leader|$leader|$start" || fail 'hc inside herdr: watcher group did not drain'
   wait "$leader" 2>/dev/null || true
-  wait_gone "$wpid" || fail 'hc inside herdr: watcher survived group teardown'
-  wait_gone "$poll_pid" || fail 'hc inside herdr: poll sleep survived group teardown'
+  snapshot=$(LC_ALL=C ps -e -o pid= -o stat=) || fail 'hc inside herdr: could not verify process state'
+  awk -v self="$$" -v watcher="$wpid" -v poll="$poll_pid" '
+    $1 == self && NF == 2 { readable=1 }
+    ($1 == watcher || $1 == poll) && $2 !~ /^Z/ { live=1 }
+    END { exit (!readable || live) }
+  ' <<<"$snapshot" || fail 'hc inside herdr: watcher or poll sleep still live, or process state unverified'
   stop_term
   pass "known-aware: an hc terminal reports despite inherited HERDR markers"
 }

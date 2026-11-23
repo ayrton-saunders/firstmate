@@ -353,8 +353,19 @@ fm_test_nonplatform_binary() {
 }
 
 # --- fixture-root process reaping -------------------------------------------
+fm_test_msys_cmdline() {
+  local arg found=0
+  while IFS= read -r -d '' arg || [ -n "$arg" ]; do
+    [ -z "$arg" ] || found=1
+    arg=${arg//$'\n'/ }
+    arg=${arg//$'\r'/ }
+    printf '%s ' "$arg"
+  done 2>/dev/null < "/proc/$1/cmdline"
+  [ "$found" -eq 1 ]
+}
+
 fm_test_process_inventory() {
-  local kind=$1 snapshot pid parent args proc_root=${FM_TEST_PROC_ROOT:-/proc}
+  local kind=$1 snapshot pid parent
   case "$(uname -s)" in
     CYGWIN*|MINGW*|MSYS*)
       snapshot=$(LC_ALL=C ps -e 2>/dev/null) || return 1
@@ -365,14 +376,18 @@ fm_test_process_inventory() {
           if ($1 ~ /^[1-9][0-9]*$/ && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/) print $1, $2, $3
         }' <<<"$snapshot") || return 1
       if [ "$kind" = args ]; then
-        [ -r "$proc_root/$$/cmdline" ] || return 1
+        local found=0
         while read -r pid parent _; do
           [ -n "$pid" ] || continue
-          args=$(LC_ALL=C tr '\000\n\r' '   ' 2>/dev/null < "$proc_root/$pid/cmdline") || args=
-          [ "$pid" != "$$" ] || [ -n "$args" ] || return 1
-          printf '%s %s %s\n' "$pid" "$parent" "$args"
+          printf '%s %s ' "$pid" "$parent"
+          if fm_test_msys_cmdline "$pid"; then
+            [ "$pid" != "$$" ] || found=1
+          elif [ "$pid" = "$$" ]; then
+            return 1
+          fi
+          printf '\n'
         done <<<"$snapshot"
-        awk -v self="$$" '$1 == self { found=1 } END { exit !found }' <<<"$snapshot"
+        [ "$found" -eq 1 ]
         return "$?"
       fi
       ;;
@@ -396,17 +411,24 @@ fm_test_process_inventory() {
 # TERM and then KILL, each followed by a bounded 2s wait. The match is the
 # unique per-run root path, never a script or process name, so it cannot reach
 # another home's processes; this shell and its ancestors are never signalled.
-fm_test_reap_root_processes() {  # <root>
-  local root=${1%/} pids signal i snapshot
-  [ -n "$root" ] && [ "$root" != / ] || return 0
+fm_test_reap_root_processes() {  # <root>...
+  local root roots='' pids signal i snapshot
+  for root; do
+    case "$root" in *$'\n'*) return 1 ;; esac
+    [ -n "${root%/}" ] && roots+="${root%/}/"$'\n'
+  done
+  [ -n "$roots" ] || return 0
   for signal in TERM KILL; do
     i=0
     while [ "$i" -lt 20 ]; do
       snapshot=$(fm_test_process_inventory args) || return 1
-      pids=$(FM_TEST_REAP_ROOT="$root/" awk -v self="$$" '
+      pids=$(FM_TEST_REAP_ROOTS="$roots" awk -v self="$$" '
+        BEGIN { count=split(ENVIRON["FM_TEST_REAP_ROOTS"], roots, "\n") }
         $1 ~ /^[1-9][0-9]*$/ && $2 ~ /^[0-9]+$/ {
           parent[$1]=$2
-          if (index($0, ENVIRON["FM_TEST_REAP_ROOT"])) matches[$1]=1
+          for (j=1; j<=count; j++) {
+            if (roots[j] != "" && index($0, roots[j])) { matches[$1]=1; break }
+          }
         }
         END {
           for (pid=self; pid>1; pid=parent[pid]) {
@@ -466,9 +488,9 @@ fm_test_cleanup() {
     while IFS= read -r d; do
       fm_test_owns_registered_root "$d" || continue
       roots+=("$d")
-      fm_test_reap_root_processes "$d" || rc=1
     done < "$FM_TEST_CLEANUP_REGISTRY"
   fi
+  fm_test_reap_root_processes ${roots[@]+"${roots[@]}"} || rc=1
   # Use this shell's job table, including stopped jobs. A live child can use
   # scratch as its cwd without having the path in argv. Do not guess its group.
   fm_test_drain_fixture_jobs || rc=1
@@ -558,6 +580,7 @@ fm_test_fixture_start() {
 
 fm_test_reap_orphans() (
   local marker dir mtime now owner_pid owner_identity owner_start current_identity live_owner_start probe
+  local -a roots=()
   unset GLOBIGNORE
   shopt -u failglob
   shopt -s dotglob nullglob
@@ -581,7 +604,10 @@ fm_test_reap_orphans() (
     mtime=$(stat -c %Y "$marker" 2>/dev/null || stat -f %m "$marker" 2>/dev/null) || continue
     [ $((now - mtime)) -ge "$FM_TEST_ORPHAN_MAX_AGE_SECONDS" ] || continue
     fm_test_scratch_retained "$dir" && continue
-    fm_test_reap_root_processes "$dir" || continue
+    roots+=("$dir")
+  done
+  fm_test_reap_root_processes ${roots[@]+"${roots[@]}"} || return 0
+  for dir in ${roots[@]+"${roots[@]}"}; do
     fm_test_remove_tree "$dir"
   done
 )

@@ -135,6 +135,64 @@ PY
   pass 'TERM drains a stalled TAP suite before removing scratch'
 }
 
+test_suite_reads_foreground_terminal() {
+  local suite="$TMP_ROOT/interactive.sh"
+  write_suite "$suite" '
+printf "input ready\n" > /dev/tty || exit 8
+IFS= read -r reply && [ "$reply" = ready ] || exit 8
+printf "1..1\nok - read terminal input\nFM_TEST_COMPLETE\n"'
+  python3 - "$BASH" "$VERIFY" "$suite" <<'PY' || fail 'TAP suite could not read foreground terminal input'
+import errno, os, pty, select, signal, sys, time
+
+if os.name != 'posix':
+    sys.exit(0)
+pid, tty = pty.fork()
+if pid == 0:
+    os.execv(sys.argv[1], sys.argv[1:])
+try:
+    transcript = b''
+    deadline = time.monotonic() + 5
+    while b'input ready' not in transcript:
+        remaining = deadline - time.monotonic()
+        assert remaining > 0 and select.select([tty], [], [], remaining)[0], transcript
+        try:
+            chunk = os.read(tty, 4096)
+        except OSError as exc:
+            if exc.errno != errno.EIO:
+                raise
+            chunk = b''
+        assert chunk, transcript
+        transcript += chunk
+    os.write(tty, b'ready\n')
+    eof = False
+    for _ in range(100):
+        child, status = os.waitpid(pid, os.WNOHANG)
+        if child:
+            pid = None
+            assert os.WIFEXITED(status) and os.WEXITSTATUS(status) == 0, (status, transcript)
+            break
+        if eof:
+            time.sleep(0.05)
+        elif select.select([tty], [], [], 0.05)[0]:
+            try:
+                chunk = os.read(tty, 4096)
+            except OSError as exc:
+                if exc.errno != errno.EIO:
+                    raise
+                chunk = b''
+            transcript += chunk
+            eof = not chunk
+    else:
+        raise AssertionError('verifier blocked on a terminal read')
+finally:
+    os.close(tty)
+    if pid is not None:
+        os.kill(pid, signal.SIGKILL)
+        os.waitpid(pid, 0)
+PY
+  pass 'TAP verifier preserves foreground terminal input'
+}
+
 test_early_exit_zero_fails() {
   local suite out rc=0
   suite="$TMP_ROOT/early.sh"
@@ -256,6 +314,7 @@ test_checkout_scratch_is_refused_before_running_suite
 test_failed_suite_scratch_is_removed
 test_retained_suite_scratch_survives_verifier_exit
 test_term_drains_stalled_suite
+test_suite_reads_foreground_terminal
 test_early_exit_zero_fails
 test_not_ok_fails_even_with_exit_zero
 test_nonzero_exit_fails

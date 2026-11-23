@@ -9,6 +9,7 @@
 # The profile's config is restored after it temporarily sets gateway.standalone.
 # After SIGKILL, a .fm-gateway-config.* backup may remain beside config.yaml for recovery.
 # A write interrupted before rollback confirmation may require restoring the retained backup by hand.
+# If teardown is unverified, do not run another probe on this profile until both the gateway and TUI are gone.
 set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -48,7 +49,7 @@ print_restore_command() {
   else
     printf ' && [ -f %q ] && [ ! -L %q ]' "$config" "$config"
   fi
-  printf ' && cp -p -- %q %q' "$BACKUP" "$CONFIG_TARGET"
+  printf ' && cp -- %q %q && chmod %q %q' "$BACKUP" "$CONFIG_TARGET" "$CONFIG_MODE" "$CONFIG_TARGET"
   if [ -n "$CONFIG_LINK" ] && [ "$CONFIG_LINK" != "$expected_link" ]; then
     printf ' && ln -sfn -- %q %q' "$CONFIG_LINK" "$config"
   fi
@@ -82,6 +83,9 @@ cleanup() {
     teardown_failed=1
   fi
   fm_test_stop_private_tmux "$SOCKET" tmux "$GATEWAY_RETAIN" || teardown_failed=1
+  if [ "$teardown_failed" -ne 0 ]; then
+    printf 'A gateway or TUI may still be using %s; do not run another gateway probe on this profile until you confirm both are gone.\n' "$PROFILE_HOME" >&2
+  fi
   if [ -n "$BACKUP" ]; then
     if [ "$mutation_attempted" -eq 0 ]; then
       rm -f "$BACKUP" || { [ "$status" -ne 0 ] || status=1; }
@@ -160,23 +164,28 @@ fi
 restore_config() {
   local link_now
   [ -n "$WRITTEN_CONFIG" ] || return 1
+  [ "$(cd -P -- "$PROFILE_HOME" && pwd -P)" = "$PROFILE_HOME" ] || return 1
+  [ "$(cd -P -- "${CONFIG_TARGET%/*}" && pwd -P)" = "${CONFIG_TARGET%/*}" ] || return 1
+  [ -f "$BACKUP" ] && [ ! -L "$BACKUP" ] || return 1
   link_now=$(readlink "$PROFILE_HOME/config.yaml" 2>/dev/null) || link_now=
   [ "$link_now" = "$WRITTEN_LINK" ] || return 1
   [ ! -L "$CONFIG_TARGET" ] && [ -f "$CONFIG_TARGET" ] || return 1
   cmp -s -- "$LAB/written-target" "$CONFIG_TARGET" &&
     cmp -s -- "$WRITTEN_CONFIG" "$PROFILE_HOME/config.yaml" || return 1
-  [ ! -d "$CONFIG_TARGET" ] && [ ! -L "$CONFIG_TARGET" ] && cp -p "$BACKUP" "$CONFIG_TARGET" || return 1
+  cp -- "$BACKUP" "$CONFIG_TARGET" && chmod "$CONFIG_MODE" "$CONFIG_TARGET" || return 1
   if [ -n "$CONFIG_LINK" ] && [ "$(readlink "$PROFILE_HOME/config.yaml" 2>/dev/null)" != "$CONFIG_LINK" ]; then
     [ ! -d "$PROFILE_HOME/config.yaml" ] || return 1
     ln -sfn -- "$CONFIG_LINK" "$PROFILE_HOME/config.yaml" || return 1
   fi
   rm -f -- "$BACKUP"
 }
+CONFIG_MODE=$(python3 -I -c 'import os, stat, sys; print(format(stat.S_IMODE(os.lstat(sys.argv[1]).st_mode), "o"))' "$CONFIG_TARGET") \
+  || fail 'could not record profile config mode'
 publication_pending=1
 BACKUP=$(
   trap '' HUP INT QUIT TERM
   backup=$(mktemp "$PROFILE_HOME/.fm-gateway-config.XXXXXX") || exit 1
-  if ! cp -p "$CONFIG_TARGET" "$backup"; then
+  if ! chmod 0600 "$backup" || ! command cat "$CONFIG_TARGET" > "$backup"; then
     rm -f "$backup"
     exit 1
   fi

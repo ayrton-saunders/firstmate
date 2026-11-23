@@ -2032,6 +2032,7 @@ test_gateway_preflight_preserves_symlink() {
   profile="$tmp/hermes/profiles/worker"
   mkdir -p "$profile" "$tmp/path"
   printf '%s\n' 'original config' >"$profile/original.yaml"
+  chmod 0644 "$profile/original.yaml"
   if ! ln -s original.yaml "$profile/config.yaml" 2>/dev/null || [ ! -L "$profile/config.yaml" ]; then
     printf '%s\n' 'skip: gateway refusal check requires symlinks'
     return 0
@@ -2100,7 +2101,11 @@ SH
 case "$3" in
   new-session)
     (cd -- "${2%/*}" && python3 -c 'import socket; socket.socket(socket.AF_UNIX).bind("s")') || exit 98
-    printf 'edited\n' > "$EDIT_CONFIG"
+    if [ -n "${SWAP_PARENT:-}" ]; then
+      mv "$SWAP_PARENT" "$SWAP_PARENT.saved" && ln -s "$OUTSIDE" "$SWAP_PARENT" || exit 98
+    else
+      printf 'edited\n' > "$EDIT_CONFIG"
+    fi
     exit 99
     ;;
   kill-server)
@@ -2118,6 +2123,11 @@ SH
     || fail 'gateway rollback overwrote or failed to report a conflicting change'
   restore_command=$(sed -n 's/^To restore manually: //p' "$tmp/out")
   [ -n "$restore_command" ] || fail 'gateway did not print a restore command'
+  python3 - "$profile" <<'PY' || fail 'retained config backup was not mode 0600'
+import pathlib, stat, sys
+backup, = pathlib.Path(sys.argv[1]).glob('.fm-gateway-config.??????')
+assert stat.S_IMODE(backup.stat().st_mode) == 0o600
+PY
   printf 'operator config\n\n' >"$tmp/operator.yaml"
   cp "$tmp/operator.yaml" "$tmp/expected.yaml"
   local endpoint
@@ -2133,7 +2143,12 @@ SH
     mv -- "$endpoint.saved" "$endpoint"
   done
   printf 'damaged target\n' >"$profile/original.yaml"
+  chmod 0600 "$profile/original.yaml"
   bash -c "$restore_command" || fail 'manual restore refused the original paths'
+  python3 - "$profile/original.yaml" <<'PY' || fail 'manual restore did not restore mode 0644'
+import os, stat, sys
+assert stat.S_IMODE(os.stat(sys.argv[1]).st_mode) == 0o644
+PY
   [ -L "$profile/config.yaml" ] && [ "$(readlink "$profile/config.yaml")" = original.yaml ] \
     && [ "$(<"$profile/original.yaml")" = 'original config' ] || fail 'manual restore did not restore config bytes and link'
   rm -f "$profile/config.yaml" "$tmp/hermes/hermes-called"
@@ -2144,6 +2159,23 @@ SH
   { [ "$rc" -eq 1 ] && grep -q 'config resolves outside the throwaway profile' "$tmp/out" \
     && [ ! -e "$tmp/hermes/hermes-called" ] && cmp -s "$tmp/expected.yaml" "$tmp/operator.yaml"; } \
     || fail "gateway crossed the profile boundary: $(<"$tmp/out")"
+  rm -f "$profile/config.yaml"
+  mkdir "$profile/nested" "$tmp/outside"
+  printf 'original config\n' >"$profile/nested/original.yaml"
+  cp "$profile/nested/original.yaml" "$tmp/outside/original.yaml"
+  ln -s nested/original.yaml "$profile/config.yaml"
+  rc=0
+  PATH="$tmp/path:$PATH" EDIT_CONFIG="$profile/config.yaml" LOCK_OBSERVED="$tmp/held-during-stop" \
+    SWAP_PARENT="$profile/nested" OUTSIDE="$tmp/outside" FM_HERMES_GATEWAY_LIVE=1 \
+    FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
+    bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+  [ "$rc" -eq 1 ] && [ -L "$profile/nested" ] && [ ! -L "$profile/config.yaml" ] \
+    && grep -q 'backup retained at' "$tmp/out" || fail 'automatic rollback accepted a replaced target parent'
+  restore_command=$(sed -n 's/^To restore manually: //p' "$tmp/out")
+  [ -n "$restore_command" ] || fail 'gateway did not report a command for the replaced parent'
+  if bash -c "$restore_command"; then fail 'manual restore accepted a replaced target parent'; fi
+  [ ! -L "$profile/config.yaml" ] && cmp -s "$profile/nested.saved/original.yaml" "$tmp/outside/original.yaml" \
+    || fail 'rollback changed an escaped target or the config link'
   pass 'gateway serializes profile edits, restores links, and refuses escaped targets'
 }
 

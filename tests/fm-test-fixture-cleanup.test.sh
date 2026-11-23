@@ -407,15 +407,15 @@ test_registry_cleanup_guards() {
 test_msys_fixture_process_inventory() {
   local harness mode rc fixture poller survivor=0
   harness=$(fm_test_tmproot fm-test-msys-ps)
-  mkdir "$harness/bin" "$harness/proc"
+  mkdir "$harness/bin"
   sleep 30 &
   poller=$!
-  mkdir "$harness/proc/$poller"
   printf '%s\n' '#!/usr/bin/env bash' 'if [ "${1:-}" = -s ]; then echo MSYS_NT-10.0; else exec "$REAL_UNAME" "$@"; fi' > "$harness/bin/uname"
   cat > "$harness/bin/ps" <<'SH'
 #!/usr/bin/env bash
 case "$*" in
   -e)
+    printf '.\n' >> "$PS_CALLS"
     case "$INVENTORY" in empty) exit 0 ;; failed) exit 1 ;; esac
     printf '      PID    PPID    PGID     WINPID   TTY         UID    STIME COMMAND\n'
     printf ' %8s %7s %7s %10s     ?    Jane Doe    12:00 /usr/bin/bash\n' "$SUITE_PID" 1 "$SUITE_PID" 1000
@@ -429,17 +429,23 @@ case "$*" in
 esac
 SH
   chmod +x "$harness/bin/uname" "$harness/bin/ps"
-  for mode in ready empty failed; do
+  for mode in ready clean empty failed; do
     rc=0
-    REAL_UNAME=$(command -v uname) REAL_PS=$(command -v ps) INVENTORY="$mode" PATH="$harness/bin:$PATH" TMPDIR="$harness" \
-      FM_TEST_PROC_ROOT="$harness/proc" POLLER_PID="$poller" bash -ec '
+    : > "$harness/ps-calls"
+    REAL_UNAME=$(command -v uname) REAL_PS=$(command -v ps) INVENTORY="$mode" PS_CALLS="$harness/ps-calls" \
+      PATH="$harness/bin:$PATH" TMPDIR="$harness" \
+      POLLER_PID="$poller" FM_TEST_SKIP_ORPHAN_REAP=1 bash -ec '
         export SUITE_PID=$$
         . "$1"
-        mkdir "$FM_TEST_PROC_ROOT/$$"
-        printf "bash\0" > "$FM_TEST_PROC_ROOT/$$/cmdline"
+        fm_test_msys_cmdline() {
+          case "$1" in
+            "$$") printf "bash " ;;
+            "$POLLER_PID") printf "bash %s/poller.sh " "$fixture" ;;
+          esac
+        }
         fixture=$(fm_test_tmproot "fixture with spaces")
-        printf "%s\n" "$fixture" > "$2"
-        printf "bash\0%s\0" "$fixture/poller.sh" > "$FM_TEST_PROC_ROOT/$POLLER_PID/cmdline"
+        extra=$(fm_test_tmproot extra)
+        printf "%s\n%s\n" "$fixture" "$extra" > "$2"
       ' _ "$LIB" "$harness/root" >"$harness/out" 2>&1 || rc=$?
     if [ "$mode" = ready ]; then
       if kill -0 "$poller" 2>/dev/null; then
@@ -449,11 +455,14 @@ SH
       wait "$poller" 2>/dev/null || true
       assert_equals 0 "$survivor" 'cleanup stops the process named only by MSYS argv'
     fi
-    fixture=$(<"$harness/root")
+    IFS= read -r fixture < "$harness/root"
     [ -n "$fixture" ] || fail "MSYS-style suite did not allocate a fixture: $(<"$harness/out")"
-    if [ "$mode" = ready ]; then
+    if [ "$mode" = ready ] || [ "$mode" = clean ]; then
       assert_equals 0 "$rc" 'passing suite with MSYS process columns exits cleanly'
       assert_absent "$fixture" 'passing suite with MSYS process columns removes scratch'
+      if [ "$mode" = clean ]; then
+        assert_equals . "$(<"$harness/ps-calls")" 'idle cleanup takes one snapshot for all fixture roots'
+      fi
     else
       assert_equals 1 "$rc" "suite with $mode inventory fails cleanup"
       assert_present "$fixture/.retain-scratch.fixture" "suite with $mode inventory retains scratch"
