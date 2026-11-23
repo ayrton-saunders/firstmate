@@ -170,17 +170,26 @@ if git -C "$scratch" rev-parse --verify --quiet HEAD >/dev/null; then
   git -C "$scratch" read-tree HEAD
 fi
 inventory="$scratch/.git/fm-test-overlay"
-git -C "$root" ls-files -z --cached --others --exclude-standard "${scratch_excludes[@]}" -- "${scratch_pathspec[@]}" >"$inventory" || die 'could not enumerate overlay paths'
+git -C "$root" ls-files -zt --stage --cached --others --exclude-standard "${scratch_excludes[@]}" -- "${scratch_pathspec[@]}" >"$inventory" || die 'could not enumerate overlay paths'
 files=()
-while IFS= read -r -d '' path; do
+while IFS= read -r -d '' record; do
+  if [[ "$record" == '? '* ]]; then
+    path=${record:2}
+  else
+    path=${record#*$'\t'}
+  fi
+  fm_test_is_declared_scratch "$root" "$path" && continue
   case "$path" in
-    */) die "cannot copy untracked directory '${path%/}'; commit its files, ignore it, or move it outside the checkout" ;;
+    */) die "cannot copy untracked directory '${path%/}'; ignore it or move it outside the checkout" ;;
   esac
   parent=$path
   while [[ "$parent" == */* ]]; do
     parent=${parent%/*}
     [ ! -L "$root/$parent" ] || continue 2
   done
+  if [[ "${record:2}" == '160000 '* && "$record" != '? '* ]] && [ -d "$root/$path" ] && [ ! -L "$root/$path" ]; then
+    die "cannot copy Git checkout '$path' recorded as a gitlink; move the checkout out of the working tree before running Linux validation"
+  fi
   [ -e "$root/$path" ] || [ -L "$root/$path" ] && files+=("$path")
 done <"$inventory"
 rm -f -- "$inventory"

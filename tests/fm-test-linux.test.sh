@@ -78,17 +78,29 @@ test_checkout_scratch_is_refused_before_build_or_clone() {
 }
 
 test_overlay_keeps_work_but_excludes_legacy_scratch() {
-  local repo="$TMP_ROOT/overlay" runtime="$TMP_ROOT/overlay-runtime" out expected_tmp check_alias=0
+  local repo="$TMP_ROOT/overlay" runtime="$TMP_ROOT/overlay-runtime" out expected_tmp check_alias=0 distinct_case=0
   make_repo "$repo"
-  mkdir -p "$repo/.test-phase-tmp/nested" "$TMP_ROOT/overlay-tmp"
+  local indexed_scratch=.test-phase-tmp
+  mkdir "$repo/.CASE-PROBE"
+  if [ -d "$repo/.case-probe" ]; then indexed_scratch=.TEST-PHASE-TMP; else distinct_case=1; fi
+  rmdir "$repo/.CASE-PROBE"
+  mkdir -p "$repo/$indexed_scratch/nested" "$TMP_ROOT/overlay-tmp"
   expected_tmp=$(cd "$TMP_ROOT/overlay-tmp" && pwd -P) || fail 'could not resolve overlay temp fixture'
-  printf 'committed scratch\n' >"$repo/.test-phase-tmp/nested/committed"
+  printf 'committed scratch\n' >"$repo/$indexed_scratch/nested/committed"
   mkdir "$repo/alias"
   touch "$repo/alias/committed" "$repo/replaced"
   printf '/alias\n/replaced/private\n' >"$repo/.gitignore"
-  git -C "$repo" add .test-phase-tmp .gitignore replaced
+  git -C "$repo" add "$indexed_scratch" .gitignore replaced
   git -C "$repo" add -f alias/committed
   git -C "$repo" "${GIT_IDENT[@]}" commit -qm 'accidentally committed scratch'
+  if [ "$distinct_case" -eq 1 ]; then
+    mkdir "$repo/.TEST-PHASE-TMP"
+    printf 'distinct work\n' >"$repo/.TEST-PHASE-TMP/keep"
+    git -C "$repo" add .TEST-PHASE-TMP/keep
+  else
+    mv "$repo/$indexed_scratch" "$repo/scratch-intermediate"
+    mv "$repo/scratch-intermediate" "$repo/.test-phase-tmp"
+  fi
   printf 'untracked scratch\n' >"$repo/.test-phase-tmp/nested/sentinel"
   rm "$repo/alias/committed" "$repo/replaced"
   rmdir "$repo/alias"
@@ -124,6 +136,7 @@ while [ "$#" -gt 1 ]; do
     suite="${workdir%/}/$2"
     case "$suite" in /work/*) ;; *) exit 1 ;; esac
     [ -n "$copy" ] && [ ! -e "$copy/.test-phase-tmp" ] &&
+      { [ "$DISTINCT_CASE" -eq 0 ] || [ "$(<"$copy/.TEST-PHASE-TMP/keep")" = 'distinct work' ]; } &&
       { [ "$CHECK_ALIAS" -eq 0 ] || [ ! -e "$copy/alias/committed" ]; } &&
       [ ! -e "$copy/replaced/private" ] &&
       [ "$(<"$copy/replaced/public")" = included ] &&
@@ -147,7 +160,7 @@ exit 1
 SH
   chmod +x "$runtime"
   out=$(cd "$repo" && TMPDIR=../overlay-tmp TMP="$repo/.test-phase-tmp" TEMP="$repo/.test-phase-tmp" \
-    EXPECTED_TMP="$expected_tmp" FM_CONTAINER_RUNTIME="$runtime" CHECK_ALIAS="$check_alias" \
+    EXPECTED_TMP="$expected_tmp" FM_CONTAINER_RUNTIME="$runtime" CHECK_ALIAS="$check_alias" DISTINCT_CASE="$distinct_case" \
     "$BASH" "$LINUX_CHECK" tests/kept.test.sh 0<&- 2>&1) || fail "Linux overlay did not match working-tree contract: $out"
   assert_not_contains "$out" 'unexpected host temp paths' 'host runtime receives the validated base'
   assert_contains "$out" 'verified tests/kept.test.sh mount' 'selected suite used the verified overlay'
@@ -177,8 +190,13 @@ SH
 if [ "$1" = run ]; then touch "$RUN_MARKER"; fi
 SH
   chmod +x "$mock_bin/"*
-  for stage in inventory archive nested; do
-    if [ "$stage" = nested ]; then make_repo "$repo/tests/nested checkout"; fi
+  for stage in inventory archive nested gitlink; do
+    case "$stage" in
+      nested) make_repo "$repo/tests/nested checkout" ;;
+      gitlink)
+        git -C "$repo" update-index --add --cacheinfo "160000,$(git -C "$repo/tests/nested checkout" rev-parse HEAD),tests/nested checkout"
+        ;;
+    esac
     rc=0
     out=$(cd "$repo" && REAL_GIT="$(command -v git)" REAL_TAR="$(command -v tar)" \
       PATH="$mock_bin:$PATH" FM_CONTAINER_RUNTIME="$mock_bin/runtime" FAIL_STAGE="$stage" \
@@ -188,7 +206,9 @@ SH
     assert_not_contains "$out" 'PASS tests/kept.test.sh' "$stage failure must not report a pass"
     if [ "$stage" = nested ]; then
       assert_contains "$out" "cannot copy untracked directory 'tests/nested checkout'" 'refusal names the nested checkout'
-      assert_contains "$out" 'commit its files, ignore it, or move it' 'refusal explains how to proceed'
+      assert_contains "$out" 'ignore it or move it' 'refusal explains how to proceed'
+    elif [ "$stage" = gitlink ]; then
+      assert_contains "$out" "cannot copy Git checkout 'tests/nested checkout' recorded as a gitlink" 'refusal names the indexed checkout'
     fi
   done
   pass 'Linux validation refuses incomplete overlays'
