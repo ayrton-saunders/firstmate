@@ -815,6 +815,14 @@ seed_idle_engine_record() {  # <home> <ended-age-seconds>
 }
 
 
+# A handled log entry precedes the successor handoff. Let the host finish
+# that handoff and stop at its own boundary rather than racing it with TERM.
+end_test_park() {  # <home>
+  printf '%s\n' 99999 > "$1/park-clock"
+  wait_until_deadline 60 host_exited "$1" || fail "$1: the host did not reach its park boundary"
+  assert_re '^supervision-host: cycle boundary - ' "$1/host.out" "$1: the host exited without the boundary"
+}
+
 # A park at or beyond the hook registration is refused for the default. The
 # default is observable through the pre-turn margin: a turn bound plus grace of
 # 27000 seconds crosses a 27000-second park, so the close goes to main at the
@@ -822,7 +830,8 @@ seed_idle_engine_record() {  # <home> <ended-age-seconds>
 park_outcome() {  # <name> <park-seconds>; sets PARK_OUTCOME to boundary or handled
   local home
   home=$(make_home "$1" away)
-  FM_SUPERVISION_HOST_PARK_SECONDS=$2 FM_SUPERVISION_HOST_TURN_TIMEOUT=26990 FM_SUPERVISION_ENGINE_GRACE=10 start_host "$home"
+  FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" \
+    FM_SUPERVISION_HOST_PARK_SECONDS=$2 FM_SUPERVISION_HOST_TURN_TIMEOUT=26990 FM_SUPERVISION_ENGINE_GRACE=10 start_host "$home"
   wait_until 150 watcher_live "$home" || fail "$1: the host never started a watcher cycle"
   append_status "$home" 'one close'
   wait_until 250 sh -c '[ -s "$1/host.rc" ] || grep -q "	handled	" "$1/state/.supervision-host.log" 2>/dev/null' _ "$home" \
@@ -833,8 +842,7 @@ park_outcome() {  # <name> <park-seconds>; sets PARK_OUTCOME to boundary or hand
     # shellcheck disable=SC2034 # read by the sourcing fm-supervision-host*.test.sh files
     PARK_OUTCOME=boundary
   else
-    kill -TERM "$(awk -F '\t' '$1 == "host" { print $2 }' "$home/state/.supervision-host")"
-    wait_until_deadline 60 host_exited "$home" || fail "$1: the host did not stop on TERM"
+    end_test_park "$home"
     # shellcheck disable=SC2034 # read by the sourcing fm-supervision-host*.test.sh files
     PARK_OUTCOME=handled
   fi

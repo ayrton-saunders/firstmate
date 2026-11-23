@@ -424,7 +424,8 @@ test_park_limit_lets_a_turn_outlive_the_boundary() {
   for c in $cases; do
     name=${c%%:*}; limit=${c#*:}; want=${limit#*:}; limit=${limit%%:*}
     home=$(make_home "$name" away)
-    FM_SUPERVISION_HOST_PARK_SECONDS=100 FM_SUPERVISION_HOST_PARK_LIMIT=$limit FM_SUPERVISION_HOST_TURN_TIMEOUT=200 \
+    FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" \
+      FM_SUPERVISION_HOST_PARK_SECONDS=100 FM_SUPERVISION_HOST_PARK_LIMIT=$limit FM_SUPERVISION_HOST_TURN_TIMEOUT=200 \
       FM_SUPERVISION_ENGINE_GRACE=10 start_host "$home"
     wait_until 150 watcher_live "$home" || fail "$name: the host never started a watcher cycle"
     append_status "$home" 'one close'
@@ -435,8 +436,7 @@ test_park_limit_lets_a_turn_outlive_the_boundary() {
       [ "$want" = boundary ] || fail "$name: a turn inside the owner's limit was refused at the boundary"
     else
       [ "$want" = handled ] || fail "$name: a turn past the boundary ran without a later limit"
-      kill -TERM "$(awk -F '\t' '$1 == "host" { print $2 }' "$home/state/.supervision-host")"
-      wait_until_deadline 60 host_exited "$home" || fail "$name: the host did not stop on TERM"
+      end_test_park "$home"
     fi
   done
   pass "host: an owner's later park limit lets a turn outlive the boundary, and no other limit does"
@@ -509,7 +509,7 @@ test_first_cycle_status_streams_and_owner_options_reach_it() {
 }
 
 test_unchanged_held_outcome_reaches_the_captain_once_until_a_new_event() {
-  local home cycle old pid watcher
+  local home cycle old watcher
   home=$(make_home away-held-once away)
   echo captain > "$home/stub-mode"
   mkdir -p "$home/projects/held"
@@ -529,7 +529,7 @@ test_unchanged_held_outcome_reaches_the_captain_once_until_a_new_event() {
 
   export FM_FAKE_CREW_STATE_held='state: done · source: fake'
   export FM_INACTIVE_CREW_STATE_BIN="$home/fakebin/fm-crew-state.sh" FM_INACTIVE_RECONCILE_SECS=60
-  start_host "$home"
+  FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" start_host "$home"
   wait_until 250 captain_rows_at_least "$home" 1 \
     || fail "held: the first cadence never escalated the held outcome: $(cat "$home/state/.supervision-host.log" 2>/dev/null)"
   assert_grep 'child=held' "$home/state/branch-outcomes.jsonl" "held: the escalation did not name the held task's outcome: $(cat "$home"/engine-drain.* "$home/state/.supervision-host.log")"
@@ -557,10 +557,8 @@ test_unchanged_held_outcome_reaches_the_captain_once_until_a_new_event() {
   unset FM_FAKE_CREW_STATE_held FM_INACTIVE_CREW_STATE_BIN FM_INACTIVE_RECONCILE_SECS
   # Stop the host and its watcher here, so no cadence scan is still writing
   # into this home while the suite's cleanup removes it.
-  pid=$(awk -F '\t' '$1 == "host" { print $2 }' "$home/state/.supervision-host")
   watcher=$(cat "$home/state/.watch.lock/pid")
-  kill -TERM "$pid"
-  wait_until_deadline 60 host_exited "$home" || fail "held: the host did not stop on TERM"
+  end_test_park "$home"
   wait_until 100 sh -c '! kill -0 "$1" 2>/dev/null' _ "$watcher" || fail "held: a stopped host left its watcher running"
   pass "host: an unchanged held outcome reaches the captain once across cadences, and a later decision on the task still does"
 }
@@ -610,7 +608,7 @@ SH
   printf 'win:7204\n' > "$home/state/.lock"
   env -u CLAUDE_PID -u CLAUDE_CODE_SESSION_ID \
     FM_HOME="$home" FM_CREW_STATE_BIN="$home/fakebin/fm-crew-state.sh" PATH="$home/fakebin:$PATH" \
-    CLAUDE_PID=7204 CLAUDE_CODE_SESSION_ID=tagged-session \
+    CLAUDE_PID=7204 CLAUDE_CODE_SESSION_ID=tagged-session FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" \
     bash -c '"$0" park > "$FM_HOME/host.out" 2>&1; printf "%s\n" "$?" > "$FM_HOME/host.rc"' "$HOST" 2>> "$home/claude.err" &
   wait_until 150 watcher_live "$home" || fail "tagged: the host never started a watcher cycle: $(cat "$home/host.out")"
   append_status "$home" 'step one'
@@ -619,8 +617,7 @@ SH
   assert_re '^holder=win:7204$' "$first" "the engine's lease holder must be the tagged session-lock holder, whole"
   assert_re '^branch win:7204 [0-9]+ live$' "$home/engine-lease.log" \
     "the engine's lease must record the tagged holder whole and read live"
-  kill -TERM "$(awk -F '\t' '$1 == "host" { print $2 }' "$home/state/.supervision-host")"
-  wait_until_deadline 60 host_exited "$home" || fail "tagged: the host did not stop on TERM"
+  end_test_park "$home"
   pass "host: a Windows-tagged session-lock holder reaches the engine's lease whole"
 }
 
