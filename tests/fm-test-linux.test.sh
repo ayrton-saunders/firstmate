@@ -80,7 +80,10 @@ test_overlay_keeps_work_but_excludes_legacy_scratch() {
   local repo="$TMP_ROOT/overlay" runtime="$TMP_ROOT/overlay-runtime" out
   make_repo "$repo"
   mkdir -p "$repo/.test-phase-tmp/nested" "$TMP_ROOT/overlay-tmp"
-  printf 'scratch\n' >"$repo/.test-phase-tmp/nested/sentinel"
+  printf 'committed scratch\n' >"$repo/.test-phase-tmp/nested/committed"
+  git -C "$repo" add .test-phase-tmp
+  git -C "$repo" "${GIT_IDENT[@]}" commit -qm 'accidentally committed scratch'
+  printf 'untracked scratch\n' >"$repo/.test-phase-tmp/nested/sentinel"
   printf 'dirty\n' >"$repo/tests/kept.test.sh"
   printf 'untracked\n' >"$repo/tests/real work.txt"
   cat >"$runtime" <<'SH'

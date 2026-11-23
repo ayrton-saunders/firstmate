@@ -199,53 +199,41 @@ test_cleanup_reaps_orphaned_poller_naming_its_root() {
 }
 
 test_registries_avoid_git_worktree_root() {
-  # A TMPDIR pointed at a repository root used to place live `.fm-test-*`
-  # registries beside tracked files. A concurrent git add during a suite then
-  # committed them (observed on the claim-walk CI fix round). The helper must
-  # keep registries and fixture roots outside that root for the whole run.
-  local harness repo dirfile child_dir pid tries entry
+  local harness repo out rc=0
   harness=$(fm_test_tmproot fm-test-cleanup-gitroot-harness)
   repo="$harness/repo"
-  dirfile="$harness/child-dir"
   mkdir -p "$repo"
   git -C "$repo" init -q
-  bash -c '
-    export TMPDIR="$1"
-    # shellcheck source=tests/lib.sh
-    . "$2"
-    d=$(fm_test_tmproot fm-test-cleanup-gitroot)
-    printf "%s\n" "$d" > "$3"
-    # Hold the suite open so a concurrent add would see any root-side leak.
-    while :; do sleep 0.1; done
-  ' _ "$repo" "$LIB" "$dirfile" &
-  pid=$!
-  tries=0
-  while [ "$tries" -lt 100 ]; do
-    [ -s "$dirfile" ] && break
-    sleep 0.05
-    tries=$((tries + 1))
-  done
-  [ -s "$dirfile" ] || fail "the git-root TMPDIR child never published its fixture root"
-  child_dir=$(cat "$dirfile")
-  assert_present "$child_dir" "the git-root TMPDIR child did not create a fixture root"
-  case "$child_dir" in
-    "$repo"|"$repo"/*)
-      fail "fm_test_tmproot placed a fixture root inside the git worktree root: $child_dir"
-      ;;
-  esac
-  for entry in "$repo"/.fm-test-cleanup.* "$repo"/.fm-test-procevent.* "$repo"/.fm-test-watcher.*; do
-    [ ! -e "$entry" ] || fail "a live test registry landed in the git worktree root: $entry"
-  done
-  kill -TERM "$pid"
-  wait "$pid" 2>/dev/null || true
-  assert_absent "$child_dir" \
-    "the git-root TMPDIR child's fixture root survived SIGTERM"
-  pass "test registries and fixture roots stay out of a git worktree TMPDIR"
+  out=$(TMPDIR="$repo" bash -c '. "$1"' _ "$LIB" 2>&1) || rc=$?
+  assert_equals 2 "$rc" 'checkout TMPDIR is refused'
+  assert_contains "$out" 'unsafe scratch base' 'checkout refusal diagnostic'
+  assert_equals '.git' "$(ls -A "$repo")" 'fixture setup left the checkout untouched'
+  pass 'fixture preflight refuses checkout TMPDIR before creating registries'
+}
+
+test_interrupted_registry_allocation_cleans_up() {
+  local harness rc=0
+  harness=$(fm_test_tmproot fm-test-registry-interrupt)
+  mkdir "$harness/tmp"
+  TMPDIR="$harness/tmp" bash -c '
+    export OWNER=$$
+    mktemp() {
+      local allocated
+      allocated=$(command mktemp "$@") || return "$?"
+      kill -TERM "$OWNER"
+      printf "%s\n" "$allocated"
+    }
+    . "$1"
+  ' _ "$LIB" || rc=$?
+  assert_equals 143 "$rc" 'fixture setup handles TERM during allocation'
+  assert_equals '' "$(ls -A "$harness/tmp")" 'interrupted fixture setup left no registry scratch'
+  pass 'fixture registry allocation is cleaned up on TERM'
 }
 
 test_fixture_root_gone_after_normal_exit
 test_fixture_root_gone_after_sigterm
 test_cleanup_registry_resists_precreation
+test_interrupted_registry_allocation_cleans_up
 test_fixture_registration_failure_rolls_back_root
 test_orphan_sweep_respects_fixture_ownership
 test_orphan_sweep_reaps_read_only_package_tree

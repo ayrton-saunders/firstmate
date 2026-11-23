@@ -97,15 +97,17 @@ image=fm-test-linux:bookworm
 
 fm_test_allocate_scratch -d "${scratch_base%/}/fm-test-linux.XXXXXX" || exit "$?"
 scratch=$FM_TEST_SCRATCH
-git clone -q --local --no-hardlinks "$root" "$scratch" || die "could not clone $root into the scratch directory"
+git clone -q --no-checkout --local --no-hardlinks "$root" "$scratch" || die "could not clone $root into the scratch directory"
+if git -C "$scratch" rev-parse --verify --quiet HEAD >/dev/null; then
+  git -C "$scratch" read-tree HEAD
+fi
 files=()
 while IFS= read -r -d '' path; do
   [ -e "$root/$path" ] || [ -L "$root/$path" ] && files+=("$path")
 done < <(git -C "$root" ls-files -z --cached --others --exclude-standard -- ':(top,exclude,literal).test-phase-tmp')
-(cd "$root" && printf '%s\0' "${files[@]}" | tar --null -T - -cf -) | tar -C "$scratch" -xf -
-while IFS= read -r -d '' path; do
-  [ -e "$root/$path" ] || [ -L "$root/$path" ] || rm -f "$scratch/$path"
-done < <(git -C "$scratch" ls-files -z)
+if [ "${#files[@]}" -gt 0 ]; then
+  (cd "$root" && printf '%s\0' "${files[@]}" | tar --null -T - -cf -) | tar -C "$scratch" -xf -
+fi
 
 printf 'fm-test-linux: %s on %s\n' "${#tests[@]}" "$("$runtime" run --rm "$image" sh -c 'uname -sr')"
 case "$(basename "$runtime")" in

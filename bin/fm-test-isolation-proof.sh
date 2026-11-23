@@ -421,17 +421,67 @@ printf 'FM_ISOLATION_BEGIN %s concurrency=%s candidates=%s\n' \
 declare -a WORKER_PIDS=()
 declare -a WORKER_IDX=()
 ACTIVE_WORKERS=0
+launching=0
+pending_signal=0
+retain_root=0
+
+proof_group_gone() {
+  local groups
+  groups=$(ps -ax -o pgid= -o stat=) || return 1
+  awk -v group="$1" '$1 == group && $2 !~ /^Z/ { found=1 } END { exit found+0 }' <<<"$groups"
+}
+
+drain_proof_group() {
+  local pid=$1 signal i
+  for signal in TERM KILL; do
+    proof_group_gone "$pid" && break
+    kill -s "$signal" -- "-$pid" 2>/dev/null || true
+    for ((i=0; i<20; i++)); do
+      proof_group_gone "$pid" && break
+      sleep 0.1
+    done
+  done
+  proof_group_gone "$pid" || return 1
+  wait "$pid" 2>/dev/null || true
+}
+
+cleanup_proof() {
+  local status=$? pid
+  trap '' HUP INT QUIT TERM
+  for pid in "${WORKER_PIDS[@]+${WORKER_PIDS[@]}}"; do
+    drain_proof_group "$pid" || retain_root=1
+  done
+  if [ "$retain_root" -eq 0 ]; then
+    fm_test_remove_tree "$PROOF_ROOT" || { [ "$status" -ne 0 ] || status=1; }
+  else
+    log "candidate teardown unverified; retained $PROOF_ROOT"
+    [ "$status" -ne 0 ] || status=1
+  fi
+  exit "$status"
+}
+
+interrupt_proof() {
+  pending_signal=$1
+  [ "$launching" -ne 0 ] || exit "$pending_signal"
+}
+
+trap cleanup_proof EXIT
+trap 'interrupt_proof 129' HUP
+trap 'interrupt_proof 130' INT
+trap 'interrupt_proof 131' QUIT
+trap 'interrupt_proof 143' TERM
+set -m
 
 wait_one_slot() {
   local slot=$1 pid idx work rc duration script mode gate_skip
   pid=${WORKER_PIDS[$slot]}
   idx=${WORKER_IDX[$slot]}
+  wait "$pid" || true
+  drain_proof_group "$pid" || retain_root=1
   unset 'WORKER_PIDS[slot]'
   unset 'WORKER_IDX[slot]'
   ACTIVE_WORKERS=$((ACTIVE_WORKERS - 1))
-  set +e
-  wait "$pid"
-  set -e
+  [ "$retain_root" -eq 0 ] || exit 1
   work="$PROOF_ROOT/w$idx"
   script=${CANDIDATES[$((idx - 1))]}
   rc=$(cat "$work/out/exit" 2>/dev/null || echo 1)
@@ -516,7 +566,9 @@ for script in "${CANDIDATES[@]}"; do
   printf 'FM_ISOLATION_CANDIDATE_BEGIN %s %s worker=%s\n' \
     "$(now_iso)" "$script" "$idx"
 
+  launching=1
   (
+    set +m
     set +e
     export TMPDIR="$work/tmp"
     export TMP="$work/tmp"
@@ -539,6 +591,8 @@ for script in "${CANDIDATES[@]}"; do
   WORKER_PIDS[idx]=$!
   WORKER_IDX[idx]=$idx
   ACTIVE_WORKERS=$((ACTIVE_WORKERS + 1))
+  launching=0
+  [ "$pending_signal" -eq 0 ] || exit "$pending_signal"
 
   # Bound concurrency.
   while [ "$ACTIVE_WORKERS" -ge "$JOBS" ]; do

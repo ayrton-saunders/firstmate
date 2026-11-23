@@ -51,6 +51,10 @@ if { [ "$1" = --list ] || [ "$1" = --list-scheduled ]; } && [ "$2" = --family ];
       printf '%s\n' tests/fm-proof-skipped.test.sh
       exit 0
       ;;
+    interrupt-family)
+      printf '%s\n' tests/fm-proof-interrupt.test.sh tests/fm-proof-fixture-a.test.sh
+      exit 0
+      ;;
     failing-family)
       printf '%s\n' tests/fm-proof-readonly.test.sh
       exit 0
@@ -115,6 +119,16 @@ chmod 0500 "$TMPDIR/readonly"
 printf '%s\n' 'readonly fixture ready'
 exit 7
 SH
+  cat >"$repo/tests/fm-proof-interrupt.test.sh" <<'SH'
+#!/usr/bin/env bash
+on_term() {
+  [ -d "$TMPDIR" ] && printf 'scratch existed at TERM\n' >"$PROOF_SIGNAL_DIR/term"
+  exit 0
+}
+trap on_term TERM
+printf '%s\n' "$$" >"$PROOF_SIGNAL_DIR/ready"
+while :; do sleep 0.1; done
+SH
   chmod +x "$proof" "$repo/bin/fm-test-run.sh" "$repo/tests/fm-proof-"*.test.sh
   mkdir -p "$repo/.test-phase-tmp" "$tmp/tools"
   printf '%s\n' '#!/usr/bin/env bash' 'touch "$MKTEMP_CALLED"; exit 1' >"$tmp/tools/mktemp"
@@ -131,6 +145,38 @@ SH
   assert_equals 1 "$rc" 'proof reports a failing candidate'
   assert_contains "$(<"$tmp/readonly.err")" 'readonly fixture ready' 'the failing candidate created read-only scratch'
   [ -z "$(ls -A "$tmp/proof-tmp")" ] || fail 'failing proof left read-only scratch behind'
+  TMPDIR="$tmp/proof-tmp" PROOF_SIGNAL_DIR="$tmp" python3 - "$proof" <<'PY' || fail 'interrupted proof did not drain its candidate before cleanup'
+import os, pathlib, signal, subprocess, sys, time
+
+base = pathlib.Path(os.environ['PROOF_SIGNAL_DIR'])
+with (base / 'interrupted.log').open('w') as log:
+    proof = subprocess.Popen([sys.argv[1], '--pool', 'interrupt-family', '--jobs', '2'],
+                             stdout=log, stderr=log, stdin=subprocess.DEVNULL)
+    try:
+        for _ in range(100):
+            if (base / 'ready').exists():
+                break
+            assert proof.poll() is None
+            time.sleep(0.05)
+        else:
+            raise AssertionError('candidate never started')
+        proof.send_signal(signal.SIGTERM)
+        assert proof.wait(timeout=10) == 143
+        assert (base / 'term').read_text() == 'scratch existed at TERM\n'
+        assert not list((base / 'proof-tmp').iterdir())
+    finally:
+        if proof.poll() is None:
+            proof.kill()
+            proof.wait()
+        ready = base / 'ready'
+        if ready.exists() and not (base / 'term').exists():
+            pid = ready.read_text().strip()
+            if pid:
+                try:
+                    os.kill(int(pid), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+PY
   set +e
   "$proof" --pool fixture-family --jobs 1 --json "$json" >"$tmp/out" 2>"$tmp/err"
   rc=$?

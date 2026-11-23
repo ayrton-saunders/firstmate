@@ -218,7 +218,6 @@ fm_test_launch_command() {  # <launch>
 # real caller, never a subshell.
 
 FM_TEST_CLEANUP_DIRS=()
-FM_TEST_CLEANUP_REGISTRY=$(mktemp "$FM_TEST_TMPDIR/.fm-test-cleanup.$$.XXXXXX") || return 1
 
 fm_test_pid_identity() {
   local pid=$1
@@ -245,7 +244,6 @@ FM_TEST_OWNER_IDENTITY=$(fm_test_pid_identity "$$") || {
 # private one). It never matches on a script or process name, which would reach
 # into another home's live runners.
 
-FM_TEST_PROCEVENT_REGISTRY=$(mktemp "$FM_TEST_TMPDIR/.fm-test-procevent.$$.XXXXXX") || return 1
 
 fm_test_track_procevent_home() {  # <home> [claim-root]
   [ -n "${1:-}" ] || return 1
@@ -284,7 +282,6 @@ fm_test_reap_procevent_homes() {
 # deleted has no lock and is skipped; that watcher exits on its own home-gone
 # check within one poll.
 
-FM_TEST_WATCHER_REGISTRY=$(mktemp "$FM_TEST_TMPDIR/.fm-test-watcher.$$.XXXXXX") || return 1
 
 fm_test_track_watcher_state() {  # <state-dir>
   [ -n "${1:-}" ] || return 1
@@ -389,29 +386,28 @@ fm_test_cleanup() {
       fm_test_reap_root_processes "$d"
       fm_test_remove_tree "$d"
     done < "$FM_TEST_CLEANUP_REGISTRY"
-    rm -f "$FM_TEST_CLEANUP_REGISTRY"
   fi
+  fm_test_remove_tree "$FM_TEST_REGISTRY_DIR"
 }
 
-fm_test_tmproot() {
-  local prefix=${1:-fm-test} root tmp_base
+fm_test_tmproot() (
+  local prefix=${1:-fm-test} root= tmp_base
   tmp_base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || return "$?"
-  tmp_base=${tmp_base%/}
-  root=$(mktemp -d "$tmp_base/${prefix}.XXXXXX") || return 1
-  root=$(cd -P -- "$root" && pwd -P) || return 1
-  if ! printf '%s\n%s\n' "$$" "$FM_TEST_OWNER_IDENTITY" > "$root/.fm-test-fixture" ||
-    ! printf '%s\n' "$root" >> "$FM_TEST_CLEANUP_REGISTRY"; then
-    rm -rf "$root"
-    return 1
-  fi
+  trap '' HUP INT QUIT TERM
+  trap '[ -z "$root" ] || fm_test_remove_tree "$root"' EXIT
+  root=$(mktemp -d "${tmp_base%/}/${prefix}.XXXXXX") || return 1
+  printf '%s\n%s\n' "$$" "$FM_TEST_OWNER_IDENTITY" > "$root/.fm-test-fixture" || return 1
+  printf '%s\n' "$root" >> "$FM_TEST_CLEANUP_REGISTRY" || return 1
+  trap - EXIT
   printf '%s\n' "$root"
-}
+)
 
+fm_test_allocate_scratch -d "${FM_TEST_TMPDIR%/}/.fm-test-registry.XXXXXX" || exit "$?"
+FM_TEST_REGISTRY_DIR=$FM_TEST_SCRATCH
+FM_TEST_CLEANUP_REGISTRY="$FM_TEST_REGISTRY_DIR/cleanup"
+FM_TEST_PROCEVENT_REGISTRY="$FM_TEST_REGISTRY_DIR/procevent"
+FM_TEST_WATCHER_REGISTRY="$FM_TEST_REGISTRY_DIR/watcher"
 trap fm_test_cleanup EXIT
-trap 'fm_test_cleanup; exit 130' INT
-trap 'fm_test_cleanup; exit 143' TERM
-trap 'fm_test_cleanup; exit 129' HUP
-trap 'fm_test_cleanup; exit 131' QUIT
 
 TREEHOUSE_ROOT=$(fm_test_tmproot fm-treehouse-pool)
 export TREEHOUSE_ROOT
