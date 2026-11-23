@@ -2271,8 +2271,17 @@ else:
     protected_paths.append(f'{base_alias.name}/{parent.name}')
 alias_dir = tmp / 'operational-aliases'
 alias_dir.mkdir()
-for alias, target in ((alias_dir / 'relative-state', pathlib.Path('..') / base.name / parent.name),
-                      (alias_dir / 'absolute-state', parent)):
+alias_targets = [(alias_dir / 'relative-state', pathlib.Path('..') / base.name / parent.name),
+                 (alias_dir / 'absolute-state', parent)]
+case_sample = base / 'case-sample'
+case_sample.mkdir()
+case_insensitive = (base / 'CASE-SAMPLE').is_dir()
+case_sample.rmdir()
+if case_insensitive:
+    upper_parent = parent.with_name(parent.name.upper())
+    protected_paths.append(shell_path(upper_parent))
+    alias_targets.append((alias_dir / 'case-state', upper_parent))
+for alias, target in alias_targets:
     try:
         alias.symlink_to(target, target_is_directory=True)
     except (OSError, NotImplementedError):

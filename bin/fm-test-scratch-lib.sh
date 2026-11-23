@@ -249,23 +249,41 @@ fm_test_resolve_boundary() (
   esac
 )
 
+fm_test_missing_boundary_matches() (
+  local candidate=$1 boundary=$2 probe rc=1 LC_ALL=C
+  [ "$candidate" != "$boundary" ] || return 0
+  shopt -s nocasematch
+  [[ "${candidate##*/}" == "${boundary##*/}" ]] || return 1
+  [ "${candidate%/*}/" -ef "${boundary%/*}/" ] || return 1
+  trap '' HUP INT QUIT TERM
+  probe=$(mktemp -d -- "${candidate%/*}/.fm-case-a.XXXXXX") || return 2
+  [ "$probe" -ef "${probe%/*}/.fm-case-A.${probe##*.}" ] && rc=0
+  rmdir -- "$probe" || return 2
+  return "$rc"
+)
+
 fm_test_check_scratch_placement() (
-  local root=$1 base=$2 blocked ancestor resolved effective_home=
+  local root=$1 base=$2 blocked ancestor resolved rc home wake_home
   if [ "$#" -ge 3 ]; then
     CDPATH='' cd -P -- "$3" || return 2
   fi
-  if [ -z "${FM_HOME:-}${FM_ROOT_OVERRIDE:-}" ]; then
-    effective_home=${FM_ROOT:-}
-  fi
+  home=${FM_HOME:-${FM_ROOT_OVERRIDE:-$root}}
+  wake_home=${FM_HOME:-${FM_ROOT_OVERRIDE:-${FM_ROOT:-$root}}}
   ancestor=$base
   while :; do
-    for blocked in "$root" "${FM_HOME:-}" "${FM_ROOT_OVERRIDE:-}" "$effective_home" \
-      "${FM_STATE_OVERRIDE:-}" "${FM_DATA_OVERRIDE:-}" "${FM_CONFIG_OVERRIDE:-}" "${FM_PROJECTS_OVERRIDE:-}" \
+    for blocked in "$root" "$home" "${FM_ROOT_OVERRIDE:-}" "$wake_home" \
+      "${FM_STATE_OVERRIDE:-$home/state}" "${FM_STATE_OVERRIDE:-${STATE:-$wake_home/state}}" \
+      "${FM_DATA_OVERRIDE:-$home/data}" "${FM_CONFIG_OVERRIDE:-$home/config}" "${FM_PROJECTS_OVERRIDE:-$home/projects}" \
       "$HOME/.firstmate-preserved" "$HOME/.treehouse" "${TREEHOUSE_ROOT:-}"; do
       [ -n "$blocked" ] || continue
-      if [ "$ancestor" = "${blocked%/}" ] || [ "$ancestor" -ef "$blocked" ] ||
-         { [ ! -e "$ancestor" ] && resolved=$(fm_test_resolve_boundary "$blocked") &&
-           [ "$ancestor" = "$resolved" ]; }; then
+      rc=1
+      if [ "$ancestor" = "${blocked%/}" ] || [ "$ancestor" -ef "$blocked" ]; then
+        rc=0
+      elif [ ! -e "$ancestor" ] && resolved=$(fm_test_resolve_boundary "$blocked"); then
+        rc=0
+        fm_test_missing_boundary_matches "$ancestor" "$resolved" || rc=$?
+      fi
+      if [ "$rc" -ne 1 ]; then
         printf 'unsafe scratch base %s resolves inside %s\n' "$base" "$blocked" >&2
         return 2
       fi

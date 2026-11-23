@@ -56,6 +56,33 @@ test_direct_fixture_refuses_inherited_home_scratch() {
   pass 'direct fixture preflight sees inherited Firstmate home boundaries'
 }
 
+test_direct_fixture_refuses_effective_operational_scratch() {
+  local tmp dir out rc
+  tmp=$(fm_test_tmproot fm-fixture-operational-paths) || fail 'could not create operational path fixture'
+  mkdir -p "$tmp/home" "$tmp/runtime/tmp"
+  for dir in state data config projects wake-state; do
+    local -a settings
+    settings=("FM_HOME=$tmp/home")
+    case "$dir" in
+      wake-state) settings+=("STATE=$tmp/runtime") ;;
+      *)
+        if ! ln -s "$tmp/runtime" "$tmp/home/$dir" 2>/dev/null || [ ! -L "$tmp/home/$dir" ]; then
+          continue
+        fi
+        ;;
+    esac
+    rc=0
+    out=$(env -u STATE -u FM_STATE_OVERRIDE -u FM_DATA_OVERRIDE -u FM_CONFIG_OVERRIDE -u FM_PROJECTS_OVERRIDE \
+      "${settings[@]}" TMPDIR="$tmp/runtime/tmp" "$BASH" -c '. "$1"; printf "fixture started\n"' \
+      _ "$ROOT/tests/lib.sh" 2>&1) || rc=$?
+    assert_equals 2 "$rc" "$dir effective directory scratch exit status"
+    assert_contains "$out" 'unsafe scratch base' "$dir effective directory scratch refusal"
+    [ -z "$(ls -A "$tmp/runtime/tmp")" ] || fail "$dir scratch reached allocation"
+    [ "$dir" = wake-state ] || rm "$tmp/home/$dir"
+  done
+  pass 'direct fixtures reject effective operational directories outside the home'
+}
+
 test_fixture_owner_lookup_failure_preserves_inherited_registry() {
   local tmp out rc registry
   tmp=$(fm_test_tmproot fm-fixture-no-identity) || fail 'could not create owner lookup fixture'
@@ -516,6 +543,7 @@ test_inherited_launcher_env_is_cleared() (
 
 test_direct_fixture_refuses_checkout_scratch
 test_direct_fixture_refuses_inherited_home_scratch
+test_direct_fixture_refuses_effective_operational_scratch
 test_fixture_owner_lookup_failure_preserves_inherited_registry
 test_git_config_isolation || fail "Git fixture config isolation"
 test_inherited_launcher_env_is_cleared || fail "launcher environment isolation"
