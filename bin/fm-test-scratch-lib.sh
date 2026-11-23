@@ -11,17 +11,16 @@ fm_test_remove_tree() {
 }
 
 fm_test_copy_hermes_evidence() (
-  local lab=$1 base=$2 evidence file copied=0
+  local lab=$1 base=$2 evidence
+  set -o pipefail
   evidence=$(mktemp -d "${base%/}/fm-hermes-evidence.XXXXXX") || return 1
-  for file in "$lab"/*.txt "$lab"/*.ansi "$lab"/*.log; do
-    [ -f "$file" ] && [ ! -L "$file" ] || continue
-    if ! cp "$file" "$evidence/"; then
-      fm_test_remove_tree "$evidence"
-      return 1
-    fi
-    copied=1
-  done
-  if [ "$copied" -eq 0 ]; then
+  if ! tar -C "$lab" -cf - . | tar -C "$evidence" -xf -; then
+    fm_test_remove_tree "$evidence"
+    return 1
+  fi
+  shopt -s dotglob nullglob
+  set -- "$evidence"/*
+  if [ "$#" -eq 0 ]; then
     fm_test_remove_tree "$evidence"
     return 1
   fi

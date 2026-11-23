@@ -87,6 +87,7 @@
 # A subsequent run recovers aged, marked roots when the runner and workers are gone.
 # Windows-style shells do not support orphan recovery; normal-exit and signal cleanup still apply.
 # Scratch marked for unverified teardown is never reaped automatically, even after its owners exit.
+# A tmux launch interrupted after the server forks but before its socket binds can appear stopped to probe cleanup.
 # If cleanup cannot verify a live group's leader before signaling, it waits briefly without signaling and fails with scratch retained if the group remains.
 # If interruption cuts short a nested runner's cleanup, its scratch is recovered on a later run once those workers are gone.
 # PID-directed TERM/HUP waits for a foreground TTY test to finish or time out, or for blocked output replay to return; background worker waits are interruptible.
@@ -2624,7 +2625,7 @@ stop_owned_workers() {
 cleanup_run() {
   local status=$?
   trap '' HUP INT QUIT TERM
-  stop_owned_workers "${!WORKER_PIDS[@]}" || KEEP_RUN_TMP=1
+  stop_owned_workers "${!WORKER_SCRIPTS[@]}" || KEEP_RUN_TMP=1
   if [ "$KEEP_RUN_TMP" -eq 1 ]; then
     log "could not confirm worker group exit; retaining scratch: $RUN_TMP"
     [ "$status" -ne 0 ] || status=1

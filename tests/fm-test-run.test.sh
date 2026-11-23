@@ -2131,12 +2131,16 @@ if [ "$PROBE_MODE" = hang ] || [ "$PROBE_MODE" = stubborn ]; then exec sleep 300
 if [ "$PROBE_MODE" = evidence ]; then
   . bin/fm-test-scratch-lib.sh
   printf '%s\\n' 'captured output' >"$TMPDIR/screen.ansi"
+  mkdir "$TMPDIR/wt"
+  printf '%s\\n' '80235' >"$TMPDIR/wt/answer.txt"
+  printf '%s\\n' 'acknowledged' >"$TMPDIR/wt/.steer"
   base=$(bash bin/fm-test-run.sh --scratch-base)
   fm_test_copy_hermes_evidence "$TMPDIR" "$base"
 elif [ "$PROBE_MODE" = empty-evidence ]; then
   . bin/fm-test-scratch-lib.sh
   base=$(bash bin/fm-test-run.sh --scratch-base)
-  fm_test_copy_hermes_evidence "$TMPDIR" "$base"
+  mkdir "$TMPDIR/empty"
+  fm_test_copy_hermes_evidence "$TMPDIR/empty" "$base"
 fi
 if [ "$PROBE_MODE" = stale ]; then
   printf '%s|%s|%s|%s\\n' "$UID" "$DECOY_GROUP" "$DECOY_GROUP" 'different start identity' >"${TMPDIR%/*}/timed-owner"
@@ -2222,7 +2226,8 @@ def restore_signal_defaults():
     for sig in (signal.SIGINT, signal.SIGQUIT):
         signal.signal(sig, signal.SIG_DFL)
 
-def launch(name, mode, use_fixture=True, bounded=False, options=(), siblings=()):
+def launch(name, mode, use_fixture=True, bounded=False, options=(), siblings=(),
+           stdin=subprocess.DEVNULL, start_new_session=False):
     proof = tmp / name
     case_env = dict(fixture_env if use_fixture else env, PROBE_MODE=mode, PROOF=shell_path(proof))
     log = (tmp / (name + '.log')).open('w')
@@ -2231,7 +2236,8 @@ def launch(name, mode, use_fixture=True, bounded=False, options=(), siblings=())
         # a catchable signal, as for a directly invoked foreground runner.
         bound = ['--per-script-timeout-secs', '60'] if bounded else []
         command = [*runner_cmd, *bound, *options, cmd[-1], *siblings]
-        child = subprocess.Popen(command, cwd=repo, env=case_env, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
+        child = subprocess.Popen(command, cwd=repo, env=case_env, stdin=stdin, stdout=log, stderr=log,
+                                 start_new_session=start_new_session,
                                  preexec_fn=restore_signal_defaults if os.name == 'posix' else None)
     return child, proof
 
@@ -2268,6 +2274,8 @@ line, = [line for line in (tmp / 'evidence-copy.log').read_text().splitlines() i
 evidence = native_path(line[len(label):])
 assert evidence.parent.resolve() == base.resolve(), evidence
 assert not run.exists() and (evidence / 'screen.ansi').read_text() == 'captured output\n'
+assert (evidence / 'wt/answer.txt').read_text() == '80235\n'
+assert (evidence / 'wt/.steer').read_text() == 'acknowledged\n'
 child, proof = launch('empty-evidence-copy', 'empty-evidence')
 assert child.wait(timeout=20) == 1
 assert label not in (tmp / 'empty-evidence-copy.log').read_text()
@@ -2369,6 +2377,35 @@ for name, bounded in (('unbounded-term', False), ('bounded-term', True)):
         if worker_group is not None:
             try:
                 os.killpg(worker_group, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+
+if any(shutil.which(tool) for tool in ('timeout', 'gtimeout')) and os.environ.get('FM_TIMEOUT_MECHANISM_OVERRIDE') != 'bash':
+    import pty
+    master, slave = pty.openpty()
+    child = None
+    payload_group = None
+    try:
+        child, proof = launch('foreground-int', 'stubborn', bounded=True, stdin=slave, start_new_session=True)
+        _, run = scratch(proof)
+        payload = int((tmp / 'foreground-int.child').read_text())
+        payload_group = os.getpgid(payload)
+        assert payload_group != child.pid, 'timeout did not isolate the foreground payload'
+        os.killpg(child.pid, signal.SIGINT)
+        assert child.wait(timeout=10) == 130, (tmp / 'foreground-int.log').read_text()
+        assert not live_processes(payload)
+        payload_group = None
+        assert (tmp / 'foreground-int.removing').exists()
+        assert not (tmp / 'foreground-int.removed-live').exists() and not run.exists()
+    finally:
+        os.close(slave)
+        os.close(master)
+        if child is not None and child.poll() is None:
+            os.killpg(child.pid, signal.SIGKILL)
+            child.wait(timeout=10)
+        if payload_group is not None:
+            try:
+                os.killpg(payload_group, signal.SIGKILL)
             except ProcessLookupError:
                 pass
 
