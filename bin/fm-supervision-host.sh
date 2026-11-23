@@ -1199,8 +1199,8 @@ acknowledge_routine_close() {  # <exact rows, or empty for rearm-resurface>
 # (attended_acceptor, whose offer scan is the turn's scope), else sets HANDLE_WHY and returns 1; sets ENGINE_ERROR
 # when the turn failed on the engine itself. Runs in the host's own shell,
 # never a subshell, because it advances the host's grant and turn state.
-handle_wake() {  # <reason-lines>
-  local reason=$1 first scope status corrupted rows tasks unscoped rc turn readback
+handle_wake() {  # <reason-lines> <initially-routine>
+  local reason=$1 initially_routine=$2 first scope status corrupted rows tasks unscoped rc turn readback
   local receipts usage result errors unacked mirror
   LAST_TURN=
   ENGINE_ERROR=0
@@ -1245,7 +1245,9 @@ handle_wake() {  # <reason-lines>
     log_line "no-op	nothing for the branch to claim	$first"
     return 0
   fi
-  turn_crosses_boundary && boundary_exit
+  if [ "$initially_routine" -eq 1 ]; then
+    turn_crosses_boundary && boundary_exit
+  fi
   ROUTINE_HAND_BACK=0
   publish_wake_grant "$rows" || return 1
   if ! host_still_owner; then
@@ -1474,8 +1476,10 @@ attended_acceptor() {  # <reason-lines> [final]
   ATTENDED_ROUTINE=0
   ATTENDED_ROUTINE_ROWS=
   if ! fm_supervision_host_attended_ready "$CONFIG" "$PRIMARY"; then
+    ROUTINE_HAND_BACK=0
     ATTENDED_WHY=$FM_SUPERVISION_HOST_UNREADY
   elif ! fm_supervision_host_main_key "$STATE" >/dev/null; then
+    ROUTINE_HAND_BACK=0
     ATTENDED_WHY="the main session could not be identified"
   else
     if [ "$candidate" -eq 1 ] && [ "$1" = 'check: rearm-resurface' ] && [ ! -s "$FM_WAKE_QUEUE" ]; then
@@ -1645,7 +1649,7 @@ while :; do
 
   # The captain returned during that turn: the return brief was rendered
   # before its visible outcomes existed, so main relays them now, handled or not.
-  handle_wake "$REASON"
+  handle_wake "$REASON" "$ATTENDED_ROUTINE"
   HANDLE_RC=$?
   if [ "$HANDLE_RC" -eq 2 ]; then
     log_line "pass-through	attended	$ATTENDED_WHY	$(printf '%s\n' "$REASON" | head -n 1)"
