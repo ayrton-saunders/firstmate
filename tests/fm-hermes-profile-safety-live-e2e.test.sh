@@ -13,13 +13,20 @@ fm_live_gate opt-in FM_HERMES_PROFILE_SAFETY_LIVE hermes tmux python3
 HERMES_BIN=$(command -v hermes)
 LAB=$(mktemp -d "${TMPDIR:-/tmp}/hm.XXXXXX")
 LAB=$(cd "$LAB" && pwd -P)
-cleanup() { rm -rf "$LAB"; }
+SOCKET="$LAB/s"
+cleanup() {
+  [ ! -S "$SOCKET" ] || tmux -S "$SOCKET" kill-server >/dev/null 2>&1 || true
+  rm -rf "$LAB"
+}
 trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
 mkdir -p "$LAB/profiles/worker" "$LAB/work"
 printf '%s\n' '{"model":{"default":"gpt-6-astra","provider":"openai-codex"},"telemetry":{"shared_metrics":{"enabled":false,"send":false,"offer_version":2}}}' > "$LAB/profiles/worker/config.yaml"
 VERSION=$(HERMES_HOME="$LAB" "$HERMES_BIN" --version 2>/dev/null | head -1)
 VERSION=${VERSION:-Hermes version unknown}
-HERMES_HOME="$LAB/profiles/worker" "$FM_HERMES_PYTHON" - "$LAB" "$HERMES_BIN" "$ROOT" <<'PY'
+HERMES_HOME="$LAB/profiles/worker" "$FM_HERMES_PYTHON" - "$LAB" "$HERMES_BIN" "$ROOT" "$SOCKET" <<'PY'
 import os, shlex, shutil, subprocess, sys, time
 from pathlib import Path
 from gateway.status import acquire_gateway_runtime_lock, release_gateway_runtime_lock
@@ -29,7 +36,7 @@ home = root / 'profiles/worker'
 assert Path(os.environ['HERMES_HOME']) == home
 assert acquire_gateway_runtime_lock()
 print('native gateway runtime lock: held', flush=True)
-socket = str(root / 's')
+socket = sys.argv[4]
 command = ('env HERMES_HOME=' + shlex.quote(str(root)) + ' ' + shlex.quote(binary)
            + ' -p worker --tui --yolo --in ' + shlex.quote(str(root / 'work')))
 try:

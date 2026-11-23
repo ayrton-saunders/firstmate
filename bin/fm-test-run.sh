@@ -2509,6 +2509,7 @@ RUN_INTERRUPT=0
 RUN_CRITICAL=0
 WORKER_PIDS=()
 WORKER_SCRIPTS=()
+KEEP_RUN_TMP=0
 
 # Traps defer exit only while publishing an allocation or a background PID.
 # shellcheck disable=SC2329
@@ -2517,35 +2518,68 @@ interrupt_run() {
   [ "$RUN_CRITICAL" -ne 0 ] || exit "$RUN_INTERRUPT"
 }
 
-signal_owned_group() {
-  local signal=$1 record=$2 owner pid group start extra current
-  IFS='|' read -r owner pid group start extra <<<"$record"
-  [ "$owner" = "$UID" ] && [ "$pid" = "$group" ] && [ -z "$extra" ] || return 1
-  case "$group" in ''|0*|*[!0-9]*) return 1 ;; esac
-  case "$start" in ''|unknown) return 1 ;; esac
-  current=$(run_owner_start "$pid") || return 1
-  [ "$start" = "$current" ] && kill -"$signal" -- "-$group" 2>/dev/null
+owned_group_live() {
+  local pid=$1 start=$2 current snapshot
+  kill -0 -- "-$pid" 2>/dev/null || return 1
+  current=$(run_owner_start "$pid") || current=
+  if [ -n "$current" ]; then
+    [ "$start" != unknown ] || return 2
+    [ "$current" = "$start" ] || return 1
+  fi
+  if snapshot=$(LC_ALL=C ps -e -o pid= -o pgid= -o stat= 2>/dev/null); then
+    awk -v self="$$" -v pid="$pid" -v start="$start" -v checked="$current" '
+      $1 == self && NF == 3 { readable = 1 }
+      $1 == pid && checked == "" && $3 !~ /^Z/ { unverified = 1 }
+      $2 == pid && $3 !~ /^Z/ { live = 1 }
+      END { exit (!readable || (live && (unverified || start == "unknown"))) ? 2 : !live }
+    ' <<<"$snapshot"
+  else
+    [ -n "$current" ] || return 2
+  fi
 }
 
 stop_owned_workers() {
-  local slot work pid record
-  local -a signaled=()
+  local slot work pid record owner group start extra rc i attempt drained=0
+  local -a records=() groups=() starts=()
   for slot in "$@"; do
     work="$RUN_TMP/w$slot"
     pid=${WORKER_PIDS[$slot]:-}
     : >"$work/stopping"
     if [ -n "$pid" ]; then
       record=$(awk -F '|' -v pid="$pid" '$2 == pid && $3 == pid { print; exit }' "$RUN_TMP/.fm-test-run-owner")
-      if signal_owned_group TERM "$record"; then signaled+=("$record"); fi
+      if [ -n "$record" ]; then records+=("$record"); fi
     fi
     if [ -f "$work/timed-owner" ] && IFS= read -r record <"$work/timed-owner"; then
-      if signal_owned_group TERM "$record"; then signaled+=("$record"); fi
+      records+=("$record")
     fi
   done
-  if [ "${#signaled[@]}" -gt 0 ]; then
+  for record in "${records[@]+"${records[@]}"}"; do
+    IFS='|' read -r owner pid group start extra <<<"$record"
+    [ "$owner" = "$UID" ] && [ "$pid" = "$group" ] && [ -n "$start" ] && [ -z "$extra" ] || continue
+    case "$group" in ''|0*|*[!0-9]*) continue ;; esac
+    rc=0
+    owned_group_live "$group" "$start" || rc=$?
+    case "$rc" in
+      0) groups+=("$group"); starts+=("$start"); kill -TERM -- "-$group" 2>/dev/null || true ;;
+      2) drained=1 ;;
+    esac
+  done
+  if [ "${#groups[@]}" -gt 0 ]; then
     sleep 0.2
-    for record in "${signaled[@]}"; do signal_owned_group KILL "$record" || true; done
+    for i in "${!groups[@]}"; do
+      if owned_group_live "${groups[$i]}" "${starts[$i]}"; then kill -KILL -- "-${groups[$i]}" 2>/dev/null || true; fi
+    done
+    for i in "${!groups[@]}"; do
+      for ((attempt=0; attempt<20; ++attempt)); do
+        rc=0
+        owned_group_live "${groups[$i]}" "${starts[$i]}" || rc=$?
+        [ "$rc" -ne 1 ] || break
+        sleep 0.01
+      done
+      [ "$rc" -eq 1 ] || drained=1
+    done
   fi
+  [ "$drained" -eq 0 ] || return 1
   for slot in "$@"; do
     pid=${WORKER_PIDS[$slot]:-}
     if [ -n "$pid" ]; then wait "$pid" 2>/dev/null || true; fi
@@ -2555,8 +2589,8 @@ stop_owned_workers() {
 # shellcheck disable=SC2329
 cleanup_run() {
   trap '' HUP INT TERM
-  stop_owned_workers "${!WORKER_PIDS[@]}"
-  if [ -n "$RUN_TMP" ]; then remove_run_tree "$RUN_TMP"; fi
+  stop_owned_workers "${!WORKER_PIDS[@]}" || KEEP_RUN_TMP=1
+  if [ -n "$RUN_TMP" ] && [ "$KEEP_RUN_TMP" -eq 0 ]; then remove_run_tree "$RUN_TMP"; fi
 }
 
 prepare_run_scratch() {
@@ -3044,8 +3078,12 @@ collect_worker() {
   work="$RUN_TMP/w$slot"
   out="$work/output"
   if [ -n "$pid" ]; then wait "$pid" || true; fi
-  stop_owned_workers "$slot"
-  rm -f "$work/timed-owner"
+  if stop_owned_workers "$slot"; then
+    rm -f "$work/timed-owner"
+  else
+    KEEP_RUN_TMP=1
+    log "could not confirm worker group exit; retaining scratch: $RUN_TMP"
+  fi
   active_workers=$((active_workers - 1))
   rc=$(cat "$work/exit" 2>/dev/null || echo 1)
   duration=$(cat "$work/duration_ms" 2>/dev/null || echo 0)

@@ -1562,7 +1562,7 @@ test_concurrent_runs_are_ordered_longest_first() {
 # finishes. A hung script has to become a bounded failure, because an unbounded
 # suite is exactly what silently outruns its caller's invocation budget.
 test_per_script_timeout_bounds_a_hang() {
-  local tmp repo runner hang rc began ended grandchild_pid grandchild waited run_root
+  local tmp repo runner hang rc began ended grandchild_pid grandchild states run_root
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-hang.XXXXXX")
   repo="$tmp/repo"
   runner="$repo/bin/fm-test-run.sh"
@@ -1606,18 +1606,23 @@ SH
     || fail "the bounded run did not report a complete summary: $(cat "$tmp/out")"
   [ -s "$grandchild_pid.run-root" ] || fail 'timed test did not find its run owner marker'
   run_root=$(<"$grandchild_pid.run-root")
-  [ ! -e "$run_root" ] || fail "timeout left its run root: $run_root"
   [ -s "$grandchild_pid" ] || fail "the hanging fixture did not record its grandchild"
-  grandchild=$(cat "$grandchild_pid")
-  waited=0
-  while ps -p "$grandchild" -o stat= 2>/dev/null | grep -Eq '^[^Z ]' && [ "$waited" -lt 50 ]; do
-    sleep 0.1
-    waited=$((waited + 1))
-  done
-  if ps -p "$grandchild" -o stat= 2>/dev/null | grep -Eq '^[^Z ]'; then
-    kill -KILL "$grandchild" 2>/dev/null || true
-    fail "the timed-out script left grandchild $grandchild running"
-  fi
+  grandchild=$(<"$grandchild_pid")
+  case "$(uname -s)" in
+    MINGW*|MSYS*) printf '%s\n' 'skip: timeout process-state assertion needs POSIX ps fields' ;;
+    *)
+      states=$(ps -e -o pid= -o stat=) || fail 'cannot observe timeout process states'
+      if ! awk -v self="$$" -v pid="$grandchild" '
+        $1 == self && NF == 2 { readable = 1 }
+        $1 == pid && $2 !~ /^Z/ { live = 1 }
+        END { exit (!readable || live) }
+      ' <<<"$states"; then
+        kill -KILL "$grandchild" 2>/dev/null || true
+        fail "cannot confirm that timeout drained grandchild $grandchild"
+      fi
+      ;;
+  esac
+  [ ! -e "$run_root" ] || fail "timeout left its run root: $run_root"
 
   # 0 keeps the historical unbounded behavior, so no existing caller changes.
   set +e
@@ -2029,14 +2034,20 @@ fm_fixture_copy_remote_source "$PWD" "$mktemp_dir"
 mkdir "$TMPDIR/read-only"
 touch "$TMPDIR/read-only/entry"
 chmod 0500 "$TMPDIR/read-only"
-if [ "$PROBE_MODE" = hang ]; then printf '%s\\n' "$$" > "$PROOF.pid"; fi
+if [ "$PROBE_MODE" = hang ] || [ "$PROBE_MODE" = stubborn ]; then
+  printf '%s\\n' "$$" > "$PROOF.pid"
+fi
+if [ "$PROBE_MODE" = stubborn ]; then
+  sh -c 'trap "" TERM; printf "%s\\n" "$$" > "$1"; exec sleep 300' _ "$PROOF.child" &
+  while [ ! -s "$PROOF.child" ]; do sleep 0.01; done
+fi
 run_root=$TMPDIR
 while [ ! -f "$run_root/.fm-test-run-owner" ]; do
   [ -n "$run_root" ] || exit 1
   run_root=${run_root%/*}
 done
 printf '%s\\n%s\\n' "$TMPDIR" "$run_root" > "$PROOF"
-if [ "$PROBE_MODE" = hang ]; then exec sleep 300; fi
+if [ "$PROBE_MODE" = hang ] || [ "$PROBE_MODE" = stubborn ]; then exec sleep 300; fi
 if [ "$PROBE_MODE" = stale ]; then
   printf '%s|%s|%s|%s\\n' "$UID" "$DECOY_GROUP" "$DECOY_GROUP" 'different start identity' >"${TMPDIR%/*}/timed-owner"
 fi
@@ -2158,27 +2169,35 @@ with subprocess.Popen(['sleep', '60'], start_new_session=True) as decoy:
         if decoy.poll() is None:
             decoy.terminate()
 
-child, proof = launch('bounded-term', 'hang', bounded=True)
-worker_group = None
-try:
-    _, run = scratch(proof)
-    worker = int((tmp / 'bounded-term.pid').read_text())
-    worker_group = os.getpgid(worker)
-    child.terminate()
-    assert child.wait(timeout=10) == 143
-    state = subprocess.run(['ps', '-p', str(worker), '-o', 'stat='], capture_output=True, text=True)
-    assert not state.stdout.strip() or state.stdout.lstrip().startswith('Z'), state.stdout
+def live_processes(*pids):
+    states = subprocess.check_output(['ps', '-e', '-o', 'pid=', '-o', 'stat='], text=True)
+    processes = dict(line.split() for line in states.splitlines() if line.strip())
+    assert str(os.getpid()) in processes, 'incomplete process snapshot'
+    return [pid for pid in pids if str(pid) in processes and not processes[str(pid)].startswith('Z')]
+
+for name, bounded in (('unbounded-term', False), ('bounded-term', True)):
+    child, proof = launch(name, 'stubborn', bounded=bounded)
     worker_group = None
-    assert not run.exists(), run
-finally:
-    if child.poll() is None:
-        child.kill()
-        child.wait(timeout=10)
-    if worker_group is not None:
-        try:
-            os.killpg(worker_group, signal.SIGKILL)
-        except ProcessLookupError:
-            pass
+    try:
+        _, run = scratch(proof)
+        worker = int((tmp / (name + '.pid')).read_text())
+        stubborn = int((tmp / (name + '.child')).read_text())
+        worker_group = os.getpgid(stubborn)
+        assert worker_group == os.getpgid(worker)
+        child.terminate()
+        assert child.wait(timeout=10) == 143
+        assert not live_processes(worker, stubborn), (worker, stubborn)
+        worker_group = None
+        assert not run.exists(), run
+    finally:
+        if child.poll() is None:
+            child.kill()
+            child.wait(timeout=10)
+        if worker_group is not None:
+            try:
+                os.killpg(worker_group, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
 
 live, proof = launch('live', 'hang')
 worker_group = None
