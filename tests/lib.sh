@@ -477,7 +477,8 @@ fm_test_drain_fixture_jobs() {
 }
 
 # An orphaned helper can keep a cwd without a path in argv or a Bash job.
-# A missing or failed inventory does not authorize removal.
+# A missing or failed inventory does not authorize removal; individual Linux
+# cwd links denied by the kernel are not part of the readable inventory.
 fm_test_scratch_has_no_users() (
   [ "$#" -gt 0 ] || return 0
   if [ "$OSTYPE" = linux-gnu ] || [[ "$OSTYPE" == linux-* ]]; then
@@ -501,11 +502,9 @@ with os.scandir(b'/proc') as processes:
             try:
                 path = os.readlink(cwd)
             except PermissionError:
-                # Linux can leave the PID directory owned by this UID while
-                # assigning the protected cwd link to another UID.
-                if os.lstat(cwd).st_uid != os.geteuid():
-                    continue
-                raise
+                # Linux can deny cwd access even to the link's owner.
+                # This entry must not prevent checking the rest of /proc.
+                continue
             if matches(path):
                 sys.exit(1)
         except (FileNotFoundError, ProcessLookupError):
