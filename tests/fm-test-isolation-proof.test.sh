@@ -342,19 +342,20 @@ if os.name != 'posix':
     sys.exit(0)
 base = pathlib.Path(os.environ['TMPDIR'])
 with subprocess.Popen([sys.argv[1], '--pool', 'admitted-family', '--jobs', '2'],
-                      stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) as proof:
+                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as proof:
     try:
         output = b''
         deadline = time.monotonic() + 8
-        while b'candidate failed:' not in output:
-            assert select.select([proof.stderr], [], [], max(0, deadline - time.monotonic()))[0], output
-            chunk = os.read(proof.stderr.fileno(), 4096)
+        while b'FM_ISOLATION_CANDIDATE_END ' not in output:
+            assert select.select([proof.stdout], [], [], max(0, deadline - time.monotonic()))[0], output
+            chunk = os.read(proof.stdout.fileno(), 4096)
             assert chunk, output
             output += chunk
         assert (base / 'sibling-stopped').exists(), output
         assert not (base / 'replacement-started').exists()
         assert len(list(base.glob('fm-isolation-proof.*'))) == 1
-        proof.communicate(timeout=5)
+        remaining, _ = proof.communicate(timeout=5)
+        assert b'candidate failed:' in output + remaining
         assert proof.returncode == 1
     finally:
         if proof.poll() is None:

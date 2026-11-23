@@ -2086,6 +2086,24 @@ SH
   assert_equals 'editor config' "$(<"$profile/config.yaml")" 'replacement config stayed untouched'
   assert_equals 'original config' "$(<"$profile/original.yaml")" 'old target stayed untouched'
   printf 'original config\n' > "$profile/config.yaml"
+  cat > "$tmp/path/python3" <<'SH'
+#!/usr/bin/env bash
+"$REAL_PYTHON" "$@" || exit $?
+if [[ ${4:-} == */before.json ]]; then
+  printf 'platforms: {fixture: {enabled: true}}\n' > "$EDIT_CONFIG.replacement" && mv -f "$EDIT_CONFIG.replacement" "$EDIT_CONFIG"
+fi
+SH
+  chmod +x "$tmp/path/python3"
+  rc=0
+  REAL_PYTHON="$(command -v python3)" EDIT_CONFIG="$profile/config.yaml" PATH="$tmp/path:$PATH" \
+    FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
+    bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+  rm -- "$tmp/path/python3"
+  assert_equals 1 "$rc" 'probe refuses a config save after platform approval'
+  assert_contains "$(<"$tmp/out")" 'changed after platform approval' 'refusal occurred after the session snapshot'
+  assert_absent "$tmp/hermes/mutation-attempted" 'Hermes did not mutate the unapproved config'
+  assert_equals 'platforms: {fixture: {enabled: true}}' "$(<"$profile/config.yaml")" 'unapproved config survived'
+  printf 'original config\n' > "$profile/config.yaml"
   cat > "$tmp/path/cat" <<'SH'
 #!/usr/bin/env bash
 "$REAL_CAT" "$@" || exit 1
@@ -2104,8 +2122,8 @@ SH
   assert_absent "$tmp/hermes/mutation-attempted" 'Hermes did not mutate the concurrent save'
   assert_equals 'editor config' "$(<"$profile/config.yaml")" 'concurrent save survived'
   set -- "$profile"/.fm-gateway-config.??????
-  assert_equals 'original config' "$(<"$1")" 'verified backup was retained'
-  rm -- "$1" "$profile/config.yaml"
+  assert_absent "$1" 'unused backup was discarded before any mutation'
+  rm -- "$profile/config.yaml"
   ln -s original.yaml "$profile/config.yaml"
   rc=0
   PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
@@ -2409,6 +2427,7 @@ esac
 mktemp_dir=$(mktemp -d "$TMPDIR/copy.XXXXXX")
 fm_fixture_copy_remote_source "$PWD" "$mktemp_dir"
 [ "$(cat "$mktemp_dir/tracked")" = 'tracked working-tree bytes' ]
+[ ! -e "$mktemp_dir/ordinary-untracked" ]
 [ ! -e "$mktemp_dir/.test-phase-tmp" ]
 [ ! -e "$mktemp_dir/replaced/sentinel" ]
 mkdir "$TMPDIR/read-only"
@@ -2458,6 +2477,7 @@ replaced.unlink()
 replaced.mkdir()
 (replaced / 'sentinel').touch()
 (repo / 'tracked').write_bytes(b'tracked working-tree bytes\n')
+(repo / 'ordinary-untracked').write_bytes(b'never staged\n')
 legacy = repo / '.test-phase-tmp'
 legacy.mkdir()
 (legacy / 'sentinel').touch()

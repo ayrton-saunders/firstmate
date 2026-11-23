@@ -447,13 +447,15 @@ remove_proof_scratch() {
   fi
 }
 
-finalize_proof_scratch() {
+drain_proof_workers() {
   local pid
-  if fm_test_drain_groups "$PROOF_ROOT" "${WORKER_OWNERS[@]+"${WORKER_OWNERS[@]}"}"; then
-    for pid in "${WORKER_PIDS[@]+"${WORKER_PIDS[@]}"}"; do wait "$pid" 2>/dev/null || true; done
-  else
-    retain_root=1
-  fi
+  fm_test_drain_groups "$PROOF_ROOT" "${WORKER_OWNERS[@]+"${WORKER_OWNERS[@]}"}" || return 1
+  for pid in "${WORKER_PIDS[@]+"${WORKER_PIDS[@]}"}"; do wait "$pid" 2>/dev/null || true; done
+  WORKER_PIDS=() WORKER_OWNERS=() WORKER_IDX=() ACTIVE_WORKERS=0
+}
+
+finalize_proof_scratch() {
+  drain_proof_workers || retain_root=1
   if [ "$retain_root" -ne 0 ]; then
     log "could not confirm worker group exit; retaining scratch: $PROOF_ROOT"
     return 1
@@ -495,6 +497,9 @@ wait_one_slot() {
   unset 'WORKER_PIDS[slot]' 'WORKER_OWNERS[slot]'
   unset 'WORKER_IDX[slot]'
   ACTIVE_WORKERS=$((ACTIVE_WORKERS - 1))
+  if [ "$retain_root" -ne 0 ]; then
+    drain_proof_workers || true
+  fi
   work="$PROOF_ROOT/w$idx"
   script=${CANDIDATES[$((idx - 1))]}
   rc=$(cat "$work/out/exit" 2>/dev/null || echo 1)

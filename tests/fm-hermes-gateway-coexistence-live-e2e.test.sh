@@ -236,9 +236,17 @@ case "$CONFIG_TARGET" in "$PROFILE_HOME"/*) ;; *) fail 'config resolves outside 
 for file in "$FM_HERMES_LIVE_HOME/.env" "$PROFILE_HOME/.env"; do
   [ ! -s "$file" ] || fail "$file may configure a messaging platform; use a profile without one"
 done
+CONFIG_LINK=
+if [ -L "$PROFILE_HOME/config.yaml" ]; then
+  CONFIG_LINK=$(readlink "$PROFILE_HOME/config.yaml") || fail 'could not read profile config link'
+fi
+original_record=$(python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$CONFIG_LINK") \
+  || fail 'config target changed before platform check'
 HERMES_HOME="$FM_HERMES_LIVE_HOME" "$HERMES_BIN" -p "$PROFILE" config get platforms --json > "$LAB/platforms.json" 2>/dev/null || echo null > "$LAB/platforms.json"
 jq -e '. == null or . == {} or ([.[]? | objects | select(.enabled == true)] | length == 0)' "$LAB/platforms.json" >/dev/null \
   || fail 'throwaway profile configures a messaging platform'
+[ "$(python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$CONFIG_LINK")" = "$original_record" ] \
+  || fail 'config target changed during platform check'
 snapshot() {
   python3 -I - "$PROFILE_HOME" "$1" <<'PY'
 import hashlib, json, sqlite3, sys
@@ -255,10 +263,6 @@ out.write_text(json.dumps({'integrity': ok, 'sessions': sessions, 'memory': dige
 PY
 }
 snapshot "$LAB/before.json" || fail 'could not snapshot the throwaway session store'
-CONFIG_LINK=
-if [ -L "$PROFILE_HOME/config.yaml" ]; then
-  CONFIG_LINK=$(readlink "$PROFILE_HOME/config.yaml") || fail 'could not read profile config link'
-fi
 # Native Hermes runs a profile-owned gateway only in its standalone mode, the
 # shape of an operator profile whose own gateway serves only itself.
 restore_config() {
@@ -267,8 +271,8 @@ restore_config() {
   python3 "${RESTORE_ARGS[@]}" || return 1
   discard_backup
 }
-original_record=$(python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$CONFIG_LINK") \
-  || fail 'config target changed before backup'
+[ "$(python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$CONFIG_LINK")" = "$original_record" ] \
+  || fail 'config target changed after platform approval'
 original_target=${original_record%%/*}
 IFS=: read -r _ _ original_mode _ _ original_digest <<< "$original_target"
 printf -v CONFIG_MODE '%o' "$((original_mode & 07777))"
@@ -285,11 +289,11 @@ BACKUP=$(
 BACKUP_RECORD=$(backup_fingerprint "$BACKUP") || fail 'could not record config backup'
 publication_pending=0
 [ "$probe_signal" -eq 0 ] || exit "$probe_signal"
-mutation_attempted=1
 [ "${BACKUP_RECORD##*:}" = "$original_digest" ] &&
   [ "$(backup_fingerprint "$BACKUP")" = "$BACKUP_RECORD" ] &&
   [ "$(python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$CONFIG_LINK")" = "$original_record" ] \
   || fail 'config target or backup changed before mutation'
+mutation_attempted=1
 HERMES_HOME="$FM_HERMES_LIVE_HOME" "$HERMES_BIN" -p "$PROFILE" config set gateway.standalone true >/dev/null \
   || fail 'could not mark the throwaway profile gateway standalone'
 WRITTEN_LINK=$(readlink "$PROFILE_HOME/config.yaml" 2>/dev/null) || WRITTEN_LINK=
