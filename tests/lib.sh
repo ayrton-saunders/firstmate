@@ -40,6 +40,18 @@ umask 022
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=bin/fm-test-scratch-lib.sh
 . "$ROOT/bin/fm-test-scratch-lib.sh"
+fm_test_capture_boundaries() {
+  local boundary resolved
+  local -a protected_paths
+  fm_test_protected_paths "$ROOT"
+  FM_TEST_ORIGINAL_BOUNDARIES=()
+  for boundary in "${protected_paths[@]}" "${FM_ROOT:-}" "${STATE:-}"; do
+    [ -n "$boundary" ] || continue
+    resolved=$(fm_test_resolve_boundary "$boundary") || return 2
+    FM_TEST_ORIGINAL_BOUNDARIES+=("$resolved")
+  done
+}
+fm_test_capture_boundaries || exit "$?"
 FM_TEST_TMPDIR=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || exit "$?"
 export TMPDIR="$FM_TEST_TMPDIR" TMP="$FM_TEST_TMPDIR" TEMP="$FM_TEST_TMPDIR"
 
@@ -351,20 +363,21 @@ fm_test_nonplatform_binary() {
 # unique per-run root path, never a script or process name, so it cannot reach
 # another home's processes; this shell and its ancestors are never signalled.
 fm_test_reap_root_processes() {  # <root>
-  local root=${1%/} chain pid pids signal i
+  local root=${1%/} chain pid pids signal i snapshot
   [ -n "$root" ] && [ "$root" != / ] || return 0
   chain=" "
   pid=$$
   while [ -n "$pid" ] && [ "$pid" -gt 1 ] 2>/dev/null; do
     chain="$chain$pid "
-    pid=$(ps -o ppid= -p "$pid" 2>/dev/null | tr -d '[:space:]')
+    pid=$(ps -o ppid= -p "$pid" 2>/dev/null) || return 1
+    pid=${pid//[[:space:]]/}
   done
   for signal in TERM KILL; do
     i=0
     while [ "$i" -lt 20 ]; do
-      pids=$(ps -ww -eo pid=,args= 2>/dev/null \
-        | FM_TEST_REAP_ROOT="$root/" awk -v chain="$chain" \
-          'index($0, ENVIRON["FM_TEST_REAP_ROOT"]) && index(chain, " " $1 " ") == 0 { print $1 }')
+      snapshot=$(ps -ww -eo pid=,args= 2>/dev/null) || return 1
+      pids=$(FM_TEST_REAP_ROOT="$root/" awk -v chain="$chain" \
+        'index($0, ENVIRON["FM_TEST_REAP_ROOT"]) && index(chain, " " $1 " ") == 0 { print $1 }' <<<"$snapshot") || return 1
       [ -n "$pids" ] || return 0
       # shellcheck disable=SC2086 # one argument per pid
       [ "$i" -gt 0 ] || kill -s "$signal" $pids 2>/dev/null
@@ -372,41 +385,84 @@ fm_test_reap_root_processes() {  # <root>
       i=$((i + 1))
     done
   done
+  return 1
+}
+
+fm_test_owns_registered_root() {
+  local dir=$1 marker="$1/.fm-test-fixture" owner identity
+  case "$dir" in /*) ;; *) return 1 ;; esac
+  [ -d "$dir" ] && [ ! -L "$dir" ] && [ -O "$dir" ] || return 1
+  [ -f "$marker" ] && [ ! -L "$marker" ] && [ -O "$marker" ] || return 1
+  { IFS= read -r owner && IFS= read -r identity; } < "$marker" || return 1
+  [ "$owner" = "$$" ] && [ "$identity" = "$FM_TEST_OWNER_IDENTITY" ] || return 1
+  # A registered path was published physically; do not traverse a changed alias.
+  [ "$(CDPATH='' cd -P -- "$dir" && pwd -P)" = "$dir" ]
+}
+
+fm_test_drain_fixture_jobs() {
+  local jobs_file="$FM_TEST_REGISTRY_DIR/jobs" pid row parent group start
+  local -a records=()
+  jobs -p > "$jobs_file" || return 1
+  while IFS= read -r pid; do
+    [[ "$pid" =~ ^[1-9][0-9]*$ ]] || return 1
+    row=$(ps -o ppid= -o pgid= -p "$pid" 2>/dev/null) || continue
+    read -r parent group <<<"$row"
+    # Without job control a child shares the suite's group. Don't signal it
+    # as a group; the final job inventory below will require retention.
+    [ "$parent" = "$$" ] && [ "$group" = "$pid" ] || continue
+    start=$(fm_test_owner_start "$pid" "$FM_TEST_REGISTRY_DIR") || continue
+    records+=("$UID|$pid|$group|$start")
+  done < "$jobs_file"
+  fm_test_drain_groups "$FM_TEST_REGISTRY_DIR" ${records[@]+"${records[@]}"} || return 1
+  jobs -p > "$jobs_file" && [ ! -s "$jobs_file" ]
 }
 
 fm_test_cleanup() {
   local d rc=0
+  local -a roots=()
   fm_test_reap_watchers
   fm_test_reap_procevent_homes
-  for d in "${FM_TEST_CLEANUP_DIRS[@]:-}"; do
-    fm_test_cleanup_scratch "$d" || rc=1
-  done
   if [ -f "$FM_TEST_CLEANUP_REGISTRY" ]; then
     while IFS= read -r d; do
-      [ -n "$d" ] || continue
-      fm_test_reap_root_processes "$d"
-      fm_test_cleanup_scratch "$d" || rc=1
+      fm_test_owns_registered_root "$d" || continue
+      roots+=("$d")
+      fm_test_reap_root_processes "$d" || rc=1
     done < "$FM_TEST_CLEANUP_REGISTRY"
   fi
+  # Use this shell's job table, including stopped jobs. A live child can use
+  # scratch as its cwd without having the path in argv. Do not guess its group.
+  fm_test_drain_fixture_jobs || rc=1
+  if [ "$rc" -ne 0 ]; then
+    fm_test_retain_registered_scratch
+    return 1
+  fi
+  for d in "${FM_TEST_CLEANUP_DIRS[@]:-}" "${roots[@]+"${roots[@]}"}"; do
+    fm_test_cleanup_scratch "$d" || rc=1
+  done
   fm_test_cleanup_scratch "$FM_TEST_REGISTRY_DIR" || rc=1
   return "$rc"
 }
 
+fm_test_retain_registered_scratch() {
+  local dir
+  if [ -f "$FM_TEST_CLEANUP_REGISTRY" ]; then
+    while IFS= read -r dir; do
+      fm_test_owns_registered_root "$dir" || continue
+      : > "$dir/.retain-scratch.fixture" || printf 'could not mark retained fixture: %s\n' "$dir" >&2
+    done < "$FM_TEST_CLEANUP_REGISTRY"
+  fi
+  : > "$FM_TEST_REGISTRY_DIR/.retain-scratch.fixture" || printf 'could not mark retained registry\n' >&2
+  if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
+    : > "$FM_TEST_RETAIN_MARKER.$$.fixture" || printf 'could not publish fixture retention marker\n' >&2
+  fi
+  printf 'fixture teardown unverified; retaining scratch registered in %s\n' "$FM_TEST_CLEANUP_REGISTRY" >&2
+}
+
 fm_test_finalize() {
-  local status=$1 teardown=${2:-0} dir
+  local status=$1 teardown=${2:-0}
   trap '' HUP INT QUIT TERM
   if [ "$teardown" -ne 0 ]; then
-    if [ -f "$FM_TEST_CLEANUP_REGISTRY" ]; then
-      while IFS= read -r dir; do
-        [ -d "$dir" ] || continue
-        : > "$dir/.retain-scratch.fixture" || printf 'could not mark retained fixture: %s\n' "$dir" >&2
-      done < "$FM_TEST_CLEANUP_REGISTRY"
-    fi
-    : > "$FM_TEST_REGISTRY_DIR/.retain-scratch.fixture" || printf 'could not mark retained registry\n' >&2
-    if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
-      : > "$FM_TEST_RETAIN_MARKER.$$.fixture" || printf 'could not publish fixture retention marker\n' >&2
-    fi
-    printf 'fixture teardown unverified; retaining scratch registered in %s\n' "$FM_TEST_CLEANUP_REGISTRY" >&2
+    fm_test_retain_registered_scratch
     [ "$status" -ne 0 ] || status=1
   elif ! fm_test_cleanup; then
     [ "$status" -ne 0 ] || status=1
@@ -416,7 +472,7 @@ fm_test_finalize() {
 
 fm_test_tmproot() (
   local prefix=${1:-fm-test} root='' tmp_base
-  case "$prefix" in */*) return 2 ;; esac
+  case "$prefix" in */*|*[[:cntrl:]]*) return 2 ;; esac
   tmp_base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || return "$?"
   trap '' HUP INT QUIT TERM
   trap '[ -z "$root" ] || fm_test_remove_tree "$root"' EXIT
@@ -485,7 +541,7 @@ fm_test_reap_orphans() (
     mtime=$(stat -c %Y "$marker" 2>/dev/null || stat -f %m "$marker" 2>/dev/null) || continue
     [ $((now - mtime)) -ge "$FM_TEST_ORPHAN_MAX_AGE_SECONDS" ] || continue
     fm_test_scratch_retained "$dir" && continue
-    fm_test_reap_root_processes "$dir"
+    fm_test_reap_root_processes "$dir" || continue
     fm_test_remove_tree "$dir"
   done
 )

@@ -367,6 +367,44 @@ test_primary_lab_copy_excludes_only_declared_scratch() {
   pass 'primary lab copies omit only root-level declared scratch'
 }
 
+test_registry_cleanup_guards() {
+  local harness rc=0
+  harness=$(fm_test_tmproot fm-test-cleanup-guards)
+  mkdir "$harness/unmarked" "$harness/original" "$harness/original/tmp" "$harness/unsafe"$'\n'
+  TMPDIR="$harness" bash -ec '
+    . "$1"
+    printf "%s\n" "$2/unmarked" >> "$FM_TEST_CLEANUP_REGISTRY"
+  ' _ "$LIB" "$harness" || fail 'unmarked record interrupted normal cleanup'
+  [ -d "$harness/unmarked" ] || fail 'cleanup deleted an unmarked root'
+  TMPDIR="$harness" FM_HOME="$harness/original" bash -ec '
+    . "$1"
+    if TMPDIR="$2/original/tmp" fm_test_tmproot blocked; then exit 8; fi
+    if fm_test_tmproot $'"'"'prefix\nsplit'"'"'; then exit 9; fi
+    ln -s "$2/unsafe"$'"'"'\n'"'"' "$2/alias"
+    if TMPDIR="$2/alias" fm_test_tmproot blocked; then exit 10; fi
+    d=$(fm_test_tmproot fm-cwd-only)
+    printf "%s\n" "$d" > "$2/root"
+    # With job control disabled the child shares our process group and the
+    # finalizer must retain scratch rather than signal an unowned group.
+    (cd "$d" && touch "$2/ready" && exec sleep 30) &
+    for ((i=0; i<100; ++i)); do
+      [ ! -f "$2/ready" ] || break
+      sleep 0.02
+    done
+    [ -f "$2/ready" ] || exit 11
+    printf "%s\n" "$!" > "$2/pid"
+    exit 0
+  ' _ "$LIB" "$harness" >"$harness/out" 2>&1 || rc=$?
+  if [ -f "$harness/pid" ]; then kill "$(<"$harness/pid")" 2>/dev/null || true; fi
+  assert_equals 1 "$rc" 'unverified teardown returns failure'
+  [ -f "$(<"$harness/root")/.retain-scratch.fixture" ] || fail 'cwd-only child did not retain the fixture'
+  grep -q 'fixture teardown unverified' "$harness/out" || fail 'missing retention warning'
+  grep -q 'unsafe scratch base' "$harness/out" || fail 'original home was not rejected'
+  grep -q 'unsupported character in resolved scratch base' "$harness/out" || fail 'newline alias was not rejected'
+  pass 'cleanup guards cwd-only children, fixture ownership, and inherited boundaries'
+}
+
+test_registry_cleanup_guards
 test_custom_finalizer_cleans_or_retains_after_teardown
 test_primary_lab_copy_excludes_only_declared_scratch
 test_removal_failure_preserves_existing_status

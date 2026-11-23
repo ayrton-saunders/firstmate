@@ -25,6 +25,9 @@ case "$CONFIG_TARGET" in "$PROFILE_HOME"/*) ;; *) fail 'config resolves outside 
 LAB=
 SOCKET=
 BACKUP=
+PROFILE_LOCK=
+WRITTEN_CONFIG=
+WRITTEN_LINK=
 publication_pending=0
 mutation_attempted=0
 probe_signal=0
@@ -39,9 +42,12 @@ cleanup() {
     if [ "$mutation_attempted" -eq 0 ]; then
       rm -f "$BACKUP" || { [ "$status" -ne 0 ] || status=1; }
     elif ! restore_config; then
-      printf 'not ok - config restore failed; backup retained at %s\n' "$BACKUP" >&2
+      printf 'not ok - config changed or restore failed; backup retained at %s\n' "$BACKUP" >&2
       [ "$status" -ne 0 ] || status=1
     fi
+  fi
+  if [ -n "$PROFILE_LOCK" ]; then
+    rmdir -- "$PROFILE_LOCK" || { [ "$status" -ne 0 ] || status=1; }
   fi
   if [ -n "$TUI_PID" ]; then
     for ((attempt=0; attempt<60; ++attempt)); do
@@ -114,6 +120,14 @@ out.write_text(json.dumps({'integrity': ok, 'sessions': sessions, 'memory': dige
 PY
 }
 snapshot "$LAB/before.json" || fail 'could not snapshot the throwaway session store'
+publication_pending=1
+PROFILE_LOCK=$(
+  trap '' HUP INT QUIT TERM
+  lock="$PROFILE_HOME/.fm-gateway-config-lock"
+  mkdir -- "$lock" && printf '%s\n' "$lock"
+) || fail 'throwaway profile is locked by another gateway probe (or a previous interrupted probe)'
+publication_pending=0
+[ "$probe_signal" -eq 0 ] || exit "$probe_signal"
 CONFIG_LINK=
 if [ -L "$PROFILE_HOME/config.yaml" ]; then
   CONFIG_LINK=$(readlink "$PROFILE_HOME/config.yaml") || fail 'could not read profile config link'
@@ -121,6 +135,13 @@ fi
 # Native Hermes runs a profile-owned gateway only in its standalone mode, the
 # shape of an operator profile whose own gateway serves only itself.
 restore_config() {
+  local link_now
+  [ -n "$WRITTEN_CONFIG" ] || return 1
+  link_now=$(readlink "$PROFILE_HOME/config.yaml" 2>/dev/null) || link_now=
+  [ "$link_now" = "$WRITTEN_LINK" ] || return 1
+  [ ! -L "$CONFIG_TARGET" ] && [ -f "$CONFIG_TARGET" ] || return 1
+  cmp -s -- "$LAB/written-target" "$CONFIG_TARGET" &&
+    cmp -s -- "$WRITTEN_CONFIG" "$PROFILE_HOME/config.yaml" || return 1
   [ ! -d "$CONFIG_TARGET" ] && [ ! -L "$CONFIG_TARGET" ] && cp -p "$BACKUP" "$CONFIG_TARGET" || return 1
   if [ -n "$CONFIG_LINK" ] && [ "$(readlink "$PROFILE_HOME/config.yaml" 2>/dev/null)" != "$CONFIG_LINK" ]; then
     [ ! -d "$PROFILE_HOME/config.yaml" ] || return 1
@@ -143,6 +164,10 @@ publication_pending=0
 mutation_attempted=1
 HERMES_HOME="$FM_HERMES_LIVE_HOME" "$HERMES_BIN" -p "$PROFILE" config set gateway.standalone true >/dev/null \
   || fail 'could not mark the throwaway profile gateway standalone'
+WRITTEN_LINK=$(readlink "$PROFILE_HOME/config.yaml" 2>/dev/null) || WRITTEN_LINK=
+cp -- "$CONFIG_TARGET" "$LAB/written-target" &&
+  cp -- "$PROFILE_HOME/config.yaml" "$LAB/written-config" || fail 'could not record the gateway probe config'
+WRITTEN_CONFIG="$LAB/written-config"
 gateway_state() { jq -c '{pid, gateway_state, active_agents, active_work, updated_at, session_store}' "$PROFILE_HOME/gateway_state.json"; }
 # The gateway's environment, HOME and state are private, so no inherited
 # platform credential, operator Hermes root, or per-user host rendezvous is

@@ -290,20 +290,28 @@ fm_test_anchor_inherited_paths() {
   done
 }
 
-fm_test_check_scratch_placement() (
-  local repo_root=$1 base=$2 blocked ancestor resolved rc home wake_home
-  if [ "$#" -ge 3 ]; then
-    CDPATH='' cd -P -- "$3" || return 2
-  fi
+# Populate the caller's protected_paths array before a fixture clears its environment.
+fm_test_protected_paths() {
+  local repo_root=$1 home wake_home
   home=${FM_HOME:-${FM_ROOT_OVERRIDE:-$repo_root}}
   # bin/fm-wake-lib.sh owns the wake home and state fallback; keep these rules in sync.
   wake_home=${FM_HOME:-${FM_ROOT_OVERRIDE:-${FM_ROOT:-$repo_root}}}
+  protected_paths=("$repo_root" "$home" "${FM_ROOT_OVERRIDE:-}" "$wake_home"
+    "${FM_STATE_OVERRIDE:-$home/state}" "${FM_STATE_OVERRIDE:-${STATE:-$wake_home/state}}"
+    "${FM_DATA_OVERRIDE:-$home/data}" "${FM_CONFIG_OVERRIDE:-$home/config}" "${FM_PROJECTS_OVERRIDE:-$home/projects}"
+    "$HOME/.firstmate-preserved" "$HOME/.treehouse" "${TREEHOUSE_ROOT:-}")
+}
+
+fm_test_check_scratch_placement() (
+  local repo_root=$1 base=$2 blocked ancestor resolved rc
+  local -a protected_paths
+  if [ "$#" -ge 3 ]; then
+    CDPATH='' cd -P -- "$3" || return 2
+  fi
+  fm_test_protected_paths "$repo_root"
   ancestor=$base
   while :; do
-    for blocked in "$repo_root" "$home" "${FM_ROOT_OVERRIDE:-}" "$wake_home" \
-      "${FM_STATE_OVERRIDE:-$home/state}" "${FM_STATE_OVERRIDE:-${STATE:-$wake_home/state}}" \
-      "${FM_DATA_OVERRIDE:-$home/data}" "${FM_CONFIG_OVERRIDE:-$home/config}" "${FM_PROJECTS_OVERRIDE:-$home/projects}" \
-      "$HOME/.firstmate-preserved" "$HOME/.treehouse" "${TREEHOUSE_ROOT:-}"; do
+    for blocked in "${protected_paths[@]}" "${FM_TEST_ORIGINAL_BOUNDARIES[@]+"${FM_TEST_ORIGINAL_BOUNDARIES[@]}"}"; do
       [ -n "$blocked" ] || continue
       rc=1
       if [ "$ancestor" = "${blocked%/}" ] || [ "$ancestor" -ef "$blocked" ]; then
@@ -332,10 +340,13 @@ fm_test_validate_scratch_base() (
   if [ "$#" -ge 3 ]; then
     CDPATH='' cd -P -- "$3" || return 2
   fi
-  base=$(CDPATH='' cd -P -- "$requested" && pwd -P) || {
+  case "$requested" in *[[:cntrl:]]*) printf 'unsupported character in scratch base\n' >&2; return 2 ;; esac
+  base=$(CDPATH='' cd -P -- "$requested" && pwd -P && printf '.') || {
     printf 'cannot resolve scratch base: %s\n' "$requested" >&2
     return 2
   }
+  base=${base%$'\n.'}
+  case "$base" in *[[:cntrl:]]*) printf 'unsupported character in resolved scratch base\n' >&2; return 2 ;; esac
   fm_test_check_scratch_placement "$repo_root" "$base" || return "$?"
   printf '%s\n' "$base"
 )

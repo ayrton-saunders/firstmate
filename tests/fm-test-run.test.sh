@@ -2073,6 +2073,24 @@ SH
     || fail "gateway did not exercise mutation and rollback: $(<"$tmp/out")"
   [ -L "$profile/config.yaml" ] && [ "$(readlink "$profile/config.yaml")" = original.yaml ] \
     && [ "$(<"$profile/original.yaml")" = 'original config' ] || fail 'gateway rollback changed the config link or target'
+  [ ! -e "$profile/.fm-gateway-config-lock" ] || fail 'gateway did not release the profile lock'
+  rm -f "$tmp/hermes/mutation-attempted"
+  mkdir "$profile/.fm-gateway-config-lock"
+  rc=0
+  PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
+    bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+  [ "$rc" -eq 1 ] && grep -q 'profile is locked' "$tmp/out" && [ ! -e "$tmp/hermes/mutation-attempted" ] \
+    || fail 'overlapping gateway run was not refused before mutation'
+  rmdir "$profile/.fm-gateway-config-lock" || fail 'gateway removed a lock it did not own'
+  # An editor changes the file after the probe records its write, but before cleanup.
+  printf '%s\n' '#!/usr/bin/env bash' 'if [[ " $* " == *" new-session "* ]]; then printf "edited\n" > "$EDIT_CONFIG"; fi' 'exit 99' >"$tmp/path/tmux"
+  rc=0
+  PATH="$tmp/path:$PATH" EDIT_CONFIG="$profile/config.yaml" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
+    bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+  [ "$rc" -eq 1 ] && [ "$(<"$profile/config.yaml")" = edited ] && grep -q 'backup retained at' "$tmp/out" \
+    || fail 'gateway rollback overwrote or failed to report a conflicting change'
+  compgen -G "$profile/.fm-gateway-config.*" >/dev/null || fail 'gateway did not retain its backup'
+  [ ! -e "$profile/.fm-gateway-config-lock" ] || fail 'conflicting edit left the profile locked'
   rm -f "$profile/config.yaml" "$tmp/hermes/hermes-called"
   printf 'operator config\n\n' >"$tmp/operator.yaml"
   cp "$tmp/operator.yaml" "$tmp/expected.yaml"

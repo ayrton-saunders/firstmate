@@ -56,6 +56,19 @@ done
 root=$(git rev-parse --show-toplevel 2>/dev/null) || die "run inside a git checkout"
 script_dir=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 dockerfile_dir="$script_dir/../tests/linux"
+# shellcheck source=bin/fm-test-scratch-lib.sh
+. "$script_dir/fm-test-scratch-lib.sh"
+# The exclude rule prunes untracked traversal. The pathspec also excludes
+# indexed entries, including the scratch directory's actual case spelling.
+scratch_pathspec=(. ":(top,exclude,literal)$fm_test_declared_scratch")
+scratch_excludes=("--exclude=/$fm_test_declared_scratch")
+for entry in "$root"/.*; do
+  name=${entry##*/}
+  if [ "$name" != "$fm_test_declared_scratch" ] && fm_test_is_declared_scratch "$root" "$name"; then
+    scratch_pathspec+=(":(top,exclude,literal)$name")
+    scratch_excludes+=("--exclude=/$name")
+  fi
+done
 
 if [ ${#tests[@]} -eq 0 ]; then
   if [ -z "$base" ]; then
@@ -68,8 +81,8 @@ if [ ${#tests[@]} -eq 0 ]; then
   while IFS= read -r path; do
     [ -f "$root/$path" ] && tests+=("$path")
   done < <({
-    git -C "$root" diff --name-only --diff-filter=ACMR "$merge_base" --
-    git -C "$root" ls-files --others --exclude-standard
+    git -C "$root" diff --name-only --diff-filter=ACMR "$merge_base" -- "${scratch_pathspec[@]}"
+    git -C "$root" ls-files --others --exclude-standard "${scratch_excludes[@]}" -- "${scratch_pathspec[@]}"
   } | sort -u | grep -E '^tests/[^/]+\.test\.sh$' || true)
 fi
 
@@ -83,8 +96,6 @@ if [ "$list_only" = 1 ]; then
   exit 0
 fi
 
-# shellcheck source=bin/fm-test-scratch-lib.sh
-. "$script_dir/fm-test-scratch-lib.sh"
 scratch_base=$(fm_test_validate_scratch_base "$root" "${TMPDIR:-/tmp}") || exit "$?"
 export TMPDIR="$scratch_base" TMP="$scratch_base" TEMP="$scratch_base"
 
@@ -156,7 +167,7 @@ if git -C "$scratch" rev-parse --verify --quiet HEAD >/dev/null; then
   git -C "$scratch" read-tree HEAD
 fi
 inventory="$scratch/.git/fm-test-overlay"
-git -C "$root" ls-files -z --cached --others --exclude-standard >"$inventory" || die 'could not enumerate overlay paths'
+git -C "$root" ls-files -z --cached --others --exclude-standard "${scratch_excludes[@]}" -- "${scratch_pathspec[@]}" >"$inventory" || die 'could not enumerate overlay paths'
 files=()
 while IFS= read -r -d '' path; do
   fm_test_is_declared_scratch "$root" "$path" && continue

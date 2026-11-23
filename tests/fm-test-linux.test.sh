@@ -27,7 +27,7 @@ make_repo() {  # <dir>
 }
 
 test_selects_changed_tests() {
-  local repo="$TMP_ROOT/select" out
+  local repo="$TMP_ROOT/select" out discovery_bin="$TMP_ROOT/discovery-tools"
   make_repo "$repo"
   printf 'y\n' > "$repo/tests/added.test.sh"
   git -C "$repo" add tests/added.test.sh
@@ -37,7 +37,26 @@ test_selects_changed_tests() {
   printf 'y\n' > "$repo/tests/helper.sh"
   printf 'y\n' >> "$repo/README.md"
   rm "$repo/tests/gone.test.sh"
-  out=$(cd "$repo" && "$BASH" "$LINUX_CHECK" --base main --list 2>&1) || fail "--list failed: $out"
+  mkdir -p "$discovery_bin" "$repo/.test-phase-tmp/deep"
+  touch "$repo/.test-phase-tmp/deep/old.test.sh"
+  # Assert the traversal-pruning rule is present in the Git invocation, not
+  # merely that a later result filter happens to discard the scratch paths.
+  cat >"$discovery_bin/git" <<'SH'
+#!/usr/bin/env bash
+if [ "${3:-}" = ls-files ]; then
+  for arg; do
+    if [ "$arg" = '--exclude=/.test-phase-tmp' ]; then
+      touch "$DISCOVERY_PRUNED"
+      break
+    fi
+  done
+fi
+exec "$REAL_GIT" "$@"
+SH
+  chmod +x "$discovery_bin/git"
+  out=$(cd "$repo" && REAL_GIT="$(command -v git)" DISCOVERY_PRUNED="$discovery_bin/pruned" PATH="$discovery_bin:$PATH" \
+    "$BASH" "$LINUX_CHECK" --base main --list 2>&1) || fail "--list failed: $out"
+  [ -f "$discovery_bin/pruned" ] || fail 'discovery did not prune the declared top-level scratch entry'
   assert_equals $'tests/added.test.sh\ntests/kept.test.sh\ntests/untracked.test.sh' "$out" "changed test selection"
   pass "selects committed, modified, and untracked tests only"
 }
@@ -100,6 +119,8 @@ test_overlay_keeps_work_but_excludes_legacy_scratch() {
   printf 'included\n' >"$repo/replaced/public"
   printf 'dirty\n' >"$repo/tests/kept.test.sh"
   printf 'untracked\n' >"$repo/tests/real work.txt"
+  mkdir "$repo/tests/.test-phase-tmp"
+  printf 'nested work\n' >"$repo/tests/.test-phase-tmp/keep"
   cat >"$runtime" <<'SH'
 #!/usr/bin/env bash
 if [ "$TMPDIR" != "$EXPECTED_TMP" ] || [ "$TMP" != "$EXPECTED_TMP" ] || [ "$TEMP" != "$EXPECTED_TMP" ]; then
@@ -114,6 +135,7 @@ while [ "$#" -gt 1 ]; do
       [ ! -e "$copy/replaced/private" ] &&
       [ "$(<"$copy/replaced/public")" = included ] &&
       [ "$(<"$copy/tests/kept.test.sh")" = dirty ] &&
+      [ "$(<"$copy/tests/.test-phase-tmp/keep")" = 'nested work' ] &&
       [ "$(<"$copy/tests/real work.txt")" = untracked ]
     exit $?
   fi

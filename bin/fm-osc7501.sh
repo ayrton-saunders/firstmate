@@ -428,9 +428,7 @@ osc_watch() { # --task --kind --state --harness [--backend] [--target] [--owned 
   [ "$WATCH_OWNED" = 1 ] && last=$(osc_seq idle '' "$WATCH_TITLE" '')
   exec 3>>"$dev" 2>/dev/null || exit 0
   osc_load_libs || exit 0
-  # The poll sleep is this watcher's only background job. Use the job spec
-  # so a signal just after launch can still reap it, before wait starts.
-  trap 'kill %% 2>/dev/null && wait %% 2>/dev/null; osc_final; exit 0' TERM INT HUP
+  trap 'osc_final; exit 0' TERM INT HUP
   [ "${FM_OSC7501_INTERVAL:-1}" -ge 1 ] 2>/dev/null || FM_OSC7501_INTERVAL=1
   hb_ticks=$((FM_OSC7501_HEARTBEAT / FM_OSC7501_INTERVAL))
   [ "$hb_ticks" -ge 1 ] || hb_ticks=1
