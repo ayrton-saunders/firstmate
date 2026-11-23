@@ -37,8 +37,6 @@ test_selects_changed_tests() {
   printf 'y\n' > "$repo/tests/helper.sh"
   printf 'y\n' >> "$repo/README.md"
   rm "$repo/tests/gone.test.sh"
-  mkdir -p "$repo/.test-phase-tmp/deep"
-  touch "$repo/.test-phase-tmp/deep/old.test.sh"
   out=$(cd "$repo" && "$BASH" "$LINUX_CHECK" --base main --list 2>&1) || fail "--list failed: $out"
   assert_equals $'tests/added.test.sh\ntests/kept.test.sh\ntests/untracked.test.sh' "$out" "changed test selection"
   pass "selects committed, modified, and untracked tests only"

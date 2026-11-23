@@ -33,6 +33,21 @@ probe_signal=0
 TUI_PID=
 TUI_RETAIN=
 GATEWAY_RETAIN=
+RESTORE_TARGET_CODE='import os, shutil, stat, sys
+
+backup, target, mode = sys.argv[1:]
+flags = os.O_NOFOLLOW | os.O_NONBLOCK
+with os.fdopen(os.open(backup, os.O_RDONLY | flags), "rb") as src, \
+     os.fdopen(os.open(target, os.O_WRONLY | flags), "wb") as dst:
+    before = os.fstat(dst.fileno())
+    if not stat.S_ISREG(before.st_mode) or not stat.S_ISREG(os.fstat(src.fileno()).st_mode):
+        sys.exit("config restore requires regular files")
+    dst.truncate(0)
+    shutil.copyfileobj(src, dst)
+    dst.flush()
+    os.fchmod(dst.fileno(), int(mode, 8))
+    if not os.path.samestat(before, os.lstat(target)):
+        sys.exit("config target was replaced during restore")'
 print_restore_command() {
   local config="$PROFILE_HOME/config.yaml" expected_link=$WRITTEN_LINK target_dir=${CONFIG_TARGET%/*}
   if [ -z "$WRITTEN_CONFIG" ] && [ -L "$config" ]; then
@@ -49,7 +64,7 @@ print_restore_command() {
   else
     printf ' && [ -f %q ] && [ ! -L %q ]' "$config" "$config"
   fi
-  printf ' && cp -- %q %q && chmod %q %q' "$BACKUP" "$CONFIG_TARGET" "$CONFIG_MODE" "$CONFIG_TARGET"
+  printf ' && python3 -I -c %q %q %q %q' "$RESTORE_TARGET_CODE" "$BACKUP" "$CONFIG_TARGET" "$CONFIG_MODE"
   if [ -n "$CONFIG_LINK" ] && [ "$CONFIG_LINK" != "$expected_link" ]; then
     printf ' && ln -sfn -- %q %q' "$CONFIG_LINK" "$config"
   fi
@@ -172,7 +187,7 @@ restore_config() {
   [ ! -L "$CONFIG_TARGET" ] && [ -f "$CONFIG_TARGET" ] || return 1
   cmp -s -- "$LAB/written-target" "$CONFIG_TARGET" &&
     cmp -s -- "$WRITTEN_CONFIG" "$PROFILE_HOME/config.yaml" || return 1
-  cp -- "$BACKUP" "$CONFIG_TARGET" && chmod "$CONFIG_MODE" "$CONFIG_TARGET" || return 1
+  python3 -I -c "$RESTORE_TARGET_CODE" "$BACKUP" "$CONFIG_TARGET" "$CONFIG_MODE" || return 1
   if [ -n "$CONFIG_LINK" ] && [ "$(readlink "$PROFILE_HOME/config.yaml" 2>/dev/null)" != "$CONFIG_LINK" ]; then
     [ ! -d "$PROFILE_HOME/config.yaml" ] || return 1
     ln -sfn -- "$CONFIG_LINK" "$PROFILE_HOME/config.yaml" || return 1

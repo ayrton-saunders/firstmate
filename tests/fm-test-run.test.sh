@@ -2142,6 +2142,45 @@ PY
     rmdir -- "$endpoint" || fail 'manual restore wrote into a replacement directory'
     mv -- "$endpoint.saved" "$endpoint"
   done
+  local real_python real_chmod
+  real_python=$(command -v python3)
+  real_chmod=$(command -v chmod)
+  cp "$profile/original.yaml" "$tmp/before-save"
+  printf 'private editor save\n' >"$tmp/editor-save"
+  chmod 0600 "$tmp/editor-save"
+  cat >"$tmp/path/python3" <<'SH'
+#!/usr/bin/env bash
+exec "$REAL_PYTHON" -I -c '
+import os, sys
+code = sys.argv[1]
+sys.argv = sys.argv[1:]
+fchmod = os.fchmod
+def save_then_chmod(fd, mode):
+    os.replace(os.environ["EDITOR_SAVE"], os.environ["CONFIG_TARGET"])
+    fchmod(fd, mode)
+os.fchmod = save_then_chmod
+exec(code)
+' "$3" "${@:4}"
+SH
+  cat >"$tmp/path/chmod" <<'SH'
+#!/usr/bin/env bash
+mv -- "$EDITOR_SAVE" "$CONFIG_TARGET"
+exec "$REAL_CHMOD" "$@"
+SH
+  chmod +x "$tmp/path/python3" "$tmp/path/chmod"
+  if PATH="$tmp/path:$PATH" REAL_PYTHON="$real_python" REAL_CHMOD="$real_chmod" \
+      EDITOR_SAVE="$tmp/editor-save" CONFIG_TARGET="$profile/original.yaml" bash -c "$restore_command"; then
+    fail 'manual restore reported success after an atomic editor save'
+  fi
+  rm -- "$tmp/path/python3" "$tmp/path/chmod"
+  python3 - "$profile/original.yaml" <<'PY' || fail 'manual restore changed the private editor save'
+import pathlib, stat, sys
+file = pathlib.Path(sys.argv[1])
+assert file.read_text() == 'private editor save\n'
+assert stat.S_IMODE(file.stat().st_mode) == 0o600
+PY
+  [ ! -L "$profile/config.yaml" ] || fail 'failed manual restore rewrote the config link'
+  mv -- "$tmp/before-save" "$profile/original.yaml"
   printf 'damaged target\n' >"$profile/original.yaml"
   chmod 0600 "$profile/original.yaml"
   bash -c "$restore_command" || fail 'manual restore refused the original paths'
