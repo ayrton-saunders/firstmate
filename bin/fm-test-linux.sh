@@ -62,12 +62,12 @@ if [ ${#tests[@]} -eq 0 ]; then
   fi
   [ -n "$base" ] || die "no origin/main or main to compare against; pass --base <git-ref>"
   merge_base=$(git -C "$root" merge-base HEAD "$base") || die "no merge base with $base"
-  changed=$(git -C "$root" diff --name-only --diff-filter=ACMR "$merge_base" --) || die 'could not list changed paths'
-  untracked=$(git -C "$root" ls-files --others --exclude-standard) || die 'could not list untracked paths'
-  selected=$(printf '%s\n' "$changed" "$untracked" | sort -u) || die 'could not sort changed paths'
   while IFS= read -r path; do
-    if [[ "$path" =~ ^tests/[^/]+\.test\.sh$ ]] && [ -f "$root/$path" ]; then tests+=("$path"); fi
-  done <<<"$selected"
+    [ -f "$root/$path" ] && tests+=("$path")
+  done < <({
+    git -C "$root" diff --name-only --diff-filter=ACMR "$merge_base" --
+    git -C "$root" ls-files --others --exclude-standard
+  } | sort -u | grep -E '^tests/[^/]+\.test\.sh$' || true)
 fi
 
 if [ ${#tests[@]} -eq 0 ]; then
@@ -151,9 +151,10 @@ if git -C "$scratch" rev-parse --verify --quiet HEAD >/dev/null; then
   git -C "$scratch" read-tree HEAD
 fi
 inventory="$scratch/.git/fm-test-overlay"
-git -C "$root" ls-files -z --cached --others --exclude-standard -- "$fm_test_scratch_exclusion" >"$inventory" || die 'could not enumerate overlay paths'
+git -C "$root" ls-files -z --cached --others --exclude-standard >"$inventory" || die 'could not enumerate overlay paths'
 files=()
 while IFS= read -r -d '' path; do
+  fm_test_is_declared_scratch "$root" "$path" && continue
   parent=$path
   while [[ "$parent" == */* ]]; do
     parent=${parent%/*}

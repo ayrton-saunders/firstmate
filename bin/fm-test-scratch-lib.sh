@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 
 fm_test_declared_scratch=.test-phase-tmp
-fm_test_scratch_exclusion=":(top,exclude,literal)$fm_test_declared_scratch"
+
+fm_test_is_declared_scratch() {
+  local top=${2%%/*}
+  [ "$top" = "$fm_test_declared_scratch" ] ||
+    { [ -d "$1/$top" ] && [ ! -L "$1/$top" ] && [ "$1/$top" -ef "$1/$fm_test_declared_scratch" ]; }
+}
 
 fm_test_copy_primary_lab() (
   set -o pipefail
@@ -10,7 +15,7 @@ fm_test_copy_primary_lab() (
   cd -- "$source" || return 1
   shopt -s dotglob nullglob
   for entry in ./*; do
-    [ "$entry" = "./$fm_test_declared_scratch" ] || entries+=("$entry")
+    fm_test_is_declared_scratch . "${entry#./}" || entries+=("$entry")
   done
   [ "${#entries[@]}" -gt 0 ] || return 0
   tar --exclude=.git --exclude=state --exclude=projects --exclude=node_modules -cf - "${entries[@]}" |

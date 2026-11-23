@@ -401,6 +401,7 @@ fm_test_finalize() {
         : > "$dir/.retain-scratch.fixture" || printf 'could not mark retained fixture: %s\n' "$dir" >&2
       done < "$FM_TEST_CLEANUP_REGISTRY"
     fi
+    : > "$FM_TEST_REGISTRY_DIR/.retain-scratch.fixture" || printf 'could not mark retained registry\n' >&2
     if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
       : > "$FM_TEST_RETAIN_MARKER.$$.fixture" || printf 'could not publish fixture retention marker\n' >&2
     fi
@@ -426,6 +427,7 @@ fm_test_tmproot() (
 
 fm_test_allocate_scratch "${FM_TEST_TMPDIR%/}/.fm-test-registry.XXXXXX" || exit "$?"
 FM_TEST_REGISTRY_DIR=$FM_TEST_SCRATCH
+printf '%s\n%s\n' "$$" "$FM_TEST_OWNER_IDENTITY" > "$FM_TEST_REGISTRY_DIR/.fm-test-fixture" || exit 1
 FM_TEST_CLEANUP_REGISTRY="$FM_TEST_REGISTRY_DIR/cleanup"
 FM_TEST_PROCEVENT_REGISTRY="$FM_TEST_REGISTRY_DIR/procevent"
 FM_TEST_WATCHER_REGISTRY="$FM_TEST_REGISTRY_DIR/watcher"
@@ -446,8 +448,10 @@ FM_TEST_ORPHAN_MAX_AGE_SECONDS=${FM_TEST_ORPHAN_MAX_AGE_SECONDS:-3600}
 fm_test_reap_orphans() {
   local marker dir mtime now owner_pid owner_identity current_identity
   now=$(date +%s)
-  for marker in "$FM_TEST_TMPDIR"/fm-*/.fm-test-fixture; do
+  for marker in "$FM_TEST_TMPDIR"/fm-*/.fm-test-fixture "$FM_TEST_TMPDIR"/.fm-test-registry.*/.fm-test-fixture; do
     [ -e "$marker" ] || continue
+    dir=${marker%/*}
+    [ "$dir" != "$FM_TEST_REGISTRY_DIR" ] || continue
     owner_pid=$(sed -n '1p' "$marker" 2>/dev/null) || owner_pid=
     owner_identity=$(sed -n '2,$p' "$marker" 2>/dev/null) || owner_identity=
     case "$owner_pid" in
@@ -461,7 +465,6 @@ fm_test_reap_orphans() {
     esac
     mtime=$(stat -c %Y "$marker" 2>/dev/null || stat -f %m "$marker" 2>/dev/null) || continue
     [ $((now - mtime)) -ge "$FM_TEST_ORPHAN_MAX_AGE_SECONDS" ] || continue
-    dir=${marker%/*}
     fm_test_scratch_retained "$dir" && continue
     fm_test_reap_root_processes "$dir"
     fm_test_remove_tree "$dir"

@@ -111,14 +111,14 @@ test_fixture_registration_failure_rolls_back_root() {
 }
 
 test_orphan_sweep_respects_fixture_ownership() {
-  local harness dirfile active_dir stale_dir fresh_dir pid tries
+  local harness dirfile active_dir registry_dir stale_dir fresh_dir pid tries
   harness=$(fm_test_tmproot fm-test-cleanup-orphan-harness)
   dirfile="$harness/active-dir"
-  bash -c '
+  TMPDIR="$harness" bash -c '
     # shellcheck source=tests/lib.sh
     . "'"$LIB"'"
     d=$(fm_test_tmproot fm-test-cleanup-active)
-    printf "%s\n" "$d" > "'"$dirfile"'"
+    printf "%s\n%s\n" "$d" "$FM_TEST_REGISTRY_DIR" > "'"$dirfile"'"
     while :; do sleep 0.1; done
   ' &
   pid=$!
@@ -129,16 +129,17 @@ test_orphan_sweep_respects_fixture_ownership() {
     tries=$((tries + 1))
   done
   [ -s "$dirfile" ] || fail "the active child never published its fixture root before the wait timed out"
-  active_dir=$(cat "$dirfile")
-  touch -t 202001010000 "$active_dir/.fm-test-fixture"
+  { IFS= read -r active_dir; IFS= read -r registry_dir; } < "$dirfile"
+  assert_present "$registry_dir/cleanup" 'standalone child registered fixtures'
+  touch -c -t 202001010000 "$active_dir/.fm-test-fixture" "$registry_dir/.fm-test-fixture"
 
-  stale_dir=$(mktemp -d "$FM_TEST_TMPDIR/fm-test-cleanup-stale.XXXXXX")
+  stale_dir=$(mktemp -d "$harness/fm-test-cleanup-stale.XXXXXX")
   printf '%s\n%s\n' "$$" reused-process-identity > "$stale_dir/.fm-test-fixture"
   touch -t 202001010000 "$stale_dir/.fm-test-fixture"
-  fresh_dir=$(mktemp -d "$FM_TEST_TMPDIR/fm-test-cleanup-fresh.XXXXXX")
+  fresh_dir=$(mktemp -d "$harness/fm-test-cleanup-fresh.XXXXXX")
   : > "$fresh_dir/.fm-test-fixture"
 
-  bash -c '
+  TMPDIR="$harness" bash -c '
     # shellcheck source=tests/lib.sh
     . "'"$LIB"'"
   '
@@ -149,10 +150,12 @@ test_orphan_sweep_respects_fixture_ownership() {
     "the orphan reaper removed an old fixture root whose owning process was still alive"
   assert_present "$fresh_dir" \
     "the orphan reaper removed a fresh marked fixture root it does not own yet"
-  kill -TERM "$pid"
-  wait "$pid" 2>/dev/null
-  assert_absent "$active_dir" \
-    "the active fixture root survived its owning process's teardown"
+  assert_present "$registry_dir" 'orphan recovery leaves a live registry intact'
+  kill -KILL "$pid"
+  wait "$pid" 2>/dev/null || true
+  TMPDIR="$harness" bash -ec '. "$1"' _ "$LIB"
+  assert_absent "$active_dir" 'orphan recovery removed the killed suite fixture'
+  assert_absent "$registry_dir" 'orphan recovery removed the killed suite registry'
   rm -rf "$fresh_dir"
   pass "the orphan sweep reaps only old fixtures without a live owner"
 }
@@ -308,6 +311,14 @@ test_primary_lab_copy_excludes_only_declared_scratch() {
   touch "$source/.test-phase-tmp/sentinel" "$source/nested/.test-phase-tmp/sentinel"
   fm_test_copy_primary_lab "$source" "$dest" || fail 'primary lab copy failed'
   assert_absent "$dest/.test-phase-tmp" 'declared root was excluded'
+  mv "$source/.test-phase-tmp" "$source/rename-scratch"
+  mv "$source/rename-scratch" "$source/.TEST-PHASE-TMP"
+  fm_test_copy_primary_lab "$source" "$dest" || fail 'primary lab copy with case variant failed'
+  if [ -d "$source/.test-phase-tmp" ]; then
+    assert_absent "$dest/.TEST-PHASE-TMP" 'case alias of scratch was excluded'
+  else
+    assert_present "$dest/.TEST-PHASE-TMP/sentinel" 'distinct case variant was preserved'
+  fi
   assert_present "$dest/nested/.test-phase-tmp/sentinel" 'nested work was not excluded'
   assert_equals 'working bytes' "$(<"$dest/tracked")" 'working bytes were copied'
   assert_equals 'untracked bytes' "$(<"$dest/.untracked")" 'untracked dotfile was copied'
