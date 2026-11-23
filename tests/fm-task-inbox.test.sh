@@ -942,6 +942,27 @@ test_watcher_busy_budget_resets_on_progress() {
   pass "watcher: native activity resets the same message's busy budget without a new turn"
 }
 
+test_claude_stop_continuation_resets_busy_budget() {
+  local dir state gen event="$ROOT/bin/fm-busy-event.sh"
+  dir=$(busy_case claude-continuation)
+  state="$dir/state"
+  fm_write_meta "$state/t1.meta" 'window=sess:fm-t1' 'kind=secondmate' 'harness=claude'
+  gen=$("$event" arm "$state" t1) || fail "fixture: could not arm Claude busy state"
+  "$event" apply "$state" t1 busy --gen "$gen" --source claude-hook --event user-prompt-submit \
+    || fail "fixture: could not open a Claude turn"
+  busy_steer_check "$dir"
+  [ ! -s "$state/.wake-queue" ] || fail "the first Claude deferral did not wait"
+  "$event" apply "$state" t1 busy --gen "$gen" --source claude-hook --event stop-blocked \
+    || fail "fixture: could not record the Stop continuation"
+  busy_steer_check "$dir"
+  [ ! -s "$state/.wake-queue" ] || fail "Claude's Stop continuation surfaced a stuck inbox"
+  [ -f "$state/t1.inbox/001.msg" ] || fail "progress removed the unhandled steer"
+  busy_steer_check "$dir"
+  grep -q 'stuck-busy' "$state/.wake-queue" || fail "the unchanged continuation did not escalate"
+  [ ! -s "$dir/send.log" ] || fail "a busy Claude mate received a doorbell"
+  pass "watcher: a Claude Stop continuation resets the unhandled steer budget once"
+}
+
 test_watcher_busy_retry_is_not_progress() {
   local dir state gen event="$ROOT/bin/fm-busy-event.sh"
   dir=$(busy_case busy-retry)
@@ -1432,6 +1453,7 @@ test_ring_ladder_policy
 test_watcher_rerings_idle_pane_quietly
 test_watcher_waits_on_busy_pane
 test_watcher_busy_budget_resets_on_progress
+test_claude_stop_continuation_resets_busy_budget
 test_watcher_busy_retry_is_not_progress
 test_watcher_busy_budget_resets_on_ring_and_ack
 test_watcher_busy_bookkeeping_failure_surfaces

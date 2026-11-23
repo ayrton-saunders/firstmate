@@ -323,17 +323,30 @@ test_answer_receipt_is_serialized_with_classification() {
   pass "host: answer classification waits for an in-flight owned append receipt"
 }
 
-test_attended_answer_close() {  # <owned|external|mixed>
-  local mode=$1 home state f baseline action real_mv
+test_attended_answer_close() {  # <owned|external|mixed|capped>
+  local mode=$1 home state f baseline action real_mv i note initial prior_size
   home=$(make_home "attended-answer-$mode" quiet)
   state="$home/state"
   f="$state/demo.status"
   printf 'kind=secondmate\n' >> "$state/demo.meta"
   printf 'needs-decision [key=answer-test]: choose\n' > "$f"
   routine_wake_lib "$home" fm_wake_status_mark_current "$state" "$f" || fail "fixture: could not baseline the decision"
-  routine_wake_lib "$home" fm_wake_append signal demo.status "needs-decision: $f" || fail "fixture: could not queue the decision"
+  if [ "$mode" = capped ]; then
+    printf -v note '%0200d' 0
+    for ((i=1; i<=25; i++)); do
+      printf 'needs-decision [key=sibling-%s]: %s\n' "$i" "$note"
+    done >> "$f"
+    printf 'note: status summary\n' >> "$f"
+    initial=$(FM_HOME="$home" "$FAKE_CLAUDE" -c '"$0" 2>&1' "$ROOT/bin/fm-wake-drain.sh")
+    assert_contains "$initial" '[key=answer-test] needs-decision:' "fixture: the answered key was not displayed"
+    assert_contains "$initial" 'more omitted (byte cap)' "fixture: the drain did not cap the decisions"
+    assert_not_contains "$initial" '[key=sibling-24]' "fixture: an omitted sibling was displayed"
+  else
+    routine_wake_lib "$home" fm_wake_append signal demo.status "needs-decision: $f" || fail "fixture: could not queue the decision"
+  fi
   main_drain_and_ack "$home"
   [ ! -s "$state/.wake-queue" ] || fail "fixture: prior decision is still queued"
+  prior_size=$(wc -c < "$f" | tr -d ' ')
   baseline=$(routine_wake_lib "$home" fm_wake_signal_sig "$f")
   routine_wake_lib "$home" fm_wake_status_reported_commit "$state" "$f" "$baseline" || fail "fixture: prior decision could still wake"
   action=:
@@ -356,7 +369,7 @@ SH
     # The watcher was already looking at the prior signature when the writer
     # appended. Restore its pre-answer classified position, not presentation.
     routine_wake_lib "$home" fm_wake_status_seen_commit "$state" "$f" \
-      "$(head -n 1 "$f" | wc -c | tr -d ' ')" "$(awk -F '\t' '$1 == "demo" { print $2 }' "$state/.status-presentation-cursor")" \
+      "$prior_size" "$(awk -F '\t' '$1 == "demo" { print $2 }' "$state/.status-presentation-cursor")" \
       || fail "fixture: could not replay the watcher snapshot"
     routine_wake_lib "$home" fm_wake_status_reported_commit "$state" "$f" "$baseline" || fail "fixture: could not restore the old signature"
     action='mv "$FM_HOME/delayed-home-appends" "$FM_HOME/state/.demo.home-appends"'
@@ -458,7 +471,7 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
         routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$home/state/demo.status"
         routine_wake_lib "$home" fm_wake_status_append_self_announced "$home/state" "$home/state/demo.status" \
           'resolved [key=answer-test]: answered: go ahead' || fail "fixture: answer was not self-announced"
-        routine_wake_lib "$home" fm_wake_append signal demo.status "needs-decision: $home/state/demo.status" || fail "fixture: no recovered answer row"
+        routine_wake_lib "$home" fm_wake_append signal demo.status "signal: $home/state/demo.status" || fail "fixture: no recovered answer row"
         routine_wake_lib "$home" fm_wake_append stale sess:fm-demo "$reason" || fail "fixture: no recovered stale row"
       fi
       if [ "$mode" != routine ]; then
@@ -1355,6 +1368,7 @@ trap diagnostic_suite_cleanup EXIT
 test_owned_answer_close() { test_attended_answer_close owned; }
 test_external_answer_close() { test_attended_answer_close external; }
 test_mixed_answer_close() { test_attended_answer_close mixed; }
+test_capped_answer_close() { test_attended_answer_close capped; }
 test_handled_busy_inbox_close() { test_attended_busy_inbox_close handled; }
 test_stuck_busy_inbox_close() { test_attended_busy_inbox_close stuck; }
 test_routine_resurface() { test_attended_resurface routine; }
@@ -1404,6 +1418,7 @@ fm_test_run \
   test_owned_answer_close \
   test_external_answer_close \
   test_mixed_answer_close \
+  test_capped_answer_close \
   test_handled_busy_inbox_close \
   test_stuck_busy_inbox_close \
   test_routine_resurface \

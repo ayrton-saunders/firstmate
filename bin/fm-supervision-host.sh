@@ -1025,7 +1025,7 @@ health_record() {  # <engine-error 0|1> <reports>
 # or an empty set only for rearm-resurface with no queued work. A mixed,
 # malformed or unrelated batch stays on the normal routing path.
 attended_routine_rows() {  # <reason> <decision keys>
-  local reason=$1 decision_keys=$2 queue='' seq kind key payload epoch extra rows='' pending row_reason f exclude
+  local reason=$1 decision_keys=$2 queue='' seq kind key payload epoch extra rows='' pending f exclude rc
   local proven_answers=' '
   if [ -e "$FM_WAKE_QUEUE" ] || [ -L "$FM_WAKE_QUEUE" ]; then
     [ -f "$FM_WAKE_QUEUE" ] && [ ! -L "$FM_WAKE_QUEUE" ] || return 1
@@ -1050,12 +1050,10 @@ attended_routine_rows() {  # <reason> <decision keys>
   while IFS=$'\t' read -r epoch seq kind key payload extra; do
     case "$epoch:$seq" in *[!0-9:]*|:*|*:) return 1 ;; esac
     [ -z "$extra" ] || return 1
-    row_reason=$payload
-    case "$kind:$payload" in
-      signal:needs-decision:*) row_reason="signal:${payload#needs-decision:}" ;;
-    esac
-    [ "$reason" = 'check: rearm-resurface' ] || [ "$row_reason" = "$reason" ] || return 1
-    attended_routine_row "$kind" "$key" "$row_reason" || return 1
+    [ "$reason" = 'check: rearm-resurface' ] || [ "$payload" = "$reason" ] || return 1
+    rc=0
+    attended_routine_row "$kind" "$key" "$payload" || rc=$?
+    [ "$rc" -eq 0 ] || return "$rc"
     rows=${rows:+$rows }$seq
   done <<< "$queue"
   printf '%s\n' "$rows"
@@ -1085,6 +1083,7 @@ attended_routine_row() {  # <kind> <key> <reason>
         case "$proven_answers" in
           *" $f "*) ;;
           *) status_unread_only_home_answers "$f" || return 1
+             attended_no_open_decision "$f" || return 3
              proven_answers="$proven_answers$f " ;;
         esac
       done
@@ -1201,6 +1200,7 @@ handle_wake() {  # <reason-lines>
     log_line "no-op	nothing for the branch to claim	$first"
     return 0
   fi
+  turn_crosses_boundary && boundary_exit
   publish_wake_grant "$rows" || return 1
   if ! host_still_owner; then
     "$SCRIPT_DIR/fm-wake-grant.sh" release "$GEN" >/dev/null 2>&1 || true
@@ -1339,7 +1339,12 @@ turn_captain_seqs() {  # <turn>
 }
 
 attended_park_run() {  # <command> [args...]
-  local remaining
+  local remaining rc=0
+  if [ "$PRIMARY" = codex ] && [ "${FM_CODEX_MODEL_FREE_PARK:-0}" = 1 ]; then
+    "$@" || rc=$?
+    [ "$rc" -ne 124 ] || return 1
+    return "$rc"
+  fi
   park_elapsed
   remaining=$((PARK_SECONDS - PARK_ELAPSED))
   [ "$remaining" -gt 0 ] || return 124
@@ -1383,7 +1388,8 @@ attended_routine_candidate() {  # <reason>
 # or nothing when the supervision session may take it. Sets ATTENDED_WHY, and
 # ATTENDED_OFFER to the offer's verdict and the scope it judged.
 attended_acceptor() {  # <reason-lines>
-  local offer='' first=${1%%$'\n'*} rc=0 decision_keys
+  local offer='' first=${1%%$'\n'*} rc=0 decision_keys candidate=0
+  local -a offer_runner=()
   boundary_reached && boundary_exit
   ATTENDED_WHY=
   ATTENDED_OFFER=
@@ -1394,13 +1400,17 @@ attended_acceptor() {  # <reason-lines>
   elif ! fm_supervision_host_main_key "$STATE" >/dev/null; then
     ATTENDED_WHY="the main session could not be identified"
   else
-    offer=$(attended_park_run node "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer 2>/dev/null <<< "$first") || rc=$?
-    if [ "$rc" -eq 124 ]; then boundary_exit; fi
+    if attended_routine_candidate "$1"; then
+      candidate=1
+      offer_runner=(attended_park_run)
+    fi
+    offer=$("${offer_runner[@]+${offer_runner[@]}}" node "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer 2>/dev/null <<< "$first") || rc=$?
+    if [ "$candidate" -eq 1 ] && [ "$rc" -eq 124 ]; then boundary_exit; fi
     if [ "$rc" -ne 0 ]; then
       ATTENDED_WHY="branch eligibility could not be computed"
     else
       rc=1
-      if attended_routine_candidate "$1"; then
+      if [ "$candidate" -eq 1 ]; then
         decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
         rc=0
         ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows <<< "$1"$'\n'"$decision_keys") || rc=$?
@@ -1409,6 +1419,8 @@ attended_acceptor() {  # <reason-lines>
       boundary_reached && boundary_exit
       if [ "$rc" -eq 0 ]; then
         ATTENDED_ROUTINE=1
+      elif [ "$rc" -eq 3 ]; then
+        ATTENDED_WHY="main-only"
       elif health_cooling; then
         ATTENDED_WHY="the supervision session is cooling down after engine errors"
       elif [ "$(printf '%s\n' "$offer" | sed -n 's/^eligible=//p')" != 1 ]; then

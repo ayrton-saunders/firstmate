@@ -626,6 +626,24 @@ inbox_steer_busy() {  # <window> <backend> <task> <tail40>
 # Normal retries keep the watcher blocking rather than waking firstmate.
 # Runs for secondmates too: their pane-staleness exemption is about quiet panes
 # being healthy, while an unacknowledged instruction can still be a stuck steer.
+inbox_steer_progress_mtime() {  # <window> <task>
+  local base="$STATE/$2" progress=0 mtime marker record
+  for marker in "$base.progress" "$base.turn-ended"; do
+    mtime=$(stat_mtime "$marker") || continue
+    [ "$mtime" -le "$progress" ] || progress=$mtime
+  done
+  case "$(window_harness "$1")" in
+    claude*)
+      marker=$(fm_busy_record_path "$STATE" "$2")
+      if mtime=$(stat_mtime "$marker") && [ "$mtime" -gt "$progress" ] &&
+         record=$(fm_busy_record_read "$STATE" "$2"); then
+        case "$record" in 'busy claude-hook stop-blocked '*) progress=$mtime ;; esac
+      fi
+      ;;
+  esac
+  printf '%s\n' "$progress"
+}
+
 inbox_steer_check() {  # <window> <task>
   local w=$1 task=$2 action verb rec count tail40 reason='' ring_rc backend agent_state progress
   action=$(fm_task_inbox_due_action "$STATE" "$task") || return 0
@@ -658,7 +676,7 @@ inbox_steer_check() {  # <window> <task>
   tail40=$WATCHER_CAPTURE
   if inbox_steer_busy "$w" "$backend" "$task" "$tail40"; then
     [ "$verb" != retry ] || return 0
-    progress=$(stat_mtime "$STATE/$task.progress") || progress=0
+    progress=$(inbox_steer_progress_mtime "$w" "$task")
     if ! count=$(fm_task_inbox_record_busy "$STATE" "$task" "$rec" "$progress"); then
       [ -f "$rec" ] || return 0
       reason="stale: $w (steering-inbox busy bookkeeping unwritable: ${rec%/*}/.busy-state cannot be written while $rec stays unhandled; inspect the inbox directory)"

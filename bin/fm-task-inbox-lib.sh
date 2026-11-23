@@ -58,7 +58,7 @@
 # by the caller's delivery guard consume a separate durable consecutive-poll budget,
 # FM_TASK_INBOX_BUSY_MAX. At that bound the same escalation path surfaces a
 # stuck-busy reason without submission. An allowed due check, acknowledgement,
-# or advance of the task's native progress marker resets this budget.
+# or advance of a task runtime progress marker resets this budget.
 # fm-busy-lib.sh owns the backend-specific delivery guard.
 # Fire-and-forget retries remain outside escalation. A positively
 # dead or missing endpoint skips delivery and the ladder and escalates directly.
