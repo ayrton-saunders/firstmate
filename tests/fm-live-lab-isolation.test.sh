@@ -162,6 +162,7 @@ if [ -z "${FM_LAB_ISO_HOST_MARKER:-}" ] && [ -z "${FM_LAB_ISO_TMP_COPY:-}" ]; th
   # shellcheck disable=SC2016 # $1 and $2 expand in the bounded shell.
   out=$(FM_TMUX_ISOLATION_PROBE_SECONDS=1 fm_run_timed 30 bash -c '. "$1/tests/lib.sh"; fm_tmux_isolation_gate "$2"; echo RAN' _ "$ROOT" "$TMP_ROOT/b" 2>&1)
   code=$?
+  gate_elapsed=$(($(date +%s) - start))
   shutdown_rc=0
   shutdown=$(fm_test_stop_private_tmux "$STUCK_SOCKET" tmux "$STUCK_RETAIN" 2>&1) || shutdown_rc=$?
   kill -CONT "$STUCK_PID" 2>/dev/null
@@ -174,7 +175,7 @@ if [ -z "${FM_LAB_ISO_HOST_MARKER:-}" ] && [ -z "${FM_LAB_ISO_TMP_COPY:-}" ]; th
   expect_code 0 "$code" "the gate returns from a server that never answers: $out"
   assert_contains "$out" "skip: tmux isolation: the tmux server on $STUCK_SOCKET did not answer within 1s" "the skip names the silent socket and the deadline"
   assert_not_contains "$out" RAN "the gate stops the suite beside a server that never answers"
-  [ $(($(date +%s) - start)) -lt 10 ] || fail "the gate waited past its probe deadline"
+  [ "$gate_elapsed" -lt 10 ] || fail "the gate waited past its probe deadline"
   pass "fm_tmux_isolation_gate skips at its deadline when a tmux server does not answer"
 
   # ---- the decoy cleanup is bounded ------------------------------------------

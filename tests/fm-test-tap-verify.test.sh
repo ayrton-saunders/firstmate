@@ -86,6 +86,48 @@ exit "$SUITE_STATUS"'
   pass 'verifier honors retention on both success and failure paths'
 }
 
+test_term_drains_stalled_suite() {
+  local base="$TMP_ROOT/term" suite="$TMP_ROOT/stalled.sh"
+  mkdir "$base"
+  write_suite "$suite" 'printf "%s\n" "$$" >"$READY"; exec sleep 60'
+  TMPDIR="$base" READY="$TMP_ROOT/suite-ready" python3 - "$BASH" "$VERIFY" "$suite" <<'PY' || fail 'TERM did not drain the TAP suite and remove scratch'
+import os, pathlib, signal, subprocess, sys, time
+
+if os.name != 'posix':
+    sys.exit(0)
+ready = pathlib.Path(os.environ['READY'])
+with ready.with_suffix('.log').open('w') as log:
+    verifier = subprocess.Popen(sys.argv[1:], stdin=subprocess.DEVNULL, stdout=log, stderr=log)
+    pid = None
+    try:
+        for _ in range(100):
+            if ready.exists() and ready.read_text().strip():
+                pid = int(ready.read_text())
+                break
+            assert verifier.poll() is None
+            time.sleep(0.05)
+        assert pid is not None, 'suite never started'
+        verifier.send_signal(signal.SIGTERM)
+        assert verifier.wait(timeout=8) == 143
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            pid = None
+        assert pid is None, 'stalled suite survived TERM'
+        assert not list(pathlib.Path(os.environ['TMPDIR']).iterdir()), 'scratch survived TERM'
+    finally:
+        if pid is not None:
+            try:
+                os.kill(pid, signal.SIGKILL)
+            except ProcessLookupError:
+                pass
+        if verifier.poll() is None:
+            verifier.kill()
+            verifier.wait()
+PY
+  pass 'TERM drains a stalled TAP suite before removing scratch'
+}
+
 test_early_exit_zero_fails() {
   local suite out rc=0
   suite="$TMP_ROOT/early.sh"
@@ -206,6 +248,7 @@ test_correct_suite_passes
 test_checkout_scratch_is_refused_before_running_suite
 test_failed_suite_scratch_is_removed
 test_retained_suite_scratch_survives_verifier_exit
+test_term_drains_stalled_suite
 test_early_exit_zero_fails
 test_not_ok_fails_even_with_exit_zero
 test_nonzero_exit_fails

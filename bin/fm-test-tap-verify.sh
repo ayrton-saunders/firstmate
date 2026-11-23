@@ -75,10 +75,11 @@ ROOT=$(cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P) || exit 1
 base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || exit "$?"
 fm_test_allocate_scratch "${base%/}/fm-test-tap-verify.XXXXXX" || exit 1
 OUT="$FM_TEST_SCRATCH/output"
+probe_owner=
 cleanup_verify() {
   local status=$?
   trap '' HUP INT QUIT TERM
-  if fm_test_scratch_retained "$FM_TEST_SCRATCH"; then
+  if ! fm_test_probe_drain || fm_test_scratch_retained "$FM_TEST_SCRATCH"; then
     if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
       : > "$FM_TEST_RETAIN_MARKER.$$.tap" || printf 'could not publish TAP retention marker\n' >&2
     fi
@@ -93,10 +94,12 @@ trap cleanup_verify EXIT
 mkdir "$FM_TEST_SCRATCH/tmp"
 export TMPDIR="$FM_TEST_SCRATCH/tmp" TMP="$FM_TEST_SCRATCH/tmp" TEMP="$FM_TEST_SCRATCH/tmp"
 
-set +e
-FM_TEST_RETAIN_MARKER="$FM_TEST_SCRATCH/.retain-scratch" "$BASH" "$SCRIPT" >"$OUT" 2>&1
-STATUS=$?
-set -e
+STATUS=0
+FM_TEST_RETAIN_MARKER="$FM_TEST_SCRATCH/.retain-scratch" fm_test_probe_run "$BASH" -c '
+  out=$1
+  shift
+  exec "$@" >"$out" 2>&1
+' _ "$OUT" "$BASH" "$SCRIPT" || STATUS=$?
 
 cat "$OUT"
 

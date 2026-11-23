@@ -98,6 +98,34 @@ image=fm-test-linux:bookworm
 
 fm_test_allocate_scratch "${scratch_base%/}/fm-test-linux.XXXXXX" || exit "$?"
 scratch=$FM_TEST_SCRATCH
+ROOT=$(cd "$script_dir/.." && pwd -P)
+. "$ROOT/bin/fm-timeout-lib.sh"
+probe_owner=
+container=
+
+cleanup_linux() {
+  local status=$? running teardown=0
+  trap '' HUP INT QUIT TERM
+  fm_test_probe_drain || teardown=1
+  if [ -n "$container" ]; then
+    if running=$(fm_run_timed 5 "$runtime" ps -q --filter "name=^/?$container\$"); then
+      if [ -n "$running" ]; then
+        fm_run_timed 5 "$runtime" stop --time 2 "$container" >/dev/null || teardown=1
+      fi
+    else
+      teardown=1
+    fi
+  fi
+  if [ "$teardown" -ne 0 ]; then
+    printf 'could not verify Linux probe teardown; retaining scratch: %s\n' "$scratch" >&2
+    [ "$status" -ne 0 ] || status=1
+  elif ! fm_test_cleanup_scratch "$scratch"; then
+    [ "$status" -ne 0 ] || status=1
+  fi
+  exit "$status"
+}
+trap cleanup_linux EXIT
+
 git clone -q --no-checkout --local --no-hardlinks "$root" "$scratch" || die "could not clone $root into the scratch directory"
 if git -C "$scratch" rev-parse --verify --quiet HEAD >/dev/null; then
   git -C "$scratch" read-tree HEAD
@@ -125,11 +153,14 @@ case "$(basename "$runtime")" in
 esac
 failed=()
 for t in "${tests[@]}"; do
-  if "$runtime" run --rm "${identity[@]}" -v "$scratch:/work" -w /work -e HOME=/tmp -e TMPDIR=/tmp "$image" bash "$t"; then
+  container="${scratch##*/}"
+  if fm_test_probe_run "$runtime" run --rm --name "$container" "${identity[@]}" -v "$scratch:/work" -w /work -e HOME=/tmp -e TMPDIR=/tmp "$image" bash "$t"; then
     printf 'PASS %s\n' "$t"
   else
     printf 'FAIL %s\n' "$t"
     failed+=("$t")
   fi
+  [ -z "$probe_owner" ] || exit 1
+  container=
 done
 [ ${#failed[@]} -eq 0 ] || { printf 'fm-test-linux: %s failed\n' "${#failed[@]}" >&2; exit 1; }

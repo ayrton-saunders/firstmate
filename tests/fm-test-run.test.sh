@@ -2172,11 +2172,6 @@ if [ "$PROBE_MODE" = evidence ]; then
   printf '%s\\n' 'acknowledged' >"$TMPDIR/wt/.steer"
   base=$(bash bin/fm-test-run.sh --scratch-base)
   fm_test_copy_hermes_evidence "$TMPDIR" "$base"
-elif [ "$PROBE_MODE" = empty-evidence ]; then
-  . bin/fm-test-scratch-lib.sh
-  base=$(bash bin/fm-test-run.sh --scratch-base)
-  mkdir "$TMPDIR/empty"
-  fm_test_copy_hermes_evidence "$TMPDIR/empty" "$base"
 fi
 if [ "$PROBE_MODE" = stale ]; then
   printf '%s|%s|%s|%s\\n' "$UID" "$DECOY_GROUP" "$DECOY_GROUP" 'different start identity' >"${TMPDIR%/*}/timed-owner"
@@ -2392,9 +2387,6 @@ assert evidence.parent.resolve() == base.resolve(), evidence
 assert not run.exists() and (evidence / 'screen.ansi').read_text() == 'captured output\n'
 assert (evidence / 'wt/answer.txt').read_text() == '80235\n'
 assert (evidence / 'wt/.steer').read_text() == 'acknowledged\n'
-child, proof = launch('empty-evidence-copy', 'empty-evidence')
-assert child.wait(timeout=20) == 1
-assert label not in (tmp / 'empty-evidence-copy.log').read_text()
 assert set(base.iterdir()) == {private, evidence}
 
 if os.name == 'posix':

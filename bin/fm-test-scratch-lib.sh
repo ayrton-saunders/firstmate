@@ -155,6 +155,40 @@ fm_test_drain_groups() {
   [ "$drained" -eq 0 ]
 }
 
+fm_test_probe_interrupt() {
+  if [ "$probe_launching" -ne 0 ]; then probe_pending=$1; else exit "$1"; fi
+}
+
+fm_test_probe_run() {
+  local probe_launching=1 probe_pending=0 start rc=0
+  trap 'fm_test_probe_interrupt 129' HUP
+  trap 'fm_test_probe_interrupt 130' INT
+  trap 'fm_test_probe_interrupt 131' QUIT
+  trap 'fm_test_probe_interrupt 143' TERM
+  set -m
+  "$@" <&0 &
+  probe_pid=$!
+  set +m
+  start=$(fm_test_owner_start "$probe_pid" "$FM_TEST_SCRATCH") || start=unknown
+  probe_owner="$UID|$probe_pid|$probe_pid|$start"
+  probe_launching=0
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 131' QUIT
+  trap 'exit 143' TERM
+  [ "$probe_pending" -eq 0 ] || exit "$probe_pending"
+  wait "$probe_pid" || rc=$?
+  fm_test_probe_drain || return 1
+  return "$rc"
+}
+
+fm_test_probe_drain() {
+  [ -n "$probe_owner" ] || return 0
+  fm_test_drain_groups "$FM_TEST_SCRATCH" "$probe_owner" || return 1
+  wait "$probe_pid" 2>/dev/null || true
+  probe_owner=
+}
+
 fm_test_scratch_retained() (
   local marker prefix=.retain-scratch
   if [ -n "${2:-}" ]; then prefix+=".$2"; fi
@@ -211,14 +245,12 @@ fm_test_copy_hermes_evidence() (
   set -o pipefail
   shopt -s dotglob nullglob
   set -- "$lab"/*
-  [ "$#" -gt 0 ] || return 1
+  [ -d "$lab" ] || return 1
   for entry in "$@"; do entries+=("./${entry##*/}"); done
   fm_test_allocate_scratch "${base%/}/.fm-hermes-evidence-staging.XXXXXX" || return 1
   stage=$FM_TEST_SCRATCH
   evidence="${base%/}/fm-hermes-evidence.${stage##*.}"
-  tar -C "$lab" -cf - "${entries[@]}" | tar -C "$stage" -xf - || return 1
-  set -- "$stage"/*
-  [ "$#" -gt 0 ] || return 1
+  tar -C "$lab" -cf - -T /dev/null ${entries[@]+"${entries[@]}"} | tar -C "$stage" -xf - || return 1
 
   python3 -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' "$stage" "$evidence" || return 1
   FM_TEST_SCRATCH=
