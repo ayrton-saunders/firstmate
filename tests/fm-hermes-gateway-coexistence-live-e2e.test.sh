@@ -6,6 +6,7 @@
 # cannot attach to any other gateway. The profile must configure no messaging
 # platform; the guard refuses one. It then runs the TUI worker guard beside the
 # idle gateway and checks the session store, memory and gateway afterward.
+# The probe requires exclusive control of the throwaway profile; concurrent config edits are unsupported and may be overwritten.
 # The probe restores config bytes only when the recorded entries still match and no relink is needed.
 # If Hermes replaced a config symlink, inspect the retained backup and repair the link by hand.
 # After SIGKILL, a .fm-gateway-config.* backup may remain beside config.yaml for recovery.
@@ -15,6 +16,7 @@ set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 fm_live_gate opt-in FM_HERMES_GATEWAY_LIVE hermes tmux jq python3
+printf '%s\n' 'This probe requires exclusive control of the throwaway profile. Do not edit its config during the run; concurrent edits may be overwritten.' >&2
 : "${FM_HERMES_LIVE_HOME:?provide a configured throwaway Hermes root}"
 PROFILE=${FM_HERMES_LIVE_PROFILE:-worker}
 HERMES_BIN=$(command -v hermes)

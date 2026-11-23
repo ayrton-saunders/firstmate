@@ -424,6 +424,7 @@ private_teardown_failed=0
 FAILED=0
 cleanup_failed=0
 failure_output=
+retained_end=
 AGG_RC=0
 
 printf 'FM_ISOLATION_BEGIN %s concurrency=%s candidates=%s\n' \
@@ -489,7 +490,7 @@ trap 'interrupt_proof 143' TERM
 set -m
 
 wait_one_slot() {
-  local slot=$1 pid idx work rc duration script mode gate_skip
+  local slot=$1 pid idx work rc duration script mode gate_skip end
   pid=${WORKER_PIDS[$slot]}
   idx=${WORKER_IDX[$slot]}
   wait "$pid" || true
@@ -515,8 +516,13 @@ wait_one_slot() {
     rc=1
     failure_output+="fm-test-isolation-proof: pool $POOL candidate gate-skipped without proving concurrency: $script: $gate_skip"$'\n'
   fi
-  printf 'FM_ISOLATION_CANDIDATE_END %s %s exit=%s duration_ms=%s worker=%s\n' \
+  printf -v end 'FM_ISOLATION_CANDIDATE_END %s %s exit=%s duration_ms=%s worker=%s' \
     "$(now_iso)" "$script" "$rc" "$duration" "$idx"
+  if [ "$retain_root" -ne 0 ] || [ "$private_teardown_failed" -ne 0 ]; then
+    retained_end=$end
+  else
+    printf '%s\n' "$end"
+  fi
   printf '%s\t%s\t%s\t%s\n' "$script" "$rc" "$duration" "$idx" >>"$RECORDS"
   if [ "$rc" -ne 0 ]; then
     FAILED=$((FAILED + 1))
@@ -532,7 +538,7 @@ wait_one_slot() {
   case "$mode" in
     700|0700) ;;
     *)
-      log "isolation failure: worker root mode is $mode, expected 0700 ($work)"
+      failure_output+="fm-test-isolation-proof: isolation failure: worker root mode is $mode, expected 0700 ($work)"$'\n'
       AGG_RC=1
       FAILED=$((FAILED + 1))
       ;;
@@ -540,7 +546,7 @@ wait_one_slot() {
   case "$work" in
     "$PROOF_ROOT"/*) ;;
     *)
-      log "isolation failure: worker root escaped proof parent: $work"
+      failure_output+="fm-test-isolation-proof: isolation failure: worker root escaped proof parent: $work"$'\n'
       AGG_RC=1
       ;;
   esac
@@ -648,6 +654,7 @@ fi
 records=$(<"$RECORDS")
 finalize_proof_scratch || AGG_RC=1
 trap - EXIT
+if [ -n "$retained_end" ]; then printf '%s\n' "$retained_end"; fi
 
 GIT_AFTER=$(global_git_snapshot)
 if [ "$GIT_BEFORE" != "$GIT_AFTER" ]; then

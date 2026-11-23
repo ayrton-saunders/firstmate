@@ -165,7 +165,7 @@ if [ "${PROOF_REPLAY_ORDER:-0}" != 0 ]; then
   [ -s "$PROOF_SCHED_EVIDENCE/sibling-ready" ] || exit 1
   python3 -c 'print("x" * 262144)'
 fi
-if [ "${PROOF_REPLAY_ORDER:-0}" = private ]; then
+if [ "${PROOF_REPLAY_ORDER:-0}" = private ] || [ "${PROOF_REPLAY_ORDER:-0}" = final ]; then
   : > "$FM_TEST_RETAIN_MARKER.fixture"
   exit 0
 fi
@@ -337,8 +337,19 @@ assert artifact["fm_test_run_jobs_enabled"] is True
 assert artifact["summary"]["total"] == 3
 assert artifact["summary"]["failed"] == 0
 ' "$admitted_json" || fail "admitted family pool artifact metadata is incorrect"
+  cat >> "$repo/bin/fm-test-scratch-lib.sh" <<'SH'
+if [ "${PROOF_REPLAY_ORDER:-}" = final ]; then
+  eval "$(declare -f fm_test_drain_groups | awk 'NR == 1 {sub(/^fm_test_drain_groups/, "fixture_drain_groups")} {print}')"
+  fixture_drain_count=0
+  fm_test_drain_groups() {
+    fixture_drain_count=$((fixture_drain_count + 1))
+    [ "$fixture_drain_count" -ne 2 ] || return 1
+    fixture_drain_groups "$@"
+  }
+fi
+SH
   local replay_order
-  for replay_order in group private; do
+  for replay_order in group private final; do
     mkdir "$tmp/replay-$replay_order"
     TMPDIR="$tmp/replay-$replay_order" PROOF_SCHED_EVIDENCE="$tmp/replay-$replay_order" PROOF_UNDRAINED=1 \
       PROOF_REPLAY_ORDER="$replay_order" python3 - "$proof" <<'PY' || fail "proof replayed before stopping the sibling worker ($replay_order)"
