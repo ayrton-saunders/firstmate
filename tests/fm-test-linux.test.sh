@@ -77,9 +77,10 @@ test_checkout_scratch_is_refused_before_build_or_clone() {
 }
 
 test_overlay_keeps_work_but_excludes_legacy_scratch() {
-  local repo="$TMP_ROOT/overlay" runtime="$TMP_ROOT/overlay-runtime" out check_alias=0
+  local repo="$TMP_ROOT/overlay" runtime="$TMP_ROOT/overlay-runtime" out expected_tmp check_alias=0
   make_repo "$repo"
   mkdir -p "$repo/.test-phase-tmp/nested" "$TMP_ROOT/overlay-tmp"
+  expected_tmp=$(cd "$TMP_ROOT/overlay-tmp" && pwd -P) || fail 'could not resolve overlay temp fixture'
   printf 'committed scratch\n' >"$repo/.test-phase-tmp/nested/committed"
   mkdir "$repo/alias"
   touch "$repo/alias/committed" "$repo/replaced"
@@ -100,6 +101,10 @@ test_overlay_keeps_work_but_excludes_legacy_scratch() {
   printf 'untracked\n' >"$repo/tests/real work.txt"
   cat >"$runtime" <<'SH'
 #!/usr/bin/env bash
+if [ "$TMPDIR" != "$EXPECTED_TMP" ] || [ "$TMP" != "$EXPECTED_TMP" ] || [ "$TEMP" != "$EXPECTED_TMP" ]; then
+  printf 'unexpected host temp paths for %s: %s %s %s\n' "$1" "$TMPDIR" "$TMP" "$TEMP" >&2
+  exit 1
+fi
 while [ "$#" -gt 1 ]; do
   if [ "$1" = -v ]; then
     copy=${2%:/work}
@@ -115,8 +120,10 @@ while [ "$#" -gt 1 ]; do
 done
 SH
   chmod +x "$runtime"
-  out=$(cd "$repo" && TMPDIR="$TMP_ROOT/overlay-tmp" FM_CONTAINER_RUNTIME="$runtime" CHECK_ALIAS="$check_alias" \
+  out=$(cd "$repo" && TMPDIR=../overlay-tmp TMP="$repo/.test-phase-tmp" TEMP="$repo/.test-phase-tmp" \
+    EXPECTED_TMP="$expected_tmp" FM_CONTAINER_RUNTIME="$runtime" CHECK_ALIAS="$check_alias" \
     "$BASH" "$LINUX_CHECK" tests/kept.test.sh 0<&- 2>&1) || fail "Linux overlay did not match working-tree contract: $out"
+  assert_not_contains "$out" 'unexpected host temp paths' 'host runtime receives the validated base'
   assert_contains "$out" 'PASS tests/kept.test.sh' 'container tested the overlay'
   pass 'Linux overlay skips legacy scratch but keeps dirty and untracked work'
 }

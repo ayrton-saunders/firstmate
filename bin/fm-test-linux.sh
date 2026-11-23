@@ -82,6 +82,7 @@ fi
 
 . "$script_dir/fm-test-scratch-lib.sh"
 scratch_base=$(fm_test_validate_scratch_base "$root" "${TMPDIR:-/tmp}") || exit "$?"
+export TMPDIR="$scratch_base" TMP="$scratch_base" TEMP="$scratch_base"
 
 runtime=${FM_CONTAINER_RUNTIME:-}
 if [ -z "$runtime" ]; then
