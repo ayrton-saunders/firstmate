@@ -120,8 +120,10 @@ Routine rearm recovery requires no pending captain outcome, no captain-hold reco
 - Continued task-wide progress can defer, but not permanently suppress, a wake for an unhandled message.
 - If a secondmate acknowledges an inbox message during the final branch offer, the host can still take the normal engine path and hand the wake to main if that turn fails.
 - An answer can reach main if preflight races with publication of its ownership receipt.
+- A decision arriving during a bounded receipt wait stays queued for main, even if the wait times out and the park ends without a live successor.
 - A nearby routine worker status update can make an otherwise owned answer unprovable and send the notification to main.
 - In homes with long status histories, routine recovery proof can hit its time limit and hand the notification to main.
+- A timeout inside routine proof, such as a backlog read timing out, can end the park before its outer deadline.
 - A host without Perl may hand nonempty routine wake batches back to main.
 - If cleanup times out after a routine acknowledgement commits, main may still receive an extra notification for the already-consumed wake.
 - Write routine timeout overrides as decimal integers without leading zeros, because the host can fall back to its default for padded values.
