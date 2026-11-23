@@ -461,7 +461,7 @@ fm_test_fixture_start() {
 }
 
 fm_test_reap_orphans() (
-  local marker dir mtime now owner_pid owner_identity owner_start current_identity current_start probe
+  local marker dir mtime now owner_pid owner_identity owner_start current_identity live_owner_start probe
   unset GLOBIGNORE
   shopt -u failglob
   shopt -s dotglob nullglob
@@ -476,8 +476,8 @@ fm_test_reap_orphans() (
     owner_identity=$(sed -n '2,$p' "$marker" 2>/dev/null) || continue
     owner_start=$(fm_test_fixture_start "$owner_identity") || continue
     if current_identity=$(fm_test_pid_identity "$owner_pid" 2>/dev/null); then
-      current_start=$(fm_test_fixture_start "$current_identity") || continue
-      [ "${owner_start%% *}" = "${current_start%% *}" ] && [ "$owner_start" != "$current_start" ] || continue
+      live_owner_start=$(fm_test_fixture_start "$current_identity") || continue
+      [ "${owner_start%% *}" = "${live_owner_start%% *}" ] && [ "$owner_start" != "$live_owner_start" ] || continue
     else
       if probe=$(LC_ALL=C kill -0 "$owner_pid" 2>&1); then continue; fi
       case "$probe" in *'No such process') ;; *) continue ;; esac

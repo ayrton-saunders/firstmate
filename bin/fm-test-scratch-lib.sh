@@ -82,13 +82,11 @@ fm_test_allocate_scratch() {
 }
 
 fm_test_owner_start() (
-  [ -r "$ROOT/bin/fm-wake-lib.sh" ] && [ -r "$ROOT/bin/fm-path-lib.sh" ] || return 1
-  # shellcheck disable=SC2030 # Override state only for the owner lookup subshell.
-  FM_STATE_OVERRIDE=$2
+  local lookup_root=${ROOT:-}
+  [ -r "$lookup_root/bin/fm-wake-lib.sh" ] && [ -r "$lookup_root/bin/fm-path-lib.sh" ] || return 1
   unset FM_PROC_ROOT_OVERRIDE
-  # shellcheck source=bin/fm-wake-lib.sh
-  . "$ROOT/bin/fm-wake-lib.sh" || return 1
-  fm_pid_start_time "$1"
+  # shellcheck disable=SC2016 # Initialize wake state only in the lookup shell.
+  FM_STATE_OVERRIDE=$2 exec "$BASH" -c '. "$1" || exit 1; fm_pid_start_time "$2"' _ "$lookup_root/bin/fm-wake-lib.sh" "$1"
 )
 
 owned_group_live() {
@@ -233,7 +231,7 @@ fm_test_scratch_retained() (
 )
 
 fm_test_resolve_boundary() (
-  local path=$1 links_left=${2:-40} parent leaf target
+  local path=$1 links_left=${2:-40} parent leaf link_target
   if CDPATH='' cd -P -- "$path" 2>/dev/null; then
     pwd -P
     return
@@ -243,13 +241,13 @@ fm_test_resolve_boundary() (
   leaf=${path##*/}
   if [ -L "$path" ]; then
     [ "$links_left" -gt 0 ] || return 1
-    target=$(readlink -- "$path") || return 1
-    case "$OSTYPE" in msys*|cygwin*) target=${target//\\//} ;; esac
-    case "$target" in
+    link_target=$(readlink -- "$path") || return 1
+    case "$OSTYPE" in msys*|cygwin*) link_target=${link_target//\\//} ;; esac
+    case "$link_target" in
       /*|[a-zA-Z]:/*) ;;
-      *) target=${path%"$leaf"}$target ;;
+      *) link_target=${path%"$leaf"}$link_target ;;
     esac
-    fm_test_resolve_boundary "$target" "$((links_left - 1))"
+    fm_test_resolve_boundary "$link_target" "$((links_left - 1))"
     return
   fi
   case "$path" in
@@ -264,15 +262,15 @@ fm_test_resolve_boundary() (
 )
 
 fm_test_missing_boundary_matches() (
-  local candidate=$1 boundary=$2 probe rc=1 LC_ALL=C
+  local candidate=$1 boundary=$2 case_probe rc=1 LC_ALL=C
   [ "$candidate" != "$boundary" ] || return 0
   shopt -s nocasematch
   [[ "${candidate##*/}" == "${boundary##*/}" ]] || return 1
   [ "${candidate%/*}/" -ef "${boundary%/*}/" ] || return 1
   trap '' HUP INT QUIT TERM
-  probe=$(mktemp -d -- "${candidate%/*}/.fm-case-a.XXXXXX") || return 2
-  [ "$probe" -ef "${probe%/*}/.fm-case-A.${probe##*.}" ] && rc=0
-  rmdir -- "$probe" || return 2
+  case_probe=$(mktemp -d -- "${candidate%/*}/.fm-case-a.XXXXXX") || return 2
+  [ "$case_probe" -ef "${case_probe%/*}/.fm-case-A.${case_probe##*.}" ] && rc=0
+  rmdir -- "$case_probe" || return 2
   return "$rc"
 )
 
@@ -293,17 +291,16 @@ fm_test_anchor_inherited_paths() {
 }
 
 fm_test_check_scratch_placement() (
-  local root=$1 base=$2 blocked ancestor resolved rc home wake_home
+  local repo_root=$1 base=$2 blocked ancestor resolved rc home wake_home
   if [ "$#" -ge 3 ]; then
     CDPATH='' cd -P -- "$3" || return 2
   fi
-  home=${FM_HOME:-${FM_ROOT_OVERRIDE:-$root}}
+  home=${FM_HOME:-${FM_ROOT_OVERRIDE:-$repo_root}}
   # bin/fm-wake-lib.sh owns the wake home and state fallback; keep these rules in sync.
-  wake_home=${FM_HOME:-${FM_ROOT_OVERRIDE:-${FM_ROOT:-$root}}}
+  wake_home=${FM_HOME:-${FM_ROOT_OVERRIDE:-${FM_ROOT:-$repo_root}}}
   ancestor=$base
   while :; do
-    # shellcheck disable=SC2031 # Use the caller's override, not the owner lookup's.
-    for blocked in "$root" "$home" "${FM_ROOT_OVERRIDE:-}" "$wake_home" \
+    for blocked in "$repo_root" "$home" "${FM_ROOT_OVERRIDE:-}" "$wake_home" \
       "${FM_STATE_OVERRIDE:-$home/state}" "${FM_STATE_OVERRIDE:-${STATE:-$wake_home/state}}" \
       "${FM_DATA_OVERRIDE:-$home/data}" "${FM_CONFIG_OVERRIDE:-$home/config}" "${FM_PROJECTS_OVERRIDE:-$home/projects}" \
       "$HOME/.firstmate-preserved" "$HOME/.treehouse" "${TREEHOUSE_ROOT:-}"; do
@@ -331,7 +328,7 @@ fm_test_check_scratch_placement() (
 )
 
 fm_test_validate_scratch_base() (
-  local root=$1 requested=$2 base
+  local repo_root=$1 requested=$2 base
   if [ "$#" -ge 3 ]; then
     CDPATH='' cd -P -- "$3" || return 2
   fi
@@ -339,7 +336,7 @@ fm_test_validate_scratch_base() (
     printf 'cannot resolve scratch base: %s\n' "$requested" >&2
     return 2
   }
-  fm_test_check_scratch_placement "$root" "$base" || return "$?"
+  fm_test_check_scratch_placement "$repo_root" "$base" || return "$?"
   printf '%s\n' "$base"
 )
 
@@ -369,7 +366,7 @@ fm_test_copy_hermes_evidence() (
   tar -C "$lab" -cf - -T /dev/null ${entries[@]+"${entries[@]}"} | tar -C "$stage" -xf - || return 1
 
   python3 -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' "$stage" "$evidence" || return 1
-  FM_TEST_SCRATCH=
+  trap - EXIT
   printf 'Hermes guard evidence: %s\n' "$evidence"
 )
 

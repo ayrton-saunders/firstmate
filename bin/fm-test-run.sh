@@ -2936,6 +2936,7 @@ start_worker() {
   fi
 }
 
+# shellcheck disable=SC2329 # Exported for the timed child shell.
 register_timed_owner() {
   local work=$1 worker=$2 group
   group=$(LC_ALL=C ps -p "$$" -o pgid= 2>/dev/null | awk 'NF == 1 { print $1 }')

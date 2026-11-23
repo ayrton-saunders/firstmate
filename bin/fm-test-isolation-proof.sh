@@ -435,6 +435,7 @@ launching=0
 pending_signal=0
 retain_root=0
 
+# shellcheck disable=SC2329 # Invoked by the EXIT trap.
 cleanup_proof() {
   local status=$? pid
   trap '' HUP INT QUIT TERM
@@ -456,6 +457,7 @@ cleanup_proof() {
   exit "$status"
 }
 
+# shellcheck disable=SC2329 # Invoked by the signal traps.
 interrupt_proof() {
   pending_signal=$1
   [ "$launching" -ne 0 ] || exit "$pending_signal"

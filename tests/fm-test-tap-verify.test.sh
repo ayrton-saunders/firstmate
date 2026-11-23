@@ -80,11 +80,14 @@ touch "$TMPDIR/fixture/sentinel" "$FM_TEST_RETAIN_MARKER.fixture" || exit 8
 printf "1..1\nok - candidate\nFM_TEST_COMPLETE\n"
 exit "$SUITE_STATUS"'
     rc=0
-    out=$(TMPDIR="$base/$status" SUITE_STATUS="$status" run_verify "$suite") || rc=$?
+    out=$(TMPDIR="$base/$status" FM_TEST_RETAIN_MARKER="$base/$status/.retain-scratch" \
+      SUITE_STATUS="$status" run_verify "$suite") || rc=$?
     assert_equals 1 "$rc" 'retained scratch fails verification'
     assert_contains "$out" 'retaining scratch:' 'retained scratch diagnostic'
     set -- "$base/$status"/fm-test-tap-verify.*/tmp/fixture/sentinel
     assert_present "$1" 'verifier did not delete retained suite scratch'
+    set -- "$base/$status"/.retain-scratch.*.tap
+    assert_present "$1" 'verifier publishes retention to the fixture marker'
   done
   pass 'verifier honors retention on both success and failure paths'
 }

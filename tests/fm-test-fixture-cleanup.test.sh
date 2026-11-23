@@ -291,7 +291,7 @@ test_custom_finalizer_cleans_or_retains_after_teardown() {
     base="$harness/$teardown"
     mkdir "$base"
     rc=0
-    TMPDIR="$base" bash -c '
+    TMPDIR="$base" FM_TEST_RETAIN_MARKER="$base/.retain-scratch" bash -c '
       . "$1"
       teardown=$2
       trap '\''fm_test_finalize "$?" "$teardown"'\'' EXIT
@@ -305,6 +305,9 @@ test_custom_finalizer_cleans_or_retains_after_teardown() {
     else
       set -- "$base"/fm-custom-fixture.*/sentinel
       assert_present "$1" 'unverified teardown retains fixture scratch'
+      set -- "$base"/.retain-scratch.*.fixture
+      assert_present "$1" 'unverified teardown publishes retention to the fixture marker'
+      set -- "$base"/fm-custom-fixture.*/sentinel
       TMPDIR="$base" FM_TEST_ORPHAN_MAX_AGE_SECONDS=0 bash -ec '. "$1"; fm_test_reap_orphans' _ "$LIB" || fail 'fixture orphan sweep failed'
       assert_present "$1" 'a later orphan sweep leaves retained scratch alone'
     fi

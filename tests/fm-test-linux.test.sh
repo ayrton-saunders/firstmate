@@ -130,10 +130,10 @@ SH
 }
 
 test_overlay_failure_prevents_container_run() {
-  local repo="$TMP_ROOT/partial" tools="$TMP_ROOT/partial-tools" stage out rc
+  local repo="$TMP_ROOT/partial" mock_bin="$TMP_ROOT/partial-tools" stage out rc
   make_repo "$repo"
-  mkdir "$tools"
-  cat >"$tools/git" <<'SH'
+  mkdir "$mock_bin"
+  cat >"$mock_bin/git" <<'SH'
 #!/usr/bin/env bash
 if [ "$FAIL_STAGE" = inventory ] && [ "${3:-}" = ls-files ]; then
   printf '%s\0' tests/kept.test.sh
@@ -141,23 +141,23 @@ if [ "$FAIL_STAGE" = inventory ] && [ "${3:-}" = ls-files ]; then
 fi
 exec "$REAL_GIT" "$@"
 SH
-  cat >"$tools/tar" <<'SH'
+  cat >"$mock_bin/tar" <<'SH'
 #!/usr/bin/env bash
 "$REAL_TAR" "$@" || exit $?
 if [ "$FAIL_STAGE" = archive ] && [ "$1" = --no-recursion ]; then exit 1; fi
 SH
-  cat >"$tools/runtime" <<'SH'
+  cat >"$mock_bin/runtime" <<'SH'
 #!/usr/bin/env bash
 if [ "$1" = run ]; then touch "$RUN_MARKER"; fi
 SH
-  chmod +x "$tools/"*
+  chmod +x "$mock_bin/"*
   for stage in inventory archive; do
     rc=0
     out=$(cd "$repo" && REAL_GIT="$(command -v git)" REAL_TAR="$(command -v tar)" \
-      PATH="$tools:$PATH" FM_CONTAINER_RUNTIME="$tools/runtime" FAIL_STAGE="$stage" \
-      RUN_MARKER="$tools/ran" "$BASH" "$LINUX_CHECK" tests/kept.test.sh 2>&1) || rc=$?
+      PATH="$mock_bin:$PATH" FM_CONTAINER_RUNTIME="$mock_bin/runtime" FAIL_STAGE="$stage" \
+      RUN_MARKER="$mock_bin/ran" "$BASH" "$LINUX_CHECK" tests/kept.test.sh 2>&1) || rc=$?
     assert_equals 2 "$rc" "$stage failure aborts Linux validation: $out"
-    [ ! -e "$tools/ran" ] || fail "container ran after $stage failure"
+    [ ! -e "$mock_bin/ran" ] || fail "container ran after $stage failure"
     assert_not_contains "$out" 'PASS tests/kept.test.sh' "$stage failure must not report a pass"
   done
   pass 'Linux validation refuses partial inventory and archives'

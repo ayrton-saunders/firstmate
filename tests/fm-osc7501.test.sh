@@ -1161,19 +1161,31 @@ t_retire_waits_for_slow_reporter() {
 # An hc terminal opened from inside a herdr session inherits HERDR_* markers;
 # its own HC_TERMINAL_ID still makes it a known-aware reporter.
 t_hc_terminal_with_inherited_herdr_markers() {
-  local d=$TMP_ROOT/hcinherit
+  local d=$TMP_ROOT/hcinherit wpid poll_pid
   mkhome "$d"
   start_term "$d"
-  env "${CLEAN_UNSET[@]}" HC_TERMINAL_ID=t-2 HERDR_ENV=1 HERDR_PANE_ID=p-1 \
-    FM_OSC7501_TTY="$TERM_SLAVE" bash "$SCRIPT" arm \
+  # The timed runner requires no live group members after fixture teardown.
+  # Hold the real poll sleep open until TERM so a leaked child is observable.
+  mkdir "$d/bin"
+  # shellcheck disable=SC2016 # The sleep stub expands its own arguments.
+  printf '#!/usr/bin/env bash\nif [ "$1" = 47 ]; then echo $$ >%q; fi\nexec %q "$@"\n' \
+    "$d/poll-pid" "$(command -v sleep)" >"$d/bin/sleep"
+  chmod +x "$d/bin/sleep"
+  env "${CLEAN_UNSET[@]}" PATH="$d/bin:$PATH" HC_TERMINAL_ID=t-2 HERDR_ENV=1 HERDR_PANE_ID=p-1 \
+    FM_OSC7501_TTY="$TERM_SLAVE" FM_OSC7501_INTERVAL=47 bash "$SCRIPT" arm \
     --task t14 --harness opencode --agent-bin opencode --backend hc --kind ship \
     --state "$d/state" --config "$d/config"
-  local wpid
   wpid=$(watcher_pid "$d/state") || fail "hc inside herdr: no watcher armed"
+  wait_cap '' "$d/poll-pid" 60 || fail 'hc inside herdr: watcher did not reach its poll sleep'
+  read -r poll_pid <"$d/poll-pid"
   assert_equals "state=idle " "$(grep -o 'state=[a-z]*' "$d/cap" | sort -u | tr '\n' ' ')" \
     "hc inside herdr: the only bytes are the arm-time idle clear - no capability probe"
   kill "$wpid" 2>/dev/null
-  wait_gone "$wpid" || true
+  wait_gone "$wpid" || fail 'hc inside herdr: watcher did not exit on TERM'
+  if kill -0 "$poll_pid" 2>/dev/null; then
+    kill "$poll_pid" 2>/dev/null || true
+    fail 'hc inside herdr: watcher left its poll sleep running after TERM'
+  fi
   stop_term
   pass "known-aware: an hc terminal reports despite inherited HERDR markers"
 }
