@@ -187,20 +187,41 @@ if [ "$FAIL_STAGE" = archive ] && [ "$1" = --no-recursion ]; then exit 1; fi
 SH
   cat >"$mock_bin/runtime" <<'SH'
 #!/usr/bin/env bash
-if [ "$1" = run ]; then touch "$RUN_MARKER"; fi
+if [ "$1" = run ]; then
+  touch "$RUN_MARKER"
+  while [ "$#" -gt 1 ]; do
+    if [ "$1" = -v ]; then
+      dir="${2%:/work}/tests/nested checkout"
+      [ -d "$dir" ] && [ -z "$(ls -Aq -- "$dir")" ] || exit 1
+      printf '%s\n' 'mounted empty gitlink directory'
+      exit 0
+    fi
+    shift
+  done
+fi
 SH
   chmod +x "$mock_bin/"*
-  for stage in inventory archive nested gitlink; do
+  for stage in inventory archive nested gitlink empty-gitlink; do
     case "$stage" in
       nested) make_repo "$repo/tests/nested checkout" ;;
       gitlink)
         git -C "$repo" update-index --add --cacheinfo "160000,$(git -C "$repo/tests/nested checkout" rev-parse HEAD),tests/nested checkout"
+        ;;
+      empty-gitlink)
+        rm -rf -- "$repo/tests/nested checkout"
+        mkdir "$repo/tests/nested checkout"
         ;;
     esac
     rc=0
     out=$(cd "$repo" && REAL_GIT="$(command -v git)" REAL_TAR="$(command -v tar)" \
       PATH="$mock_bin:$PATH" FM_CONTAINER_RUNTIME="$mock_bin/runtime" FAIL_STAGE="$stage" \
       RUN_MARKER="$mock_bin/ran" "$BASH" "$LINUX_CHECK" tests/kept.test.sh 2>&1) || rc=$?
+    if [ "$stage" = empty-gitlink ]; then
+      assert_equals 0 "$rc" "empty gitlink permits Linux validation: $out"
+      assert_contains "$out" 'mounted empty gitlink directory' 'the suite mount preserves the placeholder'
+      assert_contains "$out" 'PASS tests/kept.test.sh' 'the selected suite ran'
+      continue
+    fi
     assert_equals 2 "$rc" "$stage failure aborts Linux validation: $out"
     [ ! -e "$mock_bin/ran" ] || fail "container ran after $stage failure"
     assert_not_contains "$out" 'PASS tests/kept.test.sh' "$stage failure must not report a pass"

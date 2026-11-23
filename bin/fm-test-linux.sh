@@ -188,7 +188,8 @@ while IFS= read -r -d '' record; do
     [ ! -L "$root/$parent" ] || continue 2
   done
   if [[ "${record:2}" == '160000 '* && "$record" != '? '* ]] && [ -d "$root/$path" ] && [ ! -L "$root/$path" ]; then
-    die "cannot copy Git checkout '$path' recorded as a gitlink; move the checkout out of the working tree before running Linux validation"
+    entries=$(LC_ALL=C ls -Aq -- "$root/$path") || die "could not inspect gitlink directory '$path'"
+    [ -z "$entries" ] || die "cannot copy Git checkout '$path' recorded as a gitlink; move the checkout out of the working tree before running Linux validation"
   fi
   [ -e "$root/$path" ] || [ -L "$root/$path" ] && files+=("$path")
 done <"$inventory"
