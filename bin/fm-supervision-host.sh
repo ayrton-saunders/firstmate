@@ -1201,7 +1201,7 @@ acknowledge_routine_close() {  # <exact rows, or empty for rearm-resurface>
 # never a subshell, because it advances the host's grant and turn state.
 handle_wake() {  # <reason-lines>
   local reason=$1 first scope status corrupted rows tasks unscoped rc turn readback
-  local receipts usage result errors unacked mirror diverged divergence_limit
+  local receipts usage result errors unacked mirror
   LAST_TURN=
   ENGINE_ERROR=0
   HEALTH_NOTE=
@@ -1213,14 +1213,6 @@ handle_wake() {  # <reason-lines>
     if [ "$ATTENDED_ROUTINE" -eq 1 ]; then
       host_still_owner || return 1
       rc=0
-      divergence_limit=$(numeric_or "${FM_DIVERGENCE_TIMEOUT:-}" 20)
-      diverged=$(attended_park_run_with_limit "$divergence_limit" "$SCRIPT_DIR/fm-captain-hold.sh" diverged --require-readable 2>/dev/null) || rc=$?
-      if [ "$rc" -eq 124 ]; then boundary_exit; fi
-      if [ "$rc" -ne 0 ] || [ -n "$diverged" ]; then
-        if [ "$rc" -ne 75 ]; then ROUTINE_HAND_BACK=0; fi
-        ATTENDED_WHY=main-only
-        return 2
-      fi
       attended_park_worker acknowledge_routine_close "$ATTENDED_ROUTINE_ROWS" || rc=$?
       [ -z "$ATTENDED_ROUTINE_ROWS" ] || GRANT_ACTIVE=1
       if [ "$rc" -eq 124 ]; then boundary_exit; fi
@@ -1461,6 +1453,14 @@ attended_routine_candidate() {  # <reason> [decision keys]
 # Why an attended close stays with main exactly as the plain arm delivers it,
 # or nothing when the supervision session may take it. Sets ATTENDED_WHY, and
 # ATTENDED_OFFER to the offer's verdict and the scope it judged.
+attended_hold_clear() {
+  local diverged limit rc=0
+  limit=$(numeric_or "${FM_DIVERGENCE_TIMEOUT:-}" 20)
+  diverged=$(attended_park_run_with_limit "$limit" "$SCRIPT_DIR/fm-captain-hold.sh" diverged --require-readable 2>/dev/null) || rc=$?
+  case "$rc" in 75|124) return "$rc" ;; esac
+  [ "$rc" -eq 0 ] && [ -z "$diverged" ] || return 3
+}
+
 attended_acceptor() {  # <reason-lines> [final]
   local offer='' first=${1%%$'\n'*} rc=0 decision_keys candidate=0
   if attended_routine_candidate "$1"; then
@@ -1481,6 +1481,9 @@ attended_acceptor() {  # <reason-lines> [final]
     if [ "$candidate" -eq 1 ] && [ "$1" = 'check: rearm-resurface' ] && [ ! -s "$FM_WAKE_QUEUE" ]; then
       attended_park_worker attended_routine_rows empty >/dev/null <<< "$1"$'\n' || rc=$?
       if [ "$rc" -eq 0 ]; then
+        attended_hold_clear || rc=$?
+      fi
+      if [ "$rc" -eq 0 ]; then
         ROUTINE_HAND_BACK=1
         ATTENDED_ROUTINE=1
         boundary_reached && boundary_exit
@@ -1488,9 +1491,14 @@ attended_acceptor() {  # <reason-lines> [final]
       fi
       [ "$rc" -eq 2 ] || candidate=0
       if [ "$rc" -eq 124 ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
+      if [ "$rc" -eq 75 ]; then
+        ROUTINE_HAND_BACK=1
+        ATTENDED_WHY=main-only
+        return 1
+      fi
       ROUTINE_HAND_BACK=0
     fi
-    if [ "$candidate" -eq 0 ] && [ "$rc" -ne 75 ] && health_cooling; then
+    if [ "$candidate" -eq 0 ] && [ "$rc" -ne 3 ] && health_cooling; then
       ATTENDED_WHY="the supervision session is cooling down after engine errors"
       return 1
     fi
@@ -1498,12 +1506,15 @@ attended_acceptor() {  # <reason-lines> [final]
       ROUTINE_HAND_BACK=0
       ATTENDED_WHY="branch eligibility could not be computed"
     else
-      [ "$rc" -eq 75 ] || rc=1
+      [ "$rc" -eq 3 ] || rc=1
       decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
       if { [ "${2:-}" = final ] && [ "$candidate" -eq 1 ]; } ||
          { [ "${2:-}" != final ] && { [ "$candidate" -eq 1 ] || [[ "$first" = stale:* ]]; } && attended_routine_candidate "$1" "$decision_keys"; }; then
         rc=0
         ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows <<< "$1"$'\n'"$decision_keys") || rc=$?
+        if [ "$rc" -eq 0 ]; then
+          attended_hold_clear || rc=$?
+        fi
         if [ "$rc" -eq 124 ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
       fi
       case "$rc" in

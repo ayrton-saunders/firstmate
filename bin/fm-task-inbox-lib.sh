@@ -28,7 +28,7 @@
 #   <task>.inbox/.seq.lock     serializes sequence allocation across writers
 #                              (the session and the away daemon)
 #   <task>.inbox/.ring-state   watcher re-ring ladder: "<msg>\t<count>\t<epoch>"
-#   <task>.inbox/.busy-state   consecutive busy deferrals: "<msg>\t<count>\t<progress-fingerprint>"
+#   <task>.inbox/.busy-state   consecutive busy deferrals: "<msg>\t<count>\t<progress-fingerprint>\t<total>"
 #   <task>.inbox/.escalated    oldest-message name already surfaced as stale,
 #                              so later polls suppress another escalation
 #   <task>.inbox/.retry-ring   name of a fire-and-forget record still owed its
@@ -135,12 +135,13 @@ fm_task_inbox_busy_max() {
 # Persist before returning the new count, so a fresh watcher continues the same
 # bounded wait. A removed or acknowledged record is a quiet no-op.
 fm_task_inbox_record_busy() {  # <state-dir> <task-id> <record-path> [progress fingerprint]
-  local dir base previous count prior progress=${4:-0} prior_time progress_time
+  local dir base previous count prior total max progress=${4:-0} prior_time progress_time
   dir=$(fm_task_inbox_dir "$1" "$2")
   base=${3##*/}
-  { IFS=$(printf '\t') read -r previous count prior < "$dir/.busy-state"; } 2>/dev/null || true
-  [ "${previous:-}" = "$base" ] || { count=0; prior=0; }
+  { IFS=$(printf '\t') read -r previous count prior total < "$dir/.busy-state"; } 2>/dev/null || true
+  [ "${previous:-}" = "$base" ] || { count=0; prior=0; total=0; }
   case "${count:-}" in ''|*[!0-9]*) count=0 ;; esac
+  case "${total:-}" in ''|*[!0-9]*) total=$count ;; esac
   case "${prior:-}" in ''|*[!0-9:]*|:*|*:) prior=0 ;; esac
   case "$progress" in ''|*[!0-9:]*|:*|*:) progress=0 ;; esac
   prior_time=${prior%%:*}
@@ -155,9 +156,14 @@ fm_task_inbox_record_busy() {  # <state-dir> <task-id> <record-path> [progress f
   fi
   [ -f "$3" ] || { printf '0'; return 0; }
   count=$((count + 1))
-  if ! { printf '%s\t%s\t%s\n' "$base" "$count" "$progress" > "$dir/.busy-state"; } 2>/dev/null; then
+  total=$((total + 1))
+  if ! { printf '%s\t%s\t%s\t%s\n' "$base" "$count" "$progress" "$total" > "$dir/.busy-state"; } 2>/dev/null; then
     [ -f "$3" ] || { printf '0'; return 0; }
     return 1
+  fi
+  max=$(fm_task_inbox_busy_max)
+  if [ "$total" -ge "$((2 * max))" ] && [ "$count" -lt "$max" ]; then
+    count=$max
   fi
   printf '%s' "$count"
 }

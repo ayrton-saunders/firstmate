@@ -945,6 +945,26 @@ test_watcher_busy_budget_resets_on_progress() {
   pass "watcher: native activity resets the same message's busy budget without a new turn"
 }
 
+test_continued_activity_cannot_hide_unread_steer() {
+  local dir state gen i event="$ROOT/bin/fm-busy-event.sh"
+  dir=$(busy_case continuous-progress)
+  state="$dir/state"
+  fm_write_meta "$state/t1.meta" 'window=sess:fm-t1' 'kind=secondmate' 'harness=pi'
+  gen=$("$event" arm "$state" t1) || fail "fixture: could not arm Pi busy state"
+  "$event" apply "$state" t1 busy --gen "$gen" --source pi-ext --event agent-start || fail "fixture: Pi turn refused"
+  for i in 1 2 3 4; do
+    "$event" progress "$state" t1 --gen "$gen" || fail "fixture: could not record progress"
+    perl -MTime::HiRes=utime -e 'my $t = 1700000000 + $ARGV[0] / 10; utime($t, $t, $ARGV[1]) or die $!' "$i" "$state/t1.progress"
+    busy_steer_check "$dir"
+    if [ "$i" -lt 4 ]; then
+      [ ! -s "$state/.wake-queue" ] || fail "progress did not defer escalation"
+    fi
+  done
+  grep -q 'stuck-busy' "$state/.wake-queue" || fail "continuing progress hid an unread steer"
+  [ -f "$state/t1.inbox/001.msg" ] || fail "escalation removed the unread steer"
+  pass "watcher: continued progress can defer but cannot hide an unread steer"
+}
+
 test_pi_stream_progress_resets_busy_budget() {
   local dir state gen event="$ROOT/bin/fm-busy-event.sh"
   dir=$(busy_case pi-stream-progress)
@@ -1483,6 +1503,7 @@ test_watcher_rerings_idle_pane_quietly
 test_watcher_waits_on_busy_pane
 test_watcher_busy_budget_resets_on_progress
 test_pi_stream_progress_resets_busy_budget
+test_continued_activity_cannot_hide_unread_steer
 test_claude_stop_continuation_resets_busy_budget
 test_watcher_busy_retry_is_not_progress
 test_watcher_busy_budget_resets_on_ring_and_ack

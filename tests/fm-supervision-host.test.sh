@@ -407,6 +407,12 @@ SH
   if [ "$mode" = mixed ]; then
     action+=$'\n''  printf "needs-decision [key=new-choice]: choose again\n" >> "$FM_HOME/state/demo.status"'
   fi
+  if [ "$mode" = divergence ]; then
+    action+=$'\n''lock="$FM_HOME/state/.watcher-down.lock"
+      mkdir "$lock" || exit 1
+      ( sleep 5; rm -f "$lock/pid"; rmdir "$lock" ) </dev/null >/dev/null 2>&1 &
+      printf "%s\n" "$!" > "$lock/pid"'
+  fi
   if [ "$mode" = late-rejection ]; then
     : > "$home/config/supervision-handoff-ack"
     install_first_offer_action "$home" "$action" '
@@ -427,7 +433,7 @@ SH
       : > "$home/config/supervision-handoff-ack"
       {
         printf '#!/usr/bin/env bash\n'
-        printf 'if [ "$1" = list ]; then for lock in .wake-queue.lock .fm-lease-command.lock; do mkdir "$FM_HOME/state/$lock" && printf "%%s\\n" %s > "$FM_HOME/state/$lock/pid"; done; fi\n' "$$"
+        printf 'if [ "$1" = list ] && [ -e "$FM_HOME/second-offer-action-ran" ]; then for lock in .wake-queue.lock .fm-lease-command.lock; do mkdir "$FM_HOME/state/$lock" && printf "%%s\\n" %s > "$FM_HOME/state/$lock/pid"; done; fi\n' "$$"
         printf 'exec %q "$@"\n' "$(command -v tasks-axi)"
       } > "$home/fakebin/tasks-axi"
       chmod +x "$home/fakebin/tasks-axi"
@@ -443,7 +449,7 @@ SH
     rmdir "$state/.wake-queue.lock"
     rm -f "$state/.fm-lease-command.lock/pid"
     rmdir "$state/.fm-lease-command.lock"
-  elif [ "$mode" = late-rejection ]; then
+  elif [ "$mode" = late-rejection ] || [ "$mode" = divergence ]; then
     FM_STATUS_PRESENTATION_LOCK_TIMEOUT=2 start_host "$home"
   else
     start_host "$home"
@@ -462,6 +468,8 @@ SH
       expect_code 0 "$(<"$home/host.rc")" "a late rejection must not time out its ordinary hand-back"
       assert_grep 'check: supervision-handoff' "$state/.wake-queue" "ordinary hand-back must publish its check"
     elif [ "$mode" = divergence ]; then
+      expect_code 0 "$(<"$home/host.rc")" "a known hold must use ordinary hand-back despite marker contention"
+      assert_no_re '^supervision-host:|^watcher: FAILED' "$home/host.out" "known divergence should pass through unchanged"
       initial=$(FM_HOME="$home" "$ROOT/bin/fm-wake-drain.sh" 2>&1)
       assert_contains "$initial" 'answer-test [key=answer-test] reads resolved' "the open structured hold must reach main"
     fi
@@ -1522,6 +1530,7 @@ assert_routine_resurface_lock_wait() {  # <park|command>
     printf '117\n' > "$home/park-clock"
   else
     limit=2
+    install_first_offer_action "$home" ': > "$FM_HOME/unexpected-timeout-offer"'
   fi
   FM_STATUS_PRESENTATION_LOCK_TIMEOUT="$limit" FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" \
     FM_SUPERVISION_HOST_PARK_SECONDS=120 start_host "$home"
@@ -1530,6 +1539,7 @@ assert_routine_resurface_lock_wait() {  # <park|command>
     assert_re '^supervision-host: cycle boundary' "$home/host.out" "the park deadline must use the normal boundary hand-back"
   else
     assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "a proof timeout is not the park deadline"
+    [ ! -e "$home/unexpected-timeout-offer" ] || fail "timed-out empty recovery invoked an offer"
     [ "$(engine_calls "$home")" -eq 0 ] || fail "proof timeout launched an engine turn"
   fi
   assert_re '^check: rearm-resurface$' "$home/host.out" "recovery must remain visible on hand-back"
