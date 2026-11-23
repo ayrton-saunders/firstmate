@@ -3,6 +3,7 @@
 # FM_HERMES_SIGNALS_LIVE=1 FM_HERMES_LIVE_HOME=<throwaway-root>
 # FM_HERMES_LIVE_PROFILE=<name> (default worker). Never sends gateway messages or assigns
 # domain work. The profile's own model and auth are used unchanged.
+# FM_HERMES_LIVE_KEEP=1 leaves an opt-in diagnostics copy in OS temp.
 set -u
 # shellcheck source=tests/fixtures.sh
 . "$(dirname "${BASH_SOURCE[0]}")/fixtures.sh"
@@ -16,15 +17,27 @@ LAB=$(mktemp -d "${TMPDIR:-/tmp}/hm.XXXXXX")
 LAB=$(cd "$LAB" && pwd -P)
 SOCKET="$LAB/s"
 cleanup() {
-  "$REAL_TMUX" -S "$SOCKET" kill-server >/dev/null 2>&1 || true
+  local status=$? base stopped=0
+  fm_test_stop_private_tmux "$SOCKET" "$REAL_TMUX" && stopped=1
   if [ "${FM_HERMES_LIVE_KEEP:-0}" = 1 ]; then
-    printf 'Hermes guard evidence: %s\n' "$LAB"
-  else
-    chmod -R u+w "$LAB" >/dev/null 2>&1 || true
-    rm -rf "$LAB"
+    if ! base=$(bash "$ROOT/bin/fm-test-run.sh" --scratch-base) || ! fm_test_copy_hermes_evidence "$LAB" "$base"; then
+      printf '%s\n' 'not ok - could not preserve Hermes evidence' >&2
+      [ "$status" -ne 0 ] || status=1
+    fi
   fi
+  if [ "$stopped" -eq 1 ]; then
+    fm_test_remove_tree "$LAB" || { [ "$status" -ne 0 ] || status=1; }
+  else
+    [ "$status" -ne 0 ] || status=1
+  fi
+  fm_test_cleanup
+  exit "$status"
 }
 trap cleanup EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 131' QUIT
+trap 'exit 143' TERM
 fail() { printf 'not ok - %s: %s (evidence %s)\n' "$VERSION" "$1" "$LAB" >&2; exit 1; }
 # shellcheck source=bin/fm-busy-lib.sh
 . "$ROOT/bin/fm-busy-lib.sh"

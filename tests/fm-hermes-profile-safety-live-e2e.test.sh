@@ -15,8 +15,13 @@ LAB=$(mktemp -d "${TMPDIR:-/tmp}/hm.XXXXXX")
 LAB=$(cd "$LAB" && pwd -P)
 SOCKET="$LAB/s"
 cleanup() {
-  [ ! -S "$SOCKET" ] || tmux -S "$SOCKET" kill-server >/dev/null 2>&1 || true
-  rm -rf "$LAB"
+  local status=$?
+  if fm_test_stop_private_tmux "$SOCKET" tmux; then
+    fm_test_remove_tree "$LAB" || { [ "$status" -ne 0 ] || status=1; }
+  else
+    [ "$status" -ne 0 ] || status=1
+  fi
+  exit "$status"
 }
 trap cleanup EXIT
 trap 'exit 129' HUP
@@ -84,7 +89,6 @@ assert not result.get('error'), result
     print('two native session-store writers: distinct sessions retained', flush=True)
     print('two native memory add writers: both entries retained', flush=True)
 finally:
-    subprocess.run(['tmux', '-S', socket, 'kill-server'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     release_gateway_runtime_lock()
     print('native gateway runtime lock: released', flush=True)
 PY

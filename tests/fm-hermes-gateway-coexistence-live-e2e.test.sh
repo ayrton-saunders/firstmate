@@ -22,22 +22,31 @@ SOCKET="$LAB/s"
 mkdir -p "$LAB/home" "$LAB/state" "$LAB/locks"
 [ -f "$PROFILE_HOME/config.yaml" ] || fail "throwaway profile $PROFILE_HOME is not prepared"
 BACKUP=
-backup_pending=1
+backup_pending=0
+mutation_attempted=0
 probe_signal=0
 TUI_PID=
 cleanup() {
-  local status=$? socket
+  local status=$? socket teardown_failed=0
   trap '' HUP INT QUIT TERM
   if [ -n "$TUI_PID" ]; then kill -TERM "$TUI_PID" 2>/dev/null || true; fi
+  if [ -n "$BACKUP" ]; then
+    if [ "$mutation_attempted" -eq 0 ]; then
+      rm -f "$BACKUP" || { [ "$status" -ne 0 ] || status=1; }
+    elif [ -d "$PROFILE_HOME/config.yaml" ] || ! mv -f "$BACKUP" "$PROFILE_HOME/config.yaml"; then
+      printf 'not ok - config restore failed; backup retained at %s\n' "$BACKUP" >&2
+      [ "$status" -ne 0 ] || status=1
+    fi
+  fi
   for socket in "$SOCKET" "$LAB"/hm.??????/s; do
-    [ ! -S "$socket" ] || tmux -S "$socket" kill-server >/dev/null 2>&1 || true
+    fm_test_stop_private_tmux "$socket" tmux || teardown_failed=1
   done
-  if [ -n "$BACKUP" ] && { [ -d "$PROFILE_HOME/config.yaml" ] || ! mv -f "$BACKUP" "$PROFILE_HOME/config.yaml"; }; then
-    printf 'not ok - config restore failed; backup retained at %s\n' "$BACKUP" >&2
+  fm_test_cleanup
+  if [ "$teardown_failed" -eq 0 ]; then
+    fm_test_remove_tree "$LAB" || { [ "$status" -ne 0 ] || status=1; }
+  else
     [ "$status" -ne 0 ] || status=1
   fi
-  fm_test_cleanup
-  rm -rf "$LAB"
   exit "$status"
 }
 trap cleanup EXIT
@@ -49,17 +58,6 @@ trap 'interrupt_probe 129' HUP
 trap 'interrupt_probe 130' INT
 trap 'interrupt_probe 131' QUIT
 trap 'interrupt_probe 143' TERM
-BACKUP=$(
-  trap '' HUP INT QUIT TERM
-  backup=$(mktemp "$PROFILE_HOME/.fm-gateway-config.XXXXXX") || exit 1
-  if ! cp -p "$PROFILE_HOME/config.yaml" "$backup"; then
-    rm -f "$backup"
-    exit 1
-  fi
-  printf '%s\n' "$backup"
-) || fail 'could not back up profile config'
-backup_pending=0
-[ "$probe_signal" -eq 0 ] || exit "$probe_signal"
 for file in "$FM_HERMES_LIVE_HOME/.env" "$PROFILE_HOME/.env"; do
   [ ! -s "$file" ] || fail "$file may configure a messaging platform; use a profile without one"
 done
@@ -81,8 +79,22 @@ digest = hashlib.sha256(memory.read_bytes()).hexdigest() if memory.exists() else
 out.write_text(json.dumps({'integrity': ok, 'sessions': sessions, 'memory': digest}))
 PY
 }
+snapshot "$LAB/before.json" || fail 'could not snapshot the throwaway session store'
 # Native Hermes runs a profile-owned gateway only in its standalone mode, the
 # shape of an operator profile whose own gateway serves only itself.
+backup_pending=1
+BACKUP=$(
+  trap '' HUP INT QUIT TERM
+  backup=$(mktemp "$PROFILE_HOME/.fm-gateway-config.XXXXXX") || exit 1
+  if ! cp -p "$PROFILE_HOME/config.yaml" "$backup"; then
+    rm -f "$backup"
+    exit 1
+  fi
+  printf '%s\n' "$backup"
+) || fail 'could not back up profile config'
+backup_pending=0
+[ "$probe_signal" -eq 0 ] || exit "$probe_signal"
+mutation_attempted=1
 HERMES_HOME="$FM_HERMES_LIVE_HOME" "$HERMES_BIN" -p "$PROFILE" config set gateway.standalone true >/dev/null \
   || fail 'could not mark the throwaway profile gateway standalone'
 gateway_state() { jq -c '{pid, gateway_state, active_agents, active_work, updated_at, session_store}' "$PROFILE_HOME/gateway_state.json"; }
@@ -91,7 +103,6 @@ gateway_state() { jq -c '{pid, gateway_state, active_agents, active_work, update
 # visible to it.
 printf 'exec env -i PATH=%q TERM=xterm-256color HOME=%q XDG_STATE_HOME=%q HERMES_GATEWAY_LOCK_DIR=%q HERMES_HOME=%q %q -p %q gateway run\n' \
   "$PATH" "$LAB/home" "$LAB/state" "$LAB/locks" "$FM_HERMES_LIVE_HOME" "$HERMES_BIN" "$PROFILE" > "$LAB/gateway.sh"
-snapshot "$LAB/before.json" || fail 'could not snapshot the throwaway session store'
 tmux -S "$SOCKET" new-session -d -s gateway -x 160 -y 50 "bash '$LAB/gateway.sh'; sleep 600" || fail 'gateway launch failed'
 for _ in $(seq 1 240); do
   # A previous run leaves its state file behind; wait for a live writer.

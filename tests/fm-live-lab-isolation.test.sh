@@ -88,7 +88,7 @@ isolation_cleanup() {
   # Only the servers this suite started, each by its own explicit socket, and
   # only while it is still there; the decoy is gone before the suite returns.
   local rc=0
-  [ ! -S "$GATE_SOCKET" ] || tmux -S "$GATE_SOCKET" kill-server 2>/dev/null
+  fm_test_stop_private_tmux "$GATE_SOCKET" tmux || rc=1
   if [ -n "$STUCK_PID" ]; then
     kill -CONT "$STUCK_PID" 2>/dev/null
     stop_decoy "$STUCK_PID" "$STUCK_SOCKET" || rc=1
@@ -96,8 +96,8 @@ isolation_cleanup() {
   if [ -n "$DECOY_PID" ]; then
     stop_decoy "$DECOY_PID" "$DEFAULT_SOCKET" || rc=1
   fi
-  fm_test_cleanup
   [ "$rc" -eq 0 ] || exit 1
+  fm_test_cleanup
 }
 trap isolation_cleanup EXIT
 trap 'exit 130' INT
@@ -141,7 +141,7 @@ if [ -z "${FM_LAB_ISO_HOST_MARKER:-}" ] && [ -z "${FM_LAB_ISO_TMP_COPY:-}" ]; th
   assert_contains "$out" "skip: tmux isolation" "under CI the gate still says why it skips"
   assert_not_contains "$out" RAN "under CI the gate stops the suite beside a live server"
 
-  tmux -S "$GATE_SOCKET" kill-server 2>/dev/null
+  fm_test_stop_private_tmux "$GATE_SOCKET" tmux || fail 'could not stop the gate server'
   out=$(gate_run "$TMP_ROOT")
   assert_equals RAN "$out" "the gate runs again once only a dead socket is left"
   pass "fm_tmux_isolation_gate runs isolated and skips beside a live server"
@@ -158,7 +158,11 @@ if [ -z "${FM_LAB_ISO_HOST_MARKER:-}" ] && [ -z "${FM_LAB_ISO_TMP_COPY:-}" ]; th
   # shellcheck disable=SC2016 # $1 and $2 expand in the bounded shell.
   out=$(FM_TMUX_ISOLATION_PROBE_SECONDS=1 fm_run_timed 30 bash -c '. "$1/tests/lib.sh"; fm_tmux_isolation_gate "$2"; echo RAN' _ "$ROOT" "$TMP_ROOT/b" 2>&1)
   code=$?
+  shutdown_rc=0
+  shutdown=$(FM_TEST_RETAIN_MARKER="$TMP_ROOT/retain" fm_test_stop_private_tmux "$STUCK_SOCKET" tmux 2>&1) || shutdown_rc=$?
   kill -CONT "$STUCK_PID" 2>/dev/null
+  expect_code 1 "$shutdown_rc" "shutdown returns when the private server does not answer"
+  assert_contains "$shutdown" "retained socket: $STUCK_SOCKET" 'unverified teardown names the retained socket'
   stop_decoy "$STUCK_PID" "$STUCK_SOCKET" || fail "cannot stop the stuck server"
   STUCK_PID=''
   expect_code 0 "$code" "the gate returns from a server that never answers: $out"

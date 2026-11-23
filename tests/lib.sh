@@ -118,6 +118,8 @@ TOML
 # test files, not by this library, so it reads as "unused" here.
 # shellcheck disable=SC2034
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=bin/fm-test-scratch-lib.sh
+. "$ROOT/bin/fm-test-scratch-lib.sh"
 
 # --- reporters --------------------------------------------------------------
 
@@ -370,16 +372,6 @@ fm_test_nonplatform_binary() {
   cp "$bin" "$copy" || return 1
   codesign --force --sign - "$copy" >/dev/null 2>&1 || return 1
   printf '%s\n' "$copy"
-}
-
-# Remove a fixture tree even when it holds a read-only directory, such as the
-# spawn-owned state/<id>.git-hooks strip directory.
-fm_test_remove_tree() {
-  local dir=$1
-  if [ -d "$dir" ] && [ ! -L "$dir" ]; then
-    find "$dir" -type d -exec chmod u+rwx {} + 2>/dev/null || true
-  fi
-  rm -rf "$dir"
 }
 
 # --- fixture-root process reaping -------------------------------------------

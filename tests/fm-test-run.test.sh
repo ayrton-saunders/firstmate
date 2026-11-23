@@ -91,7 +91,7 @@ test_changed_file_selection_is_conservative() {
 init_changed_fixture_repo() {
   local repo=$1 script
   mkdir -p "$repo/bin" "$repo/tests"
-  cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+  cp "$RUNNER" "$ROOT/bin/fm-test-scratch-lib.sh" "$repo/bin/"
   cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
   chmod +x "$repo/bin/fm-test-run.sh"
   for script in \
@@ -186,7 +186,7 @@ init_primary_and_linked_worktree() {
   git -C "$repo" worktree add --quiet -b linked-probe "$linked"
   for tree in "$repo" "$linked"; do
     mkdir -p "$tree/bin" "$tree/tests"
-    cp "$RUNNER" "$tree/bin/fm-test-run.sh"
+    cp "$RUNNER" "$ROOT/bin/fm-test-scratch-lib.sh" "$tree/bin/"
     cp "$ROOT/tests/git-config-helpers.sh" "$tree/tests/"
     chmod +x "$tree/bin/fm-test-run.sh"
     cat >"$tree/tests/probe.test.sh" <<PROBE
@@ -661,7 +661,7 @@ test_family_proofs_run_in_separate_concurrent_phases() {
   mkdir -p "$repo/bin" "$repo/tests"
   cp "$RUNNER" "$repo/bin/fm-test-run.sh"
   cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
-  cp "$ROOT/bin/fm-timeout-lib.sh" "$repo/bin/fm-timeout-lib.sh"
+  cp "$ROOT/bin/fm-timeout-lib.sh" "$ROOT/bin/fm-test-scratch-lib.sh" "$repo/bin/"
   chmod +x "$repo/bin/fm-test-run.sh"
   for script in \
     fm-calm-pi-extension.test.sh fm-vendor-auth-probe.test.sh \
@@ -1038,7 +1038,7 @@ test_list_scheduled_non_lane_selections_use_serial_weights() {
   tmp=$(fm_test_tmproot fm-test-run-non-lane-schedule)
   repo="$tmp/repo"
   mkdir -p "$repo/bin" "$repo/tests"
-  cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+  cp "$RUNNER" "$ROOT/bin/fm-test-scratch-lib.sh" "$repo/bin/"
   for script in "${scripts[@]}"; do
     printf '#!/usr/bin/env bash\nexit 0\n' >"$repo/$script"
     chmod +x "$repo/$script"
@@ -1239,7 +1239,7 @@ test_portable_serial_packing_budget_boundary() {
   done < <("$RUNNER" --list --all)
 
   for weight in 1200000 1200001; do
-    cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+    cp "$RUNNER" "$ROOT/bin/fm-test-scratch-lib.sh" "$repo/bin/"
     python3 - "$repo/bin/fm-test-run.sh" "$weight" <<'PY' \
       || fail "could not seed the fixture's measured timing input"
 from pathlib import Path
@@ -1396,7 +1396,7 @@ test_unmapped_new_test_never_inherits_family_concurrency() {
   tmp=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-run-unmapped.XXXXXX")
   repo="$tmp/repo"
   mkdir -p "$repo/bin" "$repo/tests"
-  cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+  cp "$RUNNER" "$ROOT/bin/fm-test-scratch-lib.sh" "$repo/bin/"
   cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
   chmod +x "$repo/bin/fm-test-run.sh"
   # Two members of the proven residual family, plus a test basename the family
@@ -1570,7 +1570,7 @@ test_per_script_timeout_bounds_a_hang() {
   mkdir -p "$repo/bin" "$repo/tests"
   cp "$RUNNER" "$runner"
   cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
-  cp "$ROOT/bin/fm-timeout-lib.sh" "$repo/bin/fm-timeout-lib.sh"
+  cp "$ROOT/bin/fm-timeout-lib.sh" "$ROOT/bin/fm-test-scratch-lib.sh" "$repo/bin/"
   grandchild_pid="$tmp/grandchild.pid"
   cat >"$repo/$hang" <<'SH'
 #!/usr/bin/env bash
@@ -1650,7 +1650,7 @@ test_changed_bound_gives_slow_watcher_suites_headroom() {
   repo="$tmp/repo"
   script=tests/fm-watch-triage.test.sh
   mkdir -p "$repo/bin" "$repo/tests"
-  cp "$RUNNER" "$repo/bin/fm-test-run.sh"
+  cp "$RUNNER" "$ROOT/bin/fm-test-scratch-lib.sh" "$repo/bin/"
   cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
   cat >"$repo/bin/fm-timeout-lib.sh" <<'SH'
 fm_run_timed() {
@@ -1691,7 +1691,7 @@ test_parallel_timeout_during_slow_replay() {
   first=tests/fm-supervision-events.test.sh
   second=tests/fm-session-lock-ancestry.test.sh
   mkdir -p "$repo/bin" "$repo/tests" "$tmp/path"
-  cp "$RUNNER" "$ROOT/bin/fm-timeout-lib.sh" "$repo/bin/"
+  cp "$RUNNER" "$ROOT/bin/fm-timeout-lib.sh" "$ROOT/bin/fm-test-scratch-lib.sh" "$repo/bin/"
   cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
   cat >"$repo/$first" <<'SH'
 for ((i=0; i<100; i++)); do
@@ -1731,7 +1731,7 @@ test_max_wall_ms_is_a_result_not_advice() {
   runner="$repo/bin/fm-test-run.sh"
   fast=tests/fm-budget-fixture.test.sh
   mkdir -p "$repo/bin" "$repo/tests"
-  cp "$RUNNER" "$runner"
+  cp "$RUNNER" "$ROOT/bin/fm-test-scratch-lib.sh" "$repo/bin/"
   cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
   cat >"$repo/$fast" <<'SH'
 #!/usr/bin/env bash
@@ -1796,7 +1796,7 @@ test_jobs_parallel_scheduler_and_failure_propagation() {
   c=tests/fm-lint.test.sh
   d=tests/fm-supervision-instructions.test.sh
   mkdir -p "$repo/bin" "$repo/tests" "$evidence" "$fake_bin"
-  cp "$RUNNER" "$runner"
+  cp "$RUNNER" "$ROOT/bin/fm-test-scratch-lib.sh" "$repo/bin/"
   cp "$ROOT/tests/git-config-helpers.sh" "$repo/tests/"
   cat >"$fake_bin/stat" <<'SH'
 #!/usr/bin/env bash
@@ -1994,6 +1994,29 @@ assert len(doc["scripts"])==3
   pass "aggregate-json merges lane timing artifacts"
 }
 
+test_gateway_preflight_preserves_symlink() {
+  local tmp profile executable rc=0
+  tmp=$(fm_test_tmproot fm-gateway-refusal)
+  profile="$tmp/hermes/profiles/worker"
+  mkdir -p "$profile" "$tmp/path"
+  printf '%s\n' 'original config' >"$profile/original.yaml"
+  if ! ln -s original.yaml "$profile/config.yaml" 2>/dev/null || [ ! -L "$profile/config.yaml" ]; then
+    printf '%s\n' 'skip: gateway refusal check requires symlinks'
+    return 0
+  fi
+  printf '%s\n' 'configured' >"$profile/.env"
+  for executable in hermes tmux jq; do
+    printf '#!/usr/bin/env bash\nexit 99\n' >"$tmp/path/$executable"
+    chmod +x "$tmp/path/$executable"
+  done
+  PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
+    bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+  [ "$rc" -eq 1 ] && grep -q 'may configure a messaging platform' "$tmp/out" || fail "gateway did not refuse .env: $(<"$tmp/out")"
+  [ -L "$profile/config.yaml" ] && [ "$(<"$profile/config.yaml")" = 'original config' ] \
+    || fail 'gateway refusal changed the untouched config'
+  pass 'gateway refusal leaves symlinked profile config untouched'
+}
+
 test_readonly_probe_scratch_cleanup() {
   local tmp probe hooks target
   tmp=$(fm_test_tmproot fm-probe-cleanup)
@@ -2004,7 +2027,7 @@ test_readonly_probe_scratch_cleanup() {
   touch "$hooks/prepare-commit-msg" "$target/sentinel"
   chmod 0500 "$hooks" "$target"
   ln -s "$target" "$probe/alias" 2>/dev/null || printf '%s\n' 'skip: probe alias requires directory symlink support'
-  ( . "$RUNNER"; remove_run_tree "$probe" ) || fail 'could not remove read-only probe scratch'
+  ( . "$ROOT/bin/fm-test-scratch-lib.sh"; fm_test_remove_tree "$probe" ) || fail 'could not remove read-only probe scratch'
   [ ! -e "$probe" ] && [ -f "$target/sentinel" ] || fail 'probe cleanup left scratch or touched its symlink target'
   case "$(uname -s)" in
     MINGW*|MSYS*) ;;
@@ -2038,7 +2061,7 @@ repo = tmp / 'repo'
 (repo / 'bin').mkdir(parents=True)
 (repo / 'tests').mkdir()
 shutil.copy2(runner, repo / 'bin')
-for name in ('fm-path-lib.sh', 'fm-wake-lib.sh', 'fm-timeout-lib.sh'):
+for name in ('fm-path-lib.sh', 'fm-wake-lib.sh', 'fm-timeout-lib.sh', 'fm-test-scratch-lib.sh'):
     shutil.copy2(root / 'bin' / name, repo / 'bin')
 for name in ('git-config-helpers.sh', 'remote-secondmate-source-copy-helpers.sh'):
     shutil.copy2(root / 'tests' / name, repo / 'tests')
@@ -2068,6 +2091,12 @@ while [ ! -f "$run_root/.fm-test-run-owner" ]; do
 done
 printf '%s\\n%s\\n' "$TMPDIR" "$run_root" > "$PROOF"
 if [ "$PROBE_MODE" = hang ] || [ "$PROBE_MODE" = stubborn ]; then exec sleep 300; fi
+if [ "$PROBE_MODE" = evidence ]; then
+  . bin/fm-test-scratch-lib.sh
+  printf '%s\\n' 'captured output' >"$TMPDIR/screen.ansi"
+  base=$(bash bin/fm-test-run.sh --scratch-base)
+  fm_test_copy_hermes_evidence "$TMPDIR" "$base"
+fi
 if [ "$PROBE_MODE" = stale ]; then
   printf '%s|%s|%s|%s\\n' "$UID" "$DECOY_GROUP" "$DECOY_GROUP" 'different start identity' >"${TMPDIR%/*}/timed-owner"
 fi
@@ -2162,6 +2191,15 @@ assert sorted(p.name for p in legacy.iterdir()) == ['sentinel']
 assert not list(private.iterdir())
 result = subprocess.run(cmd, cwd=repo, env=dict(fixture_env, FM_HOME=shell_path(private)), capture_output=True)
 assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
+
+child, proof = launch('evidence-copy', 'evidence')
+assert child.wait(timeout=20) == 0
+_, run = scratch(proof)
+label = 'Hermes guard evidence: '
+line, = [line for line in (tmp / 'evidence-copy.log').read_text().splitlines() if line.startswith(label)]
+evidence = native_path(line[len(label):])
+assert evidence.parent.resolve() == base.resolve(), evidence
+assert not run.exists() and (evidence / 'screen.ansi').read_text() == 'captured output\n'
 
 if os.name == 'posix':
     allocator = fakebin / 'mktemp'
@@ -2354,6 +2392,7 @@ PY
   pass 'runner scratch stays out of snapshots and is cleaned after results, signals and owner death'
 }
 
+test_gateway_preflight_preserves_symlink
 test_readonly_probe_scratch_cleanup
 test_scratch_placement_and_lifecycle
 test_list_all_exact_suite_coverage

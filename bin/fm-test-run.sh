@@ -163,16 +163,6 @@
 # tests/fixtures/<dir>/ or a recorded capture under tests/captures/<dir>/ is
 # mapped by that directory instead. Curated family arms above those also name
 # individual tests/ files explicitly.
-remove_run_tree() {
-  local dir=$1
-  if [ -d "$dir" ] && [ ! -L "$dir" ]; then
-    find "$dir" -type d -exec chmod u+rwx {} \; 2>/dev/null || true
-  fi
-  rm -rf -- "$dir"
-}
-
-if [ "${BASH_SOURCE[0]}" != "$0" ]; then return 0; fi
-
 set -eu
 
 now_ms() {
@@ -1602,7 +1592,7 @@ families_for_changed_path() {
       # resolution in the caller; emit a marker family of __script__
       printf '%s\n' "__script__:$(basename "$path")"
       ;;
-    bin/fm-test-run.sh)
+    bin/fm-test-run.sh|bin/fm-test-scratch-lib.sh)
       # Deliberately the WHOLE family, not just the two contract tests. This
       # runner executes every pure-contract-unit script, so a change to it is
       # only proven by running them: its own contract test passing says the
@@ -2503,7 +2493,8 @@ reap_orphan_runs() {
       [ -f "$timed" ] && [ ! -L "$timed" ] && [ -O "$timed" ] || continue 2
       run_owners_gone "$timed" "$snapshot" || continue 2
     done
-    remove_run_tree "$dir" || true
+    compgen -G "$dir/.retain-scratch.??????" >/dev/null && continue
+    fm_test_remove_tree "$dir" || true
   done
 }
 
@@ -2636,10 +2627,19 @@ cleanup_run() {
     [ "$status" -ne 0 ] || status=1
     exit "$status"
   fi
-  if [ -n "$RUN_TMP" ]; then remove_run_tree "$RUN_TMP"; fi
+  if [ -n "$RUN_TMP" ]; then
+    if compgen -G "$RUN_TMP/.retain-scratch.??????" >/dev/null; then
+      log "private teardown unverified; retaining scratch: $RUN_TMP"
+      [ "$status" -ne 0 ] || status=1
+      exit "$status"
+    fi
+    fm_test_remove_tree "$RUN_TMP"
+  fi
 }
 
 prepare_run_scratch() {
+  # shellcheck source=bin/fm-test-scratch-lib.sh
+  . "$ROOT/bin/fm-test-scratch-lib.sh"
   local base parent mode
   base=$(scratch_base) || exit "$?"
   parent="${base%/}/fm$UID"
@@ -2664,6 +2664,7 @@ prepare_run_scratch() {
   reap_orphan_runs "$parent"
   # Also covers temporary files used by runner helpers rather than the tests.
   export TMPDIR="$RUN_TMP" TMP="$RUN_TMP" TEMP="$RUN_TMP"
+  export FM_TEST_RETAIN_MARKER="$RUN_TMP/.retain-scratch"
 }
 
 worker_root_mode_is_enforceable() {

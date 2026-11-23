@@ -19,13 +19,15 @@ version=$(claude --version 2>/dev/null | head -n 1)
 server_pid=''
 tmux_socket=''
 stop_server() {
-  [ -z "$tmux_socket" ] || tmux -S "$tmux_socket" kill-server 2>/dev/null || true
+  local teardown=0
+  fm_test_stop_private_tmux "$tmux_socket" tmux || teardown=1
   tmux_socket=''
   [ -z "$server_pid" ] || kill "$server_pid" 2>/dev/null || true
   [ -z "$server_pid" ] || wait "$server_pid" 2>/dev/null || true
   server_pid=''
+  return "$teardown"
 }
-trap 'stop_server; fm_test_cleanup' EXIT
+trap 'status=$?; if stop_server; then fm_test_cleanup; elif [ "$status" -eq 0 ]; then status=1; fi; exit "$status"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP
@@ -90,7 +92,7 @@ PY
     done
     fm_busy_safeguard_pause claude "$pane" \
       || fail "Claude $version: unrecognized interactive $category refusal at $width columns: $pane"
-    tmux -S "$tmux_socket" kill-server 2>/dev/null || true
+    fm_test_stop_private_tmux "$tmux_socket" tmux || exit 1
     tmux_socket=''
     pass "Claude Code $version: interactive $category refusal is recognized at $width columns"
   done
