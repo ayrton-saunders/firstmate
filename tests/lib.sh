@@ -633,13 +633,13 @@ trap 'fm_test_finalize "$?"' EXIT
 TREEHOUSE_ROOT=$(fm_test_tmproot fm-treehouse-pool)
 export TREEHOUSE_ROOT
 
-# fm_test_reap_orphans: best-effort sweep for fixture roots left behind by a
-# prior run that was killed hard enough to skip the traps above (e.g. a
-# SIGKILL timeout). Only removes directories carrying the .fm-test-fixture
-# marker fm_test_tmproot writes, so it never touches unrelated temp dirs
-# from real (non-test) firstmate commands. The marker identifies the owning
-# shell across PID reuse, so the same live owner always wins over the age
-# cutoff for abandoned roots.
+# fm_test_reap_orphans: best-effort sweep for registered roots left behind
+# when a hard kill bypasses EXIT cleanup. It scans only the current suite's
+# temp base, so it can miss fixtures allocated under a different TMPDIR.
+# Only aged, owned .fm-test-fixture markers with a provably gone owner are
+# eligible. An unreadable command line can prevent proving PID reuse.
+# Retention markers and a failed process or cwd inventory block removal.
+# See tests/fm-test-fixture-cleanup.test.sh for lifecycle regressions.
 FM_TEST_ORPHAN_MAX_AGE_SECONDS=${FM_TEST_ORPHAN_MAX_AGE_SECONDS:-3600}
 
 fm_test_fixture_start() {

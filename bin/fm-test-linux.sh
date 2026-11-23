@@ -18,9 +18,12 @@
 # overlay excludes declared test scratch and does not traverse symlinked
 # ancestors. Populated directories recorded as Git submodules and untracked
 # nested Git checkouts are refused rather than silently omitted; empty submodule
-# placeholders are allowed. Tests see Git history without modifying the host
-# checkout and run as the host user, not root, to match CI file-mode behavior.
-# --list prints the selected tests and exits without a container runtime.
+# placeholders are allowed. Staging also refuses a checkout whose core.ignoreCase
+# setting would omit a distinct entry matching the scratch name only by case.
+# Tests see Git history without modifying the host checkout and run as the
+# host user, not root, to match CI file-mode behavior.
+# --list prints the selected tests without staging or using a container runtime.
+# See bin/fm-test-scratch-lib.sh for standalone scratch placement and recovery.
 #
 # Runtime: FM_CONTAINER_RUNTIME, else docker, else podman. With none installed
 # the script stops with exit 2. The image is built from tests/linux/Dockerfile

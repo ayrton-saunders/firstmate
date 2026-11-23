@@ -9,7 +9,8 @@ Primary, secondmate, non-tmux backends, desktop/web, bridges, and Hermes messagi
 Use a prepared **throwaway** Hermes root and profile for the credentialed guard.
 It uses the profile's own inference model/authentication only for small synthetic prompts and sends no message to a gateway.
 The guard's native first-run consent check uses a separate fresh, uncredentialed profile.
-Both guards create their own private tmux servers and preserve no shared endpoint ownership.
+Each live guard uses its own private tmux server.
+Before running the gateway coexistence probe, read its [profile isolation and recovery requirements](../../tests/fm-hermes-gateway-coexistence-live-e2e.test.sh).
 
 ```bash
 FM_HERMES_SIGNALS_LIVE=1 \
@@ -36,7 +37,6 @@ An unavailable required tool is reported by the shared `fm_live_gate`; explicit 
 
 For opt-in TUI diagnostics, see the [TUI guard header](../../tests/fm-hermes-signals-live-e2e.test.sh) and collect the complete copy from the printed `Hermes guard evidence:` path.
 If the probe is interrupted and no path prints, see the [evidence export helper](../../bin/fm-test-scratch-lib.sh) for what staging or completed evidence may remain.
-Before running the gateway coexistence probe, read its [profile isolation and recovery requirements](../../tests/fm-hermes-gateway-coexistence-live-e2e.test.sh).
 
 ## Live worker observations
 

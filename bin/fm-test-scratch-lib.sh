@@ -1,4 +1,11 @@
 #!/usr/bin/env bash
+# Shared scratch placement for test runners, standalone probes, and fixtures.
+# For direct suite runs and the isolation proof, TAP verifier, and Linux
+# helpers, point TMPDIR at an existing OS temp directory to keep scratch out of
+# backups. These entry points validate ${TMPDIR:-/tmp} and refuse an unsafe
+# path instead of falling back. The standalone helpers' outer scratch roots
+# are not enrolled in orphan recovery after SIGKILL; tests/lib.sh owns the
+# separate recovery rules for registered fixtures.
 
 # Exclude only the declared top-level scratch entry at copy time, not dirty
 # or untracked work with similar names. See tests/fm-test-fixture-cleanup.test.sh.
@@ -419,6 +426,8 @@ fm_test_arm_private_tmux() {
   fi
 }
 
+# Before tmux binds its socket, an interrupted launch can look stopped to
+# teardown. This helper does not prove that such a pending launch is gone.
 fm_test_stop_private_tmux() (
   local socket=$1 tmux_bin=$2 marker=${3:-} diagnostics output status=0
   if [ ! -S "$socket" ]; then

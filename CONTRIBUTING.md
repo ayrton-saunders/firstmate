@@ -181,12 +181,8 @@ EOF
 
 `bin/fm-test-run.sh` is the single owner of behavior-suite selection, portable CI lane composition, bounded concurrency admission, per-script timing markers, family totals, the coverage guard, and the optional JSON timing artifact.
 See the [runner header](bin/fm-test-run.sh) for its flags, OS scratch selection, and cleanup and recovery limits.
-When invoking the standalone test helpers below or a suite that sources [`tests/lib.sh`](tests/lib.sh), point `TMPDIR` at an existing OS temp directory to keep scratch out of backups.
-These helpers validate `${TMPDIR:-/tmp}` and refuse an unsafe path instead of falling back; see the [shared scratch validator](bin/fm-test-scratch-lib.sh) for protected locations.
+For standalone tests and probes, see the [shared scratch library](bin/fm-test-scratch-lib.sh) for temp placement and the [fixture library](tests/lib.sh) for fixture recovery limits.
 The terminal-managed preservation copier has no tracked implementation in this fork and is outside the scope of these safeguards.
-After `SIGKILL`, standalone `bin/fm-test-isolation-proof.sh`, `bin/fm-test-tap-verify.sh`, and `bin/fm-test-linux.sh` scratch roots are not enrolled in orphan recovery.
-After a hard kill, [fixture recovery](tests/lib.sh) only checks the temp base used by the next suite, so it can miss fixtures allocated under a different `TMPDIR`.
-It can also retain a fixture if the owner's PID was reused and the current process's command line is unavailable.
 `bin/fm-test-isolation-proof.sh` remains the single owner of the portable candidate proof and reusable family proof harness; see `docs/fm-test-isolation-proof.md`.
 Portable shard balance evidence lives in `docs/fm-test-portable-shards.md`.
 `bin/fm-test-linux.sh` is optional and never part of CI: on macOS, run it before publishing a branch whose tests depend on `stat`, `date`, or process behavior, because BSD and GNU tools differ.

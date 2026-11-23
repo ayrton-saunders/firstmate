@@ -96,8 +96,8 @@
 #   Keep requested reports and redirected logs outside runner scratch.
 #   EXIT, HUP, INT, QUIT and TERM trigger cleanup. The runner drains recorded
 #   worker and timed-command groups; detached groups and private services are
-#   the test's responsibility. A tmux launch interrupted before the server
-#   binds its socket can appear stopped to probe cleanup.
+#   the test's responsibility. See bin/fm-test-scratch-lib.sh for private tmux
+#   teardown limits.
 #   PID-directed TERM/HUP waits for a foreground TTY test to finish or time
 #   out, or for blocked output replay to return. Background worker waits are
 #   interruptible, but PID reuse can select an older ownership record, causing

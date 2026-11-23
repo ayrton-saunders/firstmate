@@ -51,6 +51,9 @@
 # in the proof JSON without increasing the candidate failure count.
 # Unverified worker or private-service teardown stops new launches and retains
 # the proof root. Confirm the reported workload is gone before removing it.
+# Finalize scratch before replaying failure excerpts and reporting the summary
+# and JSON. Keep requested reports and redirected logs outside proof scratch.
+# See bin/fm-test-scratch-lib.sh for standalone scratch placement and recovery.
 # Exit status is non-zero if cleanup fails, a candidate fails or gate-skips
 # (first meaningful line matching ^skip:), an isolation check fails, or the
 # candidate set is empty. A gate skip names the pool, candidate, and missing
@@ -645,11 +648,8 @@ while [ "$ACTIVE_WORKERS" -gt 0 ] && [ "$retain_root" -eq 0 ] && [ "$private_tea
   wait_one_completed_slot
 done
 
-# Cross-process artifact check: no candidate may leave debris outside the
-# proof-owned TMPDIR tree. Workers only receive TMPDIR under PROOF_ROOT, so any
-# residual path under PROOF_ROOT is expected and cleaned by trap. Refuse if a
-# worker wrote a fixed global path we know about from audit (none remain after
-# the arm-pretool stderr path uses TMPDIR).
+# Candidate arm-pretool diagnostics inside the proof root are transient.
+# This check does not inspect paths outside the proof root.
 if find "$PROOF_ROOT" -type f -name 'fm-arm-pretool-check-claude-stderr.*' 2>/dev/null | grep -q .; then
   : # allowed only under proof roots; nothing to do
 fi

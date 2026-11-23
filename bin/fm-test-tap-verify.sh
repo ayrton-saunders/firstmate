@@ -35,6 +35,7 @@
 # retains its scratch instead of deleting files a process may still be using.
 # Terminal stdin is preserved; a signal sent only to the verifier can wait
 # for a foreground suite or blocked output replay to return.
+# See bin/fm-test-scratch-lib.sh for standalone scratch placement and recovery.
 set -eu
 
 usage() {
