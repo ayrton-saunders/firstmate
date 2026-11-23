@@ -29,7 +29,7 @@ printf "1..1\n"
 printf "ok - good\n"
 printf "FM_TEST_COMPLETE\n"
 '
-  out=$(run_verify "$suite") || rc=$?
+  out=$(run_verify "$suite" 0<&-) || rc=$?
   [ "$rc" -eq 0 ] || fail "a complete matching suite must pass, got exit $rc: $out"
   assert_contains "$out" "ok - good" "the helper hid the suite's ok line"
   assert_contains "$out" "1 planned, 1 ok, complete, exit 0" \

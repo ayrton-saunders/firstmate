@@ -176,13 +176,14 @@ bin/fm-test-isolation-proof.sh --pool watcher-wake-lock --jobs 4   # re-run an a
 @AGENTS.md
 EOF
 [ "$(readlink .claude/skills)" = "../.agents/skills" ]
-( base=$(bin/fm-test-run.sh --scratch-base) && . bin/fm-test-scratch-lib.sh && fm_test_allocate_scratch "$base/fm-watch-smoke.XXXXXX" || exit 1; printf 'done: smoke\n' > "$FM_TEST_SCRATCH/smoke.status" && FM_STATE_OVERRIDE="$FM_TEST_SCRATCH" FM_SIGNAL_GRACE=1 FM_POLL=1 FM_HEARTBEAT=999999 bin/fm-watch-arm.sh )  # watcher re-arm smoke test (prints arm status, then an actionable signal)
+( . bin/fm-test-scratch-lib.sh && base=$(fm_test_os_scratch_base "$PWD") && fm_test_allocate_scratch "$base/fm-watch-smoke.XXXXXX" || exit 1; printf 'done: smoke\n' > "$FM_TEST_SCRATCH/smoke.status" && FM_STATE_OVERRIDE="$FM_TEST_SCRATCH" FM_SIGNAL_GRACE=1 FM_POLL=1 FM_HEARTBEAT=999999 bin/fm-watch-arm.sh )  # watcher re-arm smoke test (prints arm status, then an actionable signal)
 ```
 
 `bin/fm-test-run.sh` is the single owner of behavior-suite selection, portable CI lane composition, bounded concurrency admission, per-script timing markers, family totals, the coverage guard, and the optional JSON timing artifact.
 Its header and `--help` own the flags, family labels, lanes, and changed-file map; this section only documents the entry points.
 If a suite is killed, the orphan sweep does not recover fixtures allocated with an explicit `TMPDIR` outside the runner’s scratch base.
 The fixture sweep may also retain an old fixture if its PID has been reused and the live process’s command line is unavailable.
+During interruption, worker PID reuse can make the runner select an older ownership record; it may wait for the worker to finish rather than signal an unverified group.
 After `SIGKILL`, standalone `bin/fm-test-isolation-proof.sh`, `bin/fm-test-tap-verify.sh`, and `bin/fm-test-linux.sh` scratch roots are not enrolled in orphan recovery.
 Before scratch allocation, Bash may use inherited `TMPDIR` for short-lived here-string and here-document redirections.
 `bin/fm-test-isolation-proof.sh` remains the single owner of the portable candidate proof and reusable family proof harness; see `docs/fm-test-isolation-proof.md`.

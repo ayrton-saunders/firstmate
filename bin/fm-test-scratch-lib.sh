@@ -179,6 +179,10 @@ fm_test_probe_interrupt() {
   if [ "$probe_launching" -ne 0 ]; then probe_pending=$1; else exit "$1"; fi
 }
 
+fm_test_stdin_is_open() {
+  (: <&0) 2>/dev/null
+}
+
 fm_test_probe_run() {
   local probe_launching=1 probe_pending=0 start rc=0
   trap 'fm_test_probe_interrupt 129' HUP
@@ -186,7 +190,11 @@ fm_test_probe_run() {
   trap 'fm_test_probe_interrupt 131' QUIT
   trap 'fm_test_probe_interrupt 143' TERM
   set -m
-  "$@" <&0 &
+  if fm_test_stdin_is_open; then
+    "$@" <&0 &
+  else
+    "$@" </dev/null &
+  fi
   probe_pid=$!
   set +m
   start=$(fm_test_owner_start "$probe_pid" "$FM_TEST_SCRATCH") || start=unknown
@@ -310,6 +318,16 @@ fm_test_validate_scratch_base() (
   fm_test_check_scratch_placement "$root" "$base" || return "$?"
   printf '%s\n' "$base"
 )
+
+fm_test_os_scratch_base() {
+  local base
+  base=$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null) || base=/tmp
+  case "$base" in
+    /*) ;;
+    *) printf 'scratch base must be absolute: %s\n' "$base" >&2; return 2 ;;
+  esac
+  fm_test_validate_scratch_base "$1" "$base" "${@:2}"
+}
 
 # An interrupt just after publication can leave complete opt-in evidence without a printed path.
 # During an opt-in copy, runner interruption that escalates to KILL can leave staging in OS temp.

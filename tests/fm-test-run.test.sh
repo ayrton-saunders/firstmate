@@ -2135,6 +2135,10 @@ for name in ('lib.sh', 'git-config-helpers.sh', 'remote-secondmate-source-copy-h
 script = repo / 'tests/copy.test.sh'
 script.write_bytes(b'''#!/usr/bin/env bash
 set -eu
+case "$PROBE_MODE" in
+  eof) if IFS= read -r line; then exit 1; fi ;;
+  redirected) IFS= read -r line; [ "$line" = 'input from pipe' ] ;;
+esac
 . tests/remote-secondmate-source-copy-helpers.sh
 mktemp_dir=$(mktemp -d "$TMPDIR/copy.XXXXXX")
 fm_fixture_copy_remote_source "$PWD" "$mktemp_dir"
@@ -2171,7 +2175,7 @@ if [ "$PROBE_MODE" = evidence ]; then
   mkdir "$TMPDIR/wt"
   printf '%s\\n' '80235' >"$TMPDIR/wt/answer.txt"
   printf '%s\\n' 'acknowledged' >"$TMPDIR/wt/.steer"
-  base=$(bash bin/fm-test-run.sh --scratch-base)
+  base=$(fm_test_os_scratch_base "$PWD") || exit
   fm_test_copy_hermes_evidence "$TMPDIR" "$base"
 fi
 if [ "$PROBE_MODE" = stale ]; then
@@ -2242,8 +2246,9 @@ env.pop('FM_TASK_ID', None)
 fixture_env = dict(env, PATH=str(fakebin) + os.pathsep + env['PATH'], OS_TEMP_FIXTURE=shell_path(base))
 runner_cmd = [bash, 'bin/fm-test-run.sh']
 cmd = [*runner_cmd, script.relative_to(repo).as_posix()]
+base_query = [bash, '-c', '. "$1/bin/fm-test-scratch-lib.sh" && fm_test_os_scratch_base "$1"', '_', shell_path(repo)]
 for blocked in (legacy, *aliases, home / '.firstmate-preserved', home / '.treehouse', tmp / 'fm-home', tmp / 'custom-treehouse'):
-    for command in ([*runner_cmd, '--scratch-base'], cmd):
+    for command in (base_query, cmd):
         result = subprocess.run(command, cwd=repo, env=dict(fixture_env, OS_TEMP_FIXTURE=shell_path(blocked)),
                                 capture_output=True)
         assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
@@ -2255,8 +2260,8 @@ for boundary in ('FM_HOME', 'FM_ROOT_OVERRIDE', 'FM_ROOT', 'FM_STATE_OVERRIDE',
     relative_env.pop('FM_HOME', None)
     relative_env.pop('FM_ROOT_OVERRIDE', None)
     relative_env[boundary] = base.name
-    for args in (['--scratch-base'], [cmd[-1]]):
-        result = subprocess.run([*external_runner, *args], cwd=tmp, env=relative_env, capture_output=True)
+    for command in (base_query, [*external_runner, cmd[-1]]):
+        result = subprocess.run(command, cwd=tmp, env=relative_env, capture_output=True)
         assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, (boundary, result)
 uid = subprocess.check_output([bash, '-c', 'printf %s "$UID"']).decode()
 parent = base / f'fm{uid}'
@@ -2295,13 +2300,14 @@ for protected in protected_paths:
     assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, (protected, result)
     assert not parent.exists(), 'runner created the reserved per-user parent'
 
-result = subprocess.run([*external_runner, '--scratch-base'], cwd=tmp, env=fixture_env, capture_output=True)
+result = subprocess.run(base_query, cwd=tmp, env=fixture_env, capture_output=True)
 assert result.returncode == 0 and native_path(os.fsdecode(result.stdout).strip()).resolve() == base.resolve(), result
-assert not list(base.iterdir()), 'scratch-base must not allocate'
-for other_arg in ('--list-lanes', cmd[-1]):
-    for args in ((other_arg, '--scratch-base'), ('--scratch-base', other_arg)):
-        result = subprocess.run([*runner_cmd, *args], cwd=repo, env=fixture_env, capture_output=True)
-        assert result.returncode == 2 and not result.stdout, result
+assert not list(base.iterdir()), 'OS-temp selection must not allocate'
+for expected, data in (('eof', None), ('redirected', b'input from pipe\n')):
+    result = subprocess.run([bash, '-c', 'if [ "$1" = eof ]; then exec 0<&-; fi; shift; exec "$@"',
+                             '_', expected, *cmd], cwd=repo, input=data, capture_output=True, timeout=20,
+                            env=dict(fixture_env, PROBE_MODE=expected, PROOF=shell_path(tmp / expected)))
+    assert result.returncode == 0 and (tmp / expected).is_file(), result
 
 def restore_signal_defaults():
     for sig in (signal.SIGINT, signal.SIGQUIT):
@@ -2341,10 +2347,6 @@ for mode, rc in [('pass', 0), ('fail', 1)]:
     assert not run.exists(), run
     if mode == 'fail':
         assert base.resolve() in worker_tmp.resolve().parents
-child, _ = launch('literal-report-name', 'pass', options=('--json', '--scratch-base'))
-assert child.wait(timeout=20) == 0, (tmp / 'literal-report-name.log').read_text()
-assert json.loads((repo / '--scratch-base').read_text())['summary']['failed'] == 0
-(repo / '--scratch-base').unlink()
 child, proof = launch('retain', 'retain', options=('--json', 'retained.json'))
 assert child.wait(timeout=20) == 1
 _, retained_run = scratch(proof)

@@ -22,7 +22,7 @@ cleanup() {
   local status=$? base stopped=0
   fm_test_stop_private_tmux "$SOCKET" "$REAL_TMUX" "$TMUX_RETAIN" && stopped=1
   if [ -n "$LAB" ] && [ "${FM_HERMES_LIVE_KEEP:-0}" = 1 ]; then
-    if ! base=$(bash "$ROOT/bin/fm-test-run.sh" --scratch-base) || ! fm_test_copy_hermes_evidence "$LAB" "$base"; then
+    if ! base=$(fm_test_os_scratch_base "$ROOT") || ! fm_test_copy_hermes_evidence "$LAB" "$base"; then
       printf '%s\n' 'not ok - could not preserve Hermes evidence' >&2
       [ "$status" -ne 0 ] || status=1
     fi

@@ -116,7 +116,7 @@ done
 SH
   chmod +x "$runtime"
   out=$(cd "$repo" && TMPDIR="$TMP_ROOT/overlay-tmp" FM_CONTAINER_RUNTIME="$runtime" CHECK_ALIAS="$check_alias" \
-    "$BASH" "$LINUX_CHECK" tests/kept.test.sh 2>&1) || fail "Linux overlay did not match working-tree contract: $out"
+    "$BASH" "$LINUX_CHECK" tests/kept.test.sh 0<&- 2>&1) || fail "Linux overlay did not match working-tree contract: $out"
   assert_contains "$out" 'PASS tests/kept.test.sh' 'container tested the overlay'
   pass 'Linux overlay skips legacy scratch but keeps dirty and untracked work'
 }

@@ -75,7 +75,6 @@
 #                   slowest CI hint with margin; exceeding it becomes a bounded
 #                   failure, not proof of a hang. --max-wall-ms is checked
 #                   after the run and so cannot catch a hang on its own.
-#   --scratch-base  print the validated scratch base for direct probes; allocate nothing
 #
 # Scratch is independent of inherited TMPDIR and uses the OS per-user temp
 # area on macOS and /tmp elsewhere. Neither base nor run root may resolve
@@ -2217,19 +2216,6 @@ with open(out, "w", encoding="utf-8") as fh:
 ' "$out" "$started" "$finished" "$run_id" "$total" "$failed" "$skipped" "$duration" "$selection" "${10:-0}"
 }
 
-scratch_base() {
-  local base
-  base=$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null) || base=/tmp
-  case "$base" in /*) ;; *) die "scratch base must be absolute: $base" ;; esac
-  fm_test_validate_scratch_base "$ROOT" "$base" "$invocation_dir"
-}
-
-if [ "$#" -eq 1 ] && [ "$1" = --scratch-base ]; then
-  . "$ROOT/bin/fm-test-scratch-lib.sh" || exit 2
-  scratch_base
-  exit $?
-fi
-
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --all)
@@ -2540,7 +2526,7 @@ prepare_run_scratch() {
   # shellcheck source=bin/fm-test-scratch-lib.sh
   . "$ROOT/bin/fm-test-scratch-lib.sh"
   local base parent mode
-  base=$(scratch_base) || exit "$?"
+  base=$(fm_test_os_scratch_base "$ROOT" "$invocation_dir") || exit "$?"
   parent="${base%/}/fm$UID"
   fm_test_check_scratch_placement "$ROOT" "$parent" "$invocation_dir" || exit "$?"
   (umask 077; mkdir -- "$parent") 2>/dev/null || true
@@ -2922,7 +2908,11 @@ start_worker() {
   else
     RUN_CRITICAL=1
     set -m
-    execute_worker "$script" "$stream" "$work" "$foreground" <&0 &
+    if fm_test_stdin_is_open; then
+      execute_worker "$script" "$stream" "$work" "$foreground" <&0 &
+    else
+      execute_worker "$script" "$stream" "$work" "$foreground" </dev/null &
+    fi
     WORKER_PIDS[worker_n]=$!
     set +m
     RUN_CRITICAL=0
