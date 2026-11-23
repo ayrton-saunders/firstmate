@@ -505,6 +505,11 @@ SH
   elif [ "$mode" = decision ]; then
     install_first_offer_action "$home" 'mv "$FM_HOME/state/demo.inbox/001.msg" "$FM_HOME/state/demo.inbox/handled/"
     printf "needs-decision [key=inbox-choice]: choose an approach\n" >> "$FM_HOME/state/demo.status"'
+  elif [ "$mode" = final-decision ]; then
+    printf '0\n' > "$home/park-clock"
+    install_first_offer_action "$home" ':' '
+    printf "120\n" > "$FM_HOME/park-clock"
+    printf "needs-decision [key=inbox-choice]: choose an approach\n" >> "$FM_HOME/state/demo.status"'
   elif [ "$mode" = missing ] || [ "$mode" = unhandled-decision ]; then
     if [ "$mode" = missing ]; then : > "$home/missing-endpoint"; fi
     printf '117\n' > "$home/park-clock"
@@ -523,6 +528,13 @@ SH
     fi
     assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "the ordinary stale offer must not use the routine timeout"
     [ -f "$rec" ] || fail "missing endpoint work was lost"
+  elif [ "$mode" = final-decision ]; then
+    wait_until_deadline 60 host_exited "$home" || fail "the final decision-owned stale did not reach main"
+    assert_re '^stale: .*stuck-busy' "$home/host.out" "the final main-only close was lost"
+    assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "the final hand-back must preserve the successor"
+    watcher_live "$home" || fail "the final hand-back left no live successor"
+    [ -f "$rec" ] || fail "the unhandled steer was lost"
+    [ "$(engine_calls "$home")" -eq 0 ] || fail "the branch took a decision-owned stale row"
   elif [ "$mode" = handled ]; then
     if [ "$kind" = secondmate ]; then
       assert_routine_close_acknowledged "$home" 'stale: .*stuck-busy'
@@ -1550,6 +1562,7 @@ test_handled_scout_stale_resurface() { test_attended_resurface routine scout; }
 test_handled_decision_stale() { test_attended_busy_inbox_close decision; }
 test_missing_endpoint_stale_uses_ordinary_offer() { test_attended_busy_inbox_close missing; }
 test_unhandled_decision_stale_uses_ordinary_offer() { test_attended_busy_inbox_close unhandled-decision; }
+test_final_main_only_stale_keeps_successor() { test_attended_busy_inbox_close final-decision; }
 test_captain_hold_divergence_resurface() { test_attended_resurface divergence; }
 test_new_decision_resurface() { test_attended_resurface new-decision; }
 test_reopened_decision_resurface() { test_attended_resurface reopened-decision; }
@@ -1608,6 +1621,7 @@ test_credential_handback_waits_for_queue_lock() {
     ( sleep 10; rm -f "$lock/pid" "$proof/pid"; rmdir "$lock" "$proof" ) </dev/null >/dev/null 2>&1 &
     printf "%s\n" "$!" | tee "$lock/pid" > "$proof/pid"
     sleep 6
+    printf "120\n" > "$FM_HOME/park-clock"
     : > "$FM_HOME/credential-offer-complete"'
   routine_wake_lib "$home" fm_wake_append check needs-gh-auth 'check: GitHub login required' || fail "fixture: no credential row"
   routine_wake_lib "$home" fm_recovery_marker_publish "$home/state/.watcher-down" downtime || fail "fixture: no recovery episode"
@@ -1619,6 +1633,8 @@ test_credential_handback_waits_for_queue_lock() {
   assert_re '^check: rearm-resurface$' "$home/host.out" "the credential recovery close was lost"
   assert_no_re 'hand-back could not be recorded' "$home/host.out" "ordinary hand-back should wait for a briefly held lock"
   assert_grep 'GitHub login required' "$home/state/.wake-queue" "the credential row must remain queued"
+  assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "the credential hand-back must preserve the successor"
+  watcher_live "$home" || fail "the credential hand-back left no live successor"
   stop_home_processes "$home"
   pass "host: credential recovery does not lose its close under brief contention"
 }
@@ -1655,6 +1671,7 @@ fm_test_run \
   test_handled_decision_stale \
   test_missing_endpoint_stale_uses_ordinary_offer \
   test_unhandled_decision_stale_uses_ordinary_offer \
+  test_final_main_only_stale_keeps_successor \
   test_captain_hold_divergence_resurface \
   test_new_decision_resurface \
   test_reopened_decision_resurface \

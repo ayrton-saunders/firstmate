@@ -1472,7 +1472,6 @@ attended_acceptor() {  # <reason-lines> [final]
   else
     ROUTINE_HAND_BACK=0
   fi
-  boundary_reached && boundary_exit
   ATTENDED_WHY=
   ATTENDED_OFFER=
   ATTENDED_ROUTINE=0
@@ -1529,8 +1528,8 @@ attended_acceptor() {  # <reason-lines> [final]
         0|75) ROUTINE_HAND_BACK=1 ;;
         *) ROUTINE_HAND_BACK=0 ;;
       esac
-      boundary_reached && boundary_exit
       if [ "$rc" -eq 0 ]; then
+        boundary_reached && boundary_exit
         ATTENDED_ROUTINE=1
       elif [ "$rc" -eq 3 ] || [ "$rc" -eq 75 ]; then
         ATTENDED_WHY="main-only"
