@@ -242,9 +242,10 @@ if [ -L "$PROFILE_HOME/config.yaml" ]; then
 fi
 original_record=$(python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$CONFIG_LINK") \
   || fail 'config target changed before platform check'
-HERMES_HOME="$FM_HERMES_LIVE_HOME" "$HERMES_BIN" -p "$PROFILE" config get platforms --json > "$LAB/platforms.json" 2>/dev/null || echo null > "$LAB/platforms.json"
-jq -e '. == null or . == {} or ([.[]? | objects | select(.enabled == true)] | length == 0)' "$LAB/platforms.json" >/dev/null \
-  || fail 'throwaway profile configures a messaging platform'
+HERMES_HOME="$FM_HERMES_LIVE_HOME" "$HERMES_BIN" -p "$PROFILE" config get platforms --json > "$LAB/platforms.json" 2>/dev/null \
+  || fail 'could not look up throwaway profile messaging platforms'
+jq -es 'length == 1 and (.[0] | . == null or (type == "object" and all(.[]; type == "object" and .enabled == false)))' \
+  "$LAB/platforms.json" >/dev/null || fail 'throwaway profile configures a messaging platform or returned an unrecognized platform result'
 [ "$(python3 -I -c "$RESTORE_TARGET_CODE" "$PROFILE_HOME" "$CONFIG_TARGET" "$CONFIG_LINK")" = "$original_record" ] \
   || fail 'config target changed during platform check'
 snapshot() {

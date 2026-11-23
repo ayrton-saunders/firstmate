@@ -2062,7 +2062,8 @@ case "$3 $4 $5" in
       config="$HERMES_HOME/profiles/$2/config.yaml"
       printf 'editor config\n' > "$config.replacement" && mv -f "$config.replacement" "$config" || exit 1
     fi
-    echo null
+    printf '%s\n' "${PLATFORM_JSON-null}"
+    exit "${PLATFORM_STATUS:-0}"
     ;;
   'config set gateway.standalone')
     config="$HERMES_HOME/profiles/$2/config.yaml"
@@ -2077,7 +2078,30 @@ case "$3 $4 $5" in
   *) exit 99 ;;
 esac
 SH
-  printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/path/jq"
+  printf '%s\n' '#!/usr/bin/env bash' 'touch "$FM_HERMES_LIVE_HOME/launch-attempted"; exit 99' > "$tmp/path/tmux"
+  rc=0
+  PLATFORM_STATUS=1 PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" \
+    bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+  assert_equals 1 "$rc" 'failed platform lookup refuses the probe'
+  assert_contains "$(<"$tmp/out")" 'could not look up' 'lookup failure is reported'
+  assert_absent "$tmp/hermes/mutation-attempted" 'failed lookup did not mutate the config'
+  assert_absent "$tmp/hermes/launch-attempted" 'failed lookup did not launch tmux'
+  rm -- "$tmp/path/jq"
+  if command -v jq >/dev/null; then
+    local json
+    for json in '[false]' '{"fixture": "disabled"}' '{"fixture": {"enabled": true}}' $'true\nnull' ''; do
+      rc=0
+      PLATFORM_JSON="$json" PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" \
+        bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+      assert_equals 1 "$rc" 'unsafe platform lookup result refuses the probe'
+      assert_contains "$(<"$tmp/out")" 'unrecognized platform result' 'unsafe result is reported'
+      assert_absent "$tmp/hermes/mutation-attempted" 'unsafe result did not mutate the config'
+      assert_absent "$tmp/hermes/launch-attempted" 'unsafe result did not launch tmux'
+    done
+  else
+    printf '#!/usr/bin/env bash\nexit 0\n' >"$tmp/path/jq"
+    chmod +x "$tmp/path/jq"
+  fi
   rc=0
   SCENARIO=preflight-swap PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" \
     FM_HERMES_LIVE_PROFILE=worker bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?

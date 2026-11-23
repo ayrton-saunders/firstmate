@@ -96,7 +96,7 @@ SH
   done
   cat >"$repo/tests/fm-proof-slow.test.sh" <<'SH'
 #!/usr/bin/env bash
-if [ "${PROOF_REPLAY_ORDER:-0}" = 1 ]; then
+if [ "${PROOF_REPLAY_ORDER:-0}" != 0 ]; then
   trap 'touch "$PROOF_SCHED_EVIDENCE/sibling-stopped"; exit 0' TERM
   printf '%s\n' "$$" > "$PROOF_SCHED_EVIDENCE/sibling-ready"
   for ((i=0; i<200; ++i)); do sleep 0.05; done
@@ -157,13 +157,17 @@ printf '%s\n' 'retained scratch' >"$TMPDIR/sentinel"
 SH
   cat >"$repo/tests/fm-proof-undrained.test.sh" <<'SH'
 #!/usr/bin/env bash
-if [ "${PROOF_REPLAY_ORDER:-0}" = 1 ]; then
+if [ "${PROOF_REPLAY_ORDER:-0}" != 0 ]; then
   for ((i=0; i<100; ++i)); do
     [ ! -s "$PROOF_SCHED_EVIDENCE/sibling-ready" ] || break
     sleep 0.05
   done
   [ -s "$PROOF_SCHED_EVIDENCE/sibling-ready" ] || exit 1
   python3 -c 'print("x" * 262144)'
+fi
+if [ "${PROOF_REPLAY_ORDER:-0}" = private ]; then
+  : > "$FM_TEST_RETAIN_MARKER.fixture"
+  exit 0
 fi
 sleep 20 &
 printf '%s\n' "$!" >"$PROOF_SCHED_EVIDENCE/lingering-pid"
@@ -333,9 +337,11 @@ assert artifact["fm_test_run_jobs_enabled"] is True
 assert artifact["summary"]["total"] == 3
 assert artifact["summary"]["failed"] == 0
 ' "$admitted_json" || fail "admitted family pool artifact metadata is incorrect"
-  mkdir "$tmp/replay-order"
-  TMPDIR="$tmp/replay-order" PROOF_SCHED_EVIDENCE="$tmp/replay-order" PROOF_UNDRAINED=1 PROOF_REPLAY_ORDER=1 \
-    python3 - "$proof" <<'PY' || fail 'proof replayed before stopping the sibling worker'
+  local replay_order
+  for replay_order in group private; do
+    mkdir "$tmp/replay-$replay_order"
+    TMPDIR="$tmp/replay-$replay_order" PROOF_SCHED_EVIDENCE="$tmp/replay-$replay_order" PROOF_UNDRAINED=1 \
+      PROOF_REPLAY_ORDER="$replay_order" python3 - "$proof" <<'PY' || fail "proof replayed before stopping the sibling worker ($replay_order)"
 import os, pathlib, select, signal, subprocess, sys, time
 
 if os.name != 'posix':
@@ -368,6 +374,7 @@ with subprocess.Popen([sys.argv[1], '--pool', 'admitted-family', '--jobs', '2'],
                 except ProcessLookupError:
                     pass
 PY
+  done
   mkdir "$tmp/undrained"
   cp "$admitted_json" "$tmp/undrained/proof.json"
   TMPDIR="$tmp/undrained" PROOF_SCHED_EVIDENCE="$tmp/undrained" PROOF_UNDRAINED=1 \
