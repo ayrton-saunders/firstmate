@@ -845,8 +845,16 @@ trap 'exit 143' TERM
 if [ "${1:-}" = --recovery-presentation-clear ]; then
   snapshot=$(status_presentation_snapshot "$STATE") || exit 1
   backstop=$(print_status_outcome_backstop_section "$snapshot") || exit 1
-  [ -z "$backstop" ]
-  exit $?
+  [ -z "$backstop" ] || exit 1
+  unread=$(scan_unread_surface_snapshot "$STATE" "$snapshot") || exit 1
+  previous_task=
+  while IFS=$'\t' read -r task _; do
+    [ -n "$task" ] || continue
+    [ "$task" != "$previous_task" ] || continue
+    status_unread_only_home_answers "$STATE/$task.status" || exit 1
+    previous_task=$task
+  done <<< "$unread"
+  exit 0
 fi
 
 if [ -n "$ACK_THROUGH" ]; then

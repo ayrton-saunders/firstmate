@@ -542,7 +542,7 @@ SH
 }
 
 test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-captain-outcome>
-  local mode=$1 home rec reason seq f i note initial lock_timeout=10
+  local mode=$1 home rec reason seq f i note initial lock_timeout=10 via
   home=$(make_home "attended-resurface-$mode" quiet)
   : > "$home/state/.wake-queue"
   case "$mode" in
@@ -551,6 +551,19 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
       f="$home/state/demo.status"
       printf 'needs-decision [key=routing-call]: north or south\nresolved [key=routing-call]: answered: north\n' > "$f"
       routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$f" || fail "fixture: status would wake independently"
+      ;;
+    unread-reply|operator-reply)
+      f="$home/state/demo.status"
+      printf 'blocked [key=pending-reply-00005e7700000000]: pending-reply-missed: waiting for a secondmate report\n' > "$f"
+      routine_wake_lib "$home" fm_wake_append signal demo.status "needs-decision: $f" || fail "fixture: no escalation row"
+      main_drain_and_ack "$home"
+      [ ! -s "$home/state/.wake-queue" ] || fail "fixture: escalation was not drained"
+      routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$f" || fail "fixture: could not mark escalation surfaced"
+      via=status
+      [ "$mode" != operator-reply ] || via=operator-resolve-key
+      routine_wake_lib "$home" fm_wake_status_append_self_announced "$home/state" "$f" \
+        "resolved [key=pending-reply-00005e7700000000]: pending-reply-resolved: task=demo pending-reply-id=00005e7700000000 via=$via" \
+        || fail "fixture: reply closure was not self-announced"
       ;;
     new-decision|presented-decision|reopened-decision)
       f="$home/state/demo.status"
@@ -630,7 +643,7 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
   esac
   FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 \
     FM_STATUS_PRESENTATION_LOCK_TIMEOUT="$lock_timeout" FM_SUPERVISION_HOST_TURN_TIMEOUT=20 FM_SUPERVISION_ENGINE_GRACE=1 start_host "$home"
-  if [ "$mode" = empty ] || [ "$mode" = routine ] || [ "$mode" = cooldown ]; then
+  if [ "$mode" = empty ] || [ "$mode" = routine ] || [ "$mode" = cooldown ] || [ "$mode" = operator-reply ]; then
     assert_routine_close_acknowledged "$home" 'check: rearm-resurface$'
     assert_re '^acked:' "$home/state/.watcher-down" "resurfacing did not acknowledge recovery"
     [ ! -e "$home/unexpected-empty-offer" ] || fail "empty routine recovery invoked the offer"
@@ -649,6 +662,10 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
         ;;
       new-decision|reopened-decision|presented-decision) assert_contains "$drain" '[key=recovery-choice] blocked: choose an approach' "the open decision was lost" ;;
       capped-decisions) assert_contains "$drain" 'more omitted (byte cap)' "recovery lost the open-decision overflow" ;;
+      unread-reply)
+        assert_contains "$drain" 'UNREAD STATUS' "recovery skipped unread status presentation"
+        assert_contains "$drain" 'pending-reply-id=00005e7700000000 via=status' "recovery hid the secondmate closure"
+        ;;
       backstop|routine-backstop)
         assert_contains "$drain" 'STATUS OUTCOME BACKSTOP (' "recovery did not preserve the backstop surface"
         assert_contains "$drain" 'review build failed without a branch outcome' "recovery lost the uncovered failure"
@@ -1531,6 +1548,8 @@ test_reopened_decision_resurface() { test_attended_resurface reopened-decision; 
 test_presented_decision_resurface() { test_attended_resurface presented-decision; }
 test_capped_decisions_resurface() { test_attended_resurface capped-decisions; }
 test_status_backstop_resurface() { test_attended_resurface backstop; }
+test_unread_reply_resurface() { test_attended_resurface unread-reply; }
+test_operator_reply_resurface() { test_attended_resurface operator-reply; }
 test_status_backstop_with_routine_rows_resurface() { test_attended_resurface routine-backstop; }
 test_cooldown_resurface() { test_attended_resurface cooldown; }
 
@@ -1632,6 +1651,8 @@ fm_test_run \
   test_presented_decision_resurface \
   test_capped_decisions_resurface \
   test_status_backstop_resurface \
+  test_unread_reply_resurface \
+  test_operator_reply_resurface \
   test_status_backstop_with_routine_rows_resurface \
   test_cooldown_resurface \
   test_routine_resurface_respects_park_deadline \
