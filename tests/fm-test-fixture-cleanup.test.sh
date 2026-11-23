@@ -69,11 +69,23 @@ test_cleanup_registry_resists_precreation() {
   victim="$harness/victim"
   mkdir -p "$shared_tmp" "$victim"
 
-  TMPDIR="$shared_tmp" bash -c '
-    printf "%s\n" "$1" > "$TMPDIR/.fm-test-cleanup.$$"
-    . "$2"
-  ' _ "$victim" "$LIB"
+  TMPDIR="$shared_tmp" VICTIM="$victim" bash -ec '
+    mktemp() {
+      if [ "$1" = -d ]; then
+        case "$2" in
+          */.fm-test-registry.*)
+            planted="${2%XXXXXX}planted"
+            mkdir "$planted"
+            printf "%s\n" "$VICTIM" > "$planted/cleanup"
+            ;;
+        esac
+      fi
+      command mktemp "$@"
+    }
+    . "$1"
+  ' _ "$LIB" || fail "fixture setup could not claim a fresh registry"
 
+  assert_equals "$victim" "$(<"$shared_tmp/.fm-test-registry.planted/cleanup")" 'preexisting registry was not claimed'
   assert_present "$victim" \
     "a precreated predictable cleanup registry injected an arbitrary deletion target"
   pass "the cleanup registry cannot be injected through path precreation"

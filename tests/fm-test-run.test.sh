@@ -299,7 +299,7 @@ test_changed_scratch_helper_selects_teardown_coverage() {
   init_changed_fixture_repo "$repo"
   for script in fm-claude-safeguard-live fm-hermes-gateway-coexistence-live-e2e \
     fm-hermes-profile-safety-live-e2e fm-hermes-signals-live-e2e fm-live-lab-isolation \
-    fm-test-linux fm-test-tap-verify; do
+    fm-test-fixture-cleanup fm-test-linux fm-test-tap-verify; do
     touch "$repo/tests/$script.test.sh"
   done
   git -C "$repo" add tests
@@ -307,7 +307,7 @@ test_changed_scratch_helper_selects_teardown_coverage() {
   printf '\n' >>"$repo/bin/fm-test-scratch-lib.sh"
   listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) || fail 'could not list scratch coverage'
   expected=$(printf 'tests/%s.test.sh\n' fm-claude-safeguard-live fm-hermes-gateway-coexistence-live-e2e \
-    fm-hermes-profile-safety-live-e2e fm-hermes-signals-live-e2e fm-live-lab-isolation fm-test-fixtures \
+    fm-hermes-profile-safety-live-e2e fm-hermes-signals-live-e2e fm-live-lab-isolation fm-test-fixture-cleanup fm-test-fixtures \
     fm-test-isolation-proof fm-test-linux fm-test-run fm-test-tap-verify)
   assert_equals "$expected" "$(printf '%s\n' "$listed" | LC_ALL=C sort)" 'scratch-only changes select teardown and runner regressions'
   pass 'scratch helper changes select private teardown coverage'

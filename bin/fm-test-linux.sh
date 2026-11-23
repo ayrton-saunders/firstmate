@@ -103,10 +103,15 @@ if git -C "$scratch" rev-parse --verify --quiet HEAD >/dev/null; then
 fi
 files=()
 while IFS= read -r -d '' path; do
+  parent=$path
+  while [[ "$parent" == */* ]]; do
+    parent=${parent%/*}
+    [ ! -L "$root/$parent" ] || continue 2
+  done
   [ -e "$root/$path" ] || [ -L "$root/$path" ] && files+=("$path")
 done < <(git -C "$root" ls-files -z --cached --others --exclude-standard -- ':(top,exclude,literal).test-phase-tmp')
 if [ "${#files[@]}" -gt 0 ]; then
-  (cd "$root" && printf '%s\0' "${files[@]}" | tar --null -T - -cf -) | tar -C "$scratch" -xf -
+  (cd "$root" && printf '%s\0' "${files[@]}" | tar --no-recursion --null -T - -cf -) | tar -C "$scratch" -xf -
 fi
 
 printf 'fm-test-linux: %s on %s\n' "${#tests[@]}" "$("$runtime" run --rm "$image" sh -c 'uname -sr')"

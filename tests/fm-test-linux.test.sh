@@ -81,9 +81,19 @@ test_overlay_keeps_work_but_excludes_legacy_scratch() {
   make_repo "$repo"
   mkdir -p "$repo/.test-phase-tmp/nested" "$TMP_ROOT/overlay-tmp"
   printf 'committed scratch\n' >"$repo/.test-phase-tmp/nested/committed"
-  git -C "$repo" add .test-phase-tmp
+  mkdir "$repo/alias"
+  touch "$repo/alias/committed" "$repo/replaced"
+  printf '/alias\n/replaced/private\n' >"$repo/.gitignore"
+  git -C "$repo" add .test-phase-tmp .gitignore replaced
+  git -C "$repo" add -f alias/committed
   git -C "$repo" "${GIT_IDENT[@]}" commit -qm 'accidentally committed scratch'
   printf 'untracked scratch\n' >"$repo/.test-phase-tmp/nested/sentinel"
+  rm "$repo/alias/committed" "$repo/replaced"
+  rmdir "$repo/alias"
+  ln -s .test-phase-tmp/nested "$repo/alias"
+  mkdir "$repo/replaced"
+  printf 'excluded\n' >"$repo/replaced/private"
+  printf 'included\n' >"$repo/replaced/public"
   printf 'dirty\n' >"$repo/tests/kept.test.sh"
   printf 'untracked\n' >"$repo/tests/real work.txt"
   cat >"$runtime" <<'SH'
@@ -92,6 +102,9 @@ while [ "$#" -gt 1 ]; do
   if [ "$1" = -v ]; then
     copy=${2%:/work}
     [ ! -e "$copy/.test-phase-tmp" ] &&
+      [ ! -e "$copy/alias/committed" ] &&
+      [ ! -e "$copy/replaced/private" ] &&
+      [ "$(<"$copy/replaced/public")" = included ] &&
       [ "$(<"$copy/tests/kept.test.sh")" = dirty ] &&
       [ "$(<"$copy/tests/real work.txt")" = untracked ]
     exit $?

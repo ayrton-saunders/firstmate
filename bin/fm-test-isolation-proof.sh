@@ -418,44 +418,28 @@ printf 'FM_ISOLATION_BEGIN %s concurrency=%s candidates=%s\n' \
   "$RUN_STARTED_ISO" "$JOBS" "$TOTAL"
 
 # Worker state arrays parallel to CANDIDATES indices (1-based worker labels).
-declare -a WORKER_PIDS=()
+declare -a WORKER_PIDS=() WORKER_OWNERS=()
 declare -a WORKER_IDX=()
 ACTIVE_WORKERS=0
 launching=0
 pending_signal=0
 retain_root=0
 
-proof_group_gone() {
-  local groups
-  groups=$(ps -ax -o pgid= -o stat=) || return 1
-  awk -v group="$1" '$1 == group && $2 !~ /^Z/ { found=1 } END { exit found+0 }' <<<"$groups"
-}
-
-drain_proof_group() {
-  local pid=$1 signal i
-  for signal in TERM KILL; do
-    proof_group_gone "$pid" && break
-    kill -s "$signal" -- "-$pid" 2>/dev/null || true
-    for ((i=0; i<20; i++)); do
-      proof_group_gone "$pid" && break
-      sleep 0.1
-    done
-  done
-  proof_group_gone "$pid" || return 1
-  wait "$pid" 2>/dev/null || true
-}
-
 cleanup_proof() {
   local status=$? pid
   trap '' HUP INT QUIT TERM
-  for pid in "${WORKER_PIDS[@]+${WORKER_PIDS[@]}}"; do
-    drain_proof_group "$pid" || retain_root=1
-  done
-  if [ "$retain_root" -eq 0 ]; then
-    fm_test_remove_tree "$PROOF_ROOT" || { [ "$status" -ne 0 ] || status=1; }
-  else
-    log "candidate teardown unverified; retained $PROOF_ROOT"
+  fm_test_drain_groups "$PROOF_ROOT" "${WORKER_OWNERS[@]+"${WORKER_OWNERS[@]}"}" || retain_root=1
+  if [ "$retain_root" -ne 0 ]; then
+    log "could not confirm worker group exit; retaining scratch: $PROOF_ROOT"
     [ "$status" -ne 0 ] || status=1
+  else
+    for pid in "${WORKER_PIDS[@]+"${WORKER_PIDS[@]}"}"; do wait "$pid" 2>/dev/null || true; done
+    if fm_test_scratch_retained "$PROOF_ROOT"; then
+      log "private teardown unverified; retaining scratch: $PROOF_ROOT; delete it by hand once nothing is using it"
+      [ "$status" -ne 0 ] || status=1
+    else
+      fm_test_remove_tree "$PROOF_ROOT" || { [ "$status" -ne 0 ] || status=1; }
+    fi
   fi
   exit "$status"
 }
@@ -477,8 +461,8 @@ wait_one_slot() {
   pid=${WORKER_PIDS[$slot]}
   idx=${WORKER_IDX[$slot]}
   wait "$pid" || true
-  drain_proof_group "$pid" || retain_root=1
-  unset 'WORKER_PIDS[slot]'
+  fm_test_drain_groups "$PROOF_ROOT" "${WORKER_OWNERS[$slot]}" || retain_root=1
+  unset 'WORKER_PIDS[slot]' 'WORKER_OWNERS[slot]'
   unset 'WORKER_IDX[slot]'
   ACTIVE_WORKERS=$((ACTIVE_WORKERS - 1))
   [ "$retain_root" -eq 0 ] || exit 1
@@ -572,6 +556,7 @@ for script in "${CANDIDATES[@]}"; do
     set +e
     export TMPDIR="$work/tmp"
     export TMP="$work/tmp"
+    export FM_TEST_RETAIN_MARKER="$PROOF_ROOT/.retain-scratch.w$idx"
     # Clear ambient fleet overrides so candidates cannot share a live home.
     unset FM_HOME FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_ROOT_OVERRIDE \
       FM_PROJECTS_OVERRIDE FM_CONFIG_OVERRIDE FM_BACKEND 2>/dev/null || true
@@ -588,7 +573,10 @@ for script in "${CANDIDATES[@]}"; do
     printf '%s\n' "$duration" >"$work/out/duration_ms"
     exit 0
   ) &
-  WORKER_PIDS[idx]=$!
+  pid=$!
+  WORKER_PIDS[idx]=$pid
+  start=$(fm_test_owner_start "$pid" "$PROOF_ROOT") || start=unknown
+  WORKER_OWNERS[idx]="$UID|$pid|$pid|$start"
   WORKER_IDX[idx]=$idx
   ACTIVE_WORKERS=$((ACTIVE_WORKERS + 1))
   launching=0

@@ -34,7 +34,7 @@ test_family_pool_json_identifies_admission() {
   capped_json="$tmp/capped-proof.json"
   skipped_json="$tmp/skipped-proof.json"
   mkdir -p "$repo/bin" "$repo/tests"
-  cp "$PROOF" "$ROOT/bin/fm-test-scratch-lib.sh" "$repo/bin/"
+  cp "$PROOF" "$ROOT/bin/fm-test-scratch-lib.sh" "$ROOT/bin/fm-wake-lib.sh" "$ROOT/bin/fm-path-lib.sh" "$repo/bin/"
   cat >"$repo/bin/fm-test-run.sh" <<'SH'
 #!/usr/bin/env bash
 if { [ "$1" = --list ] || [ "$1" = --list-scheduled ]; } && [ "$2" = --family ]; then
@@ -53,6 +53,10 @@ if { [ "$1" = --list ] || [ "$1" = --list-scheduled ]; } && [ "$2" = --family ];
       ;;
     interrupt-family)
       printf '%s\n' tests/fm-proof-interrupt.test.sh tests/fm-proof-fixture-a.test.sh
+      exit 0
+      ;;
+    retaining-family)
+      printf '%s\n' tests/fm-proof-retaining.test.sh
       exit 0
       ;;
     failing-family)
@@ -129,6 +133,13 @@ trap on_term TERM
 printf '%s\n' "$$" >"$PROOF_SIGNAL_DIR/ready"
 while :; do sleep 0.1; done
 SH
+  cat >"$repo/tests/fm-proof-retaining.test.sh" <<'SH'
+#!/usr/bin/env bash
+set -eu
+. bin/fm-test-scratch-lib.sh
+fm_test_arm_private_tmux MARKER
+printf '%s\n' 'retained scratch' >"$TMPDIR/sentinel"
+SH
   chmod +x "$proof" "$repo/bin/fm-test-run.sh" "$repo/tests/fm-proof-"*.test.sh
   mkdir -p "$repo/.test-phase-tmp" "$tmp/tools"
   printf '%s\n' '#!/usr/bin/env bash' 'touch "$MKTEMP_CALLED"; exit 1' >"$tmp/tools/mktemp"
@@ -177,6 +188,13 @@ with (base / 'interrupted.log').open('w') as log:
                 except ProcessLookupError:
                     pass
 PY
+  mkdir "$tmp/retained-tmp"
+  rc=0
+  TMPDIR="$tmp/retained-tmp" "$proof" --pool retaining-family --jobs 1 >"$tmp/retained.out" 2>"$tmp/retained.err" || rc=$?
+  assert_equals 1 "$rc" 'unverified private teardown fails the proof'
+  set -- "$tmp/retained-tmp"/fm-isolation-proof.*
+  [ "$#" -eq 1 ] && [ -f "$1/w1/tmp/sentinel" ] || fail 'proof deleted explicitly retained scratch'
+  assert_contains "$(<"$tmp/retained.err")" "retaining scratch: $(cd "$1" && pwd -P)" 'retained scratch diagnostic names its root'
   set +e
   "$proof" --pool fixture-family --jobs 1 --json "$json" >"$tmp/out" 2>"$tmp/err"
   rc=$?

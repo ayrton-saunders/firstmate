@@ -1598,7 +1598,7 @@ families_for_changed_path() {
       printf '__script__:%s\n' fm-test-run.test.sh fm-test-fixtures.test.sh \
         fm-live-lab-isolation.test.sh fm-claude-safeguard-live.test.sh \
         fm-hermes-gateway-coexistence-live-e2e.test.sh fm-hermes-profile-safety-live-e2e.test.sh \
-        fm-hermes-signals-live-e2e.test.sh fm-test-linux.test.sh \
+        fm-hermes-signals-live-e2e.test.sh fm-test-linux.test.sh fm-test-fixture-cleanup.test.sh \
         fm-test-isolation-proof.test.sh fm-test-tap-verify.test.sh
       ;;
     bin/fm-test-run.sh)
@@ -2423,18 +2423,9 @@ if [ "$LIST_LANES" -eq 1 ]; then
   exit 0
 fi
 
-run_owner_start() (
-  [ -r "$ROOT/bin/fm-wake-lib.sh" ] && [ -r "$ROOT/bin/fm-path-lib.sh" ] || return 1
-  FM_STATE_OVERRIDE=$RUN_TMP
-  unset FM_PROC_ROOT_OVERRIDE
-  # shellcheck source=bin/fm-wake-lib.sh
-  . "$ROOT/bin/fm-wake-lib.sh" || return 1
-  fm_pid_start_time "$1"
-)
-
 record_run_owner() {
   local pid=$1 group=${2:-0} marker=${3:-$RUN_TMP/.fm-test-run-owner} start
-  start=$(run_owner_start "$pid") || start=unknown
+  start=$(fm_test_owner_start "$pid" "$RUN_TMP") || start=unknown
   printf '%s|%s|%s|%s\n' "$UID" "$pid" "$group" "$start" >>"$marker"
 }
 
@@ -2450,7 +2441,7 @@ run_owners_gone() {
         <<<"$snapshot" || return 1
     fi
     if awk -v pid="$pid" '$1 == pid && $3 !~ /^Z/ { live = 1 } END { exit !live }' <<<"$snapshot"; then
-      current=$(run_owner_start "$pid") || return 1
+      current=$(fm_test_owner_start "$pid" "$RUN_TMP") || return 1
       case "$start|$current" in
         proc-starttime=*\|proc-starttime=*) ;;
         *proc-starttime=*) return 1 ;;
@@ -2465,7 +2456,7 @@ run_owners_gone() {
 
 reap_orphan_runs() {
   local parent=$1 dir marker snapshot timed
-  run_owner_start "$$" >/dev/null || return 0
+  fm_test_owner_start "$$" "$RUN_TMP" >/dev/null || return 0
   for dir in "$parent"/r.??????; do
     marker="$dir/.fm-test-run-owner"
     [ -d "$dir" ] && [ ! -L "$dir" ] && [ -O "$dir" ] || continue
@@ -2483,7 +2474,7 @@ reap_orphan_runs() {
       [ -f "$timed" ] && [ ! -L "$timed" ] && [ -O "$timed" ] || continue 2
       run_owners_gone "$timed" "$snapshot" || continue 2
     done
-    compgen -G "$dir/.retain-scratch.*" >/dev/null && continue
+    fm_test_scratch_retained "$dir" && continue
     fm_test_remove_tree "$dir" || true
   done
 }
@@ -2502,55 +2493,9 @@ interrupt_run() {
   [ "$RUN_CRITICAL" -ne 0 ] || exit "$RUN_INTERRUPT"
 }
 
-owned_group_live() {
-  local pid=$1 start=$2 current snapshot
-  kill -0 -- "-$pid" 2>/dev/null || return 1
-  current=$(run_owner_start "$pid") || current=
-  if [ -n "$current" ]; then
-    [ "$start" != unknown ] || return 2
-    [ "$current" = "$start" ] || return 1
-  fi
-  if snapshot=$(LC_ALL=C ps -e -o pid= -o pgid= -o stat= 2>/dev/null); then
-    awk -v self="$$" -v pid="$pid" -v start="$start" -v checked="$current" '
-      $1 == self && NF == 3 { readable = 1 }
-      $2 == pid && $3 !~ /^Z/ { live = 1 }
-      END {
-        if (!readable) exit 2
-        if (!live) exit 1
-        exit (start == "unknown" || checked == "") ? 2 : 0
-      }
-    ' <<<"$snapshot"
-  else
-    [ -n "$current" ] || return 2
-  fi
-}
-
-group_members() {
-  LC_ALL=C ps -e -o pid= -o pgid= -o stat= 2>/dev/null |
-    awk -v group="$1" '$2 == group && $1 ~ /^[1-9][0-9]*$/ && $3 !~ /^Z/ { print $1 }'
-}
-
-group_member_identities() {
-  local pid identity
-  for pid in $(group_members "$1"); do
-    if identity=$(run_owner_start "$pid"); then printf '%s|%s\n' "$pid" "$identity"; fi
-  done
-}
-
-group_has_continuity() {
-  local group=$1 identities=$2 members pid identity current
-  members=$'\n'$(group_members "$group")$'\n'
-  while IFS='|' read -r pid identity; do
-    [[ "$members" == *$'\n'"$pid"$'\n'* ]] || continue
-    current=$(run_owner_start "$pid") || continue
-    [ "$identity" != "$current" ] || return 0
-  done <<<"$identities"
-  return 1
-}
-
 stop_owned_workers() {
-  local slot work pid record owner group start extra rc i attempt members drained=0
-  local -a records=() groups=() starts=() witnesses=()
+  local slot work pid record
+  local -a records=()
   for slot in "$@"; do
     work="$RUN_TMP/w$slot"
     pid=${WORKER_PIDS[$slot]:-}
@@ -2563,44 +2508,7 @@ stop_owned_workers() {
       records+=("$record")
     fi
   done
-  for record in "${records[@]+"${records[@]}"}"; do
-    IFS='|' read -r owner pid group start extra <<<"$record"
-    [ "$owner" = "$UID" ] && [ "$pid" = "$group" ] && [ -n "$start" ] && [ -z "$extra" ] || continue
-    case "$group" in ''|0*|*[!0-9]*) continue ;; esac
-    rc=0
-    owned_group_live "$group" "$start" || rc=$?
-    case "$rc" in
-      0|2)
-        groups+=("$group"); starts+=("$start")
-        members=
-        if [ "$rc" -eq 0 ]; then
-          members=$(group_member_identities "$group")
-          members=${members:-$group|$start}
-          if ! owned_group_live "$group" "$start" || ! kill -TERM -- "-$group" 2>/dev/null; then members=; fi
-        fi
-        witnesses+=("$members")
-        ;;
-    esac
-  done
-  if [ "${#groups[@]}" -gt 0 ]; then
-    sleep 0.2
-    for i in "${!groups[@]}"; do
-      if [ -n "${witnesses[$i]}" ] && { owned_group_live "${groups[$i]}" "${starts[$i]}" ||
-          group_has_continuity "${groups[$i]}" "${witnesses[$i]}"; }; then
-        kill -KILL -- "-${groups[$i]}" 2>/dev/null || true
-      fi
-    done
-    for i in "${!groups[@]}"; do
-      for ((attempt=0; attempt<20; ++attempt)); do
-        rc=0
-        owned_group_live "${groups[$i]}" "${starts[$i]}" || rc=$?
-        [ "$rc" -ne 1 ] || break
-        sleep 0.01
-      done
-      [ "$rc" -eq 1 ] || drained=1
-    done
-  fi
-  [ "$drained" -eq 0 ] || return 1
+  fm_test_drain_groups "$RUN_TMP" "${records[@]+"${records[@]}"}" || return 1
   for slot in "$@"; do
     pid=${WORKER_PIDS[$slot]:-}
     if [ -n "$pid" ]; then wait "$pid" 2>/dev/null || true; fi
@@ -2618,7 +2526,7 @@ cleanup_run() {
     exit "$status"
   fi
   if [ -n "$RUN_TMP" ]; then
-    if compgen -G "$RUN_TMP/.retain-scratch.*" >/dev/null; then
+    if fm_test_scratch_retained "$RUN_TMP"; then
       log "private teardown unverified; retaining scratch: $RUN_TMP; delete it by hand once nothing is using it"
       [ "$status" -ne 0 ] || status=1
       exit "$status"
@@ -3040,7 +2948,7 @@ run_owned_timed() {
   local work=$1 worker=$2
   shift 2
   export ROOT RUN_TMP
-  export -f register_timed_owner record_run_owner run_owner_start
+  export -f register_timed_owner record_run_owner fm_test_owner_start
   fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash -c '
     register_timed_owner "$1" "$2" || exit 1
     shift 2

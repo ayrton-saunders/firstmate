@@ -31,6 +31,109 @@ fm_test_allocate_scratch() {
   return "$rc"
 }
 
+fm_test_owner_start() (
+  [ -r "$ROOT/bin/fm-wake-lib.sh" ] && [ -r "$ROOT/bin/fm-path-lib.sh" ] || return 1
+  FM_STATE_OVERRIDE=$2
+  unset FM_PROC_ROOT_OVERRIDE
+  # shellcheck source=bin/fm-wake-lib.sh
+  . "$ROOT/bin/fm-wake-lib.sh" || return 1
+  fm_pid_start_time "$1"
+)
+
+owned_group_live() {
+  local pid=$1 start=$2 state=$3 current snapshot
+  kill -0 -- "-$pid" 2>/dev/null || return 1
+  current=$(fm_test_owner_start "$pid" "$state") || current=
+  if [ -n "$current" ]; then
+    [ "$start" != unknown ] || return 2
+    [ "$current" = "$start" ] || return 1
+  fi
+  if snapshot=$(LC_ALL=C ps -e -o pid= -o pgid= -o stat= 2>/dev/null); then
+    awk -v self="$$" -v pid="$pid" -v start="$start" -v checked="$current" '
+      $1 == self && NF == 3 { readable = 1 }
+      $2 == pid && $3 !~ /^Z/ { live = 1 }
+      END {
+        if (!readable) exit 2
+        if (!live) exit 1
+        exit (start == "unknown" || checked == "") ? 2 : 0
+      }
+    ' <<<"$snapshot"
+  else
+    [ -n "$current" ] || return 2
+  fi
+}
+
+group_members() {
+  LC_ALL=C ps -e -o pid= -o pgid= -o stat= 2>/dev/null |
+    awk -v group="$1" '$2 == group && $1 ~ /^[1-9][0-9]*$/ && $3 !~ /^Z/ { print $1 }'
+}
+
+group_member_identities() {
+  local pid identity
+  for pid in $(group_members "$1"); do
+    if identity=$(fm_test_owner_start "$pid" "$2"); then printf '%s|%s\n' "$pid" "$identity"; fi
+  done
+}
+
+group_has_continuity() {
+  local group=$1 identities=$2 state=$3 members pid identity current
+  members=$'\n'$(group_members "$group")$'\n'
+  while IFS='|' read -r pid identity; do
+    [[ "$members" == *$'\n'"$pid"$'\n'* ]] || continue
+    current=$(fm_test_owner_start "$pid" "$state") || continue
+    [ "$identity" != "$current" ] || return 0
+  done <<<"$identities"
+  return 1
+}
+
+fm_test_drain_groups() {
+  local state=$1 record owner pid group start extra rc i attempt members drained=0
+  local -a groups=() starts=() witnesses=()
+  shift
+  for record in "$@"; do
+    IFS='|' read -r owner pid group start extra <<<"$record"
+    [ "$owner" = "$UID" ] && [ "$pid" = "$group" ] && [ -n "$start" ] && [ -z "$extra" ] || continue
+    case "$group" in ''|0*|*[!0-9]*) continue ;; esac
+    rc=0
+    owned_group_live "$group" "$start" "$state" || rc=$?
+    case "$rc" in
+      0|2)
+        groups+=("$group"); starts+=("$start")
+        members=
+        if [ "$rc" -eq 0 ]; then
+          members=$(group_member_identities "$group" "$state")
+          members=${members:-$group|$start}
+          if ! owned_group_live "$group" "$start" "$state" || ! kill -TERM -- "-$group" 2>/dev/null; then members=; fi
+        fi
+        witnesses+=("$members")
+        ;;
+    esac
+  done
+  if [ "${#groups[@]}" -gt 0 ]; then
+    sleep 0.2
+    for i in "${!groups[@]}"; do
+      if [ -n "${witnesses[$i]}" ] && { owned_group_live "${groups[$i]}" "${starts[$i]}" "$state" ||
+          group_has_continuity "${groups[$i]}" "${witnesses[$i]}" "$state"; }; then
+        kill -KILL -- "-${groups[$i]}" 2>/dev/null || true
+      fi
+    done
+    for i in "${!groups[@]}"; do
+      for ((attempt=0; attempt<20; ++attempt)); do
+        rc=0
+        owned_group_live "${groups[$i]}" "${starts[$i]}" "$state" || rc=$?
+        [ "$rc" -ne 1 ] || break
+        sleep 0.01
+      done
+      [ "$rc" -eq 1 ] || drained=1
+    done
+  fi
+  [ "$drained" -eq 0 ]
+}
+
+fm_test_scratch_retained() {
+  compgen -G "$1/.retain-scratch.*" >/dev/null
+}
+
 fm_test_check_scratch_placement() {
   local root=$1 base=$2 blocked ancestor
   ancestor=$base
