@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+fm_test_scratch_exclusion=':(top,exclude,literal).test-phase-tmp'
+
 # Remove a fixture tree even when it holds a read-only directory, such as the
 # spawn-owned state/<id>.git-hooks strip directory.
 fm_test_remove_tree() {
@@ -140,10 +142,17 @@ fm_test_scratch_retained() (
 )
 
 fm_test_check_scratch_placement() {
-  local root=$1 base=$2 blocked ancestor
+  local root=$1 base=$2 blocked ancestor effective_home=
+  if [ -n "${FM_ROOT:-}" ]; then
+    effective_home=$(
+      . "${BASH_SOURCE[0]%/*}/fm-path-lib.sh" || exit 2
+      fm_effective_home_to effective_home "$root"
+      printf '%s\n' "$effective_home"
+    ) || return 2
+  fi
   ancestor=$base
   while :; do
-    for blocked in "$root" "${FM_HOME:-}" "${FM_ROOT_OVERRIDE:-}" \
+    for blocked in "$root" "${FM_HOME:-}" "${FM_ROOT_OVERRIDE:-}" "$effective_home" \
       "$HOME/.firstmate-preserved" "$HOME/.treehouse" "${TREEHOUSE_ROOT:-}"; do
       [ -n "$blocked" ] || continue
       if [ "$ancestor" = "${blocked%/}" ] || [ "$ancestor" -ef "$blocked" ]; then

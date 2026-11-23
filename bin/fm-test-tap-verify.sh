@@ -73,9 +73,10 @@ SCRIPT=$1
 ROOT=$(cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P) || exit 1
 . "$ROOT/bin/fm-test-scratch-lib.sh"
 base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || exit "$?"
-export TMPDIR="$base" TMP="$base" TEMP="$base"
-fm_test_allocate_scratch "${base%/}/fm-test-tap-verify.XXXXXX" || exit 1
-OUT=$FM_TEST_SCRATCH
+fm_test_allocate_scratch -d "${base%/}/fm-test-tap-verify.XXXXXX" || exit 1
+OUT="$FM_TEST_SCRATCH/output"
+mkdir "$FM_TEST_SCRATCH/tmp"
+export TMPDIR="$FM_TEST_SCRATCH/tmp" TMP="$FM_TEST_SCRATCH/tmp" TEMP="$FM_TEST_SCRATCH/tmp"
 
 set +e
 "$BASH" "$SCRIPT" >"$OUT" 2>&1
@@ -112,5 +113,7 @@ if [ "$OK_COUNT" -ne "$PLANNED" ]; then
   fail_verify "$LABEL planned $PLANNED ok lines, got $OK_COUNT"
 fi
 
+fm_test_remove_tree "$FM_TEST_SCRATCH" || fail_verify "could not remove scratch: $FM_TEST_SCRATCH"
+FM_TEST_SCRATCH=
 printf 'fm-test-tap-verify: %s: %s planned, %s ok, complete, exit 0\n' \
   "$LABEL" "$PLANNED" "$OK_COUNT"

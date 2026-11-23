@@ -197,6 +197,17 @@ PY
   set -- "$tmp/retained [SSD]"/fm-isolation-proof.*
   [ "$#" -eq 1 ] && [ -f "$1/w1/tmp/sentinel" ] || fail 'proof deleted explicitly retained scratch'
   assert_contains "$(<"$tmp/retained.err")" "retaining scratch: $(cd "$1" && pwd -P)" 'retained scratch diagnostic names its root'
+  printf '%s\n' '#!/usr/bin/env bash' 'case "${!#}" in */fm-isolation-proof.??????) exit 1 ;; esac' 'exec "$REAL_RM" "$@"' >"$tmp/tools/rm"
+  chmod +x "$tmp/tools/rm"
+  rm "$tmp/tools/mktemp"
+  mkdir "$tmp/cleanup-evidence"
+  rc=0
+  PROOF_SCHED_EVIDENCE="$tmp/cleanup-evidence" REAL_RM="$(command -v rm)" \
+    PATH="$tmp/tools:$PATH" TMPDIR="$tmp/proof-tmp" \
+    "$proof" --pool admitted-family --jobs 2 --json "$tmp/cleanup.json" >"$tmp/cleanup.out" 2>"$tmp/cleanup.err" || rc=$?
+  assert_equals 1 "$rc" 'failed proof removal cannot produce success'
+  assert_contains "$(<"$tmp/cleanup.err")" 'could not remove scratch' 'proof reports failed removal'
+  python3 -c 'import json, sys; r = json.load(open(sys.argv[1])); assert r["summary"]["failed"] == 1 and not r["fm_test_run_jobs_enabled"]' "$tmp/cleanup.json" || fail 'failed removal was admitted in JSON'
   set +e
   "$proof" --pool fixture-family --jobs 1 --json "$json" >"$tmp/out" 2>"$tmp/err"
   rc=$?

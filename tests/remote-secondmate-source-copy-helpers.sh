@@ -4,7 +4,8 @@
 fm_fixture_copy_remote_source() (  # <source checkout> <destination>
   set -o pipefail
   local path parent
-  git -C "$1" ls-files -z | while IFS= read -r -d '' path; do
+  . "${BASH_SOURCE[0]%/*}/../bin/fm-test-scratch-lib.sh" || return 1
+  git -C "$1" ls-files -z -- "$fm_test_scratch_exclusion" | while IFS= read -r -d '' path; do
     parent=$path
     while [[ "$parent" == */* ]]; do
       parent=${parent%/*}

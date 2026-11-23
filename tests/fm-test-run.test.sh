@@ -2129,7 +2129,7 @@ set -eu
 mktemp_dir=$(mktemp -d "$TMPDIR/copy.XXXXXX")
 fm_fixture_copy_remote_source "$PWD" "$mktemp_dir"
 [ "$(cat "$mktemp_dir/tracked")" = 'tracked working-tree bytes' ]
-[ ! -e "$mktemp_dir/.test-phase-tmp/sentinel" ]
+[ ! -e "$mktemp_dir/.test-phase-tmp" ]
 [ ! -e "$mktemp_dir/replaced/sentinel" ]
 mkdir "$TMPDIR/read-only"
 touch "$TMPDIR/read-only/entry"
@@ -2184,6 +2184,8 @@ replaced.mkdir()
 legacy = repo / '.test-phase-tmp'
 legacy.mkdir()
 (legacy / 'sentinel').touch()
+(legacy / 'tracked-scratch').touch()
+subprocess.run(['git', '-C', str(repo), 'add', '-f', '.test-phase-tmp/tracked-scratch'], check=True)
 tracked_dir = repo / 'tracked-dir'
 tracked_dir.mkdir()
 (tracked_dir / 'file').write_bytes(b'tracked contents\n')
@@ -2296,9 +2298,26 @@ assert retained_run.is_dir()
 assert json.loads((repo / 'retained.json').read_text())['summary']['failed'] == 1
 (repo / 'retained.json').unlink()
 subprocess.run([bash, '-c', '. bin/fm-test-scratch-lib.sh; fm_test_remove_tree "$1"', '_', shell_path(retained_run)], cwd=repo, check=True)
-assert sorted(p.name for p in legacy.iterdir()) == ['sentinel']
+assert sorted(p.name for p in legacy.iterdir()) == ['sentinel', 'tracked-scratch']
 (private,) = base.iterdir()
 assert not list(private.iterdir())
+remover = fakebin / 'rm'
+remover.write_text('''#!/usr/bin/env bash
+case "${!#}" in */r.??????) exit 1 ;; esac
+exec "$REAL_RM" "$@"
+''')
+remover.chmod(0o755)
+try:
+    result = subprocess.run([*runner_cmd, '--json', 'cleanup.json', cmd[-1]], cwd=repo,
+                            env=dict(fixture_env, REAL_RM=shutil.which('rm'), PROOF=shell_path(tmp / 'cleanup')),
+                            capture_output=True, timeout=20)
+    assert result.returncode == 1 and b'could not remove scratch' in result.stderr, result
+    assert json.loads((repo / 'cleanup.json').read_text())['summary']['failed'] == 1
+finally:
+    remover.unlink()
+_, leftover = scratch(tmp / 'cleanup')
+assert leftover.is_dir()
+subprocess.run([bash, '-c', '. bin/fm-test-scratch-lib.sh; fm_test_remove_tree "$1"', '_', shell_path(leftover)], cwd=repo, check=True)
 result = subprocess.run(cmd, cwd=repo, env=dict(fixture_env, FM_HOME=shell_path(private)), capture_output=True)
 assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
 

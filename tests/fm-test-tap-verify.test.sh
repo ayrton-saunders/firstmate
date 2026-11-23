@@ -51,6 +51,22 @@ test_checkout_scratch_is_refused_before_running_suite() {
   pass "checkout scratch is refused before the TAP suite runs"
 }
 
+test_failed_suite_scratch_is_removed() {
+  local suite="$TMP_ROOT/failing-scratch.sh" base="$TMP_ROOT/verifier-temp" out rc=0
+  mkdir "$base"
+  write_suite "$suite" '
+[ "$TMPDIR" = "$TMP" ] && [ "$TMPDIR" = "$TEMP" ] || exit 8
+mkdir "$TMPDIR/read-only" || exit 8
+touch "$TMPDIR/read-only/file" || exit 8
+chmod 0500 "$TMPDIR/read-only" || exit 8
+exit 7'
+  out=$(TMPDIR="$base" run_verify "$suite") || rc=$?
+  assert_equals 1 "$rc" 'a launched suite failure fails verification'
+  assert_contains "$out" 'exited 7' 'the suite left scratch before it failed'
+  assert_equals '' "$(ls -A "$base")" 'verifier removed output and suite scratch'
+  pass 'verifier cleans read-only scratch from a failing suite'
+}
+
 test_early_exit_zero_fails() {
   local suite out rc=0
   suite="$TMP_ROOT/early.sh"
@@ -169,6 +185,7 @@ test_failure_prints_error_annotation() {
 
 test_correct_suite_passes
 test_checkout_scratch_is_refused_before_running_suite
+test_failed_suite_scratch_is_removed
 test_early_exit_zero_fails
 test_not_ok_fails_even_with_exit_zero
 test_nonzero_exit_fails

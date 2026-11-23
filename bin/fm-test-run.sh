@@ -2150,22 +2150,19 @@ write_json_artifact() {
   local skipped=$7
   local duration=$8
   local selection=$9
-  local records_file=${10}
-  local families_file=${11}
 
   if ! command -v python3 >/dev/null 2>&1; then
     die "--json requires python3 to emit a valid timing artifact"
   fi
 
-  python3 - "$out" "$started" "$finished" "$run_id" "$total" "$failed" "$skipped" "$duration" "$selection" "$records_file" "$families_file" <<'PY'
-import json, sys
+  python3 -c '
+import io, json, sys
 
-out, started, finished, run_id, total, failed, skipped, duration, selection, records_file, families_file = sys.argv[1:]
-
+out, started, finished, run_id, total, failed, skipped, duration, selection = sys.argv[1:]
+records, _, families_data = sys.stdin.buffer.read().decode("utf-8").partition("\n\n")
 scripts = []
-from contextlib import nullcontext
 
-with (open(records_file, encoding="utf-8") if records_file else nullcontext(())) as fh:
+with io.StringIO(records) as fh:
     for line in fh:
         line = line.rstrip("\n")
         if not line:
@@ -2182,7 +2179,7 @@ with (open(records_file, encoding="utf-8") if records_file else nullcontext(()))
         })
 
 families = []
-with (open(families_file, encoding="utf-8") if families_file else nullcontext(())) as fh:
+with io.StringIO(families_data) as fh:
     for line in fh:
         line = line.rstrip("\n")
         if not line:
@@ -2212,7 +2209,7 @@ doc = {
 with open(out, "w", encoding="utf-8") as fh:
     json.dump(doc, fh, indent=2, sort_keys=True)
     fh.write("\n")
-PY
+' "$out" "$started" "$finished" "$run_id" "$total" "$failed" "$skipped" "$duration" "$selection"
 }
 
 scratch_base() {
@@ -2529,8 +2526,15 @@ cleanup_run() {
       [ "$status" -ne 0 ] || status=1
       exit "$status"
     fi
-    fm_test_remove_tree "$RUN_TMP"
+    remove_run_scratch || { [ "$status" -ne 0 ] || status=1; }
   fi
+  exit "$status"
+}
+
+remove_run_scratch() {
+  fm_test_remove_tree "$RUN_TMP" && return 0
+  log "could not remove scratch: $RUN_TMP"
+  return 1
 }
 
 prepare_run_scratch() {
@@ -2705,7 +2709,7 @@ if [ "${#SCRIPTS[@]}" -eq 0 ]; then
     mkdir -p -- "$(dirname -- "$JSON_PATH")"
     write_json_artifact "$JSON_PATH" "$RUN_STARTED_ISO" "$empty_finished_iso" \
       "fm-test-run-${RUN_STARTED_MS}-$$" 0 0 0 "$empty_duration" \
-      "$SELECTION_DESC" '' ''
+      "$SELECTION_DESC" </dev/null
   fi
   exit "$empty_rc"
 fi
@@ -3115,21 +3119,34 @@ if [ "$RUN_DURATION" -lt 0 ]; then
   RUN_DURATION=0
 fi
 
+records=$(<"$RECORDS")
+families=
+if [ -s "$FAMILIES_TSV" ]; then
+  families=$(LC_ALL=C sort -t$'\t' -k1,1 "$FAMILIES_TSV")
+fi
+if [ "$KEEP_RUN_TMP" -eq 0 ] && ! fm_test_scratch_retained "$RUN_TMP"; then
+  export TMPDIR="${RUN_TMP%/*}" TMP="${RUN_TMP%/*}" TEMP="${RUN_TMP%/*}"
+  if ! remove_run_scratch; then
+    AGG_RC=1
+    [ "$FAILED" -ne 0 ] || FAILED=1
+  fi
+  RUN_TMP=
+fi
+
 printf 'FM_TEST_SUMMARY total=%s failed=%s skipped_gate=%s duration_ms=%s\n' \
   "$TOTAL" "$FAILED" "$SKIPPED_GATE" "$RUN_DURATION"
 
-if [ -s "$FAMILIES_TSV" ]; then
-  # Stable family summary order by name.
-  sort -t$'\t' -k1,1 "$FAMILIES_TSV" | while IFS=$'\t' read -r name count duration failed_count; do
+if [ -n "$families" ]; then
+  printf '%s\n' "$families" | while IFS=$'\t' read -r name count duration failed_count; do
     printf 'FM_TEST_SUMMARY_FAMILY family=%s count=%s duration_ms=%s failed=%s\n' \
       "$name" "$count" "$duration" "$failed_count"
   done
 fi
 
 # Slowest scripts (top 15) from records.
-if [ -s "$RECORDS" ]; then
+if [ -n "$records" ]; then
   rank=1
-  sort -t$'\t' -k5,5nr "$RECORDS" | head -n 15 | while IFS=$'\t' read -r path _family _expected _rc duration _gate; do
+  sort -t$'\t' -k5,5nr <<<"$records" | head -n 15 | while IFS=$'\t' read -r path _family _expected _rc duration _gate; do
     printf 'FM_TEST_SLOWEST rank=%s script=%s duration_ms=%s\n' \
       "$rank" "$path" "$duration"
     rank=$((rank + 1))
@@ -3138,17 +3155,11 @@ fi
 
 if [ -n "$JSON_PATH" ]; then
   mkdir -p -- "$(dirname -- "$JSON_PATH")"
-  # Families file may be unsorted; write_json reads as-is (deterministic sort in python).
-  if [ -s "$FAMILIES_TSV" ]; then
-    sort -t$'\t' -k1,1 "$FAMILIES_TSV" -o "$FAMILIES_TSV"
-  else
-    : >"$FAMILIES_TSV"
-  fi
   set +e
   write_json_artifact "$JSON_PATH" \
     "$RUN_STARTED_ISO" "$RUN_FINISHED_ISO" "$RUN_ID" \
     "$TOTAL" "$FAILED" "$SKIPPED_GATE" "$RUN_DURATION" \
-    "$SELECTION_DESC" "$RECORDS" "$FAMILIES_TSV"
+    "$SELECTION_DESC" <<<"$records"$'\n\n'"$families"
   json_rc=$?
   set -e
   if [ "$json_rc" -eq 0 ]; then

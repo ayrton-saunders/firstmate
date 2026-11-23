@@ -38,7 +38,7 @@ test_direct_fixture_refuses_inherited_home_scratch() {
   mkdir -p "$tmp/home/tmp" "$tmp/tools"
   printf '%s\n' '#!/usr/bin/env bash' 'touch "$MKTEMP_CALLED"; exit 1' >"$tmp/tools/mktemp"
   chmod +x "$tmp/tools/mktemp"
-  for boundary in FM_HOME FM_ROOT_OVERRIDE; do
+  for boundary in FM_HOME FM_ROOT_OVERRIDE FM_ROOT; do
     rc=0
     out=$(env "$boundary=$tmp/home" TMPDIR="$tmp/home/tmp" PATH="$tmp/tools:$PATH" \
       MKTEMP_CALLED="$tmp/mktemp-called" "$BASH" -c '. "$1"' _ "$ROOT/tests/lib.sh" 2>&1) || rc=$?

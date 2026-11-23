@@ -64,9 +64,10 @@ if [ ${#tests[@]} -eq 0 ]; then
   merge_base=$(git -C "$root" merge-base HEAD "$base") || die "no merge base with $base"
   changed=$(git -C "$root" diff --name-only --diff-filter=ACMR "$merge_base" --) || die 'could not list changed paths'
   untracked=$(git -C "$root" ls-files --others --exclude-standard) || die 'could not list untracked paths'
+  selected=$(printf '%s\n' "$changed" "$untracked" | sort -u) || die 'could not sort changed paths'
   while IFS= read -r path; do
     if [[ "$path" =~ ^tests/[^/]+\.test\.sh$ ]] && [ -f "$root/$path" ]; then tests+=("$path"); fi
-  done < <(printf '%s\n' "$changed" "$untracked" | sort -u)
+  done <<<"$selected"
 fi
 
 if [ ${#tests[@]} -eq 0 ]; then
@@ -102,7 +103,7 @@ if git -C "$scratch" rev-parse --verify --quiet HEAD >/dev/null; then
   git -C "$scratch" read-tree HEAD
 fi
 inventory="$scratch/.git/fm-test-overlay"
-git -C "$root" ls-files -z --cached --others --exclude-standard -- ':(top,exclude,literal).test-phase-tmp' >"$inventory" || die 'could not enumerate overlay paths'
+git -C "$root" ls-files -z --cached --others --exclude-standard -- "$fm_test_scratch_exclusion" >"$inventory" || die 'could not enumerate overlay paths'
 files=()
 while IFS= read -r -d '' path; do
   parent=$path

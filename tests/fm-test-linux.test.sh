@@ -42,6 +42,20 @@ test_selects_changed_tests() {
   pass "selects committed, modified, and untracked tests only"
 }
 
+test_failed_selection_sort_is_not_empty_success() {
+  local repo="$TMP_ROOT/sort-repo" tools="$TMP_ROOT/sort-tools" out rc=0
+  make_repo "$repo"
+  printf 'changed\n' >>"$repo/tests/kept.test.sh"
+  mkdir "$tools"
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"$tools/sort"
+  chmod +x "$tools/sort"
+  out=$(cd "$repo" && PATH="$tools:$PATH" "$BASH" "$LINUX_CHECK" --base main 2>&1) || rc=$?
+  assert_equals 2 "$rc" 'sort failure fails changed-test selection'
+  assert_contains "$out" 'could not sort changed paths' 'sort failure diagnostic'
+  assert_not_contains "$out" 'no changed shell tests' 'sort failure is not an empty selection'
+  pass 'Linux validation does not report empty success after sort fails'
+}
+
 test_no_changed_tests_is_a_clean_pass() {
   local repo="$TMP_ROOT/none" out rc=0
   make_repo "$repo"
@@ -205,7 +219,7 @@ FIXTURE
   pass "gnu stat fixture goes red on the original form and green on the fixed form"
 }
 
-fm_test_run test_selects_changed_tests test_no_changed_tests_is_a_clean_pass \
+fm_test_run test_selects_changed_tests test_failed_selection_sort_is_not_empty_success test_no_changed_tests_is_a_clean_pass \
   test_missing_runtime_stops_clearly test_checkout_scratch_is_refused_before_build_or_clone \
   test_overlay_keeps_work_but_excludes_legacy_scratch test_overlay_failure_prevents_container_run \
   test_gnu_stat_fixture_red_then_green

@@ -249,12 +249,13 @@ detect_gate_skip() {
 }
 
 write_json_artifact() {
-  local out=$1 started=$2 finished=$3 run_id=$4 total=$5 failed=$6 concurrency=$7 duration=$8 records=$9 pool=${10} jobs_enabled=${11}
-  python3 - "$out" "$started" "$finished" "$run_id" "$total" "$failed" "$concurrency" "$duration" "$records" "$pool" "$jobs_enabled" <<'PY'
+  local out=$1 started=$2 finished=$3 run_id=$4 total=$5 failed=$6 concurrency=$7 duration=$8 pool=$9 jobs_enabled=${10}
+  python3 -c '
 import json, sys
-out, started, finished, run_id, total, failed, concurrency, duration, records_path, pool, jobs_enabled = sys.argv[1:12]
+out, started, finished, run_id, total, failed, concurrency, duration, pool, jobs_enabled = sys.argv[1:]
 scripts = []
-with open(records_path, encoding="utf-8") as fh:
+import io
+with io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8") as fh:
     for line in fh:
         line = line.rstrip("\n")
         if not line:
@@ -286,7 +287,7 @@ doc = {
 with open(out, "w", encoding="utf-8") as fh:
     json.dump(doc, fh, indent=2, sort_keys=True)
     fh.write("\n")
-PY
+' "$out" "$started" "$finished" "$run_id" "$total" "$failed" "$concurrency" "$duration" "$pool" "$jobs_enabled"
 }
 
 while [ "$#" -gt 0 ]; do
@@ -435,14 +436,22 @@ cleanup_proof() {
     [ "$status" -ne 0 ] || status=1
   else
     for pid in "${WORKER_PIDS[@]+"${WORKER_PIDS[@]}"}"; do wait "$pid" 2>/dev/null || true; done
-    if fm_test_scratch_retained "$PROOF_ROOT"; then
+    if [ -z "$PROOF_ROOT" ]; then
+      exit "$status"
+    elif fm_test_scratch_retained "$PROOF_ROOT"; then
       log "private teardown unverified; retaining scratch: $PROOF_ROOT; delete it by hand once nothing is using it"
       [ "$status" -ne 0 ] || status=1
     else
-      fm_test_remove_tree "$PROOF_ROOT" || { [ "$status" -ne 0 ] || status=1; }
+      remove_proof_scratch || { [ "$status" -ne 0 ] || status=1; }
     fi
   fi
   exit "$status"
+}
+
+remove_proof_scratch() {
+  fm_test_remove_tree "$PROOF_ROOT" && return 0
+  log "could not remove scratch: $PROOF_ROOT"
+  return 1
 }
 
 interrupt_proof() {
@@ -626,13 +635,20 @@ if [ "$RUN_DURATION" -lt 0 ]; then
   RUN_DURATION=0
 fi
 
+records=$(<"$RECORDS")
+if ! fm_test_scratch_retained "$PROOF_ROOT"; then
+  if ! remove_proof_scratch; then
+    AGG_RC=1
+    [ "$FAILED" -ne 0 ] || FAILED=1
+  fi
+  PROOF_ROOT=
+fi
+
 printf 'FM_ISOLATION_SUMMARY total=%s failed=%s concurrency=%s duration_ms=%s\n' \
   "$TOTAL" "$FAILED" "$JOBS" "$RUN_DURATION"
 
 if [ -n "$JSON_PATH" ]; then
   mkdir -p "$(dirname "$JSON_PATH")"
-  # Stable record order for the artifact.
-  sort -t$'\t' -k1,1 "$RECORDS" -o "$RECORDS"
   jobs_enabled=0
   jobs_max=0
   if "$ROOT/bin/fm-test-run.sh" --list-concurrent-safe-families | grep -Fxq "$POOL"; then
@@ -643,7 +659,7 @@ if [ -n "$JSON_PATH" ]; then
   fi
   write_json_artifact "$JSON_PATH" \
     "$RUN_STARTED_ISO" "$RUN_FINISHED_ISO" "$RUN_ID" \
-    "$TOTAL" "$FAILED" "$JOBS" "$RUN_DURATION" "$RECORDS" "$POOL" "$jobs_enabled"
+    "$TOTAL" "$FAILED" "$JOBS" "$RUN_DURATION" "$POOL" "$jobs_enabled" <<<"$records"
   log "wrote isolation proof artifact: $JSON_PATH"
 fi
 
