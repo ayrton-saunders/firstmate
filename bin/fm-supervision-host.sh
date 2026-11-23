@@ -1035,7 +1035,7 @@ attended_routine_rows() {  # <reason> <decision keys>
     'check: rearm-resurface')
       pending=$("$SCRIPT_DIR/fm-branch-outcome.sh" present) || return 1
       [ "$(printf '%s\n' "$pending" | jq -rs 'any(.verdict == "captain")')" = false ] || return 1
-      FM_SUPERVISION_ACTOR=main "$SCRIPT_DIR/fm-wake-drain.sh" --status-backstop-clear || return 1
+      FM_SUPERVISION_ACTOR=main "$SCRIPT_DIR/fm-wake-drain.sh" --recovery-presentation-clear || return 1
       _fm_wake_require_classify || return 1
       exclude=$(status_scan_parent_channel_exclude "$STATE")
       for f in "$STATE"/*.status; do
@@ -1067,8 +1067,8 @@ attended_no_open_decision() {  # <status-file>
   [ -z "$open" ]
 }
 
-attended_routine_row() {  # <kind> <key> <reason>
-  local kind=$1 key=$2 reason=$3 record task target f found=0
+attended_routine_row() {  # <kind> <key> <reason> [preflight]
+  local kind=$1 key=$2 reason=$3 mode=${4:-} record task target f found=0
   local -a files
   case "$kind:$reason" in
     signal:signal:*)
@@ -1082,12 +1082,14 @@ attended_routine_row() {  # <kind> <key> <reason>
         [ "${f##*/}" != "$key" ] || found=1
         case "$proven_answers" in
           *" $f "*) ;;
-          *) status_unread_only_home_answers "$f" || return 1
-             attended_no_open_decision "$f" || return 3
+          *) status_unread_only_home_answers "$f" "$mode" || return 1
+             if [ "$mode" != preflight ]; then
+               attended_no_open_decision "$f" || return 3
+             fi
              proven_answers="$proven_answers$f " ;;
         esac
       done
-      [ "$found" -eq 1 ]
+      [ "${#files[@]}" -gt 0 ] && { [ "$mode" = preflight ] || [ "$found" -eq 1 ]; }
       ;;
     stale:stale:*)
       record=$(fm_task_inbox_stuck_busy_record "$STATE" "$reason") || return 1
@@ -1370,18 +1372,20 @@ attended_park_worker() {  # <function> [args...]
 }
 
 attended_routine_candidate() {  # <reason>
-  case "$1" in
-    *$'\n'*) return 1 ;;
-    signal:*|stale:*|'check: rearm-resurface') ;;
-    *) return 1 ;;
-  esac
+  local proven_answers=' '
+  case "$1" in *$'\n'*) return 1 ;; esac
   case "$ARM_TEXT" in
-    "$1") return 0 ;;
+    "$1") ;;
     watcher:\ started\ *$'\n'"$1"|watcher:\ attached\ *$'\n'"$1")
       case "${ARM_TEXT%"$1"}" in *$'\n'*$'\n'*) return 1 ;; esac ;;
     *) return 1 ;;
   esac
-  return 0
+  case "$1" in
+    'check: rearm-resurface') return 0 ;;
+    stale:*) fm_task_inbox_stuck_busy_record "$STATE" "$1" >/dev/null ;;
+    signal:*) attended_routine_row signal '' "$1" preflight ;;
+    *) return 1 ;;
+  esac
 }
 
 # Why an attended close stays with main exactly as the plain arm delivers it,
@@ -1410,7 +1414,7 @@ attended_acceptor() {  # <reason-lines>
       ATTENDED_WHY="branch eligibility could not be computed"
     else
       rc=1
-      if [ "$candidate" -eq 1 ]; then
+      if [ "$candidate" -eq 1 ] || { [[ "$1" = signal:* ]] && attended_routine_candidate "$1"; }; then
         decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
         rc=0
         ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows <<< "$1"$'\n'"$decision_keys") || rc=$?

@@ -2474,14 +2474,13 @@ EOF
 # Only a complete, unchanged unread span of home-authored answers may
 # be acknowledged without presenting the signal. Do not infer authorship from
 # an `answered:` note alone, or treat the open-decision fold as presentation.
-status_unread_only_home_answers() {  # <status-file>
-  local f=$1 start end ident span line note unstamped
+status_unread_only_home_answers() {  # <status-file> [preflight]
+  local f=$1 start end ident span line note unstamped lock
   [ -f "${f%/*}/.status-presentation-cursor" ] || return 1
   _fm_status_read_ident_size "$f" || return 1
   ident=$_FM_STAT_IDENTITY end=${_FM_STAT_SIZE//[[:space:]]/}
   start=$(status_presentation_cursor_offset "$f") || return 1
   [ "$start" -lt "$end" ] || return 1
-  _fm_status_home_appends_covers_serialized "$f" "$start" "$end" || return 1
   span=$(_fm_status_read_span "$f" "$start" "$((end - start))") || return 1
   [ -n "$span" ] || return 1
   while IFS= read -r line; do
@@ -2491,6 +2490,12 @@ status_unread_only_home_answers() {  # <status-file>
     status_line_note "$line" note
     case "$note" in answered|answered:*) ;; *) return 1 ;; esac
   done <<< "$span"
+  if [ "${2:-}" = preflight ]; then
+    lock="$(status_home_appends_path "$f").lock"
+    status_home_appends_covers "$f" "$start" "$end" || [ -d "$lock" ] || return 1
+  else
+    _fm_status_home_appends_covers_serialized "$f" "$start" "$end" || return 1
+  fi
   _fm_status_read_ident_size "$f" || return 1
   [ "$_FM_STAT_IDENTITY" = "$ident" ] && [ "${_FM_STAT_SIZE//[[:space:]]/}" = "$end" ]
 }

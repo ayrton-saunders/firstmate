@@ -392,16 +392,23 @@ SH
   pass "host: attended answer signal with $mode provenance/content routes correctly"
 }
 
-test_attended_busy_inbox_close() {  # <handled|stuck>
+test_attended_busy_inbox_close() {  # <handled|stuck|decision|missing>
   local mode=$1 home rec
   home=$(make_home "attended-busy-$mode" quiet)
-  printf 'project=demo\nwindow=sess:fm-demo\nkind=secondmate\nharness=grok\n' > "$home/state/demo.meta"
+  local kind=secondmate
+  [ "$mode" != missing ] || kind=ship
+  printf 'project=demo\nwindow=sess:fm-demo\nkind=%s\nharness=grok\n' "$kind" > "$home/state/demo.meta"
   cat > "$home/fakebin/tmux" <<'SH'
 #!/usr/bin/env bash
 case "$1" in
   capture-pane) echo BUSYTOKEN ;;
   display-message) echo fakepane ;;
-  list-windows) echo fm-demo ;;
+  list-windows)
+    if [ -e "$FM_HOME/missing-endpoint" ] && [ "$*" = 'list-windows -t sess -F #{window_name}' ]; then
+      echo other
+    else
+      echo fm-demo
+    fi ;;
   *) exit 1 ;;
 esac
 SH
@@ -413,9 +420,20 @@ SH
   elif [ "$mode" = decision ]; then
     install_first_offer_action "$home" 'mv "$FM_HOME/state/demo.inbox/001.msg" "$FM_HOME/state/demo.inbox/handled/"
     printf "needs-decision [key=inbox-choice]: choose an approach\n" >> "$FM_HOME/state/demo.status"'
+  elif [ "$mode" = missing ]; then
+    : > "$home/missing-endpoint"
+    printf '117\n' > "$home/park-clock"
+    install_first_offer_action "$home" 'sleep 4
+    printf "needs-decision [key=inbox-choice]: choose an approach\n" >> "$FM_HOME/state/demo.status"'
   fi
-  FM_BUSY_REGEX=BUSYTOKEN FM_TASK_INBOX_GRACE_SECS=0 start_host "$home"
-  if [ "$mode" = handled ]; then
+  FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 \
+    FM_BUSY_REGEX=BUSYTOKEN FM_TASK_INBOX_GRACE_SECS=0 start_host "$home"
+  if [ "$mode" = missing ]; then
+    wait_until_deadline 30 host_exited "$home" || fail "missing endpoint did not reach main"
+    assert_re '^stale: .*endpoint is missing' "$home/host.out" "the missing endpoint reason must reach main"
+    assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "the ordinary stale offer must not use the routine timeout"
+    [ -f "$rec" ] || fail "missing endpoint work was lost"
+  elif [ "$mode" = handled ]; then
     assert_routine_close_acknowledged "$home" 'stale: .*stuck-busy'
     [ -f "$home/state/demo.inbox/handled/${rec##*/}" ] || fail "fixture: the worker did not handle the named record"
   elif [ "$mode" = decision ]; then
@@ -437,6 +455,19 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
   home=$(make_home "attended-resurface-$mode" quiet)
   : > "$home/state/.wake-queue"
   case "$mode" in
+    divergence)
+      fm_test_tasks_toml "$home/.tasks.toml"
+      mkdir -p "$home/data"
+      printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
+      (cd "$home" && FM_HOME="$home" tasks-axi add demo 'Inspect routing' --kind scout --repo demo --start) >/dev/null \
+        || fail "fixture: could not create the origin task"
+      FM_HOME="$home" "$ROOT/bin/fm-captain-hold.sh" hold routing-call --open-ended \
+        --title 'Choose the route' --reason 'A routing decision is pending' --repo demo --origin demo >/dev/null \
+        || fail "fixture: could not register the captain call"
+      f="$home/state/demo.status"
+      printf 'needs-decision [key=routing-call]: north or south\nresolved [key=routing-call]: answered: north\n' > "$f"
+      routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$f" || fail "fixture: status would wake independently"
+      ;;
     new-decision|presented-decision|reopened-decision)
       f="$home/state/demo.status"
       printf 'blocked [key=recovery-choice]: choose an approach\n' > "$f"
@@ -509,6 +540,10 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
     drain=$(FM_HOME="$home" "$FAKE_CLAUDE" -c '"$0" 2>&1' "$ROOT/bin/fm-wake-drain.sh")
     case "$mode" in
       credential) assert_contains "$drain" 'GitHub login required' "the credentials request was lost" ;;
+      divergence)
+        assert_contains "$drain" 'RECORD DIVERGENCE' "recovery lost the captain hold divergence"
+        assert_contains "$drain" 'routing-call [key=routing-call] reads resolved' "the unresolved captain call was lost"
+        ;;
       new-decision|reopened-decision|presented-decision) assert_contains "$drain" '[key=recovery-choice] blocked: choose an approach' "the open decision was lost" ;;
       capped-decisions) assert_contains "$drain" 'more omitted (byte cap)' "recovery lost the open-decision overflow" ;;
       backstop|routine-backstop)
@@ -1373,6 +1408,8 @@ test_handled_busy_inbox_close() { test_attended_busy_inbox_close handled; }
 test_stuck_busy_inbox_close() { test_attended_busy_inbox_close stuck; }
 test_routine_resurface() { test_attended_resurface routine; }
 test_handled_decision_stale() { test_attended_busy_inbox_close decision; }
+test_missing_endpoint_stale_uses_ordinary_offer() { test_attended_busy_inbox_close missing; }
+test_captain_hold_divergence_resurface() { test_attended_resurface divergence; }
 test_new_decision_resurface() { test_attended_resurface new-decision; }
 test_reopened_decision_resurface() { test_attended_resurface reopened-decision; }
 test_presented_decision_resurface() { test_attended_resurface presented-decision; }
@@ -1423,6 +1460,8 @@ fm_test_run \
   test_stuck_busy_inbox_close \
   test_routine_resurface \
   test_handled_decision_stale \
+  test_missing_endpoint_stale_uses_ordinary_offer \
+  test_captain_hold_divergence_resurface \
   test_new_decision_resurface \
   test_reopened_decision_resurface \
   test_presented_decision_resurface \
