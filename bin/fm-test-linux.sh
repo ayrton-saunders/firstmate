@@ -118,13 +118,13 @@ ROOT=$(cd "$script_dir/.." && pwd -P)
 . "$ROOT/bin/fm-timeout-lib.sh"
 probe_owner=
 probe_pid=
-container_token=
+container_label=
 
 stop_linux_container() {
   local remaining filter
-  [ -n "$container_token" ] || return 0
+  [ -n "$container_label" ] || return 0
   if [ -n "$probe_pid" ]; then
-    filter="label=firstmate.test-launch=$container_token"
+    filter="label=$container_label"
     remaining=$(fm_run_timed 5 "$runtime" ps -aq --no-trunc --filter "$filter") || return 1
     if [ -n "$remaining" ]; then
       fm_run_timed 5 "$runtime" rm -f "$remaining" >/dev/null || true
@@ -136,7 +136,7 @@ stop_linux_container() {
     rm -f -- "$FM_TEST_RETAIN_MARKER.$$.linux" || return 1
   fi
   probe_pid=
-  container_token=
+  container_label=
 }
 
 finish_linux() {
@@ -148,6 +148,9 @@ finish_linux() {
       : > "$FM_TEST_RETAIN_MARKER.$$.linux" || printf 'could not publish Linux retention marker\n' >&2
     fi
     printf 'could not verify Linux probe teardown; retaining scratch: %s\n' "$scratch" >&2
+    if [ -n "$container_label" ]; then
+      printf 'Linux container selector: label=%s\n' "$container_label" >&2
+    fi
     [ "$status" -ne 0 ] || status=1
   elif ! fm_test_cleanup_scratch "$scratch"; then
     [ "$status" -ne 0 ] || status=1
@@ -192,11 +195,12 @@ failed=()
 for t in "${tests[@]}"; do
   container_token=$(LC_ALL=C od -An -N16 -tx1 /dev/urandom | tr -d '[:space:]') || die 'could not generate Linux container ownership token'
   [[ "$container_token" =~ ^[0-9a-f]{32}$ ]] || die 'invalid Linux container ownership token'
+  container_label="firstmate.test-launch=$container_token"
   if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
     : > "$FM_TEST_RETAIN_MARKER.$$.linux" || die 'could not arm Linux retention marker'
   fi
   rc=0
-  fm_test_probe_run "$runtime" run --rm --label "firstmate.test-launch=$container_token" "${identity[@]}" -v "$scratch:/work" -w /work -e HOME=/tmp -e TMPDIR=/tmp "$image" bash "$t" || rc=$?
+  fm_test_probe_run "$runtime" run --rm --label "$container_label" "${identity[@]}" -v "$scratch:/work" -w /work -e HOME=/tmp -e TMPDIR=/tmp "$image" bash "$t" || rc=$?
   [ -z "$probe_owner" ] || exit 1
   stop_linux_container || finish_linux 1 1
   if [ "$rc" -eq 0 ]; then

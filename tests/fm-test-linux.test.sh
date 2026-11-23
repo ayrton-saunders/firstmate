@@ -113,22 +113,27 @@ case "$1" in
   run) ;;
   *) exit 1 ;;
 esac
+copy=
 while [ "$#" -gt 1 ]; do
   if [ "$#" -eq 3 ] && [ "$1" = sh ] && [ "$2" = -c ] && [ "$3" = 'uname -sr' ]; then
     printf '%s\n' 'Linux fixture'
     exit 0
   fi
-  if [ "$1" = -v ]; then
-    case "$2" in /*:/work) ;; *) exit 1 ;; esac
-    copy=${2%:/work}
-    [ ! -e "$copy/.test-phase-tmp" ] &&
+  if [ "$#" -eq 2 ] && [ "$1" = bash ] && [ "$2" = tests/kept.test.sh ]; then
+    [ -n "$copy" ] && [ ! -e "$copy/.test-phase-tmp" ] &&
       { [ "$CHECK_ALIAS" -eq 0 ] || [ ! -e "$copy/alias/committed" ]; } &&
       [ ! -e "$copy/replaced/private" ] &&
       [ "$(<"$copy/replaced/public")" = included ] &&
       [ "$(<"$copy/tests/kept.test.sh")" = dirty ] &&
       [ "$(<"$copy/tests/.test-phase-tmp/keep")" = 'nested work' ] &&
-      [ "$(<"$copy/tests/real work.txt")" = untracked ]
-    exit $?
+      [ "$(<"$copy/tests/real work.txt")" = untracked ] || exit 1
+    printf '%s\n' 'verified tests/kept.test.sh mount'
+    exit 0
+  fi
+  if [ "$1" = -v ]; then
+    case "$2" in /*:/work) ;; *) exit 1 ;; esac
+    copy=${2%:/work}
+    shift
   fi
   shift
 done
@@ -139,6 +144,7 @@ SH
     EXPECTED_TMP="$expected_tmp" FM_CONTAINER_RUNTIME="$runtime" CHECK_ALIAS="$check_alias" \
     "$BASH" "$LINUX_CHECK" tests/kept.test.sh 0<&- 2>&1) || fail "Linux overlay did not match working-tree contract: $out"
   assert_not_contains "$out" 'unexpected host temp paths' 'host runtime receives the validated base'
+  assert_contains "$out" 'verified tests/kept.test.sh mount' 'selected suite used the verified overlay'
   assert_contains "$out" 'PASS tests/kept.test.sh' 'container tested the overlay'
   pass 'Linux overlay skips legacy scratch but keeps dirty and untracked work'
 }
@@ -263,7 +269,8 @@ SH
     scratch=$(<"$state/scratch-path")
     if [ "$mode" = undrained ]; then
       assert_equals 143 "$rc" "TERM with an unverified client: $out"
-      assert_contains "$out" 'retaining scratch:' 'unverified drain retains scratch'
+      assert_contains "$out" "retaining scratch: $scratch" 'unverified drain retains scratch'
+      assert_contains "$out" "Linux container selector: label=$(<"$state/launch-label")" 'EXIT reports the retained launch selector'
       assert_absent "$state/daemon-contacted" 'daemon teardown must wait for verified client drain'
       assert_present "$scratch/tests/kept.test.sh" 'unverified client keeps its backing tree'
       fm_test_scratch_retained "$state" || fail 'unverified client lost parent retention'
@@ -299,7 +306,8 @@ SH
       assert_absent "$state/next-test" 'unconfirmed teardown stops test admission'
       assert_present "$scratch/tests/kept.test.sh" 'unconfirmed teardown keeps mounted scratch'
       fm_test_scratch_retained "$state" || fail 'retention was not propagated'
-      assert_contains "$out" 'retaining scratch:' 'retention diagnostic'
+      assert_contains "$out" "retaining scratch: $scratch" 'retention diagnostic'
+      assert_contains "$out" "Linux container selector: label=$(<"$state/launch-label")" 'failed removal reports the retained launch selector'
     fi
   done
   pass 'Linux validation confirms daemon teardown after attach failure'
