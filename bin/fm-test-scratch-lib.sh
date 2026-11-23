@@ -218,8 +218,11 @@ fm_test_scratch_retained() (
   return 1
 )
 
-fm_test_check_scratch_placement() {
+fm_test_check_scratch_placement() (
   local root=$1 base=$2 blocked ancestor effective_home=
+  if [ "$#" -ge 3 ]; then
+    CDPATH='' cd -P -- "$3" || return 2
+  fi
   if [ -n "${FM_ROOT:-}" ]; then
     effective_home=$(
       . "${BASH_SOURCE[0]%/*}/fm-path-lib.sh" || exit 2
@@ -233,7 +236,8 @@ fm_test_check_scratch_placement() {
       "${FM_STATE_OVERRIDE:-}" "${FM_DATA_OVERRIDE:-}" "${FM_CONFIG_OVERRIDE:-}" "${FM_PROJECTS_OVERRIDE:-}" \
       "$HOME/.firstmate-preserved" "$HOME/.treehouse" "${TREEHOUSE_ROOT:-}"; do
       [ -n "$blocked" ] || continue
-      if [ "$ancestor" = "${blocked%/}" ] || [ "$ancestor" -ef "$blocked" ]; then
+      if [ "$ancestor" = "${blocked%/}" ] || [ "$ancestor" = "${PWD%/}/${blocked%/}" ] ||
+         [ "$ancestor" -ef "$blocked" ]; then
         printf 'unsafe scratch base %s resolves inside %s\n' "$base" "$blocked" >&2
         return 2
       fi
@@ -246,7 +250,7 @@ fm_test_check_scratch_placement() {
     ancestor=${ancestor%/*}
     ancestor=${ancestor:-/}
   done
-}
+)
 
 fm_test_validate_scratch_base() {
   local root=$1 requested=$2 base
@@ -254,7 +258,7 @@ fm_test_validate_scratch_base() {
     printf 'cannot resolve scratch base: %s\n' "$requested" >&2
     return 2
   }
-  fm_test_check_scratch_placement "$root" "$base" || return "$?"
+  fm_test_check_scratch_placement "$root" "$base" "${@:3}" || return "$?"
   printf '%s\n' "$base"
 }
 

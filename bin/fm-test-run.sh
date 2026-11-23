@@ -179,6 +179,7 @@ RUN_STARTED_ISO=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 RUN_STARTED_MS=$(now_ms)
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)"
+invocation_dir=$PWD
 cd "$ROOT" || exit 1
 
 MODE=
@@ -2220,7 +2221,7 @@ scratch_base() {
   local base
   base=$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null) || base=/tmp
   case "$base" in /*) ;; *) die "scratch base must be absolute: $base" ;; esac
-  fm_test_validate_scratch_base "$ROOT" "$base"
+  fm_test_validate_scratch_base "$ROOT" "$base" "$invocation_dir"
 }
 
 if [ "$#" -eq 1 ] && [ "$1" = --scratch-base ]; then
@@ -2541,7 +2542,7 @@ prepare_run_scratch() {
   local base parent mode
   base=$(scratch_base) || exit "$?"
   parent="${base%/}/fm$UID"
-  fm_test_check_scratch_placement "$ROOT" "$parent" || exit "$?"
+  fm_test_check_scratch_placement "$ROOT" "$parent" "$invocation_dir" || exit "$?"
   (umask 077; mkdir -- "$parent") 2>/dev/null || true
   [ -d "$parent" ] && [ ! -L "$parent" ] && [ -O "$parent" ] \
     || die "scratch directory is not an owned, real directory: $parent"

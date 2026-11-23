@@ -2056,8 +2056,9 @@ touch "$HERMES_HOME/hermes-called"
 case "$3 $4 $5" in
   'config get platforms') echo null ;;
   'config set gateway.standalone')
-    printf 'mutated\n' >"$HERMES_HOME/profiles/$2/config.yaml"
-    touch "$HERMES_HOME/mutation-attempted"
+    config="$HERMES_HOME/profiles/$2/config.yaml"
+    printf 'mutated\n' >"$config.replacement" && mv -f "$config.replacement" "$config" &&
+      [ ! -L "$config" ] && touch "$HERMES_HOME/mutation-attempted"
     ;;
   *) exit 99 ;;
 esac
@@ -2247,7 +2248,24 @@ for blocked in (legacy, *aliases, home / '.firstmate-preserved', home / '.treeho
                                 capture_output=True)
         assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
 
-result = subprocess.run([*runner_cmd, '--scratch-base'], cwd=repo, env=fixture_env, capture_output=True)
+external_runner = [bash, shell_path(repo / 'bin/fm-test-run.sh')]
+for boundary in ('FM_HOME', 'FM_ROOT_OVERRIDE', 'FM_ROOT', 'FM_STATE_OVERRIDE',
+                 'FM_DATA_OVERRIDE', 'FM_CONFIG_OVERRIDE', 'FM_PROJECTS_OVERRIDE', 'TREEHOUSE_ROOT'):
+    relative_env = dict(fixture_env)
+    relative_env.pop('FM_HOME', None)
+    relative_env.pop('FM_ROOT_OVERRIDE', None)
+    relative_env[boundary] = base.name
+    for args in (['--scratch-base'], [cmd[-1]]):
+        result = subprocess.run([*external_runner, *args], cwd=tmp, env=relative_env, capture_output=True)
+        assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, (boundary, result)
+uid = subprocess.check_output([bash, '-c', 'printf %s "$UID"']).decode()
+parent = base / f'fm{uid}'
+result = subprocess.run([*external_runner, cmd[-1]], cwd=tmp,
+                        env=dict(fixture_env, FM_STATE_OVERRIDE=f'{base.name}/{parent.name}'), capture_output=True)
+assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
+assert not parent.exists(), 'runner created the reserved per-user parent'
+
+result = subprocess.run([*external_runner, '--scratch-base'], cwd=tmp, env=fixture_env, capture_output=True)
 assert result.returncode == 0 and native_path(os.fsdecode(result.stdout).strip()).resolve() == base.resolve(), result
 assert not list(base.iterdir()), 'scratch-base must not allocate'
 for other_arg in ('--list-lanes', cmd[-1]):

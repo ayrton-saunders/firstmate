@@ -226,7 +226,7 @@ fm_test_pid_identity() {
 }
 
 FM_TEST_OWNER_IDENTITY=$(fm_test_pid_identity "$$") || {
-  rm -f "$FM_TEST_CLEANUP_REGISTRY"
+  printf 'could not identify fixture owner process %s\n' "$$" >&2
   return 1
 }
 

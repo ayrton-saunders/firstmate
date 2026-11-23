@@ -56,6 +56,31 @@ test_direct_fixture_refuses_inherited_home_scratch() {
   pass 'direct fixture preflight sees inherited Firstmate home boundaries'
 }
 
+test_fixture_owner_lookup_failure_preserves_inherited_registry() {
+  local tmp out rc registry
+  tmp=$(fm_test_tmproot fm-fixture-no-identity) || fail 'could not create owner lookup fixture'
+  mkdir "$tmp/tools" "$tmp/empty-proc" "$tmp/scratch"
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"$tmp/tools/ps"
+  chmod +x "$tmp/tools/ps"
+  printf 'parent registry\n' >"$tmp/parent-registry"
+  for registry in unset inherited; do
+    rc=0
+    out=$(
+      unset FM_TEST_CLEANUP_REGISTRY
+      if [ "$registry" = inherited ]; then
+        export FM_TEST_CLEANUP_REGISTRY="$tmp/parent-registry"
+      fi
+      PATH="$tmp/tools:$PATH" FM_PROC_ROOT_OVERRIDE="$tmp/empty-proc" TMPDIR="$tmp/scratch" \
+        "$BASH" -uc '. "$1"' _ "$ROOT/tests/lib.sh" 2>&1
+    ) || rc=$?
+    assert_equals 1 "$rc" "$registry registry owner lookup failure status"
+    assert_contains "$out" 'could not identify fixture owner process' 'owner lookup failure diagnostic'
+    assert_equals 'parent registry' "$(<"$tmp/parent-registry")" 'identity failure preserves inherited registry bytes'
+    [ -z "$(ls -A "$tmp/scratch")" ] || fail 'owner lookup failure allocated scratch'
+  done
+  pass 'identity lookup failure leaves scratch and inherited registry untouched'
+}
+
 test_git_config_isolation() (
   local dir="$TMP_ROOT/git-config" helper jobs timeout fakebin rc
   mkdir -p "$dir/runner/bin" "$dir/runner/tests"
@@ -491,6 +516,7 @@ test_inherited_launcher_env_is_cleared() (
 
 test_direct_fixture_refuses_checkout_scratch
 test_direct_fixture_refuses_inherited_home_scratch
+test_fixture_owner_lookup_failure_preserves_inherited_registry
 test_git_config_isolation || fail "Git fixture config isolation"
 test_inherited_launcher_env_is_cleared || fail "launcher environment isolation"
 test_inherited_git_location_isolation || fail "Git fixture location isolation"

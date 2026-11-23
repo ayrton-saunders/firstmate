@@ -55,6 +55,7 @@
 set -eu
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+invocation_dir=$PWD
 cd "$ROOT" || exit 1
 
 JOBS=4
@@ -402,7 +403,7 @@ for s in "${CANDIDATES[@]}"; do
 done
 
 . "$ROOT/bin/fm-test-scratch-lib.sh"
-proof_base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || exit "$?"
+proof_base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}" "$invocation_dir") || exit "$?"
 fm_test_allocate_scratch "${proof_base%/}/fm-isolation-proof.XXXXXX" || exit "$?"
 PROOF_ROOT=$FM_TEST_SCRATCH
 chmod 0700 "$PROOF_ROOT" || die "could not chmod 0700 proof root $PROOF_ROOT"

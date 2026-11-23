@@ -152,6 +152,13 @@ SH
   [ ! -e "$tmp/mktemp-called" ] && [ ! -e "$json" ] || fail "proof allocated scratch before refusing it"
   mkdir "$tmp/proof-tmp"
   rc=0
+  (cd "$tmp" && PATH="$tmp/tools:$PATH" TMPDIR="$tmp/proof-tmp" FM_STATE_OVERRIDE=proof-tmp \
+    MKTEMP_CALLED="$tmp/mktemp-called" "$proof" --pool fixture-family --jobs 1 --json "$json") \
+    >"$tmp/out" 2>"$tmp/err" || rc=$?
+  assert_equals 2 "$rc" 'relative operational proof scratch exit status'
+  assert_contains "$(<"$tmp/err")" 'unsafe scratch base' 'relative operational proof scratch refusal'
+  [ ! -e "$tmp/mktemp-called" ] && [ ! -e "$json" ] || fail 'proof allocated scratch before refusing it'
+  rc=0
   TMPDIR="$tmp/proof-tmp" "$proof" --pool failing-family --jobs 1 >"$tmp/readonly.out" 2>"$tmp/readonly.err" || rc=$?
   assert_equals 1 "$rc" 'proof reports a failing candidate'
   assert_contains "$(<"$tmp/readonly.err")" 'readonly fixture ready' 'the failing candidate created read-only scratch'
