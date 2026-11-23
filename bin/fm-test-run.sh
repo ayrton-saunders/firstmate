@@ -2526,6 +2526,7 @@ prepare_run_scratch() {
   # shellcheck source=bin/fm-test-scratch-lib.sh
   . "$ROOT/bin/fm-test-scratch-lib.sh"
   local base parent mode
+  fm_test_anchor_inherited_paths "$invocation_dir" || exit "$?"
   base=$(fm_test_os_scratch_base "$ROOT" "$invocation_dir") || exit "$?"
   parent="${base%/}/fm$UID"
   fm_test_check_scratch_placement "$ROOT" "$parent" "$invocation_dir" || exit "$?"

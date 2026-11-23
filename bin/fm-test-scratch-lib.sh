@@ -270,12 +270,29 @@ fm_test_missing_boundary_matches() (
   return "$rc"
 )
 
+fm_test_anchor_inherited_paths() {
+  local origin=$1 name value
+  for name in FM_HOME FM_ROOT_OVERRIDE FM_ROOT FM_STATE_OVERRIDE STATE FM_DATA_OVERRIDE \
+    FM_CONFIG_OVERRIDE FM_PROJECTS_OVERRIDE TREEHOUSE_ROOT HOME; do
+    value=${!name-}
+    case "$value" in
+      ''|/*|[a-zA-Z]:/*|[a-zA-Z]:\\*) continue ;;
+    esac
+    value=$(CDPATH='' cd -P -- "$origin" && fm_test_resolve_boundary "$value") || {
+      printf 'cannot resolve inherited scratch boundary: %s\n' "$name" >&2
+      return 2
+    }
+    export "$name=$value"
+  done
+}
+
 fm_test_check_scratch_placement() (
   local root=$1 base=$2 blocked ancestor resolved rc home wake_home
   if [ "$#" -ge 3 ]; then
     CDPATH='' cd -P -- "$3" || return 2
   fi
   home=${FM_HOME:-${FM_ROOT_OVERRIDE:-$root}}
+  # bin/fm-wake-lib.sh owns the wake home and state fallback; keep these rules in sync.
   wake_home=${FM_HOME:-${FM_ROOT_OVERRIDE:-${FM_ROOT:-$root}}}
   ancestor=$base
   while :; do

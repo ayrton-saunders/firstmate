@@ -403,6 +403,7 @@ for s in "${CANDIDATES[@]}"; do
 done
 
 . "$ROOT/bin/fm-test-scratch-lib.sh"
+fm_test_anchor_inherited_paths "$invocation_dir" || exit "$?"
 proof_base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}" "$invocation_dir") || exit "$?"
 export TMPDIR="$proof_base" TMP="$proof_base" TEMP="$proof_base"
 fm_test_allocate_scratch "${proof_base%/}/fm-isolation-proof.XXXXXX" || exit "$?"

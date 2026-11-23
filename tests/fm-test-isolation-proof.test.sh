@@ -87,6 +87,9 @@ SH
     cat >"$repo/tests/$fixture" <<'SH'
 #!/usr/bin/env bash
 [ -d "$TMPDIR" ] && [ "$TMP" = "$TMPDIR" ] && [ "$TEMP" = "$TMPDIR" ] || exit 1
+if [ -n "${EXPECTED_PROOF_HOME:-}" ]; then
+  [ "$FM_ROOT" -ef "$EXPECTED_PROOF_HOME" ] && [ "$STATE" -ef "$EXPECTED_PROOF_HOME/state" ] || exit 1
+fi
 echo "ok - proof fixture"
 SH
     chmod +x "$repo/tests/$fixture"
@@ -247,7 +250,9 @@ exec "$REAL_GIT" "$@"
 SH
   chmod +x "$tmp/snapshot-tools/git"
   rc=0
+  mkdir -p "$tmp/worker-home/state"
   (cd "$tmp" && TMPDIR=./proof-tmp TMP="$repo" TEMP="$repo" \
+    FM_ROOT=./worker-home STATE=./worker-home/state EXPECTED_PROOF_HOME="$tmp/worker-home" \
     EXPECTED_PROOF_BASE="$(cd proof-tmp && pwd -P)" PROOF_SNAPSHOT_LOG="$tmp/snapshots" \
     REAL_GIT="$(command -v git)" PATH="$tmp/snapshot-tools:$PATH" \
     "$proof" --pool fixture-family --jobs 1 --json "$json") \

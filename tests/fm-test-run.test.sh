@@ -2136,6 +2136,7 @@ script = repo / 'tests/copy.test.sh'
 script.write_bytes(b'''#!/usr/bin/env bash
 set -eu
 case "$PROBE_MODE" in
+  anchored-home) [ "$FM_HOME" -ef "$PWD" ]; [ ! "$FM_HOME" -ef .. ] ;;
   eof) if IFS= read -r line; then exit 1; fi ;;
   redirected) IFS= read -r line; [ "$line" = 'input from pipe' ] ;;
 esac
@@ -2254,6 +2255,10 @@ for blocked in (legacy, *aliases, home / '.firstmate-preserved', home / '.treeho
         assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
 
 external_runner = [bash, shell_path(repo / 'bin/fm-test-run.sh')]
+result = subprocess.run([*external_runner, cmd[-1]], cwd=repo / 'tests', capture_output=True, timeout=20,
+                        env=dict(fixture_env, FM_HOME='..', OS_TEMP_FIXTURE=shell_path(tmp),
+                                 PROBE_MODE='anchored-home', PROOF=shell_path(tmp / 'anchored-home')))
+assert result.returncode == 0 and (tmp / 'anchored-home').is_file(), result
 for boundary in ('FM_HOME', 'FM_ROOT_OVERRIDE', 'FM_ROOT', 'FM_STATE_OVERRIDE',
                  'FM_DATA_OVERRIDE', 'FM_CONFIG_OVERRIDE', 'FM_PROJECTS_OVERRIDE', 'TREEHOUSE_ROOT'):
     relative_env = dict(fixture_env)
