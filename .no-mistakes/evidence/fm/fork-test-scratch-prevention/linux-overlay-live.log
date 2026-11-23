@@ -1,0 +1,18 @@
+
+$ TMPDIR=<checkout> fm-test-linux.sh tests/overlay.test.sh
+unsafe scratch base {run-worktree}/.scratch-linux-live.iYDGJB/repo/.test-phase-tmp resolves inside {run-worktree}/.scratch-linux-live.iYDGJB/repo
+exit=2
+
+$ TMPDIR=<system temp> fm-test-linux.sh tests/overlay.test.sh
+Using prebuilt local Debian test image (no image rebuild)
+fm-test-linux: 1 on Linux 7.2.12-orbstack-00394-gbecdd6130068
+Linux container launch: scratch: /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/fm-test-linux.mi7iLX; selector: label=firstmate.test-launch=8974d4e3dbebbd29559a266f32158c94
+Inside /work on Linux: dirty tracked=dirty bytes from host; ordinary untracked=untracked bytes from host; legacy scratch absent; empty gitlink accepted
+PASS tests/overlay.test.sh
+exit=0
+After normal exit: bind-mount source gone, labelled container gone, checkout scratch untouched
+
+$ fm-test-linux.sh tests/overlay.test.sh  # populated gitlink
+Using prebuilt local Debian test image (no image rebuild)
+fm-test-linux: cannot copy Git checkout 'module' recorded as a gitlink; move the checkout out of the working tree before running Linux validation
+exit=2; gitlink content still present on host

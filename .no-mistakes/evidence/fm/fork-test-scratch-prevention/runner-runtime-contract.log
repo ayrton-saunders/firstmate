@@ -1,0 +1,73 @@
+
+$ bash tests/fm-test-run.test.sh  # runtime assertions only; CI workflow YAML selector omitted
+config restore found an unexpected file or link
+config restore found an unexpected file or link
+config restore found an unexpected file or link
+config restore found an unexpected file or link
+Traceback (most recent call last):
+  File "<string>", line 70, in <module>
+OSError: [Errno 40] Too many levels of symbolic links: '.fm-gateway-config.gPBqIe'
+Traceback (most recent call last):
+  File "<string>", line 70, in <module>
+  File "<frozen os>", line 1031, in fdopen
+IsADirectoryError: [Errno 21] Is a directory: 9
+config entries changed before restore
+config backup changed
+mv: '/tmp/fm-gateway-refusal.cq858z/before-save' and '/tmp/fm-gateway-refusal.cq858z/hermes/profiles/worker/original.yaml' are the same file
+ok - gateway serializes profile edits, restores links, and refuses escaped targets
+ok - probe cleanup removes read-only hooks without following symlinks
+ok - runner scratch stays out of snapshots and is cleaned after results, signals and owner death
+ok - exact suite coverage: --all lists every tests/*.test.sh once
+ok - family selection returns a proper subset of the suite
+ok - single-script selection lists exactly that path
+ok - changed-file selection stays conservative (never silent full suite)
+ok - a task marker refuses execution in the primary checkout and leaves worktrees and inspection alone
+ok - runner and its documentation surfaces select their curated family, not just their contract owners
+ok - scratch helper changes select private teardown coverage
+ok - shell line-ending policy selects runner coverage
+ok - changed inheritance sender, receiver and counter select the focused generation contract
+fm-test-run: no tests selected for changes vs HEAD (map is conservative; use --all for the complete suite)
+ok - changed selection covers dependents, fails closed for live unmapped source, and accepts retired unconsumed source
+ok - a bin reference selects the referencing scripts, and consumers still select their curated families
+ok - changed defaults to bounded automatic scheduling with serial override
+ok - Windows emulation exempts only synthetic POSIX modes
+ok - a plain script list defaults to bounded automatic concurrency without an automatic timeout
+ok - family proofs run concurrently only within separate family phases
+fm-test-run: no tests selected for changes vs HEAD (map is conservative; use --all for the complete suite)
+fm-test-run: nothing to run
+fm-test-run: no tests selected for changes vs HEAD (map is conservative; use --all for the complete suite)
+fm-test-run: nothing to run
+FM_TEST_SUMMARY total=0 failed=0 skipped_gate=0 duration_ms=10
+ok - empty changed selection emits deterministic text and JSON summaries
+ok - timing markers and JSON artifact are valid
+ok - aggregate exit reflects any script failure
+ok - gate-skip accounting is honest and non-failing
+ok - a gate skip records why it skipped
+ok - a script that actually ran records no skip reason
+ok - live guards are recorded as a capability class, not a bare env opt-in
+ok - fail-on-gate-skip converts herdr-not-found into a hard failure
+ok - exclude-family drops the named primary family after selection
+ok - fm-test-run: family tern selects the tern suite and smoke test, and the lane coverage guard accepts them
+ok - proven-isolated scheduling ignores parallel hints
+ok - family, all, changed, and script selections ignore parallel hints
+ok - portable shard union, disjointness, and coverage guard hold
+ok - portable parallel lanes are fully hinted and packed within 5% of each other
+ok - portable serial shards are a deterministic disjoint cover of the serial lane
+ok - serial shards reject output from a failed packer
+ok - coverage guard bounds the unmeasured share and serial packing within twenty minutes
+ok - serial packing accepts the exact budget and refuses one millisecond above it
+ok - portable serial shard lanes refuse mismatched, out-of-range, and countless names
+ok - --jobs refuses non-proven / stateful selections
+ok - --jobs admits and schedules a family with a recorded concurrent proof
+ok - an unclassified new test stays serial while the proven residual family runs concurrently
+ok - a changed shared test fixture selects its readers while an unread tests/ path still refuses
+ok - changed copy helper selects only its direct and indirect readers
+ok - a changed T3 fake or adapter selects the suites that read it beyond backend-dispatch
+ok - a concurrent run starts the longest-hint script first
+ok - --per-script-timeout-secs turns a hung script into a bounded failure
+ok - the automatic --changed timeout helper receives at least 1500 seconds
+ok - parallel timeout holds during another worker’s slow output replay
+ok - --max-wall-ms fails an over-budget run and refuses a malformed budget
+ok - jobs scheduler runs proven scripts; failure propagates; non-proven refused
+ok - aggregate-json merges lane timing artifacts
+runtime contract exit=0

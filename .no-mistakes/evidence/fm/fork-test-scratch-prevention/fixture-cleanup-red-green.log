@@ -1,0 +1,28 @@
+Before fix: runtime contract with two real watcher-wake-lock suites
+not ok - --jobs on a proven family must be admitted, got 1: fm-test-run: private teardown unverified; retaining scratch: /tmp/fm1000/r.wFTznw; delete it by hand once nothing is using it FM_TEST_BEGIN 2026-11-23T12:32:07Z tests/fm-session-lock-ancestry.test.sh family=watcher-wake-lock expected_gate_skip=none
+fixture teardown unverified; retaining scratch registered in /tmp/fm1000/r.wFTznw/w2/t/.fm-test-registry.AtQL9p/cleanup
+fixture teardown unverified; retaining scratch registered in /tmp/fm1000/r.wFTznw/w1/t/.fm-test-registry.5disof/cleanup
+FM_TEST_SUMMARY total=2 failed=2 skipped_gate=0 duration_ms=17900
+suite exit: 1
+
+After fix: runtime contract with the same two suites, then live serial transcript
+ok - --jobs admits and schedules a family with a recorded concurrent proof
+runtime contract exit=0
+$ bin/fm-test-run.sh --jobs 1 tests/fm-supervision-events.test.sh
+FM_TEST_BEGIN 2026-11-23T12:37:22Z tests/fm-supervision-events.test.sh family=watcher-wake-lock expected_gate_skip=none
+ok - handle_push_transition: a blocked crew enqueues a stale wake naming its window and wakes the supervisor
+ok - handle_push_transition: a rex blocked edge's wake names the backend and carries Rex's blocked kind and message
+ok - handle_push_transition: enqueue failure cannot commit the Herdr dedupe marker
+ok - handle_push_transition: a declared-pause crew is absorbed (no fast wake), left to the poll loop's long cadence
+ok - handle_push_transition: a captain-held crew is absorbed (no fast wake), left to the poll loop's long cadence
+ok - event_wait_or_sleep: herdr windows go on the event pane list, but kind=secondmate endpoints are excluded
+ok - event_wait_or_sleep: herdr keeps the push wait in a mixed home; T3's wait runs only without another push backend
+ok - event_wait_or_sleep: one cached capability probe owns validation across bounded waits
+ok - event_wait_or_sleep: a home with no push-capable window is inert (sleeps POLL, never touches the event path)
+ok - event_wait_or_sleep: consecutive event-path failures disable the fast-path and revert to pure polling (fail-closed)
+# fm-supervision-events.test.sh: all assertions passed
+FM_TEST_END 2026-11-23T12:37:23Z tests/fm-supervision-events.test.sh exit=0 duration_ms=505 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=550
+FM_TEST_SUMMARY_FAMILY family=watcher-wake-lock count=1 duration_ms=505 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-supervision-events.test.sh duration_ms=505
+runner exit: 0

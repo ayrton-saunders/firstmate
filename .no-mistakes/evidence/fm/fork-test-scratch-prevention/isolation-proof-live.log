@@ -1,0 +1,25 @@
+
+$ TMPDIR=/tmp/repo/.test-phase-tmp bin/fm-test-isolation-proof.sh --pool watcher-wake-lock --jobs 2
+unsafe scratch base /tmp/repo/.test-phase-tmp resolves inside /tmp/repo
+exit=2
+
+$ TMPDIR=/tmp/active-fm bin/fm-test-isolation-proof.sh --pool watcher-wake-lock --jobs 2
+unsafe scratch base /tmp/active-fm resolves inside /tmp/active-fm
+exit=2
+
+$ TMPDIR=/tmp/preserved-alias bin/fm-test-isolation-proof.sh --pool watcher-wake-lock --jobs 2
+unsafe scratch base /tmp/test-home/.firstmate-preserved resolves inside /tmp/test-home/.firstmate-preserved
+exit=2
+
+$ bin/fm-test-isolation-proof.sh --pool watcher-wake-lock --jobs 2 --json /tmp/fm-session-lock-ancestry.test.sh/report.json  # synthetic slow suite: fm-session-lock-ancestry.test.sh
+FM_ISOLATION_BEGIN 2026-11-23T12:38:07Z concurrency=2 candidates=2
+FM_ISOLATION_CANDIDATE_BEGIN 2026-11-23T12:38:07Z tests/fm-session-lock-ancestry.test.sh worker=1
+FM_ISOLATION_CANDIDATE_BEGIN 2026-11-23T12:38:07Z tests/fm-supervision-events.test.sh worker=2
+FM_ISOLATION_CANDIDATE_END 2026-11-23T12:38:07Z tests/fm-supervision-events.test.sh exit=0 duration_ms=6 worker=2
+FM_ISOLATION_CANDIDATE_END 2026-11-23T12:38:07Z tests/fm-session-lock-ancestry.test.sh exit=0 duration_ms=718 worker=1
+FM_ISOLATION_SUMMARY total=2 failed=0 concurrency=2 duration_ms=769
+fm-test-isolation-proof: wrote isolation proof artifact: /tmp/fm-session-lock-ancestry.test.sh/report.json
+Traceback (most recent call last):
+  File "<stdin>", line 5, in <module>
+  File "<stdin>", line 5, in <listcomp>
+KeyError: 'script'

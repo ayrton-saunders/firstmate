@@ -1,0 +1,173 @@
+
+$ bash tests/fm-test-run.test.sh
+config restore found an unexpected file or link
+config restore found an unexpected file or link
+config restore found an unexpected file or link
+config restore found an unexpected file or link
+Traceback (most recent call last):
+  File "<string>", line 70, in <module>
+OSError: [Errno 40] Too many levels of symbolic links: '.fm-gateway-config.oHi5EA'
+Traceback (most recent call last):
+  File "<string>", line 70, in <module>
+  File "<frozen os>", line 1031, in fdopen
+IsADirectoryError: [Errno 21] Is a directory: 9
+config entries changed before restore
+config backup changed
+mv: '/tmp/fm-gateway-refusal.YywhPj/before-save' and '/tmp/fm-gateway-refusal.YywhPj/hermes/profiles/worker/original.yaml' are the same file
+ok - gateway serializes profile edits, restores links, and refuses escaped targets
+ok - probe cleanup removes read-only hooks without following symlinks
+ok - runner scratch stays out of snapshots and is cleaned after results, signals and owner death
+ok - exact suite coverage: --all lists every tests/*.test.sh once
+ok - family selection returns a proper subset of the suite
+ok - single-script selection lists exactly that path
+ok - changed-file selection stays conservative (never silent full suite)
+ok - a task marker refuses execution in the primary checkout and leaves worktrees and inspection alone
+ok - runner and its documentation surfaces select their curated family, not just their contract owners
+ok - scratch helper changes select private teardown coverage
+ok - shell line-ending policy selects runner coverage
+ok - changed inheritance sender, receiver and counter select the focused generation contract
+fm-test-run: no tests selected for changes vs HEAD (map is conservative; use --all for the complete suite)
+ok - changed selection covers dependents, fails closed for live unmapped source, and accepts retired unconsumed source
+ok - a bin reference selects the referencing scripts, and consumers still select their curated families
+ok - changed defaults to bounded automatic scheduling with serial override
+ok - Windows emulation exempts only synthetic POSIX modes
+ok - a plain script list defaults to bounded automatic concurrency without an automatic timeout
+ok - family proofs run concurrently only within separate family phases
+fm-test-run: no tests selected for changes vs HEAD (map is conservative; use --all for the complete suite)
+fm-test-run: nothing to run
+fm-test-run: no tests selected for changes vs HEAD (map is conservative; use --all for the complete suite)
+fm-test-run: nothing to run
+FM_TEST_SUMMARY total=0 failed=0 skipped_gate=0 duration_ms=17
+ok - empty changed selection emits deterministic text and JSON summaries
+ok - timing markers and JSON artifact are valid
+ok - aggregate exit reflects any script failure
+ok - gate-skip accounting is honest and non-failing
+ok - a gate skip records why it skipped
+ok - a script that actually ran records no skip reason
+ok - live guards are recorded as a capability class, not a bare env opt-in
+ok - fail-on-gate-skip converts herdr-not-found into a hard failure
+ok - exclude-family drops the named primary family after selection
+ok - fm-test-run: family tern selects the tern suite and smoke test, and the lane coverage guard accepts them
+ok - proven-isolated scheduling ignores parallel hints
+ok - family, all, changed, and script selections ignore parallel hints
+ok - portable shard union, disjointness, and coverage guard hold
+ok - portable parallel lanes are fully hinted and packed within 5% of each other
+ok - portable serial shards are a deterministic disjoint cover of the serial lane
+ok - serial shards reject output from a failed packer
+ok - coverage guard bounds the unmeasured share and serial packing within twenty minutes
+ok - serial packing accepts the exact budget and refuses one millisecond above it
+ok - portable serial shard lanes refuse mismatched, out-of-range, and countless names
+ok - --jobs refuses non-proven / stateful selections
+ok - --jobs admits and schedules a family with a recorded concurrent proof
+ok - an unclassified new test stays serial while the proven residual family runs concurrently
+ok - a changed shared test fixture selects its readers while an unread tests/ path still refuses
+ok - changed copy helper selects only its direct and indirect readers
+ok - a changed T3 fake or adapter selects the suites that read it beyond backend-dispatch
+ok - a concurrent run starts the longest-hint script first
+ok - --per-script-timeout-secs turns a hung script into a bounded failure
+ok - the automatic --changed timeout helper receives at least 1500 seconds
+ok - parallel timeout holds during another worker’s slow output replay
+ok - --max-wall-ms fails an over-budget run and refuses a malformed budget
+ok - jobs scheduler runs proven scripts; failure propagates; non-proven refused
+not ok - ruby is required to parse .github/workflows/ci.yml as YAML
+suite exit: 1
+
+$ bash tests/fm-test-fixture-cleanup.test.sh
+ok - orphan recovery preserves live and stopped Orca tmux fixtures
+ok - successful fixture cleanup is safe to repeat from EXIT
+ok - MSYS fixture cleanup requires a valid process inventory
+ok - cleanup guards cwd-only children, fixture ownership, and inherited boundaries
+fixture teardown unverified; retaining scratch registered in /tmp/fm-test-custom-finalizer.cg5JME/1/.fm-test-registry.UlpuaF/cleanup
+ok - custom finalizer cleans only after verified teardown
+ok - primary lab copies omit only root-level declared scratch
+ok - standalone and fixture cleanup report failures without replacing an existing status
+ok - fm_test_tmproot cleans up its fixture root on normal exit
+ok - fm_test_tmproot cleans up its fixture root on SIGTERM
+ok - the cleanup registry cannot be injected through path precreation
+ok - fixture registry allocation is cleaned up on TERM
+ok - failed fixture registration rolls back the new root
+ok - the orphan sweep reaps only old fixtures without a live owner
+ok - the orphan sweep reaps read-only package fixtures
+ok - fixture preflight refuses checkout TMPDIR before creating registries
+ok - fm_test_cleanup stops an orphaned poller that names its fixture root
+suite exit: 0
+
+$ bash tests/fm-test-fixtures.test.sh
+ok - direct fixtures reject checkout scratch and supported aliases
+ok - direct fixture preflight sees inherited Firstmate home boundaries
+ok - direct fixtures reject effective operational directories outside the home
+ok - identity lookup failure leaves scratch and inherited registry untouched
+ok - runner and shared helpers isolate host Git config and preserve explicit config and outside commits
+ok - tests/lib.sh clears an inherited launcher environment and honors later exports
+ok - shared helpers and runner keep fixture Git off an inherited repository location
+skip: no C compiler, so the compiled stand-in half of the multicall case cannot run
+ok - agent stand-in: a multicall sleep is refused rather than offered as a stand-in
+ok - fm_touch_epoch preserves both epochs in the repeated DST hour
+ok - fake no-mistakes --version is the shared constant and overridable
+ok - init/doctor no-mistakes stub touches markers and refuses other verbs
+ok - fake gh authenticates and fake gh-axi reports the shared version
+ok - spawn fakebin answers pane path, logs -l payloads, and installs extra tools
+ok - send stubs log typed text and fake ssh records argv with a controllable exit
+ok - spawn-home layout writes harness pin, beat, and brief
+suite exit: 0
+
+$ bash tests/fm-test-tap-verify.test.sh
+ok - a complete matching suite passes
+ok - checkout scratch is refused before the TAP suite runs
+ok - verifier cleans read-only scratch from a failing suite
+ok - verifier honors retention on both success and failure paths
+ok - TERM drains a stalled TAP suite before removing scratch
+ok - TAP verifier preserves foreground terminal input
+ok - TAP verifier releases scratch before replay
+ok - an early exit 0 fails even when some ok lines printed
+ok - a not-ok line fails even when the suite exits 0
+ok - a nonzero process status fails even with a matching TAP plan
+ok - planned count must equal the number of ok lines
+ok - fm_test_run derives N from the registered names
+ok - a test function that exits 0 before later tests fail completeness
+ok - a completeness failure prints an error annotation
+suite exit: 0
+
+$ bash tests/fm-test-isolation-proof.test.sh
+ok - unknown candidate pools are refused
+ok - family pool JSON scopes jobs admission to proven concurrency
+ok - candidate --list is non-empty, sorted, unique, and real
+ok - serial classes remain excluded from the parallel candidate set
+ok - audited fake-backend and stub-network extras are candidates
+ok - exclusion list documents serial reasons
+ok - isolation-proof contract test is family-mapped
+ok - parallel shards consume the proven-isolated set only
+ok - fixture repositories pin their initial branch to main
+suite exit: 0
+
+$ bash tests/fm-test-linux.test.sh
+1..8
+ok - selects committed, modified, and untracked tests only
+ok - no changed tests needs no runtime
+ok - missing container runtime stops with exit 2
+ok - checkout scratch is refused before image build or clone
+ok - Linux overlay skips legacy scratch but keeps dirty and untracked work
+ok - Linux validation refuses incomplete overlays
+ok - Linux validation confirms daemon teardown after attach failure
+ok - gnu stat fixture red then green skipped: set FM_TEST_LINUX_CONTAINER=1 with a running container engine
+FM_TEST_COMPLETE
+suite exit: 0
+
+$ bin/fm-test-run.sh --jobs 1 tests/fm-supervision-events.test.sh
+FM_TEST_BEGIN 2026-11-23T12:37:22Z tests/fm-supervision-events.test.sh family=watcher-wake-lock expected_gate_skip=none
+ok - handle_push_transition: a blocked crew enqueues a stale wake naming its window and wakes the supervisor
+ok - handle_push_transition: a rex blocked edge's wake names the backend and carries Rex's blocked kind and message
+ok - handle_push_transition: enqueue failure cannot commit the Herdr dedupe marker
+ok - handle_push_transition: a declared-pause crew is absorbed (no fast wake), left to the poll loop's long cadence
+ok - handle_push_transition: a captain-held crew is absorbed (no fast wake), left to the poll loop's long cadence
+ok - event_wait_or_sleep: herdr windows go on the event pane list, but kind=secondmate endpoints are excluded
+ok - event_wait_or_sleep: herdr keeps the push wait in a mixed home; T3's wait runs only without another push backend
+ok - event_wait_or_sleep: one cached capability probe owns validation across bounded waits
+ok - event_wait_or_sleep: a home with no push-capable window is inert (sleeps POLL, never touches the event path)
+ok - event_wait_or_sleep: consecutive event-path failures disable the fast-path and revert to pure polling (fail-closed)
+# fm-supervision-events.test.sh: all assertions passed
+FM_TEST_END 2026-11-23T12:37:23Z tests/fm-supervision-events.test.sh exit=0 duration_ms=505 gate_skip=false
+FM_TEST_SUMMARY total=1 failed=0 skipped_gate=0 duration_ms=550
+FM_TEST_SUMMARY_FAMILY family=watcher-wake-lock count=1 duration_ms=505 failed=0
+FM_TEST_SLOWEST rank=1 script=tests/fm-supervision-events.test.sh duration_ms=505
+runner exit: 0
