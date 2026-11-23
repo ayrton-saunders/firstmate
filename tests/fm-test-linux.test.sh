@@ -168,7 +168,7 @@ SH
 }
 
 test_attach_failure_verifies_container_stop() {
-  local repo="$TMP_ROOT/detached" runtime="$TMP_ROOT/detached-runtime" state mode rc out scratch
+  local repo="$TMP_ROOT/detached" runtime="$TMP_ROOT/detached-runtime" state mode rc out scratch hook="$TMP_ROOT/prelaunch-hook"
   make_repo "$repo"
   cat >"$runtime" <<'SH'
 #!/usr/bin/env bash
@@ -199,13 +199,24 @@ case "$1" in
 esac
 SH
   chmod +x "$runtime"
-  for mode in resolved unresolved created killed; do
+  cat >"$hook" <<'SH'
+unset BASH_ENV
+if [ "$MODE" = prelaunch ]; then
+  trap 'if [ -f "$FM_TEST_RETAIN_MARKER.$$.linux" ]; then trap - DEBUG; kill -TERM "$$"; fi' DEBUG
+fi
+SH
+  for mode in resolved unresolved created killed prelaunch; do
     state="$TMP_ROOT/$mode"
     mkdir "$state"
     rc=0
     out=$(cd "$repo" && TMPDIR="$state" FM_CONTAINER_RUNTIME="$runtime" STATE="$state" MODE="$mode" \
       FM_TEST_RETAIN_MARKER="$state/.retain-scratch" "$BASH" -c 'export WRAPPER_PID=$$; exec "$@"' _ \
-      "$BASH" "$LINUX_CHECK" tests/kept.test.sh tests/gone.test.sh 2>&1) || rc=$?
+      env BASH_ENV="$hook" "$BASH" "$LINUX_CHECK" tests/kept.test.sh tests/gone.test.sh 2>&1) || rc=$?
+    if [ "$mode" = prelaunch ]; then
+      assert_equals 143 "$rc" "TERM after marker publication: $out"
+      assert_equals '' "$(ls -A "$state")" 'prelaunch cancellation leaves no container state, scratch, or retention marker'
+      continue
+    fi
     scratch=$(<"$state/scratch-path")
     if [ "$mode" = killed ]; then
       assert_equals 137 "$rc" "wrapper was killed during container run: $out"
