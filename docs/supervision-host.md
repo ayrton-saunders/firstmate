@@ -109,13 +109,14 @@ Only an away record is away: no record, or the record daemon-backed quiet mode w
 
 The host asks the Pi branch's offer rule (`branchOfferForWake`, through `bin/fm-branch-dispatch.mjs offer`) whether the branch may take the close.
 Check triggers, decision-owned signal or stale triggers, and scans unsafe or empty for the branch normally stay main's.
-The attended host can instead acknowledge a whole close without an engine turn. A routine signal contains only the home’s own unread keyed answers, with no other open decision on those tasks and no decision-tagged row. A routine stuck-busy escalation names an exact inbox record that has since been handled, with no unread decision or decision ownership for the stale row in the branch offer.
+The attended host can instead acknowledge a whole close without an engine turn. A routine signal contains only the home’s own unread keyed answers, with no other open decision on those tasks and no decision-tagged row. A routine stuck-busy escalation names an exact secondmate inbox record that has since been handled, with no unread decision or decision ownership for the stale row in the branch offer.
 Routine rearm recovery requires no pending captain outcome, no captain-hold record divergence, no event eligible for the main drain’s status outcome backstop, and no open decisions whose presentation is unverified. Every recovered row must meet the same proof as a direct row. The status presentation cursor does not record which open keys the drain actually displayed, so open decisions without that proof stay with main. Consequential batches and unhandled stuck inboxes keep their ordinary routing. Routine acknowledgement bypasses the engine cooldown, not a hard park deadline. Codex’s model-free park checkpoint remains quiet.
 
 **Known limits:** These cases can produce an extra notification to main; they do not suppress decisions, failures, credentials, or review-ready work.
 
 - A Claude mate may stay in one uninterrupted turn across both inbox polls without reaching Stop.
 - A Pi foreground progress write may still be in flight when the watcher samples it.
+- Cursor activity without a tracked progress marker may still produce an extra stuck-busy notification.
 - Continued task-wide progress can defer, but not permanently suppress, a wake for an unhandled message.
 - An answer can reach main if preflight races with publication of its ownership receipt.
 - A nearby routine worker status update can make an otherwise owned answer unprovable and send the notification to main.

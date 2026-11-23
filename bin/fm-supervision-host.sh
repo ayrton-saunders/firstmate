@@ -1069,7 +1069,7 @@ attended_routine_rows() {  # <reason> <decision keys> [preflight]
           case "$key" in *.status) ;; *) return 1 ;; esac
           case " ${payload#signal:} " in *" $STATE/$key "*) ;; *) return 1 ;; esac
           ;;
-        stale:stale:*) attended_handled_stale_record "$key" "$payload" >/dev/null || return 1 ;;
+        stale:stale:*) attended_handled_stale_task "$key" "$payload" >/dev/null || return 1 ;;
         *) return 1 ;;
       esac
     done <<< "$queue"
@@ -1105,18 +1105,22 @@ attended_no_open_decision() {  # <status-file>
   [ -z "$open" ]
 }
 
-attended_handled_stale_record() {  # <queue-key> <reason>
-  local target=${2#stale: } record
+attended_handled_stale_task() {  # <queue-key> <reason>
+  local target=${2#stale: } record meta task
   target=${target%% *}
   [ "$1" = "$target" ] || return 1
   case " $decision_keys " in *" $target "*) return 1 ;; esac
   record=$(fm_task_inbox_stuck_busy_record "$STATE" "$2") || return 1
   [ ! -e "$record" ] && [ ! -L "$record" ] && [ -f "${record%/*}/handled/${record##*/}" ] || return 1
-  printf '%s\n' "$record"
+  meta=$(fm_backend_meta_for_window "$target" "$STATE") || return 1
+  [ "$(fm_meta_get "$meta" kind)" = secondmate ] || return 1
+  task=${meta##*/}; task=${task%.meta}
+  [ "$record" = "$STATE/$task.inbox/${record##*/}" ] || return 1
+  printf '%s\n' "$task"
 }
 
 attended_routine_row() {  # <kind> <key> <reason>
-  local kind=$1 key=$2 reason=$3 record task target f found=0
+  local kind=$1 key=$2 reason=$3 task f found=0
   local -a files
   case "$kind:$reason" in
     signal:signal:*)
@@ -1138,11 +1142,8 @@ attended_routine_row() {  # <kind> <key> <reason>
       [ "$found" -eq 1 ]
       ;;
     stale:stale:*)
-      record=$(attended_handled_stale_record "$key" "$reason") || return 1
-      target=$key
+      task=$(attended_handled_stale_task "$key" "$reason") || return 1
       _fm_wake_require_classify || return 1
-      task=$(window_to_task "$target" "$STATE")
-      [ -n "$task" ] && [ "$record" = "$STATE/$task.inbox/${record##*/}" ] || return 1
       attended_no_open_decision "$STATE/$task.status"
       ;;
     *) return 1 ;;
@@ -1425,6 +1426,7 @@ attended_park_worker() {  # [handback] <function> [args...]
     SCRIPT_DIR=$1 HOST_PID=$2 GEN=$3 GRANT_ACTIVE=$4
     . "$SCRIPT_DIR/fm-wake-lib.sh"
     . "$SCRIPT_DIR/fm-task-inbox-lib.sh"
+    . "$SCRIPT_DIR/fm-backend.sh"
     eval "$5"
     shift 5
     if [ "$1" = attended_routine_rows ]; then
@@ -1434,7 +1436,7 @@ attended_park_worker() {  # [handback] <function> [args...]
       "$@"
     fi
   ' _ "$SCRIPT_DIR" "$HOST_PID" "$GEN" "$GRANT_ACTIVE" \
-    "$(declare -f attended_routine_rows attended_routine_row attended_handled_stale_record attended_no_open_decision \
+    "$(declare -f attended_routine_rows attended_routine_row attended_handled_stale_task attended_no_open_decision \
       acknowledge_routine_close publish_wake_grant branch_env record_acknowledged_handback)" "$@"
 }
 

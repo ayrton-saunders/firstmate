@@ -478,10 +478,9 @@ SH
   pass "host: attended answer signal with $mode provenance/content routes correctly"
 }
 
-test_attended_busy_inbox_close() {  # <handled|stuck|decision|missing>
-  local mode=$1 home rec
-  home=$(make_home "attended-busy-$mode" quiet)
-  local kind=secondmate
+test_attended_busy_inbox_close() {  # <mode> [kind]
+  local mode=$1 kind=${2:-secondmate} home rec
+  home=$(make_home "attended-busy-$mode-$kind" quiet)
   [ "$mode" != missing ] || kind=ship
   printf 'project=demo\nwindow=sess:fm-demo\nkind=%s\nharness=grok\n' "$kind" > "$home/state/demo.meta"
   cat > "$home/fakebin/tmux" <<'SH'
@@ -525,7 +524,12 @@ SH
     assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "the ordinary stale offer must not use the routine timeout"
     [ -f "$rec" ] || fail "missing endpoint work was lost"
   elif [ "$mode" = handled ]; then
-    assert_routine_close_acknowledged "$home" 'stale: .*stuck-busy'
+    if [ "$kind" = secondmate ]; then
+      assert_routine_close_acknowledged "$home" 'stale: .*stuck-busy'
+    else
+      wait_until_deadline 60 grep -q 'stuck-busy' "$home/engine-drain.1" 2>/dev/null \
+        || fail "a handled $kind stale bypassed ordinary branch routing"
+    fi
     [ -f "$home/state/demo.inbox/handled/${rec##*/}" ] || fail "fixture: the worker did not handle the named record"
   elif [ "$mode" = decision ]; then
     wait_until_deadline 60 host_exited "$home" || fail "a handled stale hid a decision-owned wake"
@@ -538,12 +542,12 @@ SH
     [ -f "$rec" ] || fail "the stuck record was lost"
   fi
   stop_home_processes "$home"
-  pass "host: a $mode inbox stale closes in the correct destination"
+  pass "host: a $mode $kind inbox stale closes in the correct destination"
 }
 
 test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-captain-outcome>
-  local mode=$1 home rec reason seq f i note initial lock_timeout=10 via
-  home=$(make_home "attended-resurface-$mode" quiet)
+  local mode=$1 kind=${2:-secondmate} home rec reason seq f i note initial lock_timeout=10 via
+  home=$(make_home "attended-resurface-$mode-$kind" quiet)
   : > "$home/state/.wake-queue"
   case "$mode" in
     divergence)
@@ -590,6 +594,7 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
     credential) routine_wake_lib "$home" fm_wake_append check needs-gh-auth 'check: GitHub login required' || fail "fixture: no credential check" ;;
     backstop|routine-backstop|routine|cooldown)
       if [ "$mode" != backstop ]; then
+        printf 'project=demo\nwindow=sess:fm-demo\nkind=%s\nharness=claude\n' "$kind" > "$home/state/demo.meta"
         rec=$(FM_HOME="$home" bash -c '. "$1"; fm_task_inbox_write "$2" demo steer' _ "$ROOT/bin/fm-task-inbox-lib.sh" "$home/state") || fail "fixture: no inbox record"
         mv "$rec" "${rec%/*}/handled/"
         reason="stale: sess:fm-demo (unread firstmate instruction: stuck-busy after 2 consecutive busy-deferred due doorbells; $rec stays unhandled and no doorbell was typed; inspect the worker)"
@@ -643,7 +648,7 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
   esac
   FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 \
     FM_STATUS_PRESENTATION_LOCK_TIMEOUT="$lock_timeout" FM_SUPERVISION_HOST_TURN_TIMEOUT=20 FM_SUPERVISION_ENGINE_GRACE=1 start_host "$home"
-  if [ "$mode" = empty ] || [ "$mode" = routine ] || [ "$mode" = cooldown ] || [ "$mode" = operator-reply ]; then
+  if [ "$mode" = empty ] || { [ "$mode" = routine ] && [ "$kind" = secondmate ]; } || [ "$mode" = cooldown ] || [ "$mode" = operator-reply ]; then
     assert_routine_close_acknowledged "$home" 'check: rearm-resurface$'
     assert_re '^acked:' "$home/state/.watcher-down" "resurfacing did not acknowledge recovery"
     [ ! -e "$home/unexpected-empty-offer" ] || fail "empty routine recovery invoked the offer"
@@ -653,6 +658,7 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
     local drain
     drain=$(FM_HOME="$home" "$FAKE_CLAUDE" -c '"$0" 2>&1' "$ROOT/bin/fm-wake-drain.sh")
     case "$mode" in
+      routine) assert_contains "$drain" 'stuck-busy' "recovery lost the handled $kind stale" ;;
       credential) assert_contains "$drain" 'GitHub login required' "the credentials request was lost" ;;
       divergence)
         [ ! -e "$home/unexpected-empty-offer" ] || fail "rejected empty recovery invoked the offer"
@@ -680,7 +686,7 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
     esac
   fi
   stop_home_processes "$home"
-  pass "host: attended recovery with $mode routes correctly"
+  pass "host: attended recovery with $mode ($kind) routes correctly"
 }
 
 # The file is read at every wake (docs/configuration.md "Supervision host"), so
@@ -1537,8 +1543,10 @@ test_late_routine_rejection_waits_for_queue_lock() { test_attended_answer_close 
 test_operator_pending_reply_answer() { test_attended_answer_close operator; }
 test_other_pending_reply_answer() { test_attended_answer_close other-reply; }
 test_handled_busy_inbox_close() { test_attended_busy_inbox_close handled; }
+test_handled_ship_busy_inbox_close() { test_attended_busy_inbox_close handled ship; }
 test_stuck_busy_inbox_close() { test_attended_busy_inbox_close stuck; }
 test_routine_resurface() { test_attended_resurface routine; }
+test_handled_scout_stale_resurface() { test_attended_resurface routine scout; }
 test_handled_decision_stale() { test_attended_busy_inbox_close decision; }
 test_missing_endpoint_stale_uses_ordinary_offer() { test_attended_busy_inbox_close missing; }
 test_unhandled_decision_stale_uses_ordinary_offer() { test_attended_busy_inbox_close unhandled-decision; }
@@ -1640,8 +1648,10 @@ fm_test_run \
   test_operator_pending_reply_answer \
   test_other_pending_reply_answer \
   test_handled_busy_inbox_close \
+  test_handled_ship_busy_inbox_close \
   test_stuck_busy_inbox_close \
   test_routine_resurface \
+  test_handled_scout_stale_resurface \
   test_handled_decision_stale \
   test_missing_endpoint_stale_uses_ordinary_offer \
   test_unhandled_decision_stale_uses_ordinary_offer \
