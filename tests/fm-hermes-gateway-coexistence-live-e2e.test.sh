@@ -7,6 +7,7 @@
 # platform; the guard refuses one. It then runs the TUI worker guard beside the
 # idle gateway and checks the session store, memory and gateway afterward.
 # The profile's config is restored after it temporarily sets gateway.standalone.
+# After SIGKILL, a .fm-gateway-config.* backup may remain beside config.yaml for recovery.
 set -u
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
@@ -20,20 +21,18 @@ LAB=$(cd "$LAB" && pwd -P)
 SOCKET="$LAB/s"
 mkdir -p "$LAB/home" "$LAB/state" "$LAB/locks"
 [ -f "$PROFILE_HOME/config.yaml" ] || fail "throwaway profile $PROFILE_HOME is not prepared"
-BACKUP=$(mktemp "$PROFILE_HOME/.fm-gateway-config.XXXXXX") || fail 'could not allocate profile backup'
-if ! cp -p "$PROFILE_HOME/config.yaml" "$BACKUP"; then
-  rm -f "$BACKUP"
-  fail 'could not back up profile config'
-fi
+BACKUP=
+backup_pending=1
+probe_signal=0
 TUI_PID=
 cleanup() {
   local status=$? socket
-  trap '' HUP INT TERM
+  trap '' HUP INT QUIT TERM
   if [ -n "$TUI_PID" ]; then kill -TERM "$TUI_PID" 2>/dev/null || true; fi
   for socket in "$SOCKET" "$LAB"/hm.??????/s; do
     [ ! -S "$socket" ] || tmux -S "$socket" kill-server >/dev/null 2>&1 || true
   done
-  if [ -d "$PROFILE_HOME/config.yaml" ] || ! mv -f "$BACKUP" "$PROFILE_HOME/config.yaml"; then
+  if [ -n "$BACKUP" ] && { [ -d "$PROFILE_HOME/config.yaml" ] || ! mv -f "$BACKUP" "$PROFILE_HOME/config.yaml"; }; then
     printf 'not ok - config restore failed; backup retained at %s\n' "$BACKUP" >&2
     [ "$status" -ne 0 ] || status=1
   fi
@@ -42,9 +41,25 @@ cleanup() {
   exit "$status"
 }
 trap cleanup EXIT
-trap 'exit 129' HUP
-trap 'exit 130' INT
-trap 'exit 143' TERM
+interrupt_probe() {
+  probe_signal=$1
+  [ "$backup_pending" -ne 0 ] || exit "$probe_signal"
+}
+trap 'interrupt_probe 129' HUP
+trap 'interrupt_probe 130' INT
+trap 'interrupt_probe 131' QUIT
+trap 'interrupt_probe 143' TERM
+BACKUP=$(
+  trap '' HUP INT QUIT TERM
+  backup=$(mktemp "$PROFILE_HOME/.fm-gateway-config.XXXXXX") || exit 1
+  if ! cp -p "$PROFILE_HOME/config.yaml" "$backup"; then
+    rm -f "$backup"
+    exit 1
+  fi
+  printf '%s\n' "$backup"
+) || fail 'could not back up profile config'
+backup_pending=0
+[ "$probe_signal" -eq 0 ] || exit "$probe_signal"
 for file in "$FM_HERMES_LIVE_HOME/.env" "$PROFILE_HOME/.env"; do
   [ ! -s "$file" ] || fail "$file may configure a messaging platform; use a profile without one"
 done

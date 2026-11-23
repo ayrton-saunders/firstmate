@@ -2121,6 +2121,10 @@ for other_arg in ('--list-lanes', '--help', cmd[-1]):
         result = subprocess.run([*runner_cmd, *args], cwd=repo, env=fixture_env, capture_output=True)
         assert result.returncode == 2 and not result.stdout, result
 
+def restore_signal_defaults():
+    for sig in (signal.SIGINT, signal.SIGQUIT):
+        signal.signal(sig, signal.SIG_DFL)
+
 def launch(name, mode, use_fixture=True, bounded=False, options=(), siblings=()):
     proof = tmp / name
     case_env = dict(fixture_env if use_fixture else env, PROBE_MODE=mode, PROOF=shell_path(proof))
@@ -2131,7 +2135,7 @@ def launch(name, mode, use_fixture=True, bounded=False, options=(), siblings=())
         bound = ['--per-script-timeout-secs', '60'] if bounded else []
         command = [*runner_cmd, *bound, *options, cmd[-1], *siblings]
         child = subprocess.Popen(command, cwd=repo, env=case_env, stdin=subprocess.DEVNULL, stdout=log, stderr=log,
-                                 preexec_fn=(lambda: signal.signal(signal.SIGINT, signal.SIG_DFL)) if os.name == 'posix' else None)
+                                 preexec_fn=restore_signal_defaults if os.name == 'posix' else None)
     return child, proof
 
 def scratch(proof):
@@ -2176,7 +2180,7 @@ printf '%s\\n' "$allocated"
     finally:
         allocator.unlink()
 
-for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP) if os.name == 'posix' else ():
+for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGHUP, signal.SIGQUIT) if os.name == 'posix' else ():
     child, proof = launch(sig.name, 'hang')
     try:
         _, run = scratch(proof)

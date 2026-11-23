@@ -2522,7 +2522,7 @@ interrupt_run() {
 }
 
 owned_group_live() {
-  local pid=$1 start=$2 verified=${3:-0} current snapshot
+  local pid=$1 start=$2 current snapshot
   kill -0 -- "-$pid" 2>/dev/null || return 1
   current=$(run_owner_start "$pid") || current=
   if [ -n "$current" ]; then
@@ -2530,14 +2530,13 @@ owned_group_live() {
     [ "$current" = "$start" ] || return 1
   fi
   if snapshot=$(LC_ALL=C ps -e -o pid= -o pgid= -o stat= 2>/dev/null); then
-    awk -v self="$$" -v pid="$pid" -v start="$start" -v checked="$current" -v verified="$verified" '
+    awk -v self="$$" -v pid="$pid" -v start="$start" -v checked="$current" '
       $1 == self && NF == 3 { readable = 1 }
-      $1 == pid && $3 !~ /^Z/ { leader = 1 }
       $2 == pid && $3 !~ /^Z/ { live = 1 }
       END {
         if (!readable) exit 2
         if (!live) exit 1
-        exit (start == "unknown" || (checked == "" && (leader || !verified))) ? 2 : 0
+        exit (start == "unknown" || checked == "") ? 2 : 0
       }
     ' <<<"$snapshot"
   else
@@ -2545,9 +2544,32 @@ owned_group_live() {
   fi
 }
 
+group_members() {
+  LC_ALL=C ps -e -o pid= -o pgid= -o stat= 2>/dev/null |
+    awk -v group="$1" '$2 == group && $1 ~ /^[1-9][0-9]*$/ && $3 !~ /^Z/ { print $1 }'
+}
+
+group_member_identities() {
+  local pid identity
+  for pid in $(group_members "$1"); do
+    if identity=$(run_owner_start "$pid"); then printf '%s|%s\n' "$pid" "$identity"; fi
+  done
+}
+
+group_has_continuity() {
+  local group=$1 identities=$2 members pid identity current
+  members=$'\n'$(group_members "$group")$'\n'
+  while IFS='|' read -r pid identity; do
+    [[ "$members" == *$'\n'"$pid"$'\n'* ]] || continue
+    current=$(run_owner_start "$pid") || continue
+    [ "$identity" != "$current" ] || return 0
+  done <<<"$identities"
+  return 1
+}
+
 stop_owned_workers() {
-  local slot work pid record owner group start extra rc i attempt drained=0
-  local -a records=() groups=() starts=() verified=()
+  local slot work pid record owner group start extra rc i attempt members drained=0
+  local -a records=() groups=() starts=() witnesses=()
   for slot in "$@"; do
     work="$RUN_TMP/w$slot"
     pid=${WORKER_PIDS[$slot]:-}
@@ -2569,25 +2591,28 @@ stop_owned_workers() {
     case "$rc" in
       0|2)
         groups+=("$group"); starts+=("$start")
-        if [ "$rc" -eq 0 ] && kill -TERM -- "-$group" 2>/dev/null; then
-          verified+=(1)
-        else
-          verified+=(0)
+        members=
+        if [ "$rc" -eq 0 ]; then
+          members=$(group_member_identities "$group")
+          members=${members:-$group|$start}
+          if ! owned_group_live "$group" "$start" || ! kill -TERM -- "-$group" 2>/dev/null; then members=; fi
         fi
+        witnesses+=("$members")
         ;;
     esac
   done
   if [ "${#groups[@]}" -gt 0 ]; then
     sleep 0.2
     for i in "${!groups[@]}"; do
-      if [ "${verified[$i]}" -eq 1 ] && owned_group_live "${groups[$i]}" "${starts[$i]}" 1; then
+      if [ -n "${witnesses[$i]}" ] && { owned_group_live "${groups[$i]}" "${starts[$i]}" ||
+          group_has_continuity "${groups[$i]}" "${witnesses[$i]}"; }; then
         kill -KILL -- "-${groups[$i]}" 2>/dev/null || true
       fi
     done
     for i in "${!groups[@]}"; do
       for ((attempt=0; attempt<20; ++attempt)); do
         rc=0
-        owned_group_live "${groups[$i]}" "${starts[$i]}" "${verified[$i]}" || rc=$?
+        owned_group_live "${groups[$i]}" "${starts[$i]}" || rc=$?
         [ "$rc" -ne 1 ] || break
         sleep 0.01
       done
@@ -2604,7 +2629,7 @@ stop_owned_workers() {
 # shellcheck disable=SC2329
 cleanup_run() {
   local status=$?
-  trap '' HUP INT TERM
+  trap '' HUP INT QUIT TERM
   stop_owned_workers "${!WORKER_PIDS[@]}" || KEEP_RUN_TMP=1
   if [ "$KEEP_RUN_TMP" -eq 1 ]; then
     log "could not confirm worker group exit; retaining scratch: $RUN_TMP"
@@ -2629,9 +2654,10 @@ prepare_run_scratch() {
   trap cleanup_run EXIT
   trap 'interrupt_run 129' HUP
   trap 'interrupt_run 130' INT
+  trap 'interrupt_run 131' QUIT
   trap 'interrupt_run 143' TERM
   RUN_CRITICAL=1
-  RUN_TMP=$(trap '' HUP INT TERM; mktemp -d "$parent/r.XXXXXX") || die "cannot allocate test scratch under $parent"
+  RUN_TMP=$(trap '' HUP INT QUIT TERM; mktemp -d "$parent/r.XXXXXX") || die "cannot allocate test scratch under $parent"
   record_run_owner "$$"
   RUN_CRITICAL=0
   [ "$RUN_INTERRUPT" -eq 0 ] || exit "$RUN_INTERRUPT"
@@ -3038,7 +3064,7 @@ run_owned_timed() {
 
 execute_worker() {
   local script=$1 stream=$2 work=$3 foreground=$4 pid group=0 rc begin_ms end_ms duration
-  trap - EXIT HUP INT TERM
+  trap - EXIT HUP INT QUIT TERM
   set +m
   pid=${BASHPID:-$(exec bash -c 'printf "%s\n" "$PPID"')}
   [ "$foreground" -eq 1 ] || group=$pid
