@@ -242,6 +242,33 @@ test_interrupted_registry_allocation_cleans_up() {
   pass 'fixture registry allocation is cleaned up on TERM'
 }
 
+test_removal_failure_preserves_existing_status() {
+  local harness mode original expected rc out
+  harness=$(fm_test_tmproot fm-test-removal-status)
+  for mode in standalone fixtures; do
+    for original in 0 7 143; do
+      mkdir "$harness/$mode-$original"
+      rc=0
+      out=$(TMPDIR="$harness/$mode-$original" bash -c '
+        rm() { return 1; }
+        if [ "$1" = standalone ]; then
+          . "$3/bin/fm-test-scratch-lib.sh"
+          fm_test_allocate_scratch -d "$TMPDIR/case.XXXXXX" || exit 2
+        else
+          . "$3/tests/lib.sh"
+        fi
+        exit "$2"
+      ' _ "$mode" "$original" "$ROOT" 2>&1) || rc=$?
+      expected=$original
+      [ "$original" -ne 0 ] || expected=1
+      assert_equals "$expected" "$rc" "$mode cleanup exit status"
+      assert_contains "$out" 'could not remove scratch' "$mode cleanup reports removal failure"
+    done
+  done
+  pass 'standalone and fixture cleanup report failures without replacing an existing status'
+}
+
+test_removal_failure_preserves_existing_status
 test_fixture_root_gone_after_normal_exit
 test_fixture_root_gone_after_sigterm
 test_cleanup_registry_resists_precreation

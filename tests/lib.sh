@@ -374,20 +374,21 @@ fm_test_reap_root_processes() {  # <root>
 }
 
 fm_test_cleanup() {
-  local d
+  local d rc=0
   fm_test_reap_watchers
   fm_test_reap_procevent_homes
   for d in "${FM_TEST_CLEANUP_DIRS[@]:-}"; do
-    [ -n "$d" ] && fm_test_remove_tree "$d"
+    fm_test_cleanup_scratch "$d" || rc=1
   done
   if [ -f "$FM_TEST_CLEANUP_REGISTRY" ]; then
     while IFS= read -r d; do
       [ -n "$d" ] || continue
       fm_test_reap_root_processes "$d"
-      fm_test_remove_tree "$d"
+      fm_test_cleanup_scratch "$d" || rc=1
     done < "$FM_TEST_CLEANUP_REGISTRY"
   fi
-  fm_test_remove_tree "$FM_TEST_REGISTRY_DIR"
+  fm_test_cleanup_scratch "$FM_TEST_REGISTRY_DIR" || rc=1
+  return "$rc"
 }
 
 fm_test_tmproot() (
@@ -407,7 +408,7 @@ FM_TEST_REGISTRY_DIR=$FM_TEST_SCRATCH
 FM_TEST_CLEANUP_REGISTRY="$FM_TEST_REGISTRY_DIR/cleanup"
 FM_TEST_PROCEVENT_REGISTRY="$FM_TEST_REGISTRY_DIR/procevent"
 FM_TEST_WATCHER_REGISTRY="$FM_TEST_REGISTRY_DIR/watcher"
-trap fm_test_cleanup EXIT
+trap 'status=$?; trap "" HUP INT QUIT TERM; fm_test_cleanup || { [ "$status" -ne 0 ] || status=1; }; exit "$status"' EXIT
 
 TREEHOUSE_ROOT=$(fm_test_tmproot fm-treehouse-pool)
 export TREEHOUSE_ROOT

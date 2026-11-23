@@ -89,7 +89,7 @@ stop_decoy() {
 isolation_cleanup() {
   # Only the servers this suite started, each by its own explicit socket, and
   # only while it is still there; the decoy is gone before the suite returns.
-  local rc=0
+  local status=$? rc=0
   fm_test_stop_private_tmux "$GATE_SOCKET" tmux "$GATE_RETAIN" || rc=1
   if [ -n "$STUCK_PID" ]; then
     kill -CONT "$STUCK_PID" 2>/dev/null
@@ -98,8 +98,8 @@ isolation_cleanup() {
   if [ -n "$DECOY_PID" ]; then
     stop_decoy "$DECOY_PID" "$DEFAULT_SOCKET" || rc=1
   fi
-  [ "$rc" -eq 0 ] || exit 1
-  fm_test_cleanup
+  { [ "$rc" -eq 0 ] && fm_test_cleanup; } || { [ "$status" -ne 0 ] || status=1; }
+  exit "$status"
 }
 trap isolation_cleanup EXIT
 trap 'exit 130' INT

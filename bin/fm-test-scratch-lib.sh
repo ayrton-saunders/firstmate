@@ -12,10 +12,17 @@ fm_test_remove_tree() {
   rm -rf -- "$dir"
 }
 
+fm_test_cleanup_scratch() {
+  [ -n "$1" ] || return 0
+  fm_test_remove_tree "$1" && return 0
+  printf 'could not remove scratch: %s\n' "$1" >&2
+  return 1
+}
+
 fm_test_allocate_scratch() {
   local allocated pending=0 rc=0
   FM_TEST_SCRATCH=
-  trap '[ -z "$FM_TEST_SCRATCH" ] || fm_test_remove_tree "$FM_TEST_SCRATCH"' EXIT
+  trap 'status=$?; trap "" HUP INT QUIT TERM; fm_test_cleanup_scratch "$FM_TEST_SCRATCH" || { [ "$status" -ne 0 ] || status=1; }; exit "$status"' EXIT
   trap 'pending=129' HUP
   trap 'pending=130' INT
   trap 'pending=131' QUIT

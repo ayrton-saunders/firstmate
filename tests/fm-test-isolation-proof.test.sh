@@ -207,7 +207,8 @@ PY
     "$proof" --pool admitted-family --jobs 2 --json "$tmp/cleanup.json" >"$tmp/cleanup.out" 2>"$tmp/cleanup.err" || rc=$?
   assert_equals 1 "$rc" 'failed proof removal cannot produce success'
   assert_contains "$(<"$tmp/cleanup.err")" 'could not remove scratch' 'proof reports failed removal'
-  python3 -c 'import json, sys; r = json.load(open(sys.argv[1])); assert r["summary"]["failed"] == 1 and not r["fm_test_run_jobs_enabled"]' "$tmp/cleanup.json" || fail 'failed removal was admitted in JSON'
+  assert_contains "$(<"$tmp/cleanup.out")" 'FM_ISOLATION_CLEANUP failed' 'cleanup failure has its own summary line'
+  python3 -c 'import json, sys; r = json.load(open(sys.argv[1])); assert r["cleanup_failed"] is True and r["summary"]["failed"] == 0 and all(s["exit"] == 0 for s in r["scripts"]) and not r["fm_test_run_jobs_enabled"]' "$tmp/cleanup.json" || fail 'failed removal was admitted in JSON'
   set +e
   "$proof" --pool fixture-family --jobs 1 --json "$json" >"$tmp/out" 2>"$tmp/err"
   rc=$?

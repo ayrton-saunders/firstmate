@@ -32,7 +32,7 @@ cleanup() {
   else
     [ "$status" -ne 0 ] || status=1
   fi
-  fm_test_cleanup
+  fm_test_cleanup || { [ "$status" -ne 0 ] || status=1; }
   exit "$status"
 }
 trap cleanup EXIT

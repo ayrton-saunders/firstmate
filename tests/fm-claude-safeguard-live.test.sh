@@ -28,7 +28,7 @@ stop_server() {
   server_pid=''
   return "$teardown"
 }
-trap 'status=$?; if stop_server; then fm_test_cleanup; elif [ "$status" -eq 0 ]; then status=1; fi; exit "$status"' EXIT
+trap 'status=$?; { stop_server && fm_test_cleanup; } || { [ "$status" -ne 0 ] || status=1; }; exit "$status"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM
 trap 'exit 129' HUP

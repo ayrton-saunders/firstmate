@@ -1409,6 +1409,8 @@ for path in inputs:
         "finished_at": doc.get("finished_at"),
         "summary": summary,
     }
+    if doc.get("cleanup_failed") is True:
+        lane["cleanup_failed"] = True
     lanes.append(lane)
     total += int(summary.get("total") or 0)
     failed += int(summary.get("failed") or 0)
@@ -1434,6 +1436,9 @@ agg = {
     "scripts": all_scripts,
     "slowest": all_scripts[:15],
 }
+if any(lane.get("cleanup_failed") for lane in lanes):
+    agg["cleanup_failed"] = True
+    print("FM_TEST_CLEANUP failed")
 out.parent.mkdir(parents=True, exist_ok=True)
 out.write_text(json.dumps(agg, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 print(f"FM_TEST_AGGREGATE lanes={len(lanes)} total={total} failed={failed} skipped_gate={skipped} critical_path_duration_ms={wall_ms}")
@@ -2158,7 +2163,7 @@ write_json_artifact() {
   python3 -c '
 import io, json, sys
 
-out, started, finished, run_id, total, failed, skipped, duration, selection = sys.argv[1:]
+out, started, finished, run_id, total, failed, skipped, duration, selection, cleanup_failed = sys.argv[1:]
 records, _, families_data = sys.stdin.buffer.read().decode("utf-8").partition("\n\n")
 scripts = []
 
@@ -2206,10 +2211,12 @@ doc = {
     "scripts": scripts,
     "families": families,
 }
+if cleanup_failed == "1":
+    doc["cleanup_failed"] = True
 with open(out, "w", encoding="utf-8") as fh:
     json.dump(doc, fh, indent=2, sort_keys=True)
     fh.write("\n")
-' "$out" "$started" "$finished" "$run_id" "$total" "$failed" "$skipped" "$duration" "$selection"
+' "$out" "$started" "$finished" "$run_id" "$total" "$failed" "$skipped" "$duration" "$selection" "${10:-0}"
 }
 
 scratch_base() {
@@ -2526,15 +2533,9 @@ cleanup_run() {
       [ "$status" -ne 0 ] || status=1
       exit "$status"
     fi
-    remove_run_scratch || { [ "$status" -ne 0 ] || status=1; }
+    fm_test_cleanup_scratch "$RUN_TMP" || { [ "$status" -ne 0 ] || status=1; }
   fi
   exit "$status"
-}
-
-remove_run_scratch() {
-  fm_test_remove_tree "$RUN_TMP" && return 0
-  log "could not remove scratch: $RUN_TMP"
-  return 1
 }
 
 prepare_run_scratch() {
@@ -3112,13 +3113,7 @@ else
   done
 fi
 
-RUN_FINISHED_ISO=$(now_iso)
-RUN_FINISHED_MS=$(now_ms)
-RUN_DURATION=$((RUN_FINISHED_MS - RUN_STARTED_MS))
-if [ "$RUN_DURATION" -lt 0 ]; then
-  RUN_DURATION=0
-fi
-
+cleanup_failed=0
 records=$(<"$RECORDS")
 families=
 if [ -s "$FAMILIES_TSV" ]; then
@@ -3126,15 +3121,23 @@ if [ -s "$FAMILIES_TSV" ]; then
 fi
 if [ "$KEEP_RUN_TMP" -eq 0 ] && ! fm_test_scratch_retained "$RUN_TMP"; then
   export TMPDIR="${RUN_TMP%/*}" TMP="${RUN_TMP%/*}" TEMP="${RUN_TMP%/*}"
-  if ! remove_run_scratch; then
+  if ! fm_test_cleanup_scratch "$RUN_TMP"; then
     AGG_RC=1
-    [ "$FAILED" -ne 0 ] || FAILED=1
+    cleanup_failed=1
   fi
   RUN_TMP=
 fi
 
+RUN_FINISHED_ISO=$(now_iso)
+RUN_FINISHED_MS=$(now_ms)
+RUN_DURATION=$((RUN_FINISHED_MS - RUN_STARTED_MS))
+if [ "$RUN_DURATION" -lt 0 ]; then
+  RUN_DURATION=0
+fi
+
 printf 'FM_TEST_SUMMARY total=%s failed=%s skipped_gate=%s duration_ms=%s\n' \
   "$TOTAL" "$FAILED" "$SKIPPED_GATE" "$RUN_DURATION"
+if [ "$cleanup_failed" -eq 1 ]; then printf 'FM_TEST_CLEANUP failed\n'; fi
 
 if [ -n "$families" ]; then
   printf '%s\n' "$families" | while IFS=$'\t' read -r name count duration failed_count; do
@@ -3159,7 +3162,7 @@ if [ -n "$JSON_PATH" ]; then
   write_json_artifact "$JSON_PATH" \
     "$RUN_STARTED_ISO" "$RUN_FINISHED_ISO" "$RUN_ID" \
     "$TOTAL" "$FAILED" "$SKIPPED_GATE" "$RUN_DURATION" \
-    "$SELECTION_DESC" <<<"$records"$'\n\n'"$families"
+    "$SELECTION_DESC" "$cleanup_failed" <<<"$records"$'\n\n'"$families"
   json_rc=$?
   set -e
   if [ "$json_rc" -eq 0 ]; then

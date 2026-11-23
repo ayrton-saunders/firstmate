@@ -40,7 +40,7 @@ test_direct_fixture_refuses_inherited_home_scratch() {
   chmod +x "$tmp/tools/mktemp"
   for boundary in FM_HOME FM_ROOT_OVERRIDE FM_ROOT; do
     rc=0
-    out=$(env "$boundary=$tmp/home" TMPDIR="$tmp/home/tmp" PATH="$tmp/tools:$PATH" \
+    out=$(env -u FM_HOME -u FM_ROOT_OVERRIDE -u FM_ROOT "$boundary=$tmp/home" TMPDIR="$tmp/home/tmp" PATH="$tmp/tools:$PATH" \
       MKTEMP_CALLED="$tmp/mktemp-called" "$BASH" -c '. "$1"' _ "$ROOT/tests/lib.sh" 2>&1) || rc=$?
     assert_equals 2 "$rc" "$boundary scratch exit status"
     assert_contains "$out" 'unsafe scratch base' "$boundary scratch refusal"

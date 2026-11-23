@@ -67,7 +67,7 @@ cleanup() {
     teardown_failed=1
   fi
   fm_test_stop_private_tmux "$SOCKET" tmux "$GATEWAY_RETAIN" || teardown_failed=1
-  fm_test_cleanup
+  fm_test_cleanup || { [ "$status" -ne 0 ] || status=1; }
   if [ "$teardown_failed" -eq 0 ]; then
     [ -z "$LAB" ] || fm_test_remove_tree "$LAB" || { [ "$status" -ne 0 ] || status=1; }
   else
