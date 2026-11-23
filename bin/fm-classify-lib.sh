@@ -2493,6 +2493,7 @@ status_unread_only_home_answers() {  # <status-file> [content-only]
       pending-reply-*)
         task=${f##*/}; task=${task%.status}
         expected=$(
+          # shellcheck source=/dev/null # Linted separately; the library sources this classifier.
           . "$_FM_CLASSIFY_LIB_DIR/fm-pending-reply-lib.sh"
           fm_pending_reply_close_note_for_key "$key" "$task" operator-resolve-key
         ) || return 1

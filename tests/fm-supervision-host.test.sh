@@ -289,6 +289,17 @@ SH
   chmod +x "$1/fakebin/node"
 }
 
+successor_kept_or_delivered_signal() {  # <home>
+  # The injected update can close the successor before we sample liveness.
+  # Per docs/watcher-continuity.md, its delivery is recorded before the
+  # watcher releases its lock. The first delivery belongs to the predecessor.
+  watcher_live "$1" || awk -F '\t' '
+    NR == 1 { predecessor = $1; next }
+    $1 != predecessor && $3 ~ /^signal: / { delivered = 1 }
+    END { exit !delivered }
+  ' "$1/state/.watch-deliveries.log"
+}
+
 test_answer_receipt_is_serialized_with_classification() {
   local home f writer reader
   home=$(make_home answer-receipt-race attended)
@@ -534,7 +545,7 @@ SH
       assert_re '^signal: .*demo.status .*zed.status' "$home/host.out" "the coalesced close must reach main"
       assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "the older offer must not force a deadline hand-back"
       [ "$(engine_calls "$home")" -eq 0 ] || fail "the older offer took the coalesced wake"
-      watcher_live "$home" || fail "the late decision hand-back left no successor"
+      successor_kept_or_delivered_signal "$home" || fail "the late decision hand-back left no successor or successor signal"
     elif [ "$mode" = late-rejection ]; then
       expect_code 0 "$(<"$home/host.rc")" "a late rejection must not time out its ordinary hand-back"
       assert_grep 'check: supervision-handoff' "$state/.wake-queue" "ordinary hand-back must publish its check"
@@ -618,7 +629,7 @@ SH
     wait_until_deadline 60 host_exited "$home" || fail "the final decision-owned stale did not reach main"
     assert_re '^stale: .*stuck-busy' "$home/host.out" "the final main-only close was lost"
     assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "the final hand-back must preserve the successor"
-    watcher_live "$home" || fail "the final hand-back left no live successor"
+    successor_kept_or_delivered_signal "$home" || fail "the final hand-back left no successor or successor signal"
     if [ "$mode" != final-decision ]; then
       [ -f "${rec%/*}/handled/${rec##*/}" ] || fail "the handled steer receipt was lost"
       assert_grep 'stuck-busy' "$home/state/.wake-queue" "the decision-owned stale must remain queued"
