@@ -162,37 +162,37 @@ test_attach_failure_verifies_container_stop() {
 #!/usr/bin/env bash
 case "$1" in
   ps)
-    if [ "$MODE" = prelaunch ]; then touch "$STATE/daemon-contacted"; exit 1; fi
-    if [ "$MODE" = undrained ]; then touch "$STATE/daemon-contacted"; exit 0; fi
+    if [ "$MODE" = prelaunch ]; then touch "$FAKE_RUNTIME_STATE/daemon-contacted"; exit 1; fi
+    if [ "$MODE" = undrained ]; then touch "$FAKE_RUNTIME_STATE/daemon-contacted"; exit 0; fi
     pattern=.
     if [ "${3:-}" = --filter ]; then pattern=${4#name=}; fi
-    name=$(<"$STATE/container-name")
-    if [[ "/$name" =~ $pattern ]] && { [ -f "$STATE/running" ] || { [ "$2" = -aq ] && [ -f "$STATE/created" ]; }; }; then
+    name=$(<"$FAKE_RUNTIME_STATE/container-name")
+    if [[ "/$name" =~ $pattern ]] && { [ -f "$FAKE_RUNTIME_STATE/running" ] || { [ "$2" = -aq ] && [ -f "$FAKE_RUNTIME_STATE/created" ]; }; }; then
       printf '%s\n' container-id
     fi
-    if [[ "/$name-neighbor" =~ $pattern ]] && [ -f "$STATE/neighbor" ]; then
+    if [[ "/$name-neighbor" =~ $pattern ]] && [ -f "$FAKE_RUNTIME_STATE/neighbor" ]; then
       printf '%s\n' neighbor-id
     fi
     ;;
   rm)
-    if [[ "${!#}" == *neighbor-id* ]]; then rm "$STATE/neighbor"; fi
-    [ "${!#}" = container-id ] && [ -d "$(<"$STATE/scratch-path")" ] || exit 2
-    touch "$STATE/remove-called"
-    if [ "$MODE" != unresolved ]; then rm -f "$STATE/running" "$STATE/created"; fi
+    if [[ "${!#}" == *neighbor-id* ]]; then rm "$FAKE_RUNTIME_STATE/neighbor"; fi
+    [ "${!#}" = container-id ] && [ -d "$(<"$FAKE_RUNTIME_STATE/scratch-path")" ] || exit 2
+    touch "$FAKE_RUNTIME_STATE/remove-called"
+    if [ "$MODE" != unresolved ]; then rm -f "$FAKE_RUNTIME_STATE/running" "$FAKE_RUNTIME_STATE/created"; fi
     ;;
   run)
     while [ "$#" -gt 1 ]; do
-      if [ "$1" = --name ]; then printf '%s\n' "$2" >"$STATE/container-name"; fi
+      if [ "$1" = --name ]; then printf '%s\n' "$2" >"$FAKE_RUNTIME_STATE/container-name"; fi
       if [ "$1" = -v ]; then
-        [ ! -f "$STATE/running" ] && [ ! -f "$STATE/created" ] || { touch "$STATE/overlap"; exit 2; }
-        if [ -f "$STATE/scratch-path" ]; then touch "$STATE/next-test"; exit 0; fi
-        printf '%s\n' "${2%:/work}" >"$STATE/scratch-path"
-        touch "$STATE/neighbor"
+        [ ! -f "$FAKE_RUNTIME_STATE/running" ] && [ ! -f "$FAKE_RUNTIME_STATE/created" ] || { touch "$FAKE_RUNTIME_STATE/overlap"; exit 2; }
+        if [ -f "$FAKE_RUNTIME_STATE/scratch-path" ]; then touch "$FAKE_RUNTIME_STATE/next-test"; exit 0; fi
+        printf '%s\n' "${2%:/work}" >"$FAKE_RUNTIME_STATE/scratch-path"
+        touch "$FAKE_RUNTIME_STATE/neighbor"
         if [ "$MODE" = undrained ]; then
           kill -TERM "$WRAPPER_PID" || exit 2
           exec sleep 3
         fi
-        if [ "$MODE" = created ]; then touch "$STATE/created"; else touch "$STATE/running"; fi
+        if [ "$MODE" = created ]; then touch "$FAKE_RUNTIME_STATE/created"; else touch "$FAKE_RUNTIME_STATE/running"; fi
         if [ "$MODE" = killed ]; then kill -KILL "$WRAPPER_PID" || exit 2; fi
         exit 7
       fi
@@ -217,7 +217,7 @@ SH
     state="$TMP_ROOT/$mode"
     mkdir "$state"
     rc=0
-    out=$(cd "$repo" && TMPDIR="$state" FM_CONTAINER_RUNTIME="$runtime" STATE="$state" MODE="$mode" \
+    out=$(cd "$repo" && TMPDIR="$state" FM_CONTAINER_RUNTIME="$runtime" FAKE_RUNTIME_STATE="$state" MODE="$mode" \
       FM_TEST_RETAIN_MARKER="$state/.retain-scratch" "$BASH" -c 'export WRAPPER_PID=$$; exec "$@"' _ \
       env BASH_ENV="$hook" "$BASH" "$LINUX_CHECK" tests/kept.test.sh tests/gone.test.sh 2>&1) || rc=$?
     if [ "$mode" = prelaunch ]; then
