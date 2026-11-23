@@ -497,7 +497,16 @@ with os.scandir(b'/proc') as processes:
         try:
             if process.stat().st_uid != os.geteuid():
                 continue
-            if matches(os.readlink(process.path + b'/cwd')):
+            cwd = process.path + b'/cwd'
+            try:
+                path = os.readlink(cwd)
+            except PermissionError:
+                # Linux can leave the PID directory owned by this UID while
+                # assigning the protected cwd link to another UID.
+                if os.lstat(cwd).st_uid != os.geteuid():
+                    continue
+                raise
+            if matches(path):
                 sys.exit(1)
         except (FileNotFoundError, ProcessLookupError):
             # A vanished process or a zombie no longer has a cwd.

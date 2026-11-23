@@ -50,6 +50,47 @@ test_fixture_root_gone_after_exit_from_inside() {
   pass 'the finalizing shell does not prevent cleanup of its own cwd'
 }
 
+test_unrelated_nondumpable_process_does_not_block_cleanup() {
+  [[ "$OSTYPE" == linux-* ]] && [ "$EUID" -ne 0 ] || return 0
+  local harness
+  harness=$(fm_test_tmproot fm-test-cleanup-nondumpable)
+  mkdir "$harness/tmp"
+  TMPDIR="$harness/tmp" python3 - "$LIB" <<'PY' || fail 'foreign-owned proc cwd blocked fixture cleanup'
+import ctypes
+import os
+from pathlib import Path
+import subprocess
+import sys
+
+# This unrelated process stays alive outside scratch. Linux keeps its proc
+# directory under our UID but owns its protected cwd link as root.
+lib = sys.argv[1]
+with subprocess.Popen([sys.executable, '-c', '''
+import ctypes
+import sys
+if ctypes.CDLL(None).prctl(4, 0, 0, 0, 0) != 0:  # PR_SET_DUMPABLE
+    sys.exit(1)
+print('ready', flush=True)
+sys.stdin.read()
+'''], stdin=subprocess.PIPE, stdout=subprocess.PIPE, cwd='/') as decoy:
+    try:
+        assert decoy.stdout.readline() == b'ready\n'
+        proc = Path(f'/proc/{decoy.pid}')
+        assert proc.stat().st_uid == os.geteuid()
+        assert (proc / 'cwd').lstat().st_uid != os.geteuid()
+        result = subprocess.run(['bash', '-ec', '''
+            . "$1"
+            d=$(fm_test_tmproot fm-test-cwd-foreign)
+            printf '%s\\n' "$d"
+        ''', '_', lib], stdout=subprocess.PIPE, text=True, check=True, timeout=15)
+        assert not Path(result.stdout.strip()).exists(), 'fixture was not removed'
+        assert decoy.poll() is None, 'decoy did not survive fixture cleanup'
+    finally:
+        decoy.stdin.close()
+PY
+  pass 'fixture cleanup ignores foreign-owned cwd links of unrelated Linux processes'
+}
+
 test_fixture_root_gone_after_sigterm() {
   local harness dirfile child_dir pid tries
   harness=$(fm_test_tmproot fm-test-cleanup-sigterm-harness)
@@ -615,6 +656,7 @@ PY
   pass 'orphan recovery preserves live and stopped Orca tmux fixtures'
 }
 
+test_unrelated_nondumpable_process_does_not_block_cleanup
 test_orphan_sweep_retains_private_tmux
 test_successful_cleanup_can_be_repeated
 test_msys_fixture_process_inventory
