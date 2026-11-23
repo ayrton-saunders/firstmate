@@ -476,9 +476,10 @@ fm_test_drain_fixture_jobs() {
   fm_test_write_live_jobs "$jobs_file" && [ ! -s "$jobs_file" ]
 }
 
-# An orphaned helper can keep a cwd without a path in argv or a Bash job.
-# A missing or failed inventory does not authorize removal; individual Linux
-# cwd links denied by the kernel are not part of the readable inventory.
+# Normal cleanup and orphan recovery use this check for helpers whose cwd
+# is their only visible link to scratch. A matching cwd or a failed scan
+# blocks removal. On Linux the scan checks only readable cwd links of
+# same-UID processes; a helper with a denied link can go undetected.
 fm_test_scratch_has_no_users() (
   [ "$#" -gt 0 ] || return 0
   if [ "$OSTYPE" = linux-gnu ] || [[ "$OSTYPE" == linux-* ]]; then
@@ -549,8 +550,8 @@ fm_test_cleanup() {
   # Use this shell's job table, including stopped jobs. A live child can use
   # scratch as its cwd without having the path in argv. Do not guess its group.
   fm_test_drain_fixture_jobs || rc=1
-  # Leave owned scratch before inventorying cwd users, without ignoring any
-  # other process. Preserve trailing newlines when comparing physical paths.
+  # Leave owned scratch before scanning so this shell is not a match.
+  # Preserve trailing newlines when comparing physical paths.
   if cwd=$(pwd -P && printf '.'); then
     cwd=${cwd%$'\n.'}
     for d in "$FM_TEST_REGISTRY_DIR" ${roots[@]+"${roots[@]}"}; do
@@ -646,7 +647,8 @@ export TREEHOUSE_ROOT
 # temp base, so it can miss fixtures allocated under a different TMPDIR.
 # Only aged, owned .fm-test-fixture markers with a provably gone owner are
 # eligible. An unreadable command line can prevent proving PID reuse.
-# Retention markers and a failed process or cwd inventory block removal.
+# Retention markers and a failed process inventory block removal; see
+# fm_test_scratch_has_no_users for the separate cwd check and its limits.
 # See tests/fm-test-fixture-cleanup.test.sh for lifecycle regressions.
 FM_TEST_ORPHAN_MAX_AGE_SECONDS=${FM_TEST_ORPHAN_MAX_AGE_SECONDS:-3600}
 
