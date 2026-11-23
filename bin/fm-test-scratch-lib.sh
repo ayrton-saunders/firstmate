@@ -11,6 +11,38 @@ fm_test_remove_tree() {
 }
 
 # An interrupt just after publication can leave complete opt-in evidence without a printed path.
+fm_test_check_scratch_placement() {
+  local root=$1 base=$2 blocked ancestor
+  ancestor=$base
+  while :; do
+    for blocked in "$root" "${FM_HOME:-}" "${FM_ROOT_OVERRIDE:-}" \
+      "$HOME/.firstmate-preserved" "$HOME/.treehouse" "${TREEHOUSE_ROOT:-}"; do
+      [ -n "$blocked" ] || continue
+      if [ "$ancestor" = "${blocked%/}" ] || [ "$ancestor" -ef "$blocked" ]; then
+        printf 'unsafe scratch base %s resolves inside %s\n' "$base" "$blocked" >&2
+        return 2
+      fi
+    done
+    if [ -e "$ancestor/.git" ]; then
+      printf 'unsafe scratch base %s resolves inside checkout %s\n' "$base" "$ancestor" >&2
+      return 2
+    fi
+    [ "$ancestor" != / ] || break
+    ancestor=${ancestor%/*}
+    ancestor=${ancestor:-/}
+  done
+}
+
+fm_test_validate_scratch_base() {
+  local root=$1 requested=$2 base
+  base=$(CDPATH='' cd -P -- "$requested" && pwd -P) || {
+    printf 'cannot resolve scratch base: %s\n' "$requested" >&2
+    return 2
+  }
+  fm_test_check_scratch_placement "$root" "$base" || return "$?"
+  printf '%s\n' "$base"
+}
+
 fm_test_copy_hermes_evidence() (
   local lab=$1 base=$2 stage= evidence entry
   local -a entries=()

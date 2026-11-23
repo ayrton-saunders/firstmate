@@ -34,7 +34,7 @@ test_family_pool_json_identifies_admission() {
   capped_json="$tmp/capped-proof.json"
   skipped_json="$tmp/skipped-proof.json"
   mkdir -p "$repo/bin" "$repo/tests"
-  cp "$PROOF" "$proof"
+  cp "$PROOF" "$ROOT/bin/fm-test-scratch-lib.sh" "$repo/bin/"
   cat >"$repo/bin/fm-test-run.sh" <<'SH'
 #!/usr/bin/env bash
 if { [ "$1" = --list ] || [ "$1" = --list-scheduled ]; } && [ "$2" = --family ]; then
@@ -103,6 +103,15 @@ echo
 echo "skip: herdr not found"
 SH
   chmod +x "$proof" "$repo/bin/fm-test-run.sh" "$repo/tests/fm-proof-"*.test.sh
+  mkdir -p "$repo/.test-phase-tmp" "$tmp/tools"
+  printf '%s\n' '#!/usr/bin/env bash' 'touch "$MKTEMP_CALLED"; exit 1' >"$tmp/tools/mktemp"
+  chmod +x "$tmp/tools/mktemp"
+  rc=0
+  PATH="$tmp/tools:$PATH" TMPDIR="$repo/.test-phase-tmp" MKTEMP_CALLED="$tmp/mktemp-called" \
+    "$proof" --pool fixture-family --jobs 1 --json "$json" >"$tmp/out" 2>"$tmp/err" || rc=$?
+  assert_equals 2 "$rc" "checkout proof scratch exit status"
+  assert_contains "$(<"$tmp/err")" "unsafe scratch base" "checkout proof scratch refusal"
+  [ ! -e "$tmp/mktemp-called" ] && [ ! -e "$json" ] || fail "proof allocated scratch before refusing it"
   set +e
   "$proof" --pool fixture-family --jobs 1 --json "$json" >"$tmp/out" 2>"$tmp/err"
   rc=$?

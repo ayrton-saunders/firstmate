@@ -1598,7 +1598,8 @@ families_for_changed_path() {
       printf '__script__:%s\n' fm-test-run.test.sh fm-test-fixtures.test.sh \
         fm-live-lab-isolation.test.sh fm-claude-safeguard-live.test.sh \
         fm-hermes-gateway-coexistence-live-e2e.test.sh fm-hermes-profile-safety-live-e2e.test.sh \
-        fm-hermes-signals-live-e2e.test.sh
+        fm-hermes-signals-live-e2e.test.sh fm-test-linux.test.sh \
+        fm-test-isolation-proof.test.sh fm-test-tap-verify.test.sh
       ;;
     bin/fm-test-run.sh)
       # Deliberately the WHOLE family, not just the two contract tests. This
@@ -2214,36 +2215,15 @@ with open(out, "w", encoding="utf-8") as fh:
 PY
 }
 
-# Compare ancestors by identity as well as using physical paths: macOS and
-# Windows can resolve case variants to the same directory.
-check_scratch_placement() {
-  local base=$1 blocked ancestor checkout
-  checkout=$(git rev-parse --show-toplevel 2>/dev/null) || checkout=$ROOT
-  for blocked in "$ROOT" "$checkout" "${FM_HOME:-}" "${FM_ROOT_OVERRIDE:-}" \
-    "$HOME/.firstmate-preserved" "$HOME/.treehouse" "${TREEHOUSE_ROOT:-}"; do
-    [ -n "$blocked" ] || continue
-    ancestor=$base
-    while :; do
-      if [ "$ancestor" = "${blocked%/}" ] || [ "$ancestor" -ef "$blocked" ]; then
-        die "unsafe scratch base $base resolves inside $blocked"
-      fi
-      [ "$ancestor" != / ] || break
-      ancestor=${ancestor%/*}
-      ancestor=${ancestor:-/}
-    done
-  done
-}
-
 scratch_base() {
   local base
   base=$(getconf DARWIN_USER_TEMP_DIR 2>/dev/null) || base=/tmp
   case "$base" in /*) ;; *) die "scratch base must be absolute: $base" ;; esac
-  base=$(cd -P -- "$base" && pwd -P) || die 'cannot resolve scratch base'
-  check_scratch_placement "$base"
-  printf '%s\n' "$base"
+  fm_test_validate_scratch_base "$ROOT" "$base"
 }
 
 if [ "$#" -eq 1 ] && [ "$1" = --scratch-base ]; then
+  . "$ROOT/bin/fm-test-scratch-lib.sh" || exit 2
   scratch_base
   exit $?
 fi
@@ -2653,7 +2633,7 @@ prepare_run_scratch() {
   local base parent mode
   base=$(scratch_base) || exit "$?"
   parent="${base%/}/fm$UID"
-  check_scratch_placement "$parent"
+  fm_test_check_scratch_placement "$ROOT" "$parent" || exit "$?"
   (umask 077; mkdir -- "$parent") 2>/dev/null || true
   [ -d "$parent" ] && [ ! -L "$parent" ] && [ -O "$parent" ] \
     || die "scratch directory is not an owned, real directory: $parent"

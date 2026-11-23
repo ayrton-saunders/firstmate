@@ -216,38 +216,7 @@ fm_test_launch_command() {  # <launch>
 # that file is armed once, here, at source time - which always runs in the
 # real caller, never a subshell.
 
-# fm_test_tmpdir: directory used for registries and fixture roots.
-# Resolves absolute or relative TMPDIR to an existing physical directory,
-# falling back to /tmp if resolution fails or the directory contains .git.
-# Keep registries out of git worktree roots so concurrent git add -A cannot
-# accidentally stage live test state.
-fm_test_tmpdir() {
-  local base=${TMPDIR:-/tmp} physical
-  base=${base%/}
-  [ -n "$base" ] || base=/tmp
-  case "$base" in
-    /*) ;;
-    *)
-      if physical=$(CDPATH='' cd -- "$base" 2>/dev/null && pwd -P); then
-        base=$physical
-      else
-        base=/tmp
-      fi
-      ;;
-  esac
-  if physical=$(CDPATH='' cd -- "$base" 2>/dev/null && pwd -P); then
-    base=$physical
-  else
-    base=/tmp
-  fi
-  if [ -e "$base/.git" ]; then
-    printf '%s\n' /tmp
-    return 0
-  fi
-  printf '%s\n' "$base"
-}
-
-FM_TEST_TMPDIR=$(fm_test_tmpdir) || return 1
+FM_TEST_TMPDIR=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || exit "$?"
 
 FM_TEST_CLEANUP_DIRS=()
 FM_TEST_CLEANUP_REGISTRY=$(mktemp "$FM_TEST_TMPDIR/.fm-test-cleanup.$$.XXXXXX") || return 1
@@ -427,7 +396,7 @@ fm_test_cleanup() {
 
 fm_test_tmproot() {
   local prefix=${1:-fm-test} root tmp_base
-  tmp_base=$(fm_test_tmpdir)
+  tmp_base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || return "$?"
   tmp_base=${tmp_base%/}
   root=$(mktemp -d "$tmp_base/${prefix}.XXXXXX") || return 1
   root=$(cd -P -- "$root" && pwd -P) || return 1

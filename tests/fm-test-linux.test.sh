@@ -61,6 +61,21 @@ test_missing_runtime_stops_clearly() {
   pass "missing container runtime stops with exit 2"
 }
 
+test_checkout_scratch_is_refused_before_build_or_clone() {
+  local repo="$TMP_ROOT/unsafe" out rc=0 runtime="$TMP_ROOT/runtime-stub"
+  make_repo "$repo"
+  mkdir "$repo/.test-phase-tmp"
+  printf '%s\n' '#!/usr/bin/env bash' 'touch "$RUNTIME_CALLED"; exit 1' >"$runtime"
+  chmod +x "$runtime"
+  out=$(cd "$repo" && TMPDIR=.test-phase-tmp RUNTIME_CALLED="$TMP_ROOT/runtime-called" \
+    FM_CONTAINER_RUNTIME="$runtime" "$BASH" "$LINUX_CHECK" tests/kept.test.sh 2>&1) || rc=$?
+  assert_equals 2 "$rc" "checkout scratch exit status"
+  assert_contains "$out" "unsafe scratch base" "checkout scratch refusal"
+  [ ! -e "$TMP_ROOT/runtime-called" ] || fail "container build ran before scratch refusal"
+  [ -z "$(ls -A "$repo/.test-phase-tmp")" ] || fail "checkout scratch was populated"
+  pass "checkout scratch is refused before image build or clone"
+}
+
 container_ready() {
   local runtime
   [ "${FM_TEST_LINUX_CONTAINER:-}" = 1 ] || return 1
@@ -114,4 +129,5 @@ FIXTURE
 }
 
 fm_test_run test_selects_changed_tests test_no_changed_tests_is_a_clean_pass \
-  test_missing_runtime_stops_clearly test_gnu_stat_fixture_red_then_green
+  test_missing_runtime_stops_clearly test_checkout_scratch_is_refused_before_build_or_clone \
+  test_gnu_stat_fixture_red_then_green

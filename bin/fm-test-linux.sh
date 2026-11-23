@@ -79,6 +79,9 @@ if [ "$list_only" = 1 ]; then
   exit 0
 fi
 
+. "$script_dir/fm-test-scratch-lib.sh"
+scratch_base=$(fm_test_validate_scratch_base "$root" "${TMPDIR:-/tmp}") || exit "$?"
+
 runtime=${FM_CONTAINER_RUNTIME:-}
 if [ -z "$runtime" ]; then
   for candidate in docker podman; do
@@ -92,7 +95,7 @@ image=fm-test-linux:bookworm
 "$runtime" build -q -t "$image" "$dockerfile_dir" >/dev/null ||
   die "$runtime could not build $image; is the container engine running?"
 
-scratch=$(mktemp -d "${TMPDIR:-/tmp}/fm-test-linux.XXXXXX")
+scratch=$(mktemp -d "${scratch_base%/}/fm-test-linux.XXXXXX")
 trap 'rm -rf "$scratch"' EXIT
 git clone -q --local --no-hardlinks "$root" "$scratch" || die "could not clone $root into the scratch directory"
 files=()

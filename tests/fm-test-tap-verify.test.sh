@@ -39,6 +39,18 @@ printf "FM_TEST_COMPLETE\n"
   pass "a complete matching suite passes"
 }
 
+test_checkout_scratch_is_refused_before_running_suite() {
+  local repo="$TMP_ROOT/repo" suite="$TMP_ROOT/unsafe.sh" out rc=0
+  mkdir -p "$repo/.test-phase-tmp"
+  git -C "$repo" init -q
+  write_suite "$suite" 'touch "$SUITE_CALLED"; printf "1..1\nok - good\nFM_TEST_COMPLETE\n"'
+  out=$(TMPDIR="$repo/.test-phase-tmp" SUITE_CALLED="$TMP_ROOT/suite-called" run_verify "$suite") || rc=$?
+  assert_equals 2 "$rc" "checkout TAP scratch exit status"
+  assert_contains "$out" "unsafe scratch base" "checkout TAP scratch refusal"
+  [ ! -e "$TMP_ROOT/suite-called" ] || fail "TAP suite ran before scratch refusal"
+  pass "checkout scratch is refused before the TAP suite runs"
+}
+
 test_early_exit_zero_fails() {
   local suite out rc=0
   suite="$TMP_ROOT/early.sh"
@@ -156,6 +168,7 @@ test_failure_prints_error_annotation() {
 }
 
 test_correct_suite_passes
+test_checkout_scratch_is_refused_before_running_suite
 test_early_exit_zero_fails
 test_not_ok_fails_even_with_exit_zero
 test_nonzero_exit_fails

@@ -19,6 +19,19 @@ set -u
 
 TMP_ROOT=$(fm_test_tmproot fm-test-fixtures)
 
+test_direct_fixture_refuses_checkout_scratch() {
+  local tmp out rc=0
+  tmp=$(fm_test_tmproot fm-fixture-scratch-refusal) || fail 'could not create scratch test fixture'
+  mkdir -p "$tmp/repo/.test-phase-tmp"
+  git -C "$tmp/repo" init -q
+  ln -s "$tmp/repo/.test-phase-tmp" "$tmp/alias"
+  out=$(TMPDIR="$tmp/alias" "$BASH" -c '. "$1"; printf "fixture started\n"' _ "$ROOT/tests/lib.sh" 2>&1) || rc=$?
+  assert_equals 2 "$rc" 'checkout fixture scratch exit status'
+  assert_contains "$out" 'unsafe scratch base' 'checkout fixture scratch refusal'
+  assert_not_contains "$out" 'fixture started' 'fixture ran before scratch refusal'
+  pass 'direct fixtures reject a symlink into checkout scratch'
+}
+
 test_git_config_isolation() (
   local dir="$TMP_ROOT/git-config" helper jobs timeout fakebin rc
   mkdir -p "$dir/runner/bin" "$dir/runner/tests"
@@ -452,6 +465,7 @@ test_inherited_launcher_env_is_cleared() (
   pass "tests/lib.sh clears an inherited launcher environment and honors later exports"
 )
 
+test_direct_fixture_refuses_checkout_scratch
 test_git_config_isolation || fail "Git fixture config isolation"
 test_inherited_launcher_env_is_cleared || fail "launcher environment isolation"
 test_inherited_git_location_isolation || fail "Git fixture location isolation"
