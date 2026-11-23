@@ -176,7 +176,7 @@ bin/fm-test-isolation-proof.sh --pool watcher-wake-lock --jobs 4   # re-run an a
 @AGENTS.md
 EOF
 [ "$(readlink .claude/skills)" = "../.agents/skills" ]
-( base=$(bin/fm-test-run.sh --scratch-base) && . bin/fm-test-scratch-lib.sh && fm_test_allocate_scratch -d "$base/fm-watch-smoke.XXXXXX" || exit 1; printf 'done: smoke\n' > "$FM_TEST_SCRATCH/smoke.status" && FM_STATE_OVERRIDE="$FM_TEST_SCRATCH" FM_SIGNAL_GRACE=1 FM_POLL=1 FM_HEARTBEAT=999999 bin/fm-watch-arm.sh )  # watcher re-arm smoke test (prints arm status, then an actionable signal)
+( base=$(bin/fm-test-run.sh --scratch-base) && . bin/fm-test-scratch-lib.sh && fm_test_allocate_scratch "$base/fm-watch-smoke.XXXXXX" || exit 1; printf 'done: smoke\n' > "$FM_TEST_SCRATCH/smoke.status" && FM_STATE_OVERRIDE="$FM_TEST_SCRATCH" FM_SIGNAL_GRACE=1 FM_POLL=1 FM_HEARTBEAT=999999 bin/fm-watch-arm.sh )  # watcher re-arm smoke test (prints arm status, then an actionable signal)
 ```
 
 `bin/fm-test-run.sh` is the single owner of behavior-suite selection, portable CI lane composition, bounded concurrency admission, per-script timing markers, family totals, the coverage guard, and the optional JSON timing artifact.

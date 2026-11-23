@@ -72,9 +72,10 @@ test_cleanup_registry_resists_precreation() {
   TMPDIR="$shared_tmp" VICTIM="$victim" bash -ec '
     mktemp() {
       if [ "$1" = -d ]; then
-        case "$2" in
+        case "${!#}" in
           */.fm-test-registry.*)
-            planted="${2%XXXXXX}planted"
+            template=${!#}
+            planted="${template%XXXXXX}planted"
             mkdir "$planted"
             printf "%s\n" "$VICTIM" > "$planted/cleanup"
             ;;
@@ -253,7 +254,7 @@ test_removal_failure_preserves_existing_status() {
         rm() { return 1; }
         if [ "$1" = standalone ]; then
           . "$3/bin/fm-test-scratch-lib.sh"
-          fm_test_allocate_scratch -d "$TMPDIR/case.XXXXXX" || exit 2
+          fm_test_allocate_scratch "$TMPDIR/case.XXXXXX" || exit 2
         else
           . "$3/tests/lib.sh"
         fi
@@ -279,7 +280,7 @@ test_custom_finalizer_cleans_or_retains_after_teardown() {
       . "$1"
       teardown=$2
       trap '\''fm_test_finalize "$?" "$teardown"'\'' EXIT
-      root=$(fm_test_tmproot custom-fixture) || exit 2
+      root=$(fm_test_tmproot fm-custom-fixture) || exit 2
       touch "$root/sentinel" || exit 2
       exit 7
     ' _ "$LIB" "$teardown" || rc=$?
@@ -287,8 +288,10 @@ test_custom_finalizer_cleans_or_retains_after_teardown() {
     if [ "$teardown" -eq 0 ]; then
       assert_equals '' "$(ls -A "$base")" 'verified teardown cleans roots and registry'
     else
-      set -- "$base"/custom-fixture.*/sentinel
+      set -- "$base"/fm-custom-fixture.*/sentinel
       assert_present "$1" 'unverified teardown retains fixture scratch'
+      TMPDIR="$base" FM_TEST_ORPHAN_MAX_AGE_SECONDS=0 bash -ec '. "$1"; fm_test_reap_orphans' _ "$LIB" || fail 'fixture orphan sweep failed'
+      assert_present "$1" 'a later orphan sweep leaves retained scratch alone'
     fi
   done
   pass 'custom finalizer cleans only after verified teardown'

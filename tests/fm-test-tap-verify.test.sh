@@ -67,6 +67,25 @@ exit 7'
   pass 'verifier cleans read-only scratch from a failing suite'
 }
 
+test_retained_suite_scratch_survives_verifier_exit() {
+  local base="$TMP_ROOT/retention" suite="$TMP_ROOT/retain.sh" status rc out
+  for status in 0 7; do
+    mkdir -p "$base/$status"
+    write_suite "$suite" '
+mkdir "$TMPDIR/fixture" || exit 8
+touch "$TMPDIR/fixture/sentinel" "$FM_TEST_RETAIN_MARKER.fixture" || exit 8
+printf "1..1\nok - candidate\nFM_TEST_COMPLETE\n"
+exit "$SUITE_STATUS"'
+    rc=0
+    out=$(TMPDIR="$base/$status" SUITE_STATUS="$status" run_verify "$suite") || rc=$?
+    assert_equals 1 "$rc" 'retained scratch fails verification'
+    assert_contains "$out" 'retaining scratch:' 'retained scratch diagnostic'
+    set -- "$base/$status"/fm-test-tap-verify.*/tmp/fixture/sentinel
+    assert_present "$1" 'verifier did not delete retained suite scratch'
+  done
+  pass 'verifier honors retention on both success and failure paths'
+}
+
 test_early_exit_zero_fails() {
   local suite out rc=0
   suite="$TMP_ROOT/early.sh"
@@ -186,6 +205,7 @@ test_failure_prints_error_annotation() {
 test_correct_suite_passes
 test_checkout_scratch_is_refused_before_running_suite
 test_failed_suite_scratch_is_removed
+test_retained_suite_scratch_survives_verifier_exit
 test_early_exit_zero_fails
 test_not_ok_fails_even_with_exit_zero
 test_nonzero_exit_fails

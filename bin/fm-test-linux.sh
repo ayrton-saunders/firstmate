@@ -96,7 +96,7 @@ image=fm-test-linux:bookworm
 "$runtime" build -q -t "$image" "$dockerfile_dir" >/dev/null ||
   die "$runtime could not build $image; is the container engine running?"
 
-fm_test_allocate_scratch -d "${scratch_base%/}/fm-test-linux.XXXXXX" || exit "$?"
+fm_test_allocate_scratch "${scratch_base%/}/fm-test-linux.XXXXXX" || exit "$?"
 scratch=$FM_TEST_SCRATCH
 git clone -q --no-checkout --local --no-hardlinks "$root" "$scratch" || die "could not clone $root into the scratch directory"
 if git -C "$scratch" rev-parse --verify --quiet HEAD >/dev/null; then

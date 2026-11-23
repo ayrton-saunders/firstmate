@@ -73,13 +73,28 @@ SCRIPT=$1
 ROOT=$(cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P) || exit 1
 . "$ROOT/bin/fm-test-scratch-lib.sh"
 base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || exit "$?"
-fm_test_allocate_scratch -d "${base%/}/fm-test-tap-verify.XXXXXX" || exit 1
+fm_test_allocate_scratch "${base%/}/fm-test-tap-verify.XXXXXX" || exit 1
 OUT="$FM_TEST_SCRATCH/output"
+cleanup_verify() {
+  local status=$?
+  trap '' HUP INT QUIT TERM
+  if fm_test_scratch_retained "$FM_TEST_SCRATCH"; then
+    if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
+      : > "$FM_TEST_RETAIN_MARKER.$$.tap" || printf 'could not publish TAP retention marker\n' >&2
+    fi
+    printf 'fixture teardown unverified; retaining scratch: %s\n' "$FM_TEST_SCRATCH" >&2
+    [ "$status" -ne 0 ] || status=1
+  elif ! fm_test_cleanup_scratch "$FM_TEST_SCRATCH"; then
+    [ "$status" -ne 0 ] || status=1
+  fi
+  exit "$status"
+}
+trap cleanup_verify EXIT
 mkdir "$FM_TEST_SCRATCH/tmp"
 export TMPDIR="$FM_TEST_SCRATCH/tmp" TMP="$FM_TEST_SCRATCH/tmp" TEMP="$FM_TEST_SCRATCH/tmp"
 
 set +e
-"$BASH" "$SCRIPT" >"$OUT" 2>&1
+FM_TEST_RETAIN_MARKER="$FM_TEST_SCRATCH/.retain-scratch" "$BASH" "$SCRIPT" >"$OUT" 2>&1
 STATUS=$?
 set -e
 
@@ -113,6 +128,9 @@ if [ "$OK_COUNT" -ne "$PLANNED" ]; then
   fail_verify "$LABEL planned $PLANNED ok lines, got $OK_COUNT"
 fi
 
+if fm_test_scratch_retained "$FM_TEST_SCRATCH"; then
+  fail_verify "suite retained scratch: $FM_TEST_SCRATCH"
+fi
 fm_test_remove_tree "$FM_TEST_SCRATCH" || fail_verify "could not remove scratch: $FM_TEST_SCRATCH"
 FM_TEST_SCRATCH=
 printf 'fm-test-tap-verify: %s: %s planned, %s ok, complete, exit 0\n' \

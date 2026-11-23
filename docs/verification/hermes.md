@@ -34,7 +34,7 @@ FM_TEST_STOCK_BASH=1 FM_TEST_BASH=/bin/bash /bin/bash bin/fm-test-tap-verify.sh 
 When the bare runtime interpreter cannot import the gateway modules, point `FM_HERMES_PYTHON` at a small wrapper that runs it through Hermes's own `hermes_bootstrap`.
 An unavailable required tool is reported by the shared `fm_live_gate`; explicit opt-in refuses missing capabilities.
 
-With `FM_HERMES_LIVE_KEEP=1`, the probe copies evidence into `.fm-hermes-evidence-staging.*` under the destination OS temp directory, then renames the complete copy into place. Catchable interruptions clean up staging; an uncatchable `SIGKILL` can leave the hidden staging directory behind.
+With `FM_HERMES_LIVE_KEEP=1`, the probe copies evidence into `.fm-hermes-evidence-staging.*` under the destination OS temp directory, then renames the complete copy into place. The export trap removes staging on catchable interruption if it can finish. A `SIGKILL`, including escalation after the runner is interrupted during an opt-in copy, can leave the hidden staging directory in OS temp.
 
 ## Live worker observations
 

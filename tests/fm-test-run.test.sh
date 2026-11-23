@@ -302,12 +302,21 @@ test_changed_scratch_helper_selects_teardown_coverage() {
     fm-test-fixture-cleanup fm-test-linux fm-test-tap-verify; do
     touch "$repo/tests/$script.test.sh"
   done
+  for script in agy cursor; do
+    printf '%s\n' 'fm_test_copy_primary_lab "$ROOT" "$HOME_DIR"' >"$repo/tests/fm-$script-primary-live-e2e.test.sh"
+  done
+  for script in backends-e2e e2e migration-e2e naming-e2e recovery-e2e; do
+    printf '%s\n' '. tests/remote-secondmate-lifecycle-fixture.sh' >"$repo/tests/fm-remote-secondmate-lifecycle-$script.test.sh"
+  done
   git -C "$repo" add tests
   git -C "$repo" -c user.name=test -c user.email=test@example.invalid commit -qm teardown-fixture
   printf '\n' >>"$repo/bin/fm-test-scratch-lib.sh"
   listed=$(cd "$repo" && bin/fm-test-run.sh --list --changed --base HEAD) || fail 'could not list scratch coverage'
-  expected=$(printf 'tests/%s.test.sh\n' fm-claude-safeguard-live fm-hermes-gateway-coexistence-live-e2e \
-    fm-hermes-profile-safety-live-e2e fm-hermes-signals-live-e2e fm-live-lab-isolation fm-test-fixture-cleanup fm-test-fixtures \
+  expected=$(printf 'tests/%s.test.sh\n' fm-agy-primary-live-e2e fm-claude-safeguard-live \
+    fm-cursor-primary-live-e2e fm-hermes-gateway-coexistence-live-e2e \
+    fm-hermes-profile-safety-live-e2e fm-hermes-signals-live-e2e fm-live-lab-isolation \
+    fm-remote-secondmate-lifecycle-{backends-e2e,e2e,migration-e2e,naming-e2e,recovery-e2e} \
+    fm-test-fixture-cleanup fm-test-fixtures \
     fm-test-isolation-proof fm-test-linux fm-test-run fm-test-tap-verify)
   assert_equals "$expected" "$(printf '%s\n' "$listed" | LC_ALL=C sort)" 'scratch-only changes select teardown and runner regressions'
   pass 'scratch helper changes select private teardown coverage'
@@ -2152,6 +2161,8 @@ if [ "$PROBE_MODE" = hang ] || [ "$PROBE_MODE" = stubborn ]; then exec sleep 300
 if [ "$PROBE_MODE" = retain ]; then
   . tests/lib.sh
   trap 'fm_test_finalize "$?" 1' EXIT
+  retained=$(fm_test_tmproot fm-retained-regression)
+  touch "$retained/sentinel"
 fi
 if [ "$PROBE_MODE" = evidence ]; then
   . bin/fm-test-scratch-lib.sh
@@ -2294,7 +2305,7 @@ assert json.loads((repo / '--scratch-base').read_text())['summary']['failed'] ==
 child, proof = launch('retain', 'retain', options=('--json', 'retained.json'))
 assert child.wait(timeout=20) == 1
 _, retained_run = scratch(proof)
-assert (retained_run / 'w1/t/read-only/entry').is_file()
+assert len(list(retained_run.glob('w1/t/fm-retained-regression.*/sentinel'))) == 1
 assert json.loads((repo / 'retained.json').read_text())['summary']['failed'] == 1
 (repo / 'retained.json').unlink()
 subprocess.run([bash, '-c', '. bin/fm-test-scratch-lib.sh; fm_test_remove_tree "$1"', '_', shell_path(retained_run)], cwd=repo, check=True)

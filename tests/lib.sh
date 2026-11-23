@@ -392,9 +392,15 @@ fm_test_cleanup() {
 }
 
 fm_test_finalize() {
-  local status=$1 teardown=${2:-0}
+  local status=$1 teardown=${2:-0} dir
   trap '' HUP INT QUIT TERM
   if [ "$teardown" -ne 0 ]; then
+    if [ -f "$FM_TEST_CLEANUP_REGISTRY" ]; then
+      while IFS= read -r dir; do
+        [ -d "$dir" ] || continue
+        : > "$dir/.retain-scratch.fixture" || printf 'could not mark retained fixture: %s\n' "$dir" >&2
+      done < "$FM_TEST_CLEANUP_REGISTRY"
+    fi
     if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
       : > "$FM_TEST_RETAIN_MARKER.$$.fixture" || printf 'could not publish fixture retention marker\n' >&2
     fi
@@ -418,7 +424,7 @@ fm_test_tmproot() (
   printf '%s\n' "$root"
 )
 
-fm_test_allocate_scratch -d "${FM_TEST_TMPDIR%/}/.fm-test-registry.XXXXXX" || exit "$?"
+fm_test_allocate_scratch "${FM_TEST_TMPDIR%/}/.fm-test-registry.XXXXXX" || exit "$?"
 FM_TEST_REGISTRY_DIR=$FM_TEST_SCRATCH
 FM_TEST_CLEANUP_REGISTRY="$FM_TEST_REGISTRY_DIR/cleanup"
 FM_TEST_PROCEVENT_REGISTRY="$FM_TEST_REGISTRY_DIR/procevent"
@@ -455,7 +461,8 @@ fm_test_reap_orphans() {
     esac
     mtime=$(stat -c %Y "$marker" 2>/dev/null || stat -f %m "$marker" 2>/dev/null) || continue
     [ $((now - mtime)) -ge "$FM_TEST_ORPHAN_MAX_AGE_SECONDS" ] || continue
-    dir=$(dirname "$marker")
+    dir=${marker%/*}
+    fm_test_scratch_retained "$dir" && continue
     fm_test_reap_root_processes "$dir"
     fm_test_remove_tree "$dir"
   done

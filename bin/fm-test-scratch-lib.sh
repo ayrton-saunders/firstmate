@@ -35,6 +35,7 @@ fm_test_cleanup_scratch() {
 }
 
 fm_test_allocate_scratch() {
+  [ "$#" -eq 1 ] || return 2
   local allocated pending=0 rc=0
   FM_TEST_SCRATCH=
   trap 'status=$?; trap "" HUP INT QUIT TERM; fm_test_cleanup_scratch "$FM_TEST_SCRATCH" || { [ "$status" -ne 0 ] || status=1; }; exit "$status"' EXIT
@@ -42,7 +43,7 @@ fm_test_allocate_scratch() {
   trap 'pending=130' INT
   trap 'pending=131' QUIT
   trap 'pending=143' TERM
-  if allocated=$(trap '' HUP INT QUIT TERM; mktemp "$@"); then
+  if allocated=$(trap '' HUP INT QUIT TERM; mktemp -d -- "$1"); then
     FM_TEST_SCRATCH=$allocated
   else
     rc=$?
@@ -203,6 +204,7 @@ fm_test_validate_scratch_base() {
 }
 
 # An interrupt just after publication can leave complete opt-in evidence without a printed path.
+# During an opt-in copy, runner interruption that escalates to KILL can leave staging in OS temp.
 fm_test_copy_hermes_evidence() (
   local lab=$1 base=$2 stage evidence entry
   local -a entries=()
@@ -211,7 +213,7 @@ fm_test_copy_hermes_evidence() (
   set -- "$lab"/*
   [ "$#" -gt 0 ] || return 1
   for entry in "$@"; do entries+=("./${entry##*/}"); done
-  fm_test_allocate_scratch -d "${base%/}/.fm-hermes-evidence-staging.XXXXXX" || return 1
+  fm_test_allocate_scratch "${base%/}/.fm-hermes-evidence-staging.XXXXXX" || return 1
   stage=$FM_TEST_SCRATCH
   evidence="${base%/}/fm-hermes-evidence.${stage##*.}"
   tar -C "$lab" -cf - "${entries[@]}" | tar -C "$stage" -xf - || return 1
