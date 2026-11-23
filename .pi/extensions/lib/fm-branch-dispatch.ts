@@ -376,12 +376,14 @@ export function scopeForUnreadWake(state: string, heartbeat: boolean, afk = fals
   let queue = "";
   try {
     queue = readFileSync(`${state}/.wake-queue`, "utf8");
-  } catch {
-    return UNSAFE_SCOPE;
+  } catch (error) {
+    if (!attendedHost || (error as NodeJS.ErrnoException).code !== "ENOENT") return UNSAFE_SCOPE;
   }
 
   const rows = queue.split(/\r?\n/).filter((line) => line.length > 0);
-  if (rows.length === 0) return EMPTY_SCOPE;
+  if (rows.length === 0) {
+    return attendedHost && !queue.replace(/\n+$/, "") ? { ...EMPTY_SCOPE, queueDigest: "empty" } : EMPTY_SCOPE;
+  }
 
   const projects = new Set<string>();
   const metadata = new Map<string, string>();

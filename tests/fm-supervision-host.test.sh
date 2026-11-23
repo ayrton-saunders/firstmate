@@ -359,7 +359,9 @@ test_attended_answer_close() {  # <owned|external|mixed|capped|divergence>
       [ "$mode" != other-reply ] || answer=${answer/operator-resolve-key/parent-reply}
       ;;
   esac
-  printf 'kind=secondmate\n' >> "$state/demo.meta"
+  local kind=secondmate
+  [ "$mode" != coalesced-preflight-rejected ] || kind=ship
+  printf 'kind=%s\n' "$kind" >> "$state/demo.meta"
   printf 'needs-decision [key=%s]: %s\n' "$key" "$opening" > "$f"
   routine_wake_lib "$home" fm_wake_status_mark_current "$state" "$f" || fail "fixture: could not baseline the decision"
   if [ "$mode" = capped ]; then
@@ -377,7 +379,7 @@ test_attended_answer_close() {  # <owned|external|mixed|capped|divergence>
   fi
   if [[ "$mode" = coalesced-* ]]; then
     other="$state/zed.status"
-    printf 'project=zed\nwindow=fm-zed\nkind=secondmate\n' > "$state/zed.meta"
+    printf 'project=zed\nwindow=fm-zed\nkind=%s\n' "$kind" > "$state/zed.meta"
     printf 'needs-decision [key=zed-answer]: choose\n' > "$other"
     routine_wake_lib "$home" fm_wake_append signal zed.status "needs-decision: $other"
   fi
@@ -432,7 +434,9 @@ SH
   if [[ "$mode" = coalesced-* ]]; then
     printf '0\n' > "$home/park-clock"
     printf -v second_action '%q "$@" || exit 1\nprintf "110\\n" > "$FM_HOME/park-clock"\n' "$(command -v node)"
-    if [ "$mode" = coalesced-locked ]; then
+    if [ "$mode" = coalesced-preflight-rejected ]; then
+      printf -v second_action '%q "$@" > "$FM_HOME/final-offer" || exit 1\ncat "$FM_HOME/final-offer"\nprintf "110\\n" > "$FM_HOME/park-clock"\n' "$(command -v node)"
+    elif [ "$mode" = coalesced-locked ]; then
       second_action+='lock="$FM_HOME/state/.demo.home-appends.lock"
       mkdir "$lock" && cp "$FM_HOME/state/.lock" "$lock/pid" || exit 1
 '
@@ -455,6 +459,20 @@ SH
     install_first_offer_action "$home" "$action"
   fi
   case "$mode" in
+    coalesced-preflight-rejected)
+      fm_test_tasks_toml "$home/.tasks.toml"
+      mkdir -p "$home/data"
+      printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
+      {
+        printf '#!/usr/bin/env bash\n'
+        printf '%s\n' 'if [ "$1" = list ] && [ -e "$FM_HOME/offer-action-ran" ] && [ ! -e "$FM_HOME/preflight-progress" ]; then
+          printf "working: before final preflight\n" >> "$FM_HOME/state/demo.status"
+          : > "$FM_HOME/preflight-progress"
+        fi'
+        printf 'exec %q "$@"\n' "$(command -v tasks-axi)"
+      } > "$home/fakebin/tasks-axi"
+      chmod +x "$home/fakebin/tasks-axi"
+      ;;
     unreadable-hold)
       printf '#!/usr/bin/env bash\nexit 1\n' > "$home/fakebin/tasks-axi"
       chmod +x "$home/fakebin/tasks-axi"
@@ -502,6 +520,10 @@ SH
         [ -s "$state/.demo.home-appends.lock/pid" ] || fail "fixture: no answer receipt lock was held"
         rm "$state/.demo.home-appends.lock/pid"
         rmdir "$state/.demo.home-appends.lock"
+      fi
+      if [ "$mode" = coalesced-preflight-rejected ]; then
+        [ -e "$home/preflight-progress" ] || fail "fixture: no progress before final preflight"
+        assert_re '^eligible=1$' "$home/final-offer" "fixture: final offer must predate the decision"
       fi
       [ -e "$home/second-offer-action-ran" ] || fail "fixture: no final offer"
       assert_re '^signal: .*demo.status .*zed.status' "$home/host.out" "the coalesced close must reach main"
@@ -700,7 +722,6 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
   routine_wake_lib "$home" fm_recovery_marker_publish "$home/state/.watcher-down" downtime || fail "fixture: no recovery episode"
   printf '0\n' > "$home/park-clock"
   case "$mode" in
-    empty|divergence) install_first_offer_action "$home" ': > "$FM_HOME/unexpected-empty-offer"; exit 1' ;;
     routine) install_first_offer_action "$home" 'printf "105\n" > "$FM_HOME/park-clock"' ;;
     locked-captain-outcome)
       lock_timeout=2
@@ -732,7 +753,6 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
   if [ "$mode" = empty ] || { [ "$mode" = routine ] && [ "$kind" = secondmate ]; } || [ "$mode" = cooldown ] || [ "$mode" = operator-reply ]; then
     assert_routine_close_acknowledged "$home" 'check: rearm-resurface$'
     assert_re '^acked:' "$home/state/.watcher-down" "resurfacing did not acknowledge recovery"
-    [ ! -e "$home/unexpected-empty-offer" ] || fail "empty routine recovery invoked the offer"
   elif [ "$mode" = away-cooldown ]; then
     wait_until_deadline 30 host_exited "$home" || fail "cooldown did not hand the away wake back"
     assert_re '^check: rearm-resurface$' "$home/host.out" "the away wake must reach main during cooldown"
@@ -748,7 +768,6 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
       routine) assert_contains "$drain" 'stuck-busy' "recovery lost the handled $kind stale" ;;
       credential) assert_contains "$drain" 'GitHub login required' "the credentials request was lost" ;;
       divergence)
-        [ ! -e "$home/unexpected-empty-offer" ] || fail "rejected empty recovery invoked the offer"
         watcher_live "$home" || fail "rejected empty recovery left no successor watcher"
         assert_contains "$drain" 'RECORD DIVERGENCE' "recovery lost the captain hold divergence"
         assert_contains "$drain" 'routing-call [key=routing-call] reads resolved' "the unresolved captain call was lost"
@@ -1623,6 +1642,7 @@ test_owned_answer_close() { test_attended_answer_close owned; }
 test_external_answer_close() { test_attended_answer_close external; }
 test_mixed_answer_close() { test_attended_answer_close mixed; }
 test_coalesced_late_answer_decision() { test_attended_answer_close coalesced-late; }
+test_decision_after_rejected_final_preflight() { test_attended_answer_close coalesced-preflight-rejected; }
 test_coalesced_decision_precedes_receipt_wait() { test_attended_answer_close coalesced-locked; }
 test_capped_answer_close() { test_attended_answer_close capped; }
 test_direct_answer_preserves_hold_divergence() { test_attended_answer_close divergence; }
@@ -1716,7 +1736,6 @@ assert_routine_resurface_lock_wait() {  # <park|command>
     printf '117\n' > "$home/park-clock"
   else
     limit=2
-    install_first_offer_action "$home" ': > "$FM_HOME/unexpected-timeout-offer"'
   fi
   FM_STATUS_PRESENTATION_LOCK_TIMEOUT="$limit" FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" \
     FM_SUPERVISION_HOST_PARK_SECONDS=120 start_host "$home"
@@ -1725,7 +1744,6 @@ assert_routine_resurface_lock_wait() {  # <park|command>
     assert_re '^supervision-host: cycle boundary' "$home/host.out" "the park deadline must use the normal boundary hand-back"
   else
     assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "a proof timeout is not the park deadline"
-    [ ! -e "$home/unexpected-timeout-offer" ] || fail "timed-out empty recovery invoked an offer"
     [ "$(engine_calls "$home")" -eq 0 ] || fail "proof timeout launched an engine turn"
   fi
   assert_re '^check: rearm-resurface$' "$home/host.out" "recovery must remain visible on hand-back"
@@ -1788,6 +1806,7 @@ fm_test_run \
   test_external_answer_close \
   test_mixed_answer_close \
   test_coalesced_late_answer_decision \
+  test_decision_after_rejected_final_preflight \
   test_coalesced_decision_precedes_receipt_wait \
   test_capped_answer_close \
   test_direct_answer_preserves_hold_divergence \

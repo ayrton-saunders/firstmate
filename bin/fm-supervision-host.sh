@@ -1055,10 +1055,12 @@ attended_routine_rows() {  # <reason> <decision keys> [preflight]
     queue=$(cat "$FM_WAKE_QUEUE") || return 1
   fi
   case "$mode" in
-    empty) [ -z "$queue" ] || return 2 ;;
     preflight) ;;
     *)
-      digest=$(printf '%s' "$queue" | perl -MDigest::SHA=sha256_hex -0777 -ne 'print sha256_hex($_)') || return 3
+      digest=empty
+      if [ -n "$queue" ]; then
+        digest=$(printf '%s' "$queue" | perl -MDigest::SHA=sha256_hex -0777 -ne 'print sha256_hex($_)') || return 3
+      fi
       [ -n "$digest" ] && [ "$digest" = "$mode" ] || return 3
       ;;
   esac
@@ -1077,7 +1079,7 @@ attended_routine_rows() {  # <reason> <decision keys> [preflight]
           case "$key" in *.status) ;; *) return 1 ;; esac
           case " ${payload#signal:} " in *" $STATE/$key "*) ;; *) return 1 ;; esac
           if [ "$mode" = preflight ]; then
-            attended_routine_row "$kind" "$key" "$payload" || rejected=1
+            attended_routine_row "$kind" "$key" "$payload" preflight || rejected=1
           fi
           ;;
         stale:stale:*)
@@ -1155,7 +1157,7 @@ attended_handled_stale_task() {  # <queue-key> <reason>
 }
 
 attended_routine_row() {  # <kind> <key> <reason>
-  local kind=$1 key=$2 reason=$3 task f found=0 decision_rc rejected=0
+  local kind=$1 key=$2 reason=$3 mode=${4:-} task f found=0 decision_rc rejected=0 meta target
   local -a files
   case "$kind:$reason" in
     signal:signal:*)
@@ -1167,6 +1169,10 @@ attended_routine_row() {  # <kind> <key> <reason>
         task=${f##*/}; task=${task%.status}
         case "$task" in ''|*[!A-Za-z0-9._-]*|.|..) rejected=1; continue ;; esac
         [ "${f##*/}" != "$key" ] || found=1
+        if [ "$mode" = decisions ]; then
+          attended_no_open_decision "$f" || { [ "$?" -ne 3 ] || return 3; }
+          continue
+        fi
         case " ${answer_files[*]-} " in
           *" $f "*) ;;
           *) decision_rc=0
@@ -1186,7 +1192,13 @@ attended_routine_row() {  # <kind> <key> <reason>
       [ "$rejected" -eq 0 ] && [ "$found" -eq 1 ]
       ;;
     stale:stale:*)
-      task=$(attended_handled_stale_task "$key" "$reason") || return $?
+      if [ "$mode" = decisions ]; then
+        target=${reason#stale: }; target=${target%% *}
+        meta=$(fm_backend_meta_for_window "$target" "$STATE") || return 1
+        task=${meta##*/}; task=${task%.meta}
+      else
+        task=$(attended_handled_stale_task "$key" "$reason") || return $?
+      fi
       _fm_wake_require_classify || return 1
       attended_no_open_decision "$STATE/$task.status"
       ;;
@@ -1254,7 +1266,7 @@ handle_wake() {  # <reason-lines> <initially-routine>
   ! fm_afk_contract_away_present "$STATE" || TURN_POSTURE=away
   first=$(printf '%s\n' "$reason" | head -n 1)
   if [ "$TURN_POSTURE" = attended ]; then
-    attended_acceptor "$reason" final || return 2
+    attended_acceptor "$reason" final "$initially_routine" || return 2
     if [ "$ATTENDED_ROUTINE" -eq 1 ]; then
       host_still_owner || return 1
       rc=0
@@ -1514,7 +1526,7 @@ attended_hold_clear() {
   [ "$rc" -eq 0 ] && [ -z "$diverged" ] || return 3
 }
 
-attended_acceptor() {  # <reason-lines> [final]
+attended_acceptor() {  # <reason-lines> [final] [initially-routine]
   local offer='' first=${1%%$'\n'*} rc=0 decision_keys digest status candidate=0 post_offer=1
   if attended_routine_candidate "$1"; then
     candidate=1
@@ -1532,28 +1544,6 @@ attended_acceptor() {  # <reason-lines> [final]
     ROUTINE_HAND_BACK=0
     ATTENDED_WHY="the main session could not be identified"
   else
-    if [ "$candidate" -eq 1 ] && [ "$1" = 'check: rearm-resurface' ] && [ ! -s "$FM_WAKE_QUEUE" ]; then
-      attended_park_worker attended_routine_rows empty >/dev/null <<< "$1"$'\n' || rc=$?
-      if [ "$rc" -eq 0 ]; then
-        attended_hold_clear || rc=$?
-      fi
-      if [ "$rc" -eq 0 ]; then
-        ROUTINE_HAND_BACK=1
-        ATTENDED_ROUTINE=1
-        boundary_reached && boundary_exit
-        return 0
-      fi
-      case "$rc" in
-        124) ROUTINE_HAND_BACK=1; boundary_exit ;;
-        2) ROUTINE_HAND_BACK=0 ;;
-        *)
-          ROUTINE_HAND_BACK=0
-          [ "$rc" -ne 75 ] || ROUTINE_HAND_BACK=1
-          ATTENDED_WHY=main-only
-          return 1
-          ;;
-      esac
-    fi
     if [ "$candidate" -eq 0 ] && health_cooling; then
       ATTENDED_WHY="the supervision session is cooling down after engine errors"
       return 1
@@ -1576,8 +1566,9 @@ attended_acceptor() {  # <reason-lines> [final]
         status=$(printf '%s\n' "$offer" | sed -n 's/^status=//p')
         rc=3
         if [ "$(printf '%s\n' "$offer" | sed -n 's/^corrupted=//p')" = 0 ] &&
-           { [ "$status" = safe ] || { [ "$status" = unsafe ] && [ -n "$decision_keys" ]; }; } &&
-           [[ "$digest" =~ ^[0-9a-f]{64}$ ]]; then
+           { { [ "$status" = empty ] && [ "$digest" = empty ] && [ "$1" = 'check: rearm-resurface' ]; } ||
+             { [[ "$digest" =~ ^[0-9a-f]{64}$ ]] &&
+               { [ "$status" = safe ] || { [ "$status" = unsafe ] && [ -n "$decision_keys" ]; }; }; }; }; then
           rc=0
           ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows "$digest" <<< "$1"$'\n'"$decision_keys") || rc=$?
           if [ "$rc" -eq 0 ]; then
@@ -1585,6 +1576,10 @@ attended_acceptor() {  # <reason-lines> [final]
           fi
           if [ "$rc" -eq 124 ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
         fi
+      elif [ "${3:-0}" -eq 1 ] && [ "$(printf '%s\n' "$offer" | sed -n 's/^eligible=//p')" = 1 ]; then
+        case "$first" in
+          signal:*|stale:*) attended_routine_row "${first%%:*}" '' "$first" decisions || rc=$? ;;
+        esac
       fi
       case "$rc" in
         0|75) ROUTINE_HAND_BACK=1 ;;
