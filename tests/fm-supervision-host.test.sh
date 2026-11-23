@@ -1537,12 +1537,17 @@ test_credential_handback_waits_for_queue_lock() {
     mkdir "$lock" || exit 1
     proof="$FM_HOME/state/.branch-outcomes.lock"
     mkdir "$proof" || exit 1
-    ( sleep 6; rm -f "$lock/pid" "$proof/pid"; rmdir "$lock" "$proof" ) </dev/null >/dev/null 2>&1 &
-    printf "%s\n" "$!" | tee "$lock/pid" > "$proof/pid"'
+    ( sleep 10; rm -f "$lock/pid" "$proof/pid"; rmdir "$lock" "$proof" ) </dev/null >/dev/null 2>&1 &
+    printf "%s\n" "$!" | tee "$lock/pid" > "$proof/pid"
+    sleep 6
+    : > "$FM_HOME/credential-offer-complete"'
   routine_wake_lib "$home" fm_wake_append check needs-gh-auth 'check: GitHub login required' || fail "fixture: no credential row"
   routine_wake_lib "$home" fm_recovery_marker_publish "$home/state/.watcher-down" downtime || fail "fixture: no recovery episode"
-  FM_STATUS_PRESENTATION_LOCK_TIMEOUT=2 start_host "$home"
+  printf '116\n' > "$home/park-clock"
+  FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 \
+    FM_STATUS_PRESENTATION_LOCK_TIMEOUT=2 start_host "$home"
   wait_until_deadline 45 host_exited "$home" || fail "credential hand-back did not finish"
+  [ -f "$home/credential-offer-complete" ] || fail "the credential offer was cut short by the routine deadline"
   assert_re '^check: rearm-resurface$' "$home/host.out" "the credential recovery close was lost"
   assert_no_re 'hand-back could not be recorded' "$home/host.out" "ordinary hand-back should wait for a briefly held lock"
   assert_grep 'GitHub login required' "$home/state/.wake-queue" "the credential row must remain queued"

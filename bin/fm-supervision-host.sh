@@ -1063,9 +1063,14 @@ attended_routine_rows() {  # <reason> <decision keys> [preflight]
       case "$epoch:$seq" in *[!0-9:]*|:*|*:) return 1 ;; esac
       [ -z "$extra" ] || return 1
       [ "$reason" = 'check: rearm-resurface' ] || [ "$payload" = "$reason" ] || return 1
-      rc=0
-      attended_routine_row "$kind" "$key" "$payload" queue-preflight || rc=$?
-      [ "$rc" -eq 0 ] || return "$rc"
+      case "$kind:$payload" in
+        signal:signal:*)
+          case "$key" in *.status) ;; *) return 1 ;; esac
+          case " ${payload#signal:} " in *" $STATE/$key "*) ;; *) return 1 ;; esac
+          ;;
+        stale:stale:*) fm_task_inbox_stuck_busy_record "$STATE" "$payload" >/dev/null || return 1 ;;
+        *) return 1 ;;
+      esac
     done <<< "$queue"
   fi
   [ "$mode" != preflight ] || return 0
@@ -1099,8 +1104,8 @@ attended_no_open_decision() {  # <status-file>
   [ -z "$open" ]
 }
 
-attended_routine_row() {  # <kind> <key> <reason> [preflight]
-  local kind=$1 key=$2 reason=$3 mode=${4:-} record task target f found=0
+attended_routine_row() {  # <kind> <key> <reason>
+  local kind=$1 key=$2 reason=$3 record task target f found=0
   local -a files
   case "$kind:$reason" in
     signal:signal:*)
@@ -1114,18 +1119,12 @@ attended_routine_row() {  # <kind> <key> <reason> [preflight]
         [ "${f##*/}" != "$key" ] || found=1
         case "$proven_answers" in
           *" $f "*) ;;
-          *) if [ -n "$mode" ]; then
-               status_unread_only_home_answers "$f" preflight || return 1
-             else
-               status_unread_only_home_answers "$f" || return 1
-             fi
-             if [ "$mode" != preflight ]; then
-               attended_no_open_decision "$f" || return 3
-             fi
+          *) status_unread_only_home_answers "$f" || return 1
+             attended_no_open_decision "$f" || return 3
              proven_answers="$proven_answers$f " ;;
         esac
       done
-      [ "${#files[@]}" -gt 0 ] && { [ "$mode" = preflight ] || [ "$found" -eq 1 ]; }
+      [ "$found" -eq 1 ]
       ;;
     stale:stale:*)
       record=$(fm_task_inbox_stuck_busy_record "$STATE" "$reason") || return 1
@@ -1202,7 +1201,7 @@ handle_wake() {  # <reason-lines>
   ! fm_afk_contract_away_present "$STATE" || TURN_POSTURE=away
   first=$(printf '%s\n' "$reason" | head -n 1)
   if [ "$TURN_POSTURE" = attended ]; then
-    attended_acceptor "$reason" || return 2
+    attended_acceptor "$reason" final || return 2
     if [ "$ATTENDED_ROUTINE" -eq 1 ]; then
       host_still_owner || return 1
       rc=0
@@ -1438,7 +1437,6 @@ attended_park_worker() {  # [handback] <function> [args...]
 }
 
 attended_routine_candidate() {  # <reason>
-  local proven_answers=' '
   case "$1" in *$'\n'*) return 1 ;; esac
   case "$ARM_TEXT" in
     "$1") ;;
@@ -1447,9 +1445,7 @@ attended_routine_candidate() {  # <reason>
     *) return 1 ;;
   esac
   case "$1" in
-    'check: rearm-resurface') return 0 ;;
-    stale:*) fm_task_inbox_stuck_busy_record "$STATE" "$1" >/dev/null ;;
-    signal:*) attended_routine_row signal '' "$1" preflight ;;
+    'check: rearm-resurface'|stale:*|signal:*) attended_routine_rows "$1" '' preflight ;;
     *) return 1 ;;
   esac
 }
@@ -1457,10 +1453,14 @@ attended_routine_candidate() {  # <reason>
 # Why an attended close stays with main exactly as the plain arm delivers it,
 # or nothing when the supervision session may take it. Sets ATTENDED_WHY, and
 # ATTENDED_OFFER to the offer's verdict and the scope it judged.
-attended_acceptor() {  # <reason-lines>
+attended_acceptor() {  # <reason-lines> [final]
   local offer='' first=${1%%$'\n'*} rc=0 decision_keys candidate=0
   local -a offer_runner=()
-  ROUTINE_HAND_BACK=0
+  if attended_routine_candidate "$1"; then
+    candidate=1
+  else
+    ROUTINE_HAND_BACK=0
+  fi
   boundary_reached && boundary_exit
   ATTENDED_WHY=
   ATTENDED_OFFER=
@@ -1471,9 +1471,8 @@ attended_acceptor() {  # <reason-lines>
   elif ! fm_supervision_host_main_key "$STATE" >/dev/null; then
     ATTENDED_WHY="the main session could not be identified"
   else
-    if attended_routine_candidate "$1"; then
-      candidate=1
-      if [ "$PRIMARY" != codex ] || [ "${FM_CODEX_MODEL_FREE_PARK:-0}" != 1 ]; then
+    if [ "$candidate" -eq 1 ]; then
+      if [[ "$first" != signal:* ]] && { [ "$PRIMARY" != codex ] || [ "${FM_CODEX_MODEL_FREE_PARK:-0}" != 1 ]; }; then
         offer_runner=(attended_park_run_with_limit "$PARK_SECONDS")
       fi
     elif health_cooling; then
@@ -1483,24 +1482,27 @@ attended_acceptor() {  # <reason-lines>
     offer=$("${offer_runner[@]+${offer_runner[@]}}" node "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer 2>/dev/null <<< "$first") || rc=$?
     if [ "$rc" -eq 124 ] && [ -n "${offer_runner[0]:-}" ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
     if [ "$rc" -ne 0 ]; then
+      ROUTINE_HAND_BACK=0
       ATTENDED_WHY="branch eligibility could not be computed"
     else
       rc=1
-      if [ "$candidate" -eq 1 ] || { [[ "$1" = signal:* ]] && attended_routine_candidate "$1"; }; then
-        decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
+      if [ "$candidate" -eq 1 ] && attended_routine_candidate "$1"; then
         rc=0
-        attended_routine_rows "$1" "$decision_keys" preflight >/dev/null || rc=$?
-        if [ "$rc" -eq 0 ]; then
+        if [ "${2:-}" = final ]; then
+          decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
           ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows <<< "$1"$'\n'"$decision_keys") || rc=$?
         fi
         if [ "$rc" -eq 124 ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
-        if [ "$rc" -eq 75 ]; then ROUTINE_HAND_BACK=1; rc=3; fi
+
       fi
-      if [ "$rc" -eq 0 ]; then ROUTINE_HAND_BACK=1; fi
+      case "$rc" in
+        0|75) ROUTINE_HAND_BACK=1 ;;
+        *) ROUTINE_HAND_BACK=0 ;;
+      esac
       boundary_reached && boundary_exit
       if [ "$rc" -eq 0 ]; then
         ATTENDED_ROUTINE=1
-      elif [ "$rc" -eq 3 ]; then
+      elif [ "$rc" -eq 3 ] || [ "$rc" -eq 75 ]; then
         ATTENDED_WHY="main-only"
       elif health_cooling; then
         ATTENDED_WHY="the supervision session is cooling down after engine errors"
