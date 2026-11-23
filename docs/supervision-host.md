@@ -119,6 +119,7 @@ Routine rearm recovery requires no pending captain outcome, no captain-hold reco
 - Continued task-wide progress can defer, but not permanently suppress, a wake for an unhandled message.
 - An answer can reach main if preflight races with publication of its ownership receipt.
 - In homes with long status histories, routine recovery proof can hit its time limit and hand the notification to main.
+- Write routine timeout overrides as decimal integers without leading zeros, because the host can fall back to its default for padded values.
 
 On a main-only pass-through the host starts the successor watcher cycle and leaves it running, then prints the close unchanged.
 That successor, like one a turn hands back at its start (see [Away](#away)), runs in a process group of its own, so the harness tearing down the hook's group after the rewake does not stop it.
