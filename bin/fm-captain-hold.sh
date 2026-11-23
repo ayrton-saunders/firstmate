@@ -2393,7 +2393,7 @@ list_has_line() {  # <newline-separated-list> <value>
 }
 
 command_diverged() {
-  local ids resolve f origin tokens id keys key show title strict=0 root
+  local ids resolve f origin tokens id keys key show title strict=0 root data backend file
   if [ "${1:-}" = --require-readable ]; then strict=1; shift; fi
   [ "$#" -eq 0 ] || { usage >&2; exit 2; }
   # Both records must belong to the SAME home or the comparison is meaningless:
@@ -2406,9 +2406,17 @@ command_diverged() {
   # compatibility floor and its extra probes: a listing this parser cannot read
   # simply yields no candidates and the report stays silent.
   if [ "$strict" -eq 1 ]; then
-    root=${DATA%/*}
-    if [ ! -e "$root/.tasks.toml" ] && [ ! -L "$root/.tasks.toml" ] &&
-       [ ! -e "$DATA/backlog.md" ] && [ ! -L "$DATA/backlog.md" ]; then
+    if data=$(fm_backlog_data_absolute "$DATA"); then
+      root=$(fm_backlog_root "$data") || return 1
+      file=$(fm_backlog_file "$data") || return 1
+    elif [ "$DATA" = "$FM_HOME/data" ] && [ ! -e "$DATA" ] && [ ! -L "$DATA" ]; then
+      root=$FM_HOME
+      file=$DATA/backlog.md
+    else
+      return 1
+    fi
+    backend=$(fm_tasks_axi_backend_resolve "$root") || return 1
+    if [ "$backend" = markdown ] && [ ! -e "$file" ] && [ ! -L "$file" ]; then
       return 0
     fi
   fi

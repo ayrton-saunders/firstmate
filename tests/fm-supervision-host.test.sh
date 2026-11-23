@@ -337,6 +337,7 @@ seed_open_captain_hold() {  # <home> <key>
 
 test_attended_answer_close() {  # <owned|external|mixed|capped|divergence>
   local mode=$1 home state f baseline action real_mv i note initial prior_size
+  local key=answer-test answer='answered: go ahead' opening=choose
   home=$(make_home "attended-answer-$mode" quiet)
   state="$home/state"
   f="$state/demo.status"
@@ -344,8 +345,16 @@ test_attended_answer_close() {  # <owned|external|mixed|capped|divergence>
     divergence|unreadable-hold) seed_open_captain_hold "$home" answer-test ;;
     handback-lock) seed_open_captain_hold "$home" unrelated-call ;;
   esac
+  case "$mode" in
+    operator|other-reply)
+      key=pending-reply-00005e7700000000
+      opening='pending-reply-unanswered: choose'
+      answer="pending-reply-resolved: task=demo pending-reply-id=${key#pending-reply-} via=operator-resolve-key go ahead"
+      [ "$mode" != other-reply ] || answer=${answer/operator-resolve-key/parent-reply}
+      ;;
+  esac
   printf 'kind=secondmate\n' >> "$state/demo.meta"
-  printf 'needs-decision [key=answer-test]: choose\n' > "$f"
+  printf 'needs-decision [key=%s]: %s\n' "$key" "$opening" > "$f"
   routine_wake_lib "$home" fm_wake_status_mark_current "$state" "$f" || fail "fixture: could not baseline the decision"
   if [ "$mode" = capped ]; then
     printf -v note '%0200d' 0
@@ -378,8 +387,8 @@ SH
     chmod +x "$home/fakebin/mv"
     FM_HOME="$home" PATH="$home/fakebin:$PATH" bash -c '
       . "$1"
-      fm_wake_status_append_self_announced "$2" "$3" "resolved [key=answer-test]: answered: go ahead"
-    ' _ "$ROOT/bin/fm-wake-lib.sh" "$state" "$f"
+      fm_wake_status_append_self_announced "$2" "$3" "$4"
+    ' _ "$ROOT/bin/fm-wake-lib.sh" "$state" "$f" "resolved [key=$key]: $answer"
     [ -s "$home/delayed-home-appends" ] || fail "fixture: no append receipt was delayed"
     rm "$home/fakebin/mv"
     # The watcher was already looking at the prior signature when the writer
@@ -405,7 +414,7 @@ SH
       : > "$home/config/supervision-handoff-ack"
       {
         printf '#!/usr/bin/env bash\n'
-        printf 'if [ "$1" = list ]; then mkdir "$FM_HOME/state/.wake-queue.lock" && printf "%%s\\n" %s > "$FM_HOME/state/.wake-queue.lock/pid"; fi\n' "$$"
+        printf 'if [ "$1" = list ]; then for lock in .wake-queue.lock .fm-lease-command.lock; do mkdir "$FM_HOME/state/$lock" && printf "%%s\\n" %s > "$FM_HOME/state/$lock/pid"; done; fi\n' "$$"
         printf 'exec %q "$@"\n' "$(command -v tasks-axi)"
       } > "$home/fakebin/tasks-axi"
       chmod +x "$home/fakebin/tasks-axi"
@@ -419,11 +428,17 @@ SH
     [ -s "$state/.wake-queue" ] || fail "contended hand-back lost the queued wake"
     rm -f "$state/.wake-queue.lock/pid"
     rmdir "$state/.wake-queue.lock"
+    rm -f "$state/.fm-lease-command.lock/pid"
+    rmdir "$state/.fm-lease-command.lock"
   else
     start_host "$home"
   fi
-  if [ "$mode" = owned ]; then
+  if [ "$mode" = owned ] || [ "$mode" = operator ]; then
     assert_routine_close_acknowledged "$home" 'signal: .*demo.status'
+  elif [ "$mode" = other-reply ]; then
+    wait_until_deadline 60 grep -Eq 'routine-ack|pass-through|to-main|handled' "$state/.supervision-host.log" \
+      || fail "the nonoperator reply did not route"
+    assert_no_re 'routine-ack' "$state/.supervision-host.log" "a nonoperator reply must not bypass ordinary routing"
   elif [ "$mode" != handback-lock ]; then
     wait_until_deadline 60 host_exited "$home" || fail "$mode: did not hand the signal back to main"
     assert_re '^signal: .*demo.status' "$home/host.out" "$mode: the signal did not reach main"
@@ -1445,6 +1460,8 @@ test_capped_answer_close() { test_attended_answer_close capped; }
 test_direct_answer_preserves_hold_divergence() { test_attended_answer_close divergence; }
 test_unreadable_hold_does_not_acknowledge_answer() { test_attended_answer_close unreadable-hold; }
 test_acknowledged_handback_bounds_queue_lock() { test_attended_answer_close handback-lock; }
+test_operator_pending_reply_answer() { test_attended_answer_close operator; }
+test_other_pending_reply_answer() { test_attended_answer_close other-reply; }
 test_handled_busy_inbox_close() { test_attended_busy_inbox_close handled; }
 test_stuck_busy_inbox_close() { test_attended_busy_inbox_close stuck; }
 test_routine_resurface() { test_attended_resurface routine; }
@@ -1491,6 +1508,26 @@ test_routine_resurface_respects_command_deadline() { assert_routine_resurface_lo
 test_read_captain_outcome_resurface() { test_attended_resurface read-captain-outcome; }
 test_empty_resurface() { test_attended_resurface empty; }
 test_credential_resurface() { test_attended_resurface credential; }
+
+test_credential_handback_waits_for_queue_lock() {
+  local home lock
+  home=$(make_home credential-handback quiet)
+  lock="$home/state/.wake-queue.lock"
+  : > "$home/config/supervision-handoff-ack"
+  install_first_offer_action "$home" 'lock="$FM_HOME/state/.wake-queue.lock"
+    mkdir "$lock" || exit 1
+    ( sleep 4; rm -f "$lock/pid"; rmdir "$lock" ) </dev/null >/dev/null 2>&1 &
+    printf "%s\n" "$!" > "$lock/pid"'
+  routine_wake_lib "$home" fm_wake_append check needs-gh-auth 'check: GitHub login required' || fail "fixture: no credential row"
+  routine_wake_lib "$home" fm_recovery_marker_publish "$home/state/.watcher-down" downtime || fail "fixture: no recovery episode"
+  FM_STATUS_PRESENTATION_LOCK_TIMEOUT=2 start_host "$home"
+  wait_until_deadline 45 host_exited "$home" || fail "credential hand-back did not finish"
+  assert_re '^check: rearm-resurface$' "$home/host.out" "the credential recovery close was lost"
+  assert_no_re 'hand-back could not be recorded' "$home/host.out" "ordinary hand-back should wait for a briefly held lock"
+  assert_grep 'GitHub login required' "$home/state/.wake-queue" "the credential row must remain queued"
+  stop_home_processes "$home"
+  pass "host: credential recovery does not lose its close under brief contention"
+}
 test_captain_outcome_resurface() { test_attended_resurface captain-outcome; }
 
 fm_test_run \
@@ -1512,6 +1549,8 @@ fm_test_run \
   test_direct_answer_preserves_hold_divergence \
   test_unreadable_hold_does_not_acknowledge_answer \
   test_acknowledged_handback_bounds_queue_lock \
+  test_operator_pending_reply_answer \
+  test_other_pending_reply_answer \
   test_handled_busy_inbox_close \
   test_stuck_busy_inbox_close \
   test_routine_resurface \
@@ -1529,6 +1568,7 @@ fm_test_run \
   test_routine_resurface_respects_command_deadline \
   test_empty_resurface \
   test_credential_resurface \
+  test_credential_handback_waits_for_queue_lock \
   test_captain_outcome_resurface \
   test_read_captain_outcome_resurface \
   test_off_written_while_parked_passes_the_next_attended_close_to_main \

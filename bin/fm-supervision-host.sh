@@ -460,7 +460,11 @@ cleanup() {
   if [ "$GRANT_ACTIVE" -eq 1 ]; then
     fm_run_timed 1 "$SCRIPT_DIR/fm-wake-grant.sh" deactivate "$HOST_PID" "$GEN" >/dev/null 2>&1 || true
   fi
-  release_branch_leases
+  if [ "${ROUTINE_HAND_BACK:-0}" -eq 1 ]; then
+    FM_SUPERVISION_ACTOR=branch fm_run_timed "$HAND_BACK_TIMEOUT" "$SCRIPT_DIR/fm-lease.sh" release-actor --actor branch >/dev/null 2>&1 || true
+  else
+    release_branch_leases
+  fi
   rm -f "$TURN_FILE" "$ENGINE_PID_FILE" 2>/dev/null || true
   for f in "$TURN_RESULT" "$TURN_ERRORS"; do
     case "$f" in "$STATE"/.supervision-host-*) rm -f "$f" 2>/dev/null || true ;; esac
@@ -561,7 +565,7 @@ boundary_exit() {
   ARM_OUT=
   SUCCESSOR_PID=
   SUCCESSOR_OUT=
-  "$SCRIPT_DIR/fm-watch-arm.sh" --stop >/dev/null 2>&1 || true
+  stop_handback_watcher
   emit 'supervision-host: cycle boundary - the host ended its park at its bound; drain, acknowledge, and end the turn, and the next park starts on its own'
   exit 0
 }
@@ -709,7 +713,13 @@ retire_successor() {
   retire_arm "$SUCCESSOR_PID" "$SUCCESSOR_OUT"
   SUCCESSOR_PID=
   SUCCESSOR_OUT=
-  fm_run_timed "$HAND_BACK_TIMEOUT" "$SCRIPT_DIR/fm-watch-arm.sh" --stop >/dev/null 2>&1 || true
+  stop_handback_watcher
+}
+
+stop_handback_watcher() {
+  local -a runner=()
+  if [ "${ROUTINE_HAND_BACK:-0}" -eq 1 ]; then runner=(fm_run_timed "$HAND_BACK_TIMEOUT"); fi
+  "${runner[@]+${runner[@]}}" "$SCRIPT_DIR/fm-watch-arm.sh" --stop >/dev/null 2>&1 || true
 }
 
 # Hand the close to main: stop the successor cycle, print the close, why, and
@@ -1217,6 +1227,7 @@ handle_wake() {  # <reason-lines>
     return 0
   fi
   turn_crosses_boundary && boundary_exit
+  ROUTINE_HAND_BACK=0
   publish_wake_grant "$rows" || return 1
   if ! host_still_owner; then
     "$SCRIPT_DIR/fm-wake-grant.sh" release "$GEN" >/dev/null 2>&1 || true
@@ -1381,6 +1392,11 @@ attended_park_run_with_limit() {  # <seconds> <command> [args...]
 attended_park_worker() {  # [handback] <function> [args...]
   local -a runner=(attended_park_run)
   if [ "$1" = handback ]; then
+    if [ "${ROUTINE_HAND_BACK:-0}" -eq 0 ]; then
+      shift
+      "$@"
+      return
+    fi
     runner=(fm_run_timed "$HAND_BACK_TIMEOUT")
     shift
   fi
@@ -1444,7 +1460,7 @@ attended_acceptor() {  # <reason-lines>
       return 1
     fi
     offer=$("${offer_runner[@]+${offer_runner[@]}}" node "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer 2>/dev/null <<< "$first") || rc=$?
-    if [ "$rc" -eq 124 ] && [ -n "${offer_runner[0]:-}" ]; then boundary_exit; fi
+    if [ "$rc" -eq 124 ] && [ -n "${offer_runner[0]:-}" ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
     if [ "$rc" -ne 0 ]; then
       ATTENDED_WHY="branch eligibility could not be computed"
     else
@@ -1453,9 +1469,10 @@ attended_acceptor() {  # <reason-lines>
         decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
         rc=0
         ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows <<< "$1"$'\n'"$decision_keys") || rc=$?
-        if [ "$rc" -eq 124 ]; then boundary_exit; fi
-        if [ "$rc" -eq 75 ]; then rc=3; fi
+        if [ "$rc" -eq 124 ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
+        if [ "$rc" -eq 75 ]; then ROUTINE_HAND_BACK=1; rc=3; fi
       fi
+      if [ "$rc" -eq 0 ]; then ROUTINE_HAND_BACK=1; fi
       boundary_reached && boundary_exit
       if [ "$rc" -eq 0 ]; then
         ATTENDED_ROUTINE=1
@@ -1651,4 +1668,5 @@ while :; do
   SUCCESSOR_PID=
   SUCCESSOR_OUT=
   ARM_TEXT=
+  ROUTINE_HAND_BACK=0
 done

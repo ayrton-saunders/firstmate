@@ -2475,7 +2475,7 @@ EOF
 # be acknowledged without presenting the signal. Do not infer authorship from
 # an `answered:` note alone, or treat the open-decision fold as presentation.
 status_unread_only_home_answers() {  # <status-file> [preflight]
-  local f=$1 start end ident span line note unstamped lock
+  local f=$1 start end ident span line note unstamped lock key task expected
   [ -f "${f%/*}/.status-presentation-cursor" ] || return 1
   _fm_status_read_ident_size "$f" || return 1
   ident=$_FM_STAT_IDENTITY end=${_FM_STAT_SIZE//[[:space:]]/}
@@ -2486,9 +2486,20 @@ status_unread_only_home_answers() {  # <status-file> [preflight]
   while IFS= read -r line; do
     [ "$(status_line_verb "$line")" = resolved ] || return 1
     _fm_status_unstamped "$line" unstamped
-    _fm_key_before_colon "$unstamped" && _fm_decision_key "$line" >/dev/null || return 1
+    _fm_key_before_colon "$unstamped" || return 1
+    key=$(_fm_decision_key "$line") || return 1
     status_line_note "$line" note
-    case "$note" in answered|answered:*) ;; *) return 1 ;; esac
+    case "$key" in
+      pending-reply-*)
+        task=${f##*/}; task=${task%.status}
+        expected=$(
+          . "$_FM_CLASSIFY_LIB_DIR/fm-pending-reply-lib.sh"
+          fm_pending_reply_close_note_for_key "$key" "$task" operator-resolve-key
+        ) || return 1
+        case "$note" in "$expected"|"$expected "?*) ;; *) return 1 ;; esac
+        ;;
+      *) case "$note" in answered|answered:*) ;; *) return 1 ;; esac ;;
+    esac
   done <<< "$span"
   if [ "${2:-}" = preflight ]; then
     lock="$(status_home_appends_path "$f").lock"
