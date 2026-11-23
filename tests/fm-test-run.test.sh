@@ -2336,29 +2336,20 @@ result = subprocess.run(cmd, cwd=repo, env=dict(fixture_env, FM_HOME=shell_path(
 assert result.returncode == 2 and b'unsafe scratch base' in result.stderr, result
 
 if os.name == 'posix':
-    clock = fakebin / 'python3'
-    clock.write_text('''#!/usr/bin/env bash
-if [ "${2:-}" = 'import time; print(int(time.time() * 1000))' ]; then
-  if [ -f "$CLEANUP_CLOCK" ]; then echo 5000; else echo 1000; fi
-else
-  exec "$REAL_PYTHON" "$@"
-fi
-''')
     remover.write_text('''#!/usr/bin/env bash
-"$REAL_RM" "$@" || exit $?
-case "${!#}" in */r.??????) touch "$CLEANUP_CLOCK" ;; esac
+case "${!#}" in */r.??????) sleep 4 ;; esac
+exec "$REAL_RM" "$@"
 ''')
-    for tool in (clock, remover): tool.chmod(0o755)
+    remover.chmod(0o755)
     try:
-        result = subprocess.run([*runner_cmd, '--max-wall-ms', '2000', '--json', 'cleanup-time.json', cmd[-1]],
-                                cwd=repo, env=dict(fixture_env, REAL_RM=shutil.which('rm'), REAL_PYTHON=sys.executable,
-                                                   CLEANUP_CLOCK=shell_path(tmp / 'clock'), PROOF=shell_path(tmp / 'budget')),
+        result = subprocess.run([*runner_cmd, '--max-wall-ms', '3500', '--json', 'cleanup-time.json', cmd[-1]],
+                                cwd=repo, env=dict(fixture_env, REAL_RM=shutil.which('rm'),
+                                                   PROOF=shell_path(tmp / 'budget')),
                                 capture_output=True, timeout=20)
         assert result.returncode == 1 and b'wall-clock budget exceeded' in result.stderr, result
         report = json.loads((repo / 'cleanup-time.json').read_text())
-        assert report['summary']['duration_ms'] == 4000 and 'cleanup_failed' not in report
+        assert report['summary']['duration_ms'] >= 4000 and 'cleanup_failed' not in report
     finally:
-        clock.unlink()
         remover.unlink()
 
 extract_probe = fakebin / 'tar'

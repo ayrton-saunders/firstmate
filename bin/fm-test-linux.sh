@@ -104,14 +104,17 @@ probe_owner=
 container=
 
 stop_linux_container() {
-  local running filter
+  local remaining filter
   [ -n "$container" ] || return 0
   filter="name=^/?${container//./[.]}\$"
-  running=$(fm_run_timed 5 "$runtime" ps -q --filter "$filter") || return 1
-  if [ -n "$running" ]; then
-    fm_run_timed 5 "$runtime" stop --time 2 "$running" >/dev/null || return 1
-    running=$(fm_run_timed 5 "$runtime" ps -q --filter "$filter") || return 1
-    [ -z "$running" ] || return 1
+  remaining=$(fm_run_timed 5 "$runtime" ps -aq --filter "$filter") || return 1
+  if [ -n "$remaining" ]; then
+    fm_run_timed 5 "$runtime" rm -f "$remaining" >/dev/null || true
+    remaining=$(fm_run_timed 5 "$runtime" ps -aq --filter "$filter") || return 1
+    [ -z "$remaining" ] || return 1
+  fi
+  if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
+    rm -f -- "$FM_TEST_RETAIN_MARKER.$$.linux" || return 1
   fi
   container=
 }
@@ -167,6 +170,9 @@ case "$(basename "$runtime")" in
 esac
 failed=()
 for t in "${tests[@]}"; do
+  if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
+    : > "$FM_TEST_RETAIN_MARKER.$$.linux" || die 'could not arm Linux retention marker'
+  fi
   container="${scratch##*/}"
   rc=0
   fm_test_probe_run "$runtime" run --rm --name "$container" "${identity[@]}" -v "$scratch:/work" -w /work -e HOME=/tmp -e TMPDIR=/tmp "$image" bash "$t" || rc=$?

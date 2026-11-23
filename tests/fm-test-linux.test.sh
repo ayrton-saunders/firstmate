@@ -174,20 +174,23 @@ test_attach_failure_verifies_container_stop() {
 #!/usr/bin/env bash
 case "$1" in
   ps)
-    if [ -f "$STATE/running" ]; then printf '%s\n' container-id; fi
+    if [ -f "$STATE/running" ] || { [ "$2" = -aq ] && [ -f "$STATE/created" ]; }; then
+      printf '%s\n' container-id
+    fi
     ;;
-  stop)
+  rm)
     [ "${!#}" = container-id ] && [ -d "$(<"$STATE/scratch-path")" ] || exit 2
-    touch "$STATE/stop-called"
-    if [ "$MODE" = resolved ]; then rm "$STATE/running"; fi
+    touch "$STATE/remove-called"
+    if [ "$MODE" != unresolved ]; then rm -f "$STATE/running" "$STATE/created"; fi
     ;;
   run)
     while [ "$#" -gt 1 ]; do
       if [ "$1" = -v ]; then
-        [ ! -f "$STATE/running" ] || { touch "$STATE/overlap"; exit 2; }
+        [ ! -f "$STATE/running" ] && [ ! -f "$STATE/created" ] || { touch "$STATE/overlap"; exit 2; }
         if [ -f "$STATE/scratch-path" ]; then touch "$STATE/next-test"; exit 0; fi
         printf '%s\n' "${2%:/work}" >"$STATE/scratch-path"
-        touch "$STATE/running"
+        if [ "$MODE" = created ]; then touch "$STATE/created"; else touch "$STATE/running"; fi
+        if [ "$MODE" = killed ]; then kill -KILL "$WRAPPER_PID" || exit 2; fi
         exit 7
       fi
       shift
@@ -196,19 +199,28 @@ case "$1" in
 esac
 SH
   chmod +x "$runtime"
-  for mode in resolved unresolved; do
+  for mode in resolved unresolved created killed; do
     state="$TMP_ROOT/$mode"
     mkdir "$state"
     rc=0
     out=$(cd "$repo" && TMPDIR="$state" FM_CONTAINER_RUNTIME="$runtime" STATE="$state" MODE="$mode" \
-      FM_TEST_RETAIN_MARKER="$state/.retain-scratch" "$BASH" "$LINUX_CHECK" tests/kept.test.sh tests/gone.test.sh 2>&1) || rc=$?
-    assert_equals 1 "$rc" "client failure fails validation: $out"
-    assert_present "$state/stop-called" 'validator tried to stop its daemon-side container before cleanup'
-    assert_absent "$state/overlap" 'a new test did not start while a container was running'
+      FM_TEST_RETAIN_MARKER="$state/.retain-scratch" "$BASH" -c 'export WRAPPER_PID=$$; exec "$@"' _ \
+      "$BASH" "$LINUX_CHECK" tests/kept.test.sh tests/gone.test.sh 2>&1) || rc=$?
     scratch=$(<"$state/scratch-path")
-    if [ "$mode" = resolved ]; then
+    if [ "$mode" = killed ]; then
+      assert_equals 137 "$rc" "wrapper was killed during container run: $out"
+      assert_present "$state/running" 'daemon still owns the container'
+      fm_test_scratch_retained "$state" || fail 'wrapper did not publish retention before launch'
+      assert_present "$scratch/tests/kept.test.sh" 'killed wrapper left the backing tree intact'
+      continue
+    fi
+    assert_equals 1 "$rc" "client failure fails validation: $out"
+    assert_present "$state/remove-called" 'validator tried to remove its daemon-side container before cleanup'
+    assert_absent "$state/overlap" 'a new test did not start while a container was running'
+    if [ "$mode" != unresolved ]; then
       assert_present "$state/next-test" 'tests continue after confirmed teardown'
       assert_absent "$scratch" 'confirmed teardown allows scratch removal'
+      if fm_test_scratch_retained "$state"; then fail 'confirmed removal left a retention marker'; fi
     else
       assert_absent "$state/next-test" 'unconfirmed teardown stops test admission'
       assert_present "$scratch/tests/kept.test.sh" 'unconfirmed teardown keeps mounted scratch'
