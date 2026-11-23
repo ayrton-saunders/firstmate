@@ -47,7 +47,7 @@ if { [ "$1" = --list ] || [ "$1" = --list-scheduled ]; } && [ "$2" = --family ];
       if [ "${PROOF_UNDRAINED:-0}" = 1 ]; then
         printf '%s\n' tests/fm-proof-undrained.test.sh tests/fm-proof-slow.test.sh tests/fm-proof-replacement.test.sh
       else
-        printf '%s\n' tests/fm-proof-slow.test.sh tests/fm-proof-fast.test.sh tests/fm-proof-replacement.test.sh
+        printf '%s\n' tests/fm-proof-slow.test.sh tests/fm-proof-z-fast.test.sh tests/fm-proof-replacement.test.sh
       fi
       exit 0
       ;;
@@ -111,7 +111,7 @@ done
 touch "$PROOF_SCHED_EVIDENCE/slow-done"
 echo "ok - slow proof fixture"
 SH
-  cat >"$repo/tests/fm-proof-fast.test.sh" <<'SH'
+  cat >"$repo/tests/fm-proof-z-fast.test.sh" <<'SH'
 #!/usr/bin/env bash
 echo "ok - fast proof fixture"
 SH
@@ -337,7 +337,12 @@ assert artifact["concurrency"] == 2
 assert artifact["fm_test_run_jobs_enabled"] is True
 assert artifact["summary"]["total"] == 3
 assert artifact["summary"]["failed"] == 0
-' "$admitted_json" || fail "admitted family pool artifact metadata is incorrect"
+paths = [s["path"] for s in artifact["scripts"]]
+assert paths == ["tests/fm-proof-replacement.test.sh", "tests/fm-proof-slow.test.sh", "tests/fm-proof-z-fast.test.sh"], paths
+with open(sys.argv[2], encoding="utf-8") as output:
+    ends = [line.split()[2] for line in output if line.startswith("FM_ISOLATION_CANDIDATE_END ")]
+assert ends[0] == "tests/fm-proof-z-fast.test.sh", ends
+' "$admitted_json" "$tmp/admitted.out" || fail "admitted family proof must serialize paths independently of completion order"
   cat >> "$repo/bin/fm-test-scratch-lib.sh" <<'SH'
 if [ "${PROOF_REPLAY_ORDER:-0}" != 0 ]; then
   eval "$(declare -f fm_test_drain_groups | awk 'NR == 1 {sub(/^fm_test_drain_groups/, "fixture_drain_groups")} {print}')"

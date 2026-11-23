@@ -189,15 +189,25 @@ SH
 #!/usr/bin/env bash
 if [ "$1" = run ]; then
   touch "$RUN_MARKER"
+  mount=
+  workdir=/
   while [ "$#" -gt 1 ]; do
-    if [ "$1" = -v ]; then
-      dir="${2%:/work}/tests/nested checkout"
-      [ -d "$dir" ] && [ -z "$(ls -Aq -- "$dir")" ] || exit 1
-      printf '%s\n' 'mounted empty gitlink directory'
+    if [ "$#" -eq 3 ] && [ "$1" = sh ] && [ "$2" = -c ] && [ "$3" = 'uname -sr' ]; then
+      printf '%s\n' 'Linux fixture'
       exit 0
     fi
+    if [ "$#" -eq 2 ] && [ "$1" = bash ] && [ "$2" = tests/kept.test.sh ]; then
+      [ "$workdir" = /work ] && [ -n "$mount" ] || exit 1
+      cd -- "$mount" && exec "$@"
+      exit 1
+    fi
+    case "$1" in
+      -v) case "$2" in /*:/work) mount=${2%:/work} ;; *) exit 1 ;; esac; shift ;;
+      -w) workdir=$2; shift ;;
+    esac
     shift
   done
+  exit 1
 fi
 SH
   chmod +x "$mock_bin/"*
@@ -210,6 +220,13 @@ SH
       empty-gitlink)
         rm -rf -- "$repo/tests/nested checkout"
         mkdir "$repo/tests/nested checkout"
+        cat > "$repo/tests/kept.test.sh" <<'SH'
+dir="tests/nested checkout"
+[ -d "$dir" ] || exit 1
+entries=$(ls -Aq -- "$dir") || exit 1
+[ -z "$entries" ] || exit 1
+printf '%s\n' 'selected suite saw empty gitlink directory'
+SH
         ;;
     esac
     rc=0
@@ -218,7 +235,7 @@ SH
       RUN_MARKER="$mock_bin/ran" "$BASH" "$LINUX_CHECK" tests/kept.test.sh 2>&1) || rc=$?
     if [ "$stage" = empty-gitlink ]; then
       assert_equals 0 "$rc" "empty gitlink permits Linux validation: $out"
-      assert_contains "$out" 'mounted empty gitlink directory' 'the suite mount preserves the placeholder'
+      assert_contains "$out" 'selected suite saw empty gitlink directory' 'the selected suite observes the placeholder from its workdir'
       assert_contains "$out" 'PASS tests/kept.test.sh' 'the selected suite ran'
       continue
     fi
