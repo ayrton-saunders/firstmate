@@ -35,8 +35,8 @@
 #
 # Isolation contract for each concurrent worker:
 #   - distinct mode-0700 temporary root under a proof-owned parent
-#   - TMPDIR/TMP/TEMP point only at that root so test scratch stays private
-#   - ambient FM_HOME / FM_*_OVERRIDE cleared so no shared home is reused
+#   - TMPDIR/TMP/TEMP point at a private temp directory inside the worker root
+#   - ambient fleet home and operational overrides are cleared for fixtures
 #   - no global git config mutation (snapshot before/after)
 #   - no production sharding and no retry-until-green
 #
@@ -49,12 +49,14 @@
 #
 # A scratch removal failure at proof finalization sets cleanup_failed: true
 # in the proof JSON without increasing the candidate failure count.
-# Exit status is non-zero if proof cleanup fails, if any candidate
-# fails, gate-skips (first meaningful line matching ^skip:), if isolation checks
-# fail, or if the candidate set is empty. A gate skip names the pool, candidate,
-# and missing prerequisite and cannot admit concurrency. A script that fails
-# only under concurrency must be removed from the candidate set and investigated;
-# this harness never retries a failure into green.
+# Unverified worker or private-service teardown stops new launches and retains
+# the proof root. Confirm the reported workload is gone before removing it.
+# Exit status is non-zero if cleanup fails, a candidate fails or gate-skips
+# (first meaningful line matching ^skip:), an isolation check fails, or the
+# candidate set is empty. A gate skip names the pool, candidate, and missing
+# prerequisite and cannot admit concurrency. A script that fails only under
+# concurrency must be removed from the candidate set and investigated; this
+# harness never retries a failure into green.
 set -eu
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -29,8 +29,12 @@
 #   fm-test-tap-verify.sh TEST_SCRIPT
 #   fm-test-tap-verify.sh -h|--help
 #
-# The suite's stdout and stderr are replayed unchanged, then a one-line
-# summary is printed. Non-zero exit means the completeness check failed.
+# The suite's combined stdout and stderr are replayed after scratch cleanup is
+# attempted. Only a complete suite with successful cleanup gets a success
+# summary. If suite teardown cannot be verified, the verifier reports and
+# retains its scratch instead of deleting files a process may still be using.
+# Terminal stdin is preserved; a signal sent only to the verifier can wait
+# for a foreground suite or blocked output replay to return.
 set -eu
 
 usage() {

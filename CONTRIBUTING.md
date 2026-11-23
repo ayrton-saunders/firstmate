@@ -181,7 +181,8 @@ EOF
 
 `bin/fm-test-run.sh` is the single owner of behavior-suite selection, portable CI lane composition, bounded concurrency admission, per-script timing markers, family totals, the coverage guard, and the optional JSON timing artifact.
 See the [runner header](bin/fm-test-run.sh) for its flags, OS scratch selection, and cleanup and recovery limits.
-Direct probes honor an explicit `TMPDIR` outside checkouts, Firstmate homes, and preserved-copy roots; point it at an existing OS temp directory to keep scratch out of backups.
+When invoking the standalone test helpers below or a suite that sources [`tests/lib.sh`](tests/lib.sh), point `TMPDIR` at an existing OS temp directory to keep scratch out of backups.
+These helpers validate `${TMPDIR:-/tmp}` and refuse an unsafe path instead of falling back; see the [shared scratch validator](bin/fm-test-scratch-lib.sh) for protected locations.
 The terminal-managed preservation copier has no tracked implementation in this fork and is outside the scope of these safeguards.
 After `SIGKILL`, standalone `bin/fm-test-isolation-proof.sh`, `bin/fm-test-tap-verify.sh`, and `bin/fm-test-linux.sh` scratch roots are not enrolled in orphan recovery.
 After a hard kill, [fixture recovery](tests/lib.sh) only checks the temp base used by the next suite, so it can miss fixtures allocated under a different `TMPDIR`.

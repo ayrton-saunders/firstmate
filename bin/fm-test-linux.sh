@@ -11,19 +11,23 @@
 #   fm-test-linux.sh [--base <git-ref>] [--list] [tests/<name>.test.sh ...]
 #   fm-test-linux.sh -h|--help
 #
-# With no test paths, the tests are the tests/*.test.sh files that differ from
-# the merge base with --base (default: origin/main, else main), including
-# uncommitted and untracked ones. A local clone of the repo, overlaid with the
-# working-tree bytes of tracked and non-ignored untracked files, is mounted
-# read-write from a scratch directory. The overlay skips declared test scratch
-# and does not follow symlinked ancestors. Tests see git history without
-# modifying the host checkout and run as the host user, not root, to match
-# CI file-mode behavior.
+# With no test paths, select existing tests/*.test.sh files changed since the
+# merge base with --base (default: origin/main, else main), including uncommitted
+# changes and non-ignored untracked tests. Mount a scratch clone read-write,
+# with tracked and non-ignored untracked working-tree bytes overlaid. The
+# overlay excludes declared test scratch and does not traverse symlinked
+# ancestors. Populated directories recorded as Git submodules and untracked
+# nested Git checkouts are refused rather than silently omitted; empty submodule
+# placeholders are allowed. Tests see Git history without modifying the host
+# checkout and run as the host user, not root, to match CI file-mode behavior.
 # --list prints the selected tests and exits without a container runtime.
 #
 # Runtime: FM_CONTAINER_RUNTIME, else docker, else podman. With none installed
 # the script stops with exit 2. The image is built from tests/linux/Dockerfile
 # (Debian bookworm, GNU coreutils) and tagged fm-test-linux:bookworm.
+# Each suite launch prints its scratch path and unique container selector.
+# If teardown cannot be verified, the probe retains scratch and reports the
+# selector again. Confirm the container is gone before removing that scratch.
 #
 # Exit status: 0 all selected tests passed (or none changed) and scratch
 # cleanup succeeded, 1 a test or probe cleanup failed, 2 usage error,

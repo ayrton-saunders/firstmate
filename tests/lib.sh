@@ -460,10 +460,16 @@ fm_test_owns_registered_root() {
   [ "$(CDPATH='' cd -P -- "$dir" && pwd -P)" = "$dir" ]
 }
 
+fm_test_write_live_jobs() {
+  # In an EXIT trap, Bash can still list completed jobs in `jobs -p`.
+  # Keep the running and stopped jobs, not completed job-table entries.
+  { jobs -pr && jobs -ps; } > "$1"
+}
+
 fm_test_drain_fixture_jobs() {
   local jobs_file="$FM_TEST_REGISTRY_DIR/jobs" pid row parent group start snapshot
   local -a records=()
-  jobs -p > "$jobs_file" || return 1
+  fm_test_write_live_jobs "$jobs_file" || return 1
   [ -s "$jobs_file" ] || return 0
   snapshot=$(fm_test_process_inventory groups) || return 1
   while IFS= read -r pid; do
@@ -477,7 +483,7 @@ fm_test_drain_fixture_jobs() {
     records+=("$UID|$pid|$group|$start")
   done < "$jobs_file"
   fm_test_drain_groups "$FM_TEST_REGISTRY_DIR" ${records[@]+"${records[@]}"} || return 1
-  jobs -p > "$jobs_file" && [ ! -s "$jobs_file" ]
+  fm_test_write_live_jobs "$jobs_file" && [ ! -s "$jobs_file" ]
 }
 
 fm_test_cleanup() {

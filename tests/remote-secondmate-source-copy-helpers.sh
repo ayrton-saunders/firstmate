@@ -4,8 +4,8 @@
 # shellcheck source=bin/fm-test-scratch-lib.sh
 . "${BASH_SOURCE[0]%/*}/../bin/fm-test-scratch-lib.sh" || return 1
 
-# Materialize the remote fixture's tracked source from current working-tree
-# bytes; untracked files (including checkout-local scratch) do not belong in it.
+# Use tracked working-tree bytes, not index contents, to test local edits.
+# Never copy untracked files or declared scratch, even if scratch was staged.
 fm_fixture_copy_remote_source() (  # <source checkout> <destination>
   set -o pipefail
   local path parent
