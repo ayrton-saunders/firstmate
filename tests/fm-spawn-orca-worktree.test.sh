@@ -804,13 +804,17 @@ stop_orca_source_tmux() {
 }
 trap 'status=$?; trap "" HUP INT QUIT TERM; teardown=0; stop_orca_source_tmux || teardown=$?; fm_test_finalize "$status" "$teardown"' EXIT
 
+arm_orca_source_tmux() {
+  orca_tmux_bin=$(command -v tmux) || fail 'tmux is required for the Orca source fixture'
+  orca_tmux_dir=$(TMPDIR="$1" fm_test_tmproot oenv) || fail 'could not allocate Orca scratch'
+  FM_TEST_RETAIN_MARKER= fm_test_arm_private_tmux orca_tmux_hold "$orca_tmux_dir" || fail 'could not protect Orca scratch'
+}
+
 # The real tmux client sanitizes control characters without UTF-8 mode. A
 # private socket and synthetic environment catch corruption the stub cannot.
 test_orca_source_preserves_values_without_utf8_locale() {
   local status=0
-  orca_tmux_bin=$(command -v tmux) || fail "tmux is required for the Orca source locale regression"
-  orca_tmux_dir=$(TMPDIR=/tmp fm_test_tmproot oenv) || fail 'could not allocate Orca scratch'
-  FM_TEST_RETAIN_MARKER= fm_test_arm_private_tmux orca_tmux_hold "$orca_tmux_dir" || fail 'could not protect Orca scratch'
+  arm_orca_source_tmux /tmp
   python3 - "$orca_tmux_bin" "$orca_tmux_dir" "$ROOT/bin/backends/orca.sh" <<'PY' || status=$?
 import os, pathlib, shlex, shutil, subprocess, sys
 tmux, directory, adapter = sys.argv[1:]
@@ -883,68 +887,63 @@ PY
 }
 
 test_orca_term_stops_source_tmux() {
-  local real_tmux
+  local real_tmux harness
   real_tmux=$(command -v tmux) || fail 'tmux is required for the Orca interruption regression'
-  python3 - "$BASH" "$ROOT/tests/fm-spawn-orca-worktree.test.sh" "$real_tmux" "$TMP_ROOT" <<'PY' || fail 'TERM did not stop Orca tmux before scratch cleanup'
-import os, pathlib, shlex, signal, subprocess, sys, time
+  harness=$(TMPDIR=/tmp fm_test_tmproot oenv) || fail 'could not allocate Orca interruption scratch'
+  python3 - "$BASH" "${BASH_SOURCE[0]}" "$real_tmux" "$harness" <<'PY' || fail 'TERM did not stop Orca tmux before scratch cleanup'
+import os, pathlib, signal, subprocess, sys, time
 
 if os.name != 'posix':
     sys.exit(0)
 bash, suite, tmux, root = sys.argv[1:]
 root = pathlib.Path(root)
-tools = root / 'pause-tools'
-tools.mkdir()
-ready = tools / 'socket'
-shim = tools / 'tmux'
-shim.write_text('#!/usr/bin/env bash\nREAL_TMUX=' + shlex.quote(tmux) +
-                '\nORCA_READY=' + shlex.quote(str(ready)) + '''
-if [ "$1" = -S ] && [ "$5" = new-session ]; then
-  "$REAL_TMUX" "$@" || exit $?
-  printf '%s\\n' "$2" > "$ORCA_READY"
-  exec sleep 60
-fi
-exec "$REAL_TMUX" "$@"
-''')
-shim.chmod(0o755)
-env = dict(os.environ, PATH=str(tools) + os.pathsep + os.environ['PATH'], FM_TEST_SKIP_ORPHAN_REAP='1')
-socket = None
-with (tools / 'suite.log').open('w+') as log:
-    proc = subprocess.Popen([bash, suite], env=env, start_new_session=True, stdout=log, stderr=log)
+ready = root / 'socket'
+env = dict(os.environ, TMPDIR=str(root), FM_TEST_SKIP_ORPHAN_REAP='1')
+server = None
+with (root / 'fixture.log').open('w+') as log:
+    fixture = subprocess.Popen([bash, suite, '--source-tmux-exit-fixture', str(ready)], env=env,
+                               stdin=subprocess.PIPE, stdout=log, stderr=log)
     try:
+        assert os.getpgid(fixture.pid) == os.getpgrp(), 'fixture escaped the worker group'
         deadline = time.monotonic() + 5
-        while time.monotonic() < deadline and proc.poll() is None:
+        while time.monotonic() < deadline and fixture.poll() is None:
             if ready.exists() and (path := ready.read_text().strip()):
-                socket = pathlib.Path(path)
                 break
             time.sleep(0.02)
-        assert socket is not None and socket.is_socket(), 'real launch never bound its socket'
-        server = subprocess.check_output([tmux, '-S', str(socket), 'display-message', '-p',
-                                          '-t', '=scoped-source', '#{pid}'], text=True, timeout=2).strip()
-        assert int(server) > 0
-        os.killpg(proc.pid, signal.SIGTERM)
-        assert proc.wait(timeout=8) in (143, -signal.SIGTERM), 'suite did not exit on TERM'
+        else:
+            raise AssertionError('Orca fixture never published its socket path')
+        socket = pathlib.Path(path)
+        server = subprocess.Popen([tmux, '-D', '-S', path, '-f', '/dev/null'], env=env,
+                                  stdin=subprocess.DEVNULL, stdout=log, stderr=log)
+        assert os.getpgid(server.pid) == os.getpgrp(), 'tmux escaped the worker group'
+        deadline = time.monotonic() + 5
+        while not socket.is_socket():
+            assert server.poll() is None and time.monotonic() < deadline, 'tmux never bound its socket'
+            time.sleep(0.02)
+        fixture.send_signal(signal.SIGTERM)
+        assert fixture.wait(timeout=8) in (143, -signal.SIGTERM), 'fixture did not exit on TERM'
+        assert server.wait(timeout=2) == 0, 'Orca tmux did not stop cleanly'
         assert not socket.parent.exists(), 'Orca scratch survived TERM'
-        deadline = time.monotonic() + 2
-        while True:
-            state = subprocess.run(['ps', '-p', server, '-o', 'stat='], capture_output=True,
-                                   text=True, timeout=2).stdout.strip()
-            if not state or state.startswith('Z'):
-                break
-            assert time.monotonic() < deadline, 'Orca server survived TERM'
-            time.sleep(0.02)
     except Exception:
         log.seek(0)
         print(log.read(), file=sys.stderr)
         raise
     finally:
-        if proc.poll() is None:
-            os.killpg(proc.pid, signal.SIGKILL)
-            proc.wait()
-        if socket is not None and socket.is_socket():
-            subprocess.run([tmux, '-S', str(socket), 'kill-server'], capture_output=True, timeout=2)
+        for child in (fixture, server):
+            if child is not None and child.poll() is None:
+                child.kill()
+                child.wait()
+        fixture.stdin.close()
 PY
-  pass 'Orca stops its detached tmux server and removes scratch on TERM'
+  pass 'Orca stops its private tmux server and removes scratch on TERM'
 }
+
+if [ "${1:-}" = --source-tmux-exit-fixture ]; then
+  arm_orca_source_tmux "$TMPDIR"
+  printf '%s\n' "$orca_tmux_dir/tmux.sock" > "$2"
+  IFS= read -r _
+  exit 1
+fi
 
 test_orca_source_preserves_values_without_utf8_locale
 test_orca_term_stops_source_tmux
