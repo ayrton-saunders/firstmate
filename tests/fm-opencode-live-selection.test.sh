@@ -17,7 +17,10 @@ import sys
 repo, lab = map(Path, sys.argv[1:])
 bin_dir = lab / "bin"
 bin_dir.mkdir()
-for tool in ("bash", "dirname", "basename", "mktemp", "mkdir", "rm", "uname", "cat", "od", "tr", "ps", "awk", "sed", "grep", "head", "git"):
+tools = ("bash", "dirname", "basename", "mktemp", "mkdir", "rm", "uname", "cat", "od", "tr", "ps", "awk", "sed", "grep", "head", "git")
+if sys.platform == "darwin":
+    tools += ("lsof",)
+for tool in tools:
     target = shutil.which(tool)
     assert target, f"required test tool missing: {tool}"
     (bin_dir / tool).symlink_to(target)
@@ -64,8 +67,14 @@ with patch("shutil.copytree"), patch("subprocess.run"), patch.object(http.server
         sys.exit(23 if os.environ.get("LIVE_SELECTION_FAIL") == "1" else 0)
 raise AssertionError("fixture never attempted process setup")
 ''')
+fixture = repo / "tests/opencode-v2-live-fixture.py"
 wrapper = bin_dir / "python3"
-wrapper.write_text(f"#!/bin/sh\nexec {shlex.quote(sys.executable)} {shlex.quote(str(interceptor))} \"$@\"\n")
+wrapper.write_text(f'''#!/bin/sh
+if [ "${{1:-}}" = {shlex.quote(str(fixture))} ]; then
+    exec {shlex.quote(sys.executable)} {shlex.quote(str(interceptor))} "$@"
+fi
+exec {shlex.quote(sys.executable)} "$@"
+''')
 wrapper.chmod(0o755)
 
 
@@ -102,7 +111,6 @@ env = {
     "LIVE_SELECTION_SETUP": str(setups),
 }
 guard = repo / "tests/fm-opencode-primary-live-e2e.test.sh"
-fixture = repo / "tests/opencode-v2-live-fixture.py"
 bash = str(bin_dir / "bash")
 
 

@@ -430,7 +430,7 @@ test_primary_lab_copy_excludes_only_declared_scratch() {
 test_helper_child_keeps_its_live_cwd() {
   local harness rc=0 pid
   harness=$(fm_test_tmproot fm-test-helper-cwd)
-  TMPDIR="$harness" bash -ec '
+  FM_TEST_RETAIN_MARKER="$harness/retained" TMPDIR="$harness" bash -ec '
     . "$1"
     d=$(fm_test_tmproot fm-helper-cwd)
     printf "%s\n" "$d" > "$2/root"
@@ -451,6 +451,7 @@ test_helper_child_keeps_its_live_cwd() {
   kill "$pid" 2>/dev/null || true
   assert_equals 1 "$rc" 'a helper with no suite job requires retention'
   assert_present "$(<"$harness/root")/.retain-scratch.fixture" 'still-live helper cwd must not be deleted'
+  compgen -G "$harness/retained.*.fixture" >/dev/null || fail 'nested fixture did not publish retention locally'
   pass 'fixture cleanup retains an orphaned helper cwd'
 }
 
