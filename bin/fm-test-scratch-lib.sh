@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+# Exclude only the declared top-level scratch entry at copy time, not dirty
+# or untracked work with similar names. See tests/fm-test-fixture-cleanup.test.sh.
 fm_test_declared_scratch=.test-phase-tmp
 
 fm_test_is_declared_scratch() {
@@ -23,6 +25,9 @@ fm_test_is_declared_scratch() {
   fi
 }
 
+# Primary labs need working-tree changes and untracked setup files, unlike
+# the tracked-only remote source fixture. Keep the primary lab's existing
+# Git, runtime-state and dependency exclusions as well as declared scratch.
 fm_test_copy_primary_lab() (
   set -o pipefail
   local source=$1 dest=$2 entry

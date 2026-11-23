@@ -14,17 +14,20 @@
 # With no test paths, the tests are the tests/*.test.sh files that differ from
 # the merge base with --base (default: origin/main, else main), including
 # uncommitted and untracked ones. A local clone of the repo, overlaid with the
-# working tree files, is mounted read-write from a scratch directory, so tests
-# see git history and the checkout is never modified. Tests run as the host
-# user, not root, to match CI file-mode behavior.
+# working-tree bytes of tracked and non-ignored untracked files, is mounted
+# read-write from a scratch directory. The overlay skips declared test scratch
+# and does not follow symlinked ancestors. Tests see git history without
+# modifying the host checkout and run as the host user, not root, to match
+# CI file-mode behavior.
 # --list prints the selected tests and exits without a container runtime.
 #
 # Runtime: FM_CONTAINER_RUNTIME, else docker, else podman. With none installed
 # the script stops with exit 2. The image is built from tests/linux/Dockerfile
 # (Debian bookworm, GNU coreutils) and tagged fm-test-linux:bookworm.
 #
-# Exit status: 0 all selected tests passed (or none changed), 1 a test failed,
-# 2 usage error or no container runtime.
+# Exit status: 0 all selected tests passed (or none changed) and scratch
+# cleanup succeeded, 1 a test or probe cleanup failed, 2 usage error,
+# unsafe scratch placement, or runtime/setup error.
 set -eu
 set -o pipefail
 

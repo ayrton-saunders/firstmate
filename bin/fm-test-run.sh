@@ -76,21 +76,6 @@
 #                   failure, not proof of a hang. --max-wall-ms is checked
 #                   after the run and so cannot catch a hang on its own.
 #
-# Scratch is independent of inherited TMPDIR and uses the OS per-user temp
-# area on macOS and /tmp elsewhere. Neither base nor run root may resolve
-# into the checkout, FM_HOME, preserved copies or a Treehouse pool. Using OS
-# temp keeps reproducible scratch out of backups without changing Time Machine.
-# Within the base, a private per-UID directory holds marked runs and wN/tmp
-# directories. EXIT, INT, HUP and TERM drain owned worker groups before removing
-# the run; a test that starts a separate session/group owns that group's cleanup.
-# A subsequent run recovers aged, marked roots when the runner and workers are gone.
-# Windows-style shells do not support orphan recovery; normal-exit and signal cleanup still apply.
-# Scratch marked for unverified teardown is never reaped automatically, even after its owners exit.
-# A tmux launch interrupted after the server forks but before its socket binds can appear stopped to probe cleanup.
-# If cleanup cannot verify a live group's leader before signaling, it waits briefly without signaling and fails with scratch retained if the group remains.
-# If interruption cuts short a nested runner's cleanup, its scratch is recovered on a later run once those workers are gone.
-# PID-directed TERM/HUP waits for a foreground TTY test to finish or time out, or for blocked output replay to return; background worker waits are interruptible.
-# Keep requested reports and redirected logs outside runner scratch.
 #   --max-wall-ms N fail the run when its measured invocation wall clock exceeds
 #                   N milliseconds, including an empty selection. It is
 #                   evaluated after selection and suite execution and cannot
@@ -98,6 +83,31 @@
 #                   bounded by --per-script-timeout-secs. Pathological output
 #                   sinks that block finalization are explicitly out of scope.
 #   -h, --help      print this header
+#
+# Scratch placement and cleanup:
+#   The runner allocates in the OS per-user temp area on macOS and /tmp
+#   elsewhere, regardless of inherited TMPDIR. Before the runner exports its
+#   own temp paths, Bash may use inherited TMPDIR for temporary redirections.
+#   The scratch base and per-UID parent must resolve outside checkouts,
+#   effective Firstmate home and operational paths, preserved copies and
+#   Treehouse pools. OS temp placement keeps scratch out of the trees being
+#   backed up; the runner does not configure Time Machine exclusions.
+#   The private per-UID directory holds marked runs with per-worker temp dirs.
+#   Keep requested reports and redirected logs outside runner scratch.
+#   EXIT, HUP, INT, QUIT and TERM trigger cleanup. The runner drains recorded
+#   worker and timed-command groups; detached groups and private services are
+#   the test's responsibility. A tmux launch interrupted before the server
+#   binds its socket can appear stopped to probe cleanup.
+#   PID-directed TERM/HUP waits for a foreground TTY test to finish or time
+#   out, or for blocked output replay to return. Background worker waits are
+#   interruptible, but PID reuse can select an older ownership record, causing
+#   cleanup to wait for the worker rather than signal an unverified group.
+#   Cleanup retains scratch if it cannot confirm that a recorded group exited.
+#   A subsequent run can recover aged, marked roots, including nested runs,
+#   once recorded owners are gone. Recovery requires a usable process-group
+#   inventory, which Git Bash/MSYS does not provide. Roots marked for
+#   unverified teardown require manual removal once nothing is using them.
+#   See tests/fm-test-run.test.sh for placement and lifecycle regressions.
 #
 # Per-script machine-parseable markers (stdout):
 #   FM_TEST_BEGIN <iso8601> <script> family=<family> expected_gate_skip=<class>
@@ -108,6 +118,11 @@
 #   FM_TEST_SUMMARY_FAMILY family=<name> count=<n> duration_ms=<n> failed=<n>
 #   FM_TEST_SLOWEST rank=<k> script=<path> duration_ms=<n>
 #   FM_TEST_BUDGET max_wall_ms=<n> duration_ms=<n>   (only with --max-wall-ms)
+#   FM_TEST_CLEANUP failed                           (scratch removal failed)
+#
+# A scratch removal failure at run finalization sets cleanup_failed: true in
+# the run's timing JSON without increasing the suite failure count. The
+# aggregate summary does not carry forward this lane field.
 #
 # Placement refusal:
 #   A task worker is assigned an isolated worktree, and that placement is
@@ -120,8 +135,8 @@
 #
 # Exit status is non-zero if any selected script exits non-zero, a configured
 # --fail-on-gate-skip token appears, the measured duration exceeds
-# --max-wall-ms, timing-artifact finalization fails, or a concurrent worker
-# violates its isolation check. Other gate skips (first meaningful line
+# --max-wall-ms, scratch cleanup or timing-artifact finalization fails, or a
+# concurrent worker violates its isolation check. Other gate skips (first meaningful line
 # matching ^skip:) remain successful and are counted as skipped_gate; each one
 # is logged with its reason and recorded in the timing artifact.
 #

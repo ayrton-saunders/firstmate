@@ -45,8 +45,11 @@
 #   FM_ISOLATION_CANDIDATE_BEGIN <iso8601> <script> worker=<i>
 #   FM_ISOLATION_CANDIDATE_END <iso8601> <script> exit=<code> duration_ms=<n> worker=<i>
 #   FM_ISOLATION_SUMMARY total=<n> failed=<n> concurrency=<n> duration_ms=<n>
+#   FM_ISOLATION_CLEANUP failed  (proof scratch removal failed)
 #
-# Exit status is the aggregate of candidate exits: non-zero if any candidate
+# A scratch removal failure at proof finalization sets cleanup_failed: true
+# in the proof JSON without increasing the candidate failure count.
+# Exit status is non-zero if proof cleanup fails, if any candidate
 # fails, gate-skips (first meaningful line matching ^skip:), if isolation checks
 # fail, or if the candidate set is empty. A gate skip names the pool, candidate,
 # and missing prerequisite and cannot admit concurrency. A script that fails
