@@ -11,18 +11,43 @@ fm_test_remove_tree() {
 }
 
 fm_test_copy_hermes_evidence() (
-  local lab=$1 base=$2 evidence
+  local lab=$1 base=$2 stage= pending= evidence rc=0 entry
+  local -a entries=()
   set -o pipefail
-  evidence=$(mktemp -d "${base%/}/fm-hermes-evidence.XXXXXX") || return 1
-  if ! tar -C "$lab" -cf - . | tar -C "$evidence" -xf -; then
-    fm_test_remove_tree "$evidence"
-    return 1
-  fi
+  trap '[ -z "$pending" ] || fm_test_remove_tree "$pending"; [ -z "$stage" ] || fm_test_remove_tree "$stage"' EXIT
+  trap 'exit 129' HUP
+  trap 'exit 130' INT
+  trap 'exit 131' QUIT
+  trap 'exit 143' TERM
   shopt -s dotglob nullglob
-  set -- "$evidence"/*
-  if [ "$#" -eq 0 ]; then
-    fm_test_remove_tree "$evidence"
-    return 1
+  set -- "$lab"/*
+  [ "$#" -gt 0 ] || return 1
+  for entry in "$@"; do entries+=("./${entry##*/}"); done
+  stage=$(mktemp -d "${lab%/}/fm-hermes-evidence.XXXXXX") || return 1
+  evidence="${base%/}/${stage##*/}"
+  tar -C "$lab" -cf - "${entries[@]}" | tar -C "$stage" -xf - || return 1
+  set -- "$stage"/*
+  [ "$#" -gt 0 ] || return 1
+
+  rename_evidence() {
+    python3 -c '
+import errno, os, sys
+try:
+    os.rename(sys.argv[1], sys.argv[2])
+except OSError as exc:
+    if exc.errno == errno.EXDEV:
+        sys.exit(3)
+    raise
+' "$1" "$evidence"
+  }
+  rename_evidence "$stage" || rc=$?
+  if [ "$rc" -eq 3 ]; then
+    pending="${base%/}/.${stage##*/}.pending"
+    (umask 077; mkdir -- "$pending") || { pending=; return 1; }
+    tar -C "$stage" -cf - . | tar -C "$pending" -xf - || return 1
+    rename_evidence "$pending" || return 1
+  elif [ "$rc" -ne 0 ]; then
+    return "$rc"
   fi
   printf 'Hermes guard evidence: %s\n' "$evidence"
 )

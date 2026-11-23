@@ -2316,6 +2316,41 @@ if os.name != 'posix' or subprocess.run(
     print('skip: orphan recovery requires process identity and group liveness support')
     sys.exit(0)
 
+tar_probe = fakebin / 'tar'
+tar_probe.write_bytes(b'''#!/usr/bin/env bash
+if [ "$1" = -C ] && [ "$3" = -xf ] && [[ "$2" == */fm-hermes-evidence.* ]]; then
+    touch "$2/partial"
+    touch "$PROOF.extracting"
+    exec sleep 60
+fi
+exec "$REAL_TAR" "$@"
+''')
+tar_probe.chmod(0o755)
+fixture_env['REAL_TAR'] = shutil.which('tar')
+try:
+    child, proof = launch('interrupted-evidence', 'evidence')
+    try:
+        _, run = scratch(proof)
+        for _ in range(200):
+            if (tmp / 'interrupted-evidence.extracting').is_file():
+                break
+            assert child.poll() is None
+            time.sleep(0.05)
+        else:
+            raise AssertionError('evidence extractor never wrote partial data')
+        assert set(base.iterdir()) == {private, evidence}, 'partial evidence already published'
+        child.terminate()
+        assert child.wait(timeout=10) == 143
+        assert not run.exists() and set(base.iterdir()) == {private, evidence}
+        assert label not in (tmp / 'interrupted-evidence.log').read_text()
+    finally:
+        if child.poll() is None:
+            child.terminate()
+            child.wait(timeout=10)
+finally:
+    tar_probe.unlink()
+    fixture_env.pop('REAL_TAR')
+
 with subprocess.Popen(['sleep', '60'], start_new_session=True) as decoy:
     fixture_env['DECOY_GROUP'] = str(decoy.pid)
     try:
