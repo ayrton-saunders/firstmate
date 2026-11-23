@@ -1,0 +1,6 @@
+Suite body returned 0; exiting from /tmp/source
+outside: exit=0 fixture_exists=no
+Suite body returned 0; exiting from /tmp/scratch/fm-cwd-regression.aT392d
+fixture teardown unverified; retaining scratch registered in /tmp/scratch/.fm-test-registry.u1xaqv/cleanup
+inside: exit=1 fixture_exists=yes
+Container exit: 1

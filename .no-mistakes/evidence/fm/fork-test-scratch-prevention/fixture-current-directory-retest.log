@@ -1,0 +1,6 @@
+Successful fixture body exits from /tmp/source
+outside: exit=0 fixture_exists=no
+Successful fixture body exits from /tmp/scratch-inside/fm-cwd-retest.b5l6QH
+fixture teardown unverified; retaining scratch registered in /tmp/scratch-inside/.fm-test-registry.OvTLzZ/cleanup
+inside: exit=1 fixture_exists=yes
+Container exit: 0

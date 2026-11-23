@@ -1,0 +1,74 @@
+
+-- fm-test-fixture-cleanup --
+ok - orphan recovery preserves live and stopped Orca tmux fixtures
+ok - successful fixture cleanup is safe to repeat from EXIT
+ok - MSYS fixture cleanup requires a valid process inventory
+ok - cleanup guards cwd-only children, fixture ownership, and inherited boundaries
+ok - fixture cleanup retains an orphaned helper cwd
+ok - claim sweep preserves numeric-name eligibility and whole-second expiry
+ok - direct claim suite cleans up its common fixtures
+fixture teardown unverified; retaining scratch registered in /tmp/scratch/fm-test-custom-finalizer.DfHBYj/1/.fm-test-registry.Pl5gvi/cleanup
+ok - custom finalizer cleans only after verified teardown
+ok - primary lab copies omit only root-level declared scratch
+ok - standalone and fixture cleanup report failures without replacing an existing status
+ok - fm_test_tmproot cleans up its fixture root on normal exit
+ok - the finalizing shell does not prevent cleanup of its own cwd
+ok - fm_test_tmproot cleans up its fixture root on SIGTERM
+ok - the cleanup registry cannot be injected through path precreation
+ok - fixture registry allocation is cleaned up on TERM
+ok - failed fixture registration rolls back the new root
+ok - the orphan sweep reaps only old fixtures without a live owner
+ok - the orphan sweep reaps read-only package fixtures
+ok - fixture preflight refuses checkout TMPDIR before creating registries
+ok - fm_test_cleanup stops an orphaned poller that names its fixture root
+Suite exit: 0
+
+-- fm-test-fixtures --
+ok - direct fixtures reject checkout scratch and supported aliases
+ok - direct fixture preflight sees inherited Firstmate home boundaries
+ok - direct fixtures reject effective operational directories outside the home
+ok - identity lookup failure leaves scratch and inherited registry untouched
+ok - runner and shared helpers isolate host Git config and preserve explicit config and outside commits
+ok - tests/lib.sh clears an inherited launcher environment and honors later exports
+ok - shared helpers and runner keep fixture Git off an inherited repository location
+skip: no C compiler, so the compiled stand-in half of the multicall case cannot run
+ok - agent stand-in: a multicall sleep is refused rather than offered as a stand-in
+ok - fm_touch_epoch preserves both epochs in the repeated DST hour
+ok - fake no-mistakes --version is the shared constant and overridable
+ok - init/doctor no-mistakes stub touches markers and refuses other verbs
+ok - fake gh authenticates and fake gh-axi reports the shared version
+ok - spawn fakebin answers pane path, logs -l payloads, and installs extra tools
+ok - send stubs log typed text and fake ssh records argv with a controllable exit
+ok - spawn-home layout writes harness pin, beat, and brief
+Suite exit: 0
+
+-- fm-test-isolation-proof --
+ok - unknown candidate pools are refused
+ok - family pool JSON scopes jobs admission to proven concurrency
+ok - candidate --list is non-empty, sorted, unique, and real
+ok - serial classes remain excluded from the parallel candidate set
+ok - audited fake-backend and stub-network extras are candidates
+ok - exclusion list documents serial reasons
+ok - isolation-proof contract test is family-mapped
+ok - parallel shards consume the proven-isolated set only
+ok - fixture repositories pin their initial branch to main
+Suite exit: 0
+
+-- fm-test-tap-verify --
+ok - a complete matching suite passes
+ok - checkout scratch is refused before the TAP suite runs
+ok - verifier cleans read-only scratch from a failing suite
+ok - verifier honors retention on both success and failure paths
+ok - TERM drains a stalled TAP suite before removing scratch
+ok - TAP verifier preserves foreground terminal input
+ok - TAP verifier releases scratch before replay
+ok - an early exit 0 fails even when some ok lines printed
+ok - a not-ok line fails even when the suite exits 0
+ok - a nonzero process status fails even with a matching TAP plan
+ok - planned count must equal the number of ok lines
+ok - fm_test_run derives N from the registered names
+ok - a test function that exits 0 before later tests fail completeness
+ok - a completeness failure prints an error annotation
+Suite exit: 0
+
+Container exit: 0

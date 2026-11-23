@@ -1,0 +1,14 @@
+unsafe scratch base {run-worktree}/.fm-hermes-preflight.0SegN8/inside-tmp resolves inside {run-worktree}
+In-checkout opt-in exit: 2; no scratch allocated.
+This probe requires exclusive control of the throwaway profile. Do not edit its config during the run; concurrent edits may be overwritten.
+not ok - config resolves outside the throwaway profile
+Escaped-config exit: 1; config unchanged, profile lock and scratch gone.
+hermes: preparing dependencies for this data root (the checkout's updates belong to ~/.hermes)...
+Preparing the isolated Hermes runtime…
+  → Installing Python dependencies…
+  ✓ Installing Python dependencies
+  → Installing Python dependencies…
+  ✓ Installing Python dependencies
+This probe requires exclusive control of the throwaway profile. Do not edit its config during the run; concurrent edits may be overwritten.
+not ok - throwaway profile configures a messaging platform or returned an unrecognized platform result
+Native platform refusal exit: 1; config unchanged, no gateway or retained scratch.

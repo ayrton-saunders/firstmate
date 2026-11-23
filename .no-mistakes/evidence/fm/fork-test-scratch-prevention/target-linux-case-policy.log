@@ -1,0 +1,6 @@
+Discovery without runtime or safe TMPDIR:
+tests/changed.test.sh
+fm-test-linux: core.ignoreCase would prune distinct entry '.TEST-PHASE-TMP'; correct the checkout's case policy before probing
+Overlay exit: 2; distinct sentinel retained: distinct bytes
+
+Container exit: 0

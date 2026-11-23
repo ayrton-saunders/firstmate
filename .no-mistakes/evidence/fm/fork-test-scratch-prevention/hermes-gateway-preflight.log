@@ -1,0 +1,7 @@
+unsafe scratch base {run-worktree}/.fm-live-gateway.dRuWMA resolves inside {run-worktree}
+In-checkout opt-in refusal exit: 2
+This probe requires exclusive control of the throwaway profile. Do not edit its config during the run; concurrent edits may be overwritten.
+not ok - throwaway profile configures a messaging platform or returned an unrecognized platform result
+Native platform gate exit: 1
+Profile unchanged; no backup, lock or gateway state remains.
+Disposable profile removed.

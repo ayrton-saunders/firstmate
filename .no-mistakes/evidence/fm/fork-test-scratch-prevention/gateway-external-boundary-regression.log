@@ -1,0 +1,15 @@
+config restore found an unexpected file or link
+config restore found an unexpected file or link
+config restore found an unexpected file or link
+config restore found an unexpected file or link
+Traceback (most recent call last):
+  File "<string>", line 70, in <module>
+OSError: [Errno 40] Too many levels of symbolic links: '.fm-gateway-config.Xop9Oh'
+Traceback (most recent call last):
+  File "<string>", line 70, in <module>
+  File "<frozen os>", line 1031, in fdopen
+IsADirectoryError: [Errno 21] Is a directory: 10
+config entries changed before restore
+config backup changed
+ok - gateway serializes profile edits, restores links, and refuses escaped targets
+Container exit: 0

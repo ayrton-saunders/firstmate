@@ -1,0 +1,7 @@
+-- discovery without runtime or safe TMPDIR --
+tests/changed.test.sh
+
+-- overlay from the same checkout --
+fm-test-linux: core.ignoreCase would prune distinct entry '.TEST-PHASE-TMP'; correct the checkout's case policy before probing
+Exit: 2
+Container exit: 0

@@ -1,0 +1,5 @@
+Parent revision fixture body succeeded from /tmp/scratch/baseline-nested-cwd.HAaJNo/nested
+fixture teardown unverified; retaining scratch registered in /tmp/scratch/.fm-test-registry.LkdyZE/cleanup
+Parent revision exit: 1; fixture retained
+
+Container exit: 0

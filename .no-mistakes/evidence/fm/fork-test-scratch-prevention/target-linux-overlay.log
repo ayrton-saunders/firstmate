@@ -1,0 +1,17 @@
+unsafe scratch base {run-worktree}/.fm-overlay-check.UM7dCf/repo/.test-phase-tmp resolves inside {run-worktree}/.fm-overlay-check.UM7dCf/repo
+Unsafe overlay exit: 2
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            BuildKit is currently disabled; enable it by removing the DOCKER_BUILDKIT=0
+            environment-variable.
+
+fm-test-linux: 1 on Linux 7.2.12-orbstack-00394-gbecdd6130068
+Linux container launch: scratch: /private/tmp/fm-test-linux.ulQGUa; selector: label=firstmate.test-launch=d7196135ac4a9533284bae0d557bad9a
+Inside Docker at /work: dirty tracked and untracked bytes retained, scratch absent, and empty submodule placeholder present
+PASS tests/overlay.test.sh
+Container and overlay removed, source scratch sentinel unchanged.
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            BuildKit is currently disabled; enable it by removing the DOCKER_BUILDKIT=0
+            environment-variable.
+
+fm-test-linux: cannot copy Git checkout 'empty-submodule' recorded as a gitlink; move the checkout out of the working tree before running Linux validation
+Populated gitlink exit: 2

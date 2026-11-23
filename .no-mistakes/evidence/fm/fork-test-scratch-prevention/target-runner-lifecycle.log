@@ -1,0 +1,7 @@
+
+-- fm-test-run.sh with controlled synthetic suites --
+ok - runner scratch stays out of snapshots and is cleaned after results, signals and owner death
+ok - --per-script-timeout-secs turns a hung script into a bounded failure
+ok - probe cleanup removes read-only hooks without following symlinks
+
+Container exit: 0
