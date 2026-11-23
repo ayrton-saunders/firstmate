@@ -1,0 +1,4 @@
+ok - direct fixtures reject checkout scratch and supported aliases
+ok - direct fixture preflight sees inherited Firstmate home boundaries
+ok - direct fixtures reject effective operational directories outside the home
+ok - identity lookup failure leaves scratch and inherited registry untouched

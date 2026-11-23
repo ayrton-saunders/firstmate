@@ -1,0 +1,21 @@
+unsafe scratch base {run-worktree}/.phase-linux.n5stJU/repo/.test-phase-tmp resolves inside {run-worktree}/.phase-linux.n5stJU/repo
+Unsafe inherited TMPDIR exit: 2
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+fm-test-linux: 1 on Linux 7.2.12-orbstack-00394-gbecdd6130068
+Linux container launch: scratch: /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/fm-test-linux.VfEIwk; selector: label=firstmate.test-launch=ab17e32fc712078c0e370d378485d0d1
+Linux container saw edited tracked and ordinary untracked work, but not declared scratch or deleted files
+PASS tests/overlay.test.sh
+Overlay command exit: 0
+Verified: matching Docker container gone and staging directory removed
+DEPRECATED: The legacy builder is deprecated and will be removed in a future release.
+            Install the buildx component to build images with BuildKit:
+            https://docs.docker.com/go/buildx/
+
+fm-test-linux: 1 on Linux 7.2.12-orbstack-00394-gbecdd6130068
+Linux container launch: scratch: /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/fm-test-linux.rXIXA9; selector: label=firstmate.test-launch=b6ab97ee1458a185b94c1abde4b1d632
+Linux payload ready
+Interrupted overlay command exit: 143
+Verified: matching Docker container gone and staging directory removed

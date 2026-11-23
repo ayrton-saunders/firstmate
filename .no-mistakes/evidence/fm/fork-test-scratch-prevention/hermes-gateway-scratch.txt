@@ -1,0 +1,9 @@
+This probe requires exclusive control of the throwaway profile. Do not edit its config during the run; concurrent edits may be overwritten.
+not ok - throwaway profile configures a messaging platform or returned an unrecognized platform result
+Enabled-platform guard exit: 1
+Verified: platform config unchanged; no Firstmate scratch, backup or lock
+Native gateway state: starting pid: 46572
+Observed native configuration write and rollback backup; sending TERM to the probe
+This probe requires exclusive control of the throwaway profile. Do not edit its config during the run; concurrent edits may be overwritten.
+Interrupted probe exit: 143
+Verified: original config bytes and mode restored; profile lock, backup, active gateway process, and Firstmate scratch gone

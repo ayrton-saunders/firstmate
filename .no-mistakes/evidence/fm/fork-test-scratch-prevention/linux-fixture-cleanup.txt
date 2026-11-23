@@ -1,0 +1,23 @@
+Linux UID=1001, Linux
+ok - fixture cleanup succeeds with an unrelated non-dumpable Linux process
+ok - orphan recovery preserves live and stopped Orca tmux fixtures
+ok - successful fixture cleanup is safe to repeat from EXIT
+ok - MSYS fixture cleanup requires a valid process inventory
+ok - cleanup guards cwd-only children, fixture ownership, and inherited boundaries
+ok - fixture cleanup retains an orphaned helper cwd
+ok - claim sweep preserves numeric-name eligibility and whole-second expiry
+ok - direct claim suite cleans up its common fixtures
+fixture teardown unverified; retaining scratch registered in /tmp/fm-test-custom-finalizer.Uowqjw/1/.fm-test-registry.V2v4Ob/cleanup
+ok - custom finalizer cleans only after verified teardown
+ok - primary lab copies omit only root-level declared scratch
+ok - standalone and fixture cleanup report failures without replacing an existing status
+ok - fm_test_tmproot cleans up its fixture root on normal exit
+ok - the finalizing shell does not prevent cleanup of its own cwd
+ok - fm_test_tmproot cleans up its fixture root on SIGTERM
+ok - the cleanup registry cannot be injected through path precreation
+ok - fixture registry allocation is cleaned up on TERM
+ok - failed fixture registration rolls back the new root
+ok - the orphan sweep reaps only old fixtures without a live owner
+ok - the orphan sweep reaps read-only package fixtures
+ok - fixture preflight refuses checkout TMPDIR before creating registries
+ok - fm_test_cleanup stops an orphaned poller that names its fixture root

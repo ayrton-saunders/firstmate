@@ -1,0 +1,13 @@
+Traceback (most recent call last):
+  File "<stdin>", line 18, in <module>
+PermissionError: [Errno 13] Permission denied: b'/proc/102/cwd'
+fixture teardown unverified; retaining scratch registered in /tmp/fm-test-cleanup-nondumpable.YkwTHK/tmp/.fm-test-registry.Z9R8vN/cleanup
+Traceback (most recent call last):
+  File "<stdin>", line 26, in <module>
+  File "/usr/lib/python3.11/subprocess.py", line 571, in run
+    raise CalledProcessError(retcode, process.args,
+subprocess.CalledProcessError: Command '['bash', '-ec', '\n            . "$1"\n            d=$(fm_test_tmproot fm-test-cwd-unreadable)\n            printf \'%s\\n\' "$d"\n        ', '_', '/tmp/current/tests/lib.sh']' returned non-zero exit status 1.
+not ok - unreadable proc cwd blocked fixture cleanup
+Previous fixture cleanup exit: 1
+ok - fixture cleanup succeeds with an unrelated non-dumpable Linux process
+Target fixture cleanup exit: 0

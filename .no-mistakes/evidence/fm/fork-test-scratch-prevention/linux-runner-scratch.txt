@@ -1,0 +1,2 @@
+ok - runner scratch stays out of snapshots and is cleaned after results, signals and owner death
+ok - --per-script-timeout-secs turns a hung script into a bounded failure

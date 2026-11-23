@@ -1,0 +1,14 @@
+ok - a complete matching suite passes
+ok - checkout scratch is refused before the TAP suite runs
+ok - verifier cleans read-only scratch from a failing suite
+ok - verifier honors retention on both success and failure paths
+ok - TERM drains a stalled TAP suite before removing scratch
+ok - TAP verifier preserves foreground terminal input
+ok - TAP verifier releases scratch before replay
+ok - an early exit 0 fails even when some ok lines printed
+ok - a not-ok line fails even when the suite exits 0
+ok - a nonzero process status fails even with a matching TAP plan
+ok - planned count must equal the number of ok lines
+ok - fm_test_run derives N from the registered names
+ok - a test function that exits 0 before later tests fail completeness
+ok - a completeness failure prints an error annotation

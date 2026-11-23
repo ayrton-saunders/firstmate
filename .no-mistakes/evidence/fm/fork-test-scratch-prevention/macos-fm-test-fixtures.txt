@@ -1,0 +1,9 @@
+ok - direct fixtures reject checkout scratch and supported aliases
+ok - direct fixture preflight sees inherited Firstmate home boundaries
+ok - direct fixtures reject effective operational directories outside the home
+ok - identity lookup failure leaves scratch and inherited registry untouched
+ok - runner and shared helpers isolate host Git config and preserve explicit config and outside commits
+ok - tests/lib.sh clears an inherited launcher environment and honors later exports
+ok - shared helpers and runner keep fixture Git off an inherited repository location
+not ok - with a compiler, a multicall host sleep must still yield a stand-in
+not ok - agent stand-in multicall case
