@@ -78,7 +78,7 @@ config.mkdir(parents=True, exist_ok=True)
 PY
   for width in 180 64 40; do
     tmux_socket="$TMP_ROOT/${category:0:1}$width"
-    fm_test_arm_private_tmux TMUX_RETAIN || fail 'could not protect Claude probe scratch'
+    fm_test_arm_private_tmux TMUX_RETAIN "$TMP_ROOT" || fail 'could not protect Claude probe scratch'
     env -i PATH="$PATH" HOME="$TMP_ROOT/home-$category" TERM=xterm-256color \
       CLAUDE_CONFIG_DIR="$TMP_ROOT/config-$category" \
       ANTHROPIC_API_KEY=sk-ant-synthetic-loopback-only \

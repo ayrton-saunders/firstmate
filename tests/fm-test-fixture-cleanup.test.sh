@@ -486,6 +486,63 @@ test_successful_cleanup_can_be_repeated() {
   pass 'successful fixture cleanup is safe to repeat from EXIT'
 }
 
+test_orphan_sweep_retains_stopped_private_tmux() {
+  local harness
+  if ! command -v tmux >/dev/null || ! command -v python3 >/dev/null; then
+    printf '%s\n' 'skip: stopped-server orphan recovery needs tmux and python3'
+    return 0
+  fi
+  harness=$(fm_test_tmproot t)
+  TMPDIR="$harness" python3 - "$BASH" "$LIB" "$harness" <<'PY' || fail 'registered scratch was not protected until tmux teardown'
+import os, pathlib, signal, subprocess, sys
+
+bash, lib, base = sys.argv[1:]
+env = os.environ.copy()
+for key in ('TMUX', 'TMUX_PANE', 'FM_TEST_RETAIN_MARKER'):
+    env.pop(key, None)
+env['FM_TEST_SKIP_ORPHAN_REAP'] = '1'
+env['FM_TEST_ORPHAN_MAX_AGE_SECONDS'] = '0'
+base = pathlib.Path(base)
+script = '''
+. "$1"
+root=$(fm_test_tmproot r)
+printf '%s\\n' "$root" > "$2/root"
+marker=
+fm_test_arm_private_tmux marker "$root"
+tmux -S "$root/s" -f /dev/null new-session -d 'exec sleep 60'
+if [ "$3" = stopped ]; then
+  pid=$(tmux -S "$root/s" display-message -p '#{pid}')
+  printf '%s\\n' "$pid" > "$2/pid"
+  kill -STOP "$pid"
+  kill -KILL "$$"
+fi
+fm_test_stop_private_tmux "$root/s" tmux "$marker"
+'''
+try:
+    result = subprocess.run([bash, '-ec', script, '_', lib, base, 'stopped'], env=env, timeout=10)
+    assert result.returncode == -signal.SIGKILL, result.returncode
+    root = pathlib.Path((base / 'root').read_text().strip())
+    subprocess.run([bash, '-ec', '. "$1"; fm_test_reap_orphans', '_', lib], env=env, check=True, timeout=10)
+    assert (root / 's').is_socket(), 'recovery deleted scratch below the stopped server'
+finally:
+    if (base / 'root').is_file():
+        root = pathlib.Path((base / 'root').read_text().strip())
+        if (base / 'pid').is_file():
+            pid = int((base / 'pid').read_text())
+            try:
+                os.kill(pid, signal.SIGCONT)
+                if not (root / 's').is_socket():
+                    os.kill(pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
+        subprocess.run(['tmux', '-S', str(root / 's'), 'kill-server'], env=env, capture_output=True, timeout=5)
+subprocess.run([bash, '-ec', script, '_', lib, base, 'normal'], env=env, check=True, timeout=10)
+assert not pathlib.Path((base / 'root').read_text().strip()).exists(), 'verified teardown left scratch behind'
+PY
+  pass 'orphan recovery preserves a stopped private tmux fixture'
+}
+
+test_orphan_sweep_retains_stopped_private_tmux
 test_successful_cleanup_can_be_repeated
 test_msys_fixture_process_inventory
 test_registry_cleanup_guards

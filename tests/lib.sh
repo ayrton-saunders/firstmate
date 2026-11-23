@@ -489,6 +489,10 @@ fm_test_cleanup() {
   if [ -f "$FM_TEST_CLEANUP_REGISTRY" ]; then
     while IFS= read -r d; do
       fm_test_owns_registered_root "$d" || continue
+      if fm_test_scratch_retained "$d" tmux; then
+        rc=1
+        continue
+      fi
       roots+=("$d")
     done < "$FM_TEST_CLEANUP_REGISTRY"
   fi

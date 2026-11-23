@@ -130,7 +130,7 @@ if [ -z "${FM_LAB_ISO_HOST_MARKER:-}" ] && [ -z "${FM_LAB_ISO_TMP_COPY:-}" ]; th
   assert_equals RAN "$out" "the gate runs the suite where no tmux server can answer"
 
   mkdir -m 700 "${GATE_SOCKET%/*}"
-  fm_test_arm_private_tmux GATE_RETAIN || fail 'could not protect gate scratch'
+  fm_test_arm_private_tmux GATE_RETAIN "$TMP_ROOT" || fail 'could not protect gate scratch'
   tmux -S "$GATE_SOCKET" -f /dev/null new-session -d -s live 'exec sleep 600' || fail "cannot start the gate's own server"
   out=$(gate_run "$TMP_ROOT")
   expect_code 0 "$?" "the gate skips cleanly beside a live server: $out"
@@ -152,9 +152,9 @@ if [ -z "${FM_LAB_ISO_HOST_MARKER:-}" ] && [ -z "${FM_LAB_ISO_TMP_COPY:-}" ]; th
   # not hold the gate: it gives up at its probe deadline and skips.
   mkdir -p "$TMP_ROOT/b"
   mkdir -m 700 "${STUCK_SOCKET%/*}"
-  fm_test_arm_private_tmux STUCK_RETAIN || fail 'could not protect stuck-server scratch'
+  fm_test_arm_private_tmux STUCK_RETAIN "$TMP_ROOT" || fail 'could not protect stuck-server scratch'
   tmux -S "$STUCK_SOCKET" -f /dev/null new-session -d -s stuck 'exec sleep 600' || fail "cannot start the stuck server"
-  [ -z "${FM_TEST_RETAIN_MARKER:-}" ] || [ -f "$STUCK_RETAIN" ] || fail 'running server lacks scratch protection'
+  [ -f "$STUCK_RETAIN" ] || fail 'running server lacks scratch protection'
   STUCK_PID=$(tmux -S "$STUCK_SOCKET" display-message -p '#{pid}')
   [ -n "$STUCK_PID" ] || fail "the stuck server has no pid"
   kill -STOP "$STUCK_PID" || fail "cannot stop the stuck server"
@@ -168,7 +168,7 @@ if [ -z "${FM_LAB_ISO_HOST_MARKER:-}" ] && [ -z "${FM_LAB_ISO_TMP_COPY:-}" ]; th
   kill -CONT "$STUCK_PID" 2>/dev/null
   expect_code 1 "$shutdown_rc" "shutdown returns when the private server does not answer"
   assert_contains "$shutdown" "retained socket: $STUCK_SOCKET" 'unverified teardown names the retained socket'
-  [ -z "${FM_TEST_RETAIN_MARKER:-}" ] || [ -f "$STUCK_RETAIN" ] || fail 'unverified teardown released scratch protection'
+  [ -f "$STUCK_RETAIN" ] || fail 'unverified teardown released scratch protection'
   stop_decoy "$STUCK_PID" "$STUCK_SOCKET" || fail "cannot stop the stuck server"
   if [ -n "$STUCK_RETAIN" ]; then rm -f -- "$STUCK_RETAIN"; fi
   STUCK_PID=''

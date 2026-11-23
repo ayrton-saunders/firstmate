@@ -2107,7 +2107,8 @@ case "$3" in
   new-session)
     (cd -- "${2%/*}" && python3 -c 'import socket; socket.socket(socket.AF_UNIX).bind("s")') || exit 98
     if [ -n "${SWAP_PARENT:-}" ]; then
-      mv "$SWAP_PARENT" "$SWAP_PARENT.saved" && ln -s "$OUTSIDE" "$SWAP_PARENT" || exit 98
+      mv "$SWAP_PARENT" "$SWAP_PARENT.saved" && ln -s "$OUTSIDE" "$SWAP_PARENT" &&
+        printf 'renamed sentinel\n' > "$SWAP_PARENT.saved/original.yaml" || exit 98
     elif [ "$SCENARIO" = target ]; then
       target="${EDIT_CONFIG%/*}/original.yaml"
       cp "$target" "$target.new" && chmod 0600 "$target.new" && mv -f "$target.new" "$target" || exit 98
@@ -2129,6 +2130,7 @@ SH
     printf 'original config\n' > "$profile/original.yaml"
     chmod 0644 "$profile/original.yaml"
     rc=0
+    rm -f -- "$tmp/held-during-stop"
     SCENARIO="$scenario" PATH="$tmp/path:$PATH" EDIT_CONFIG="$profile/config.yaml" LOCK_OBSERVED="$tmp/held-during-stop" \
       FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
       bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
@@ -2160,10 +2162,12 @@ exec "$REAL_PYTHON" "$@"
 SH
   chmod +x "$tmp/path/python3"
   rc=0
+  rm -f -- "$tmp/held-during-stop"
   SCENARIO=manual PATH="$tmp/path:$PATH" REAL_PYTHON="$real_python" EDIT_CONFIG="$profile/config.yaml" LOCK_OBSERVED="$tmp/held-during-stop" \
     FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
     bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
   rm -- "$tmp/path/python3"
+  assert_present "$tmp/held-during-stop" 'manual recovery case held the profile lock through teardown'
   [ "$rc" -eq 1 ] || fail 'expected the injected restore failure'
   restore_command=$(sed -n 's/^To restore manually: //p' "$tmp/out")
   [ -n "$restore_command" ] || fail 'gateway did not print a restore command'
@@ -2257,15 +2261,18 @@ PY
   printf 'mutated\n' >"$tmp/outside/original.yaml"
   ln -s nested/original.yaml "$profile/config.yaml"
   rc=0
+  rm -f -- "$tmp/held-during-stop"
   PATH="$tmp/path:$PATH" EDIT_CONFIG="$profile/config.yaml" LOCK_OBSERVED="$tmp/held-during-stop" \
     SWAP_PARENT="$profile/nested" OUTSIDE="$tmp/outside" FM_HERMES_GATEWAY_LIVE=1 \
     FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
     bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
   [ "$rc" -eq 1 ] && [ -L "$profile/nested" ] && [ -L "$profile/config.yaml" ] \
     && grep -q 'backup retained at' "$tmp/out" || fail 'automatic rollback accepted a replaced target parent'
+  assert_present "$tmp/held-during-stop" 'parent-swap case held the profile lock through teardown'
   if grep -q '^To restore manually:' "$tmp/out"; then fail 'gateway offered a restore command for a replaced parent'; fi
-  [ "$(readlink "$profile/config.yaml")" = nested/original.yaml ] && [ "$(<"$tmp/outside/original.yaml")" = mutated ] \
-    || fail 'rollback changed an escaped target or the config link'
+  assert_equals nested/original.yaml "$(readlink "$profile/config.yaml")" 'rollback left the config link unchanged'
+  assert_equals mutated "$(<"$tmp/outside/original.yaml")" 'rollback did not write into the replacement parent'
+  assert_equals 'renamed sentinel' "$(<"$profile/nested.saved/original.yaml")" 'rollback did not write into the renamed parent'
   pass 'gateway serializes profile edits, restores links, and refuses escaped targets'
 }
 

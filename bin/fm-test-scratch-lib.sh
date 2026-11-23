@@ -382,10 +382,13 @@ fm_test_copy_hermes_evidence() (
 )
 
 fm_test_arm_private_tmux() {
-  local marker_var=$1
-  if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
-    # An unresolved teardown marker excludes this root from automatic reaping, even after its owners exit.
-    printf -v "$marker_var" '%s' "$FM_TEST_RETAIN_MARKER.$$.$marker_var"
+  local marker_var=$1 root=${2:-} prefix=${FM_TEST_RETAIN_MARKER:-}
+  if [ -z "$prefix" ] && [ -n "$root" ]; then
+    fm_test_owns_registered_root "$root" || return 1
+    prefix="$root/.retain-scratch.tmux"
+  fi
+  if [ -n "$prefix" ]; then
+    printf -v "$marker_var" '%s' "$prefix.$$.$marker_var"
     : >"${!marker_var}"
   fi
 }

@@ -84,7 +84,7 @@ window=fm-probe
 EOF
 printf 'blocked: fixture needs a decision\n' > "$HOME_DIR/state/probe.status"
 
-fm_test_arm_private_tmux TMUX_RETAIN || harness_fail "could not protect Cursor scratch"
+fm_test_arm_private_tmux TMUX_RETAIN "$LAB" || harness_fail "could not protect Cursor scratch"
 "$REAL_TMUX" -S "$SOCKET" new-session -d -s primary -x 220 -y 60 -c "$HOME_DIR" \
   "cd '$HOME_DIR' && FM_HOME='$HOME_DIR' FM_HEARTBEAT=30 FM_HEARTBEAT_MAX=30 exec '$CURSOR_BIN' --trust --yolo --workspace '$HOME_DIR'" \
   || harness_fail "could not start the private tmux server"
