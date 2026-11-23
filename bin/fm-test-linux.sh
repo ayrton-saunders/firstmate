@@ -103,26 +103,40 @@ ROOT=$(cd "$script_dir/.." && pwd -P)
 probe_owner=
 container=
 
-cleanup_linux() {
-  local status=$? running teardown=0
-  trap '' HUP INT QUIT TERM
-  fm_test_probe_drain || teardown=1
-  if [ -n "$container" ]; then
-    if running=$(fm_run_timed 5 "$runtime" ps -q --filter "name=^/?$container\$"); then
-      if [ -n "$running" ]; then
-        fm_run_timed 5 "$runtime" stop --time 2 "$container" >/dev/null || teardown=1
-      fi
-    else
-      teardown=1
-    fi
+stop_linux_container() {
+  local running filter
+  [ -n "$container" ] || return 0
+  filter="name=^/?${container//./[.]}\$"
+  running=$(fm_run_timed 5 "$runtime" ps -q --filter "$filter") || return 1
+  if [ -n "$running" ]; then
+    fm_run_timed 5 "$runtime" stop --time 2 "$running" >/dev/null || return 1
+    running=$(fm_run_timed 5 "$runtime" ps -q --filter "$filter") || return 1
+    [ -z "$running" ] || return 1
   fi
+  container=
+}
+
+finish_linux() {
+  local status=$1 teardown=$2
+  trap '' HUP INT QUIT TERM
+  trap - EXIT
   if [ "$teardown" -ne 0 ]; then
+    if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
+      : > "$FM_TEST_RETAIN_MARKER.$$.linux" || printf 'could not publish Linux retention marker\n' >&2
+    fi
     printf 'could not verify Linux probe teardown; retaining scratch: %s\n' "$scratch" >&2
     [ "$status" -ne 0 ] || status=1
   elif ! fm_test_cleanup_scratch "$scratch"; then
     [ "$status" -ne 0 ] || status=1
   fi
   exit "$status"
+}
+cleanup_linux() {
+  local status=$? teardown=0
+  trap '' HUP INT QUIT TERM
+  fm_test_probe_drain || teardown=1
+  stop_linux_container || teardown=1
+  finish_linux "$status" "$teardown"
 }
 trap cleanup_linux EXIT
 
@@ -154,13 +168,15 @@ esac
 failed=()
 for t in "${tests[@]}"; do
   container="${scratch##*/}"
-  if fm_test_probe_run "$runtime" run --rm --name "$container" "${identity[@]}" -v "$scratch:/work" -w /work -e HOME=/tmp -e TMPDIR=/tmp "$image" bash "$t"; then
+  rc=0
+  fm_test_probe_run "$runtime" run --rm --name "$container" "${identity[@]}" -v "$scratch:/work" -w /work -e HOME=/tmp -e TMPDIR=/tmp "$image" bash "$t" || rc=$?
+  [ -z "$probe_owner" ] || exit 1
+  stop_linux_container || finish_linux 1 1
+  if [ "$rc" -eq 0 ]; then
     printf 'PASS %s\n' "$t"
   else
     printf 'FAIL %s\n' "$t"
     failed+=("$t")
   fi
-  [ -z "$probe_owner" ] || exit 1
-  container=
 done
 [ ${#failed[@]} -eq 0 ] || { printf 'fm-test-linux: %s failed\n' "${#failed[@]}" >&2; exit 1; }

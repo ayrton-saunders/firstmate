@@ -2361,29 +2361,29 @@ case "${!#}" in */r.??????) touch "$CLEANUP_CLOCK" ;; esac
         clock.unlink()
         remover.unlink()
 
-rename_probe = fakebin / 'python3'
-rename_probe.write_bytes(b'''#!/usr/bin/env bash
-if [[ ${2:-} == *os.rename* ]]; then
-  if [ "${3%/*}" != "${4%/*}" ]; then
-    "$REAL_PYTHON" -c 'import errno; raise OSError(errno.EXDEV, "cross-device rename")'
-    exit 1
-  fi
+extract_probe = fakebin / 'tar'
+extract_probe.write_bytes(b'''#!/usr/bin/env bash
+"$REAL_TAR" "$@" || exit $?
+if [ "$1" = -C ] && [ "${3:-}" = -xf ] && [ -f "$2/screen.ansi" ]; then
+    printf '%s\\n' "$2" > "$PROOF.staging-path"
 fi
-exec "$REAL_PYTHON" "$@"
 ''')
-rename_probe.chmod(0o755)
-fixture_env['REAL_PYTHON'] = shell_path(sys.executable)
+extract_probe.chmod(0o755)
+fixture_env['REAL_TAR'] = shutil.which('tar')
 try:
     child, proof = launch('evidence-copy', 'evidence')
     assert child.wait(timeout=20) == 0, (tmp / 'evidence-copy.log').read_text()
 finally:
-    rename_probe.unlink()
-    del fixture_env['REAL_PYTHON']
+    extract_probe.unlink()
+    del fixture_env['REAL_TAR']
 _, run = scratch(proof)
 label = 'Hermes guard evidence: '
 line, = [line for line in (tmp / 'evidence-copy.log').read_text().splitlines() if line.startswith(label)]
 evidence = native_path(line[len(label):])
 assert evidence.parent.resolve() == base.resolve(), evidence
+staging = native_path((tmp / 'evidence-copy.staging-path').read_text().strip())
+assert staging.parent.resolve() == evidence.parent.resolve(), staging
+assert staging != evidence and not staging.exists(), staging
 assert not run.exists() and (evidence / 'screen.ansi').read_text() == 'captured output\n'
 assert (evidence / 'wt/answer.txt').read_text() == '80235\n'
 assert (evidence / 'wt/.steer').read_text() == 'acknowledged\n'

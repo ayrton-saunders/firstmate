@@ -167,6 +167,58 @@ SH
   pass 'Linux validation refuses partial inventory and archives'
 }
 
+test_attach_failure_verifies_container_stop() {
+  local repo="$TMP_ROOT/detached" runtime="$TMP_ROOT/detached-runtime" state mode rc out scratch
+  make_repo "$repo"
+  cat >"$runtime" <<'SH'
+#!/usr/bin/env bash
+case "$1" in
+  ps)
+    if [ -f "$STATE/running" ]; then printf '%s\n' container-id; fi
+    ;;
+  stop)
+    [ "${!#}" = container-id ] && [ -d "$(<"$STATE/scratch-path")" ] || exit 2
+    touch "$STATE/stop-called"
+    if [ "$MODE" = resolved ]; then rm "$STATE/running"; fi
+    ;;
+  run)
+    while [ "$#" -gt 1 ]; do
+      if [ "$1" = -v ]; then
+        [ ! -f "$STATE/running" ] || { touch "$STATE/overlap"; exit 2; }
+        if [ -f "$STATE/scratch-path" ]; then touch "$STATE/next-test"; exit 0; fi
+        printf '%s\n' "${2%:/work}" >"$STATE/scratch-path"
+        touch "$STATE/running"
+        exit 7
+      fi
+      shift
+    done
+    ;;
+esac
+SH
+  chmod +x "$runtime"
+  for mode in resolved unresolved; do
+    state="$TMP_ROOT/$mode"
+    mkdir "$state"
+    rc=0
+    out=$(cd "$repo" && TMPDIR="$state" FM_CONTAINER_RUNTIME="$runtime" STATE="$state" MODE="$mode" \
+      FM_TEST_RETAIN_MARKER="$state/.retain-scratch" "$BASH" "$LINUX_CHECK" tests/kept.test.sh tests/gone.test.sh 2>&1) || rc=$?
+    assert_equals 1 "$rc" "client failure fails validation: $out"
+    assert_present "$state/stop-called" 'validator tried to stop its daemon-side container before cleanup'
+    assert_absent "$state/overlap" 'a new test did not start while a container was running'
+    scratch=$(<"$state/scratch-path")
+    if [ "$mode" = resolved ]; then
+      assert_present "$state/next-test" 'tests continue after confirmed teardown'
+      assert_absent "$scratch" 'confirmed teardown allows scratch removal'
+    else
+      assert_absent "$state/next-test" 'unconfirmed teardown stops test admission'
+      assert_present "$scratch/tests/kept.test.sh" 'unconfirmed teardown keeps mounted scratch'
+      fm_test_scratch_retained "$state" || fail 'retention was not propagated'
+      assert_contains "$out" 'retaining scratch:' 'retention diagnostic'
+    fi
+  done
+  pass 'Linux validation confirms daemon teardown after attach failure'
+}
+
 container_ready() {
   local runtime
   [ "${FM_TEST_LINUX_CONTAINER:-}" = 1 ] || return 1
@@ -222,4 +274,4 @@ FIXTURE
 fm_test_run test_selects_changed_tests test_failed_selection_sort_is_not_empty_success test_no_changed_tests_is_a_clean_pass \
   test_missing_runtime_stops_clearly test_checkout_scratch_is_refused_before_build_or_clone \
   test_overlay_keeps_work_but_excludes_legacy_scratch test_overlay_failure_prevents_container_run \
-  test_gnu_stat_fixture_red_then_green
+  test_attach_failure_verifies_container_stop test_gnu_stat_fixture_red_then_green
