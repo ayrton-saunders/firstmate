@@ -32,7 +32,7 @@ TUI_PID=
 TUI_RETAIN=
 GATEWAY_RETAIN=
 cleanup() {
-  local status=$? attempt teardown_failed=0
+  local status=$? attempt teardown_failed=0 child_lab tui_lab_retained=0
   trap '' HUP INT QUIT TERM
   if [ -n "$TUI_PID" ]; then kill -TERM "$TUI_PID" 2>/dev/null || true; fi
   if [ -n "$BACKUP" ]; then
@@ -55,7 +55,12 @@ cleanup() {
       TUI_PID=
     fi
   fi
-  if [ -z "$TUI_PID" ] && { [ -z "$LAB" ] || ! compgen -G "$LAB/hm.??????" >/dev/null; }; then
+  if [ -n "$LAB" ]; then
+    for child_lab in "$LAB"/hm.??????; do
+      if [ -e "$child_lab" ] || [ -L "$child_lab" ]; then tui_lab_retained=1; break; fi
+    done
+  fi
+  if [ -z "$TUI_PID" ] && [ "$tui_lab_retained" -eq 0 ]; then
     if [ -n "$TUI_RETAIN" ]; then rm -f -- "$TUI_RETAIN"; fi
   else
     printf 'not ok - TUI teardown unverified; retaining %s; delete it by hand once nothing is using it\n' "$LAB" >&2

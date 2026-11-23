@@ -130,9 +130,14 @@ fm_test_drain_groups() {
   [ "$drained" -eq 0 ]
 }
 
-fm_test_scratch_retained() {
-  compgen -G "$1/.retain-scratch.*" >/dev/null
-}
+fm_test_scratch_retained() (
+  local marker prefix=.retain-scratch
+  if [ -n "${2:-}" ]; then prefix+=".$2"; fi
+  shopt -u failglob
+  shopt -s nullglob
+  for marker in "$1/$prefix".*; do return 0; done
+  return 1
+)
 
 fm_test_check_scratch_placement() {
   local root=$1 base=$2 blocked ancestor

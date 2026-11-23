@@ -26,6 +26,7 @@
 # Exit status: 0 all selected tests passed (or none changed), 1 a test failed,
 # 2 usage error or no container runtime.
 set -eu
+set -o pipefail
 
 usage() {
   sed -n '2,/^set -eu/p' "$0" | sed '$d' | sed 's/^# \{0,1\}//'
@@ -61,12 +62,11 @@ if [ ${#tests[@]} -eq 0 ]; then
   fi
   [ -n "$base" ] || die "no origin/main or main to compare against; pass --base <git-ref>"
   merge_base=$(git -C "$root" merge-base HEAD "$base") || die "no merge base with $base"
+  changed=$(git -C "$root" diff --name-only --diff-filter=ACMR "$merge_base" --) || die 'could not list changed paths'
+  untracked=$(git -C "$root" ls-files --others --exclude-standard) || die 'could not list untracked paths'
   while IFS= read -r path; do
-    [ -f "$root/$path" ] && tests+=("$path")
-  done < <({
-    git -C "$root" diff --name-only --diff-filter=ACMR "$merge_base" --
-    git -C "$root" ls-files --others --exclude-standard
-  } | sort -u | grep -E '^tests/[^/]+\.test\.sh$' || true)
+    if [[ "$path" =~ ^tests/[^/]+\.test\.sh$ ]] && [ -f "$root/$path" ]; then tests+=("$path"); fi
+  done < <(printf '%s\n' "$changed" "$untracked" | sort -u)
 fi
 
 if [ ${#tests[@]} -eq 0 ]; then
@@ -101,6 +101,8 @@ git clone -q --no-checkout --local --no-hardlinks "$root" "$scratch" || die "cou
 if git -C "$scratch" rev-parse --verify --quiet HEAD >/dev/null; then
   git -C "$scratch" read-tree HEAD
 fi
+inventory="$scratch/.git/fm-test-overlay"
+git -C "$root" ls-files -z --cached --others --exclude-standard -- ':(top,exclude,literal).test-phase-tmp' >"$inventory" || die 'could not enumerate overlay paths'
 files=()
 while IFS= read -r -d '' path; do
   parent=$path
@@ -109,9 +111,10 @@ while IFS= read -r -d '' path; do
     [ ! -L "$root/$parent" ] || continue 2
   done
   [ -e "$root/$path" ] || [ -L "$root/$path" ] && files+=("$path")
-done < <(git -C "$root" ls-files -z --cached --others --exclude-standard -- ':(top,exclude,literal).test-phase-tmp')
+done <"$inventory"
+rm -f -- "$inventory"
 if [ "${#files[@]}" -gt 0 ]; then
-  (cd "$root" && printf '%s\0' "${files[@]}" | tar --no-recursion --null -T - -cf -) | tar -C "$scratch" -xf -
+  (cd "$root" && printf '%s\0' "${files[@]}" | tar --no-recursion --null -T - -cf -) | tar -C "$scratch" -xf - || die 'could not copy complete overlay'
 fi
 
 printf 'fm-test-linux: %s on %s\n' "${#tests[@]}" "$("$runtime" run --rm "$image" sh -c 'uname -sr')"

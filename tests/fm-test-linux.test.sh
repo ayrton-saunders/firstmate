@@ -119,6 +119,40 @@ SH
   pass 'Linux overlay skips legacy scratch but keeps dirty and untracked work'
 }
 
+test_overlay_failure_prevents_container_run() {
+  local repo="$TMP_ROOT/partial" tools="$TMP_ROOT/partial-tools" stage out rc
+  make_repo "$repo"
+  mkdir "$tools"
+  cat >"$tools/git" <<'SH'
+#!/usr/bin/env bash
+if [ "$FAIL_STAGE" = inventory ] && [ "${3:-}" = ls-files ]; then
+  printf '%s\0' tests/kept.test.sh
+  exit 1
+fi
+exec "$REAL_GIT" "$@"
+SH
+  cat >"$tools/tar" <<'SH'
+#!/usr/bin/env bash
+"$REAL_TAR" "$@" || exit $?
+if [ "$FAIL_STAGE" = archive ] && [ "$1" = --no-recursion ]; then exit 1; fi
+SH
+  cat >"$tools/runtime" <<'SH'
+#!/usr/bin/env bash
+if [ "$1" = run ]; then touch "$RUN_MARKER"; fi
+SH
+  chmod +x "$tools/"*
+  for stage in inventory archive; do
+    rc=0
+    out=$(cd "$repo" && REAL_GIT="$(command -v git)" REAL_TAR="$(command -v tar)" \
+      PATH="$tools:$PATH" FM_CONTAINER_RUNTIME="$tools/runtime" FAIL_STAGE="$stage" \
+      RUN_MARKER="$tools/ran" "$BASH" "$LINUX_CHECK" tests/kept.test.sh 2>&1) || rc=$?
+    assert_equals 2 "$rc" "$stage failure aborts Linux validation: $out"
+    [ ! -e "$tools/ran" ] || fail "container ran after $stage failure"
+    assert_not_contains "$out" 'PASS tests/kept.test.sh' "$stage failure must not report a pass"
+  done
+  pass 'Linux validation refuses partial inventory and archives'
+}
+
 container_ready() {
   local runtime
   [ "${FM_TEST_LINUX_CONTAINER:-}" = 1 ] || return 1
@@ -173,4 +207,5 @@ FIXTURE
 
 fm_test_run test_selects_changed_tests test_no_changed_tests_is_a_clean_pass \
   test_missing_runtime_stops_clearly test_checkout_scratch_is_refused_before_build_or_clone \
-  test_overlay_keeps_work_but_excludes_legacy_scratch test_gnu_stat_fixture_red_then_green
+  test_overlay_keeps_work_but_excludes_legacy_scratch test_overlay_failure_prevents_container_run \
+  test_gnu_stat_fixture_red_then_green

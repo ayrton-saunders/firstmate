@@ -2149,6 +2149,10 @@ while [ ! -f "$run_root/.fm-test-run-owner" ]; do
 done
 printf '%s\\n%s\\n' "$TMPDIR" "$run_root" > "$PROOF"
 if [ "$PROBE_MODE" = hang ] || [ "$PROBE_MODE" = stubborn ]; then exec sleep 300; fi
+if [ "$PROBE_MODE" = retain ]; then
+  . bin/fm-test-scratch-lib.sh
+  fm_test_arm_private_tmux MARKER
+fi
 if [ "$PROBE_MODE" = evidence ]; then
   . bin/fm-test-scratch-lib.sh
   printf '%s\\n' 'captured output' >"$TMPDIR/screen.ansi"
@@ -2238,7 +2242,7 @@ for blocked in (legacy, *aliases, home / '.firstmate-preserved', home / '.treeho
 result = subprocess.run([*runner_cmd, '--scratch-base'], cwd=repo, env=fixture_env, capture_output=True)
 assert result.returncode == 0 and native_path(os.fsdecode(result.stdout).strip()).resolve() == base.resolve(), result
 assert not list(base.iterdir()), 'scratch-base must not allocate'
-for other_arg in ('--list-lanes', '--help', cmd[-1]):
+for other_arg in ('--list-lanes', cmd[-1]):
     for args in ((other_arg, '--scratch-base'), ('--scratch-base', other_arg)):
         result = subprocess.run([*runner_cmd, *args], cwd=repo, env=fixture_env, capture_output=True)
         assert result.returncode == 2 and not result.stdout, result
@@ -2281,6 +2285,17 @@ for mode, rc in [('pass', 0), ('fail', 1)]:
     assert not run.exists(), run
     if mode == 'fail':
         assert base.resolve() in worker_tmp.resolve().parents
+child, _ = launch('literal-report-name', 'pass', options=('--json', '--scratch-base'))
+assert child.wait(timeout=20) == 0, (tmp / 'literal-report-name.log').read_text()
+assert json.loads((repo / '--scratch-base').read_text())['summary']['failed'] == 0
+(repo / '--scratch-base').unlink()
+child, proof = launch('retain', 'retain', options=('--json', 'retained.json'))
+assert child.wait(timeout=20) == 1
+_, retained_run = scratch(proof)
+assert retained_run.is_dir()
+assert json.loads((repo / 'retained.json').read_text())['summary']['failed'] == 1
+(repo / 'retained.json').unlink()
+subprocess.run([bash, '-c', '. bin/fm-test-scratch-lib.sh; fm_test_remove_tree "$1"', '_', shell_path(retained_run)], cwd=repo, check=True)
 assert sorted(p.name for p in legacy.iterdir()) == ['sentinel']
 (private,) = base.iterdir()
 assert not list(private.iterdir())

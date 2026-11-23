@@ -2227,9 +2227,6 @@ if [ "$#" -eq 1 ] && [ "$1" = --scratch-base ]; then
   scratch_base
   exit $?
 fi
-for arg in "$@"; do
-  [ "$arg" != --scratch-base ] || die '--scratch-base must be used alone'
-done
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -2485,6 +2482,7 @@ RUN_CRITICAL=0
 WORKER_PIDS=()
 WORKER_SCRIPTS=()
 KEEP_RUN_TMP=0
+PRIVATE_TEARDOWN_FAILED=0
 
 # Traps defer exit only while publishing an allocation or a background PID.
 # shellcheck disable=SC2329
@@ -2562,7 +2560,6 @@ prepare_run_scratch() {
   reap_orphan_runs "$parent"
   # Also covers temporary files used by runner helpers rather than the tests.
   export TMPDIR="$RUN_TMP" TMP="$RUN_TMP" TEMP="$RUN_TMP"
-  export FM_TEST_RETAIN_MARKER="$RUN_TMP/.retain-scratch"
 }
 
 worker_root_mode_is_enforceable() {
@@ -2705,7 +2702,7 @@ if [ "${#SCRIPTS[@]}" -eq 0 ]; then
   fi
   if [ -n "$JSON_PATH" ]; then
     empty_finished_iso=$(now_iso)
-    mkdir -p "$(dirname "$JSON_PATH")"
+    mkdir -p -- "$(dirname -- "$JSON_PATH")"
     write_json_artifact "$JSON_PATH" "$RUN_STARTED_ISO" "$empty_finished_iso" \
       "fm-test-run-${RUN_STARTED_MS}-$$" 0 0 0 "$empty_duration" \
       "$SELECTION_DESC" '' ''
@@ -2965,6 +2962,7 @@ execute_worker() {
   record_run_owner "$pid" "$group" || exit 1
   [ ! -e "$work/stopping" ] && kill -0 "$$" 2>/dev/null || exit 1
   export TMPDIR="$work/t" TMP="$work/t" TEMP="$work/t"
+  export FM_TEST_RETAIN_MARKER="$RUN_TMP/.retain-scratch.${work##*/}"
   if [ "$stream" -eq 0 ]; then
     unset FM_HOME FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_ROOT_OVERRIDE \
       FM_PROJECTS_OVERRIDE FM_CONFIG_OVERRIDE FM_BACKEND 2>/dev/null || true
@@ -3026,6 +3024,10 @@ collect_worker() {
     undrained=1
   fi
   rc=$(cat "$work/exit" 2>/dev/null || echo 1)
+  if fm_test_scratch_retained "$RUN_TMP" "w$slot"; then
+    PRIVATE_TEARDOWN_FAILED=1
+    [ "$rc" -ne 0 ] || rc=1
+  fi
   if [ "$undrained" -eq 1 ] && [ "$rc" -eq 0 ]; then rc=1; fi
   duration=$(cat "$work/duration_ms" 2>/dev/null || echo 0)
   unset 'WORKER_PIDS[slot]' 'WORKER_SCRIPTS[slot]'
@@ -3065,7 +3067,9 @@ wait_one_completed_job_worker() {
 }
 
 run_serial_if_isolated() {
-  if [ "$KEEP_RUN_TMP" -eq 0 ]; then
+  if [ "$PRIVATE_TEARDOWN_FAILED" -eq 1 ]; then
+    log "not run (private teardown unverified): $1"
+  elif [ "$KEEP_RUN_TMP" -eq 0 ]; then
     run_one_serial "$1"
   else
     log "not run (worker group exit unconfirmed): $1"
@@ -3087,7 +3091,9 @@ else
     while [ "$active_workers" -ge "$JOBS" ]; do
       wait_one_completed_job_worker
     done
-    if [ "$KEEP_RUN_TMP" -eq 0 ]; then
+    if [ "$PRIVATE_TEARDOWN_FAILED" -eq 1 ]; then
+      log "not run (private teardown unverified): $script"
+    elif [ "$KEEP_RUN_TMP" -eq 0 ]; then
       start_worker "$script" 0 </dev/null
     else
       log "not run (worker group exit unconfirmed): $script"
@@ -3131,7 +3137,7 @@ if [ -s "$RECORDS" ]; then
 fi
 
 if [ -n "$JSON_PATH" ]; then
-  mkdir -p "$(dirname "$JSON_PATH")"
+  mkdir -p -- "$(dirname -- "$JSON_PATH")"
   # Families file may be unsorted; write_json reads as-is (deterministic sort in python).
   if [ -s "$FAMILIES_TSV" ]; then
     sort -t$'\t' -k1,1 "$FAMILIES_TSV" -o "$FAMILIES_TSV"

@@ -410,12 +410,13 @@ GIT_BEFORE=$(global_git_snapshot)
 RUN_STARTED_ISO=$(now_iso)
 RUN_STARTED_MS=$(now_ms)
 RUN_ID="fm-isolation-${RUN_STARTED_MS}-$$"
-TOTAL=${#CANDIDATES[@]}
+TOTAL=0
+private_teardown_failed=0
 FAILED=0
 AGG_RC=0
 
 printf 'FM_ISOLATION_BEGIN %s concurrency=%s candidates=%s\n' \
-  "$RUN_STARTED_ISO" "$JOBS" "$TOTAL"
+  "$RUN_STARTED_ISO" "$JOBS" "${#CANDIDATES[@]}"
 
 # Worker state arrays parallel to CANDIDATES indices (1-based worker labels).
 declare -a WORKER_PIDS=() WORKER_OWNERS=()
@@ -469,6 +470,11 @@ wait_one_slot() {
   work="$PROOF_ROOT/w$idx"
   script=${CANDIDATES[$((idx - 1))]}
   rc=$(cat "$work/out/exit" 2>/dev/null || echo 1)
+  if fm_test_scratch_retained "$PROOF_ROOT" "w$idx"; then
+    private_teardown_failed=1
+    [ "$rc" -ne 0 ] || rc=1
+  fi
+  TOTAL=$((TOTAL + 1))
   duration=$(cat "$work/out/duration_ms" 2>/dev/null || echo 0)
   if [ "$rc" -eq 0 ] && gate_skip=$(detect_gate_skip "$work/out/output"); then
     rc=1
@@ -530,6 +536,7 @@ wait_one_completed_slot() {
 
 idx=0
 for script in "${CANDIDATES[@]}"; do
+  [ "$private_teardown_failed" -eq 0 ] || break
   idx=$((idx + 1))
   work="$PROOF_ROOT/w$idx"
   # Create then chmod: mkdir -m can still be umask-adjusted on some platforms.

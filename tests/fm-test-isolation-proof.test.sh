@@ -66,12 +66,12 @@ if { [ "$1" = --list ] || [ "$1" = --list-scheduled ]; } && [ "$2" = --family ];
   esac
 fi
 if [ "$1" = --list-concurrent-safe-families ]; then
-  printf '%s\n' admitted-family skipped-family
+  printf '%s\n' admitted-family skipped-family retaining-family
   exit 0
 fi
 if [ "$1" = --concurrent-safe-family-jobs-max ]; then
   case "$2" in
-    admitted-family|skipped-family)
+    admitted-family|skipped-family|retaining-family)
       printf '2\n'
       exit 0
       ;;
@@ -188,11 +188,13 @@ with (base / 'interrupted.log').open('w') as log:
                 except ProcessLookupError:
                     pass
 PY
-  mkdir "$tmp/retained-tmp"
+  mkdir "$tmp/retained [SSD]"
   rc=0
-  TMPDIR="$tmp/retained-tmp" "$proof" --pool retaining-family --jobs 1 >"$tmp/retained.out" 2>"$tmp/retained.err" || rc=$?
+  TMPDIR="$tmp/retained [SSD]" "$proof" --pool retaining-family --jobs 2 --json "$tmp/retained.json" >"$tmp/retained.out" 2>"$tmp/retained.err" || rc=$?
   assert_equals 1 "$rc" 'unverified private teardown fails the proof'
-  set -- "$tmp/retained-tmp"/fm-isolation-proof.*
+  assert_contains "$(<"$tmp/retained.out")" 'FM_ISOLATION_SUMMARY total=1 failed=1' 'retained worker fails the summary'
+  python3 -c 'import json, sys; r = json.load(open(sys.argv[1])); assert r["summary"]["failed"] == 1 and not r["fm_test_run_jobs_enabled"] and r["scripts"][0]["exit"] == 1' "$tmp/retained.json" || fail 'retained worker was admitted in JSON'
+  set -- "$tmp/retained [SSD]"/fm-isolation-proof.*
   [ "$#" -eq 1 ] && [ -f "$1/w1/tmp/sentinel" ] || fail 'proof deleted explicitly retained scratch'
   assert_contains "$(<"$tmp/retained.err")" "retaining scratch: $(cd "$1" && pwd -P)" 'retained scratch diagnostic names its root'
   set +e
