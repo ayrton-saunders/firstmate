@@ -354,32 +354,27 @@ fm_test_nonplatform_binary() {
 
 # --- fixture-root process reaping -------------------------------------------
 fm_test_process_inventory() {
-  local kind=$1 snapshot
+  local kind=$1 snapshot pid parent args proc_root=${FM_TEST_PROC_ROOT:-/proc}
   case "$(uname -s)" in
     CYGWIN*|MINGW*|MSYS*)
-      case "$kind" in
-        args) snapshot=$(LC_ALL=C ps -ef 2>/dev/null) || return 1 ;;
-        groups) snapshot=$(LC_ALL=C ps -e 2>/dev/null) || return 1 ;;
-      esac
-      snapshot=$(awk -v kind="$kind" '
-        NR == 1 {
-          for (i=1; i<=NF; ++i) col[$i]=i
-          if (!col["PID"] || !col["PPID"] || !col[kind == "args" ? "COMMAND" : "PGID"]) exit 1
-          next
-        }
+      snapshot=$(LC_ALL=C ps -e 2>/dev/null) || return 1
+      snapshot=$(awk '
+        NR == 1 { if ($1 != "PID" || $2 != "PPID" || $3 != "PGID") exit 1; next }
         {
-          sub(/^[[:blank:]]*[^0-9[:blank:]][[:blank:]]+/, "")
-          pid=$(col["PID"]); parent=$(col["PPID"])
-          if (pid !~ /^[1-9][0-9]*$/ || parent !~ /^[0-9]+$/) next
-          printf "%s %s", pid, parent
-          if (kind == "groups") printf " %s", $(col["PGID"])
-          else {
-            args=$0
-            for (i=1; i<col["COMMAND"]; ++i) sub(/^[[:blank:]]*[^[:blank:]]+/, "", args)
-            printf "%s", args
-          }
-          print ""
+          sub(/^[[:blank:]]*[^0-9[:blank:]][[:blank:]]*/, "")
+          if ($1 ~ /^[1-9][0-9]*$/ && $2 ~ /^[0-9]+$/ && $3 ~ /^[0-9]+$/) print $1, $2, $3
         }' <<<"$snapshot") || return 1
+      if [ "$kind" = args ]; then
+        [ -r "$proc_root/$$/cmdline" ] || return 1
+        while read -r pid parent _; do
+          [ -n "$pid" ] || continue
+          args=$(LC_ALL=C tr '\000\n\r' '   ' 2>/dev/null < "$proc_root/$pid/cmdline") || args=
+          [ "$pid" != "$$" ] || [ -n "$args" ] || return 1
+          printf '%s %s %s\n' "$pid" "$parent" "$args"
+        done <<<"$snapshot"
+        awk -v self="$$" '$1 == self { found=1 } END { exit !found }' <<<"$snapshot"
+        return "$?"
+      fi
       ;;
     *)
       case "$kind" in

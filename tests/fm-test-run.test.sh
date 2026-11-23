@@ -2073,7 +2073,7 @@ SH
     || fail "gateway did not exercise mutation and rollback: $(<"$tmp/out")"
   [ -L "$profile/config.yaml" ] && [ "$(readlink "$profile/config.yaml")" = original.yaml ] \
     && [ "$(<"$profile/original.yaml")" = 'original config' ] || fail 'gateway rollback changed the config link or target'
-  rm -f "$tmp/hermes/mutation-attempted"
+  rm -f "$tmp/hermes/mutation-attempted" "$tmp/hermes/hermes-called" "$profile/config.yaml"
   lock="$profile/.fm-gateway-config-lock"
   mkdir "$lock" || fail 'gateway did not release the profile lock'
   sleep 30 &
@@ -2085,8 +2085,9 @@ SH
     bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
   kill "$owner" 2>/dev/null || true
   wait "$owner" 2>/dev/null || true
-  [ "$rc" -eq 1 ] && grep -q 'profile is locked' "$tmp/out" && [ ! -e "$tmp/hermes/mutation-attempted" ] \
-    && [ "$(<"$lock/pid")" = "$owner" ] || fail 'overlapping gateway run disturbed a live owner'
+  [ "$rc" -eq 1 ] && grep -q 'profile is locked' "$tmp/out" && [ ! -e "$tmp/hermes/hermes-called" ] \
+    && [ "$(<"$lock/pid")" = "$owner" ] || fail 'overlapping gateway run observed the busy profile'
+  ln -s original.yaml "$profile/config.yaml"
   rc=0
   PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
     bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
@@ -2094,20 +2095,48 @@ SH
     && [ -L "$profile/config.yaml" ] && [ "$(<"$profile/config.yaml")" = 'original config' ] \
     || fail "gateway did not take over the stale lock and restore the config: $(<"$tmp/out")"
   # An editor changes the file after the probe records its write, but before cleanup.
-  printf '%s\n' '#!/usr/bin/env bash' 'if [[ " $* " == *" new-session "* ]]; then printf "edited\n" > "$EDIT_CONFIG"; fi' 'exit 99' >"$tmp/path/tmux"
+  cat >"$tmp/path/tmux" <<'SH'
+#!/usr/bin/env bash
+case "$3" in
+  new-session)
+    (cd -- "${2%/*}" && python3 -c 'import socket; socket.socket(socket.AF_UNIX).bind("s")') || exit 98
+    printf 'edited\n' > "$EDIT_CONFIG"
+    exit 99
+    ;;
+  kill-server)
+    read -r owner < "${EDIT_CONFIG%/*}/.fm-gateway-config-lock/pid" && kill -0 "$owner" && touch "$LOCK_OBSERVED"
+    rm -f -- "$2"
+    ;;
+esac
+SH
   rc=0
-  PATH="$tmp/path:$PATH" EDIT_CONFIG="$profile/config.yaml" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
+  PATH="$tmp/path:$PATH" EDIT_CONFIG="$profile/config.yaml" LOCK_OBSERVED="$tmp/held-during-stop" FM_HERMES_GATEWAY_LIVE=1 \
+    FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
     bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+  assert_present "$tmp/held-during-stop" 'gateway teardown runs while the live probe holds the profile lock'
   [ "$rc" -eq 1 ] && [ "$(<"$profile/config.yaml")" = edited ] && grep -q 'backup retained at' "$tmp/out" \
     || fail 'gateway rollback overwrote or failed to report a conflicting change'
-  local -a backups=("$profile"/.fm-gateway-config.??????)
-  [ -f "${backups[0]}" ] || fail 'gateway did not retain its backup'
-  restore_command=$(printf 'cp -p -- %q %q && ln -sfn -- original.yaml %q' \
-    "${backups[0]}" "$profile/original.yaml" "$profile/config.yaml")
-  assert_contains "$(<"$tmp/out")" "$restore_command" 'gateway reports the backup restore command'
-  rm -f "$profile/config.yaml" "$tmp/hermes/hermes-called"
+  restore_command=$(sed -n 's/^To restore manually: //p' "$tmp/out")
+  [ -n "$restore_command" ] || fail 'gateway did not print a restore command'
   printf 'operator config\n\n' >"$tmp/operator.yaml"
   cp "$tmp/operator.yaml" "$tmp/expected.yaml"
+  local endpoint
+  for endpoint in "$profile/original.yaml" "$profile/config.yaml"; do
+    mv -- "$endpoint" "$endpoint.saved"
+    ln -s "$tmp/operator.yaml" "$endpoint"
+    if bash -c "$restore_command"; then fail "manual restore accepted a symlink replacement: $endpoint"; fi
+    [ -L "$endpoint" ] && cmp -s "$tmp/expected.yaml" "$tmp/operator.yaml" || fail 'manual restore wrote through a replacement link'
+    rm -- "$endpoint"
+    mkdir -- "$endpoint"
+    if bash -c "$restore_command"; then fail "manual restore accepted a directory replacement: $endpoint"; fi
+    rmdir -- "$endpoint" || fail 'manual restore wrote into a replacement directory'
+    mv -- "$endpoint.saved" "$endpoint"
+  done
+  printf 'damaged target\n' >"$profile/original.yaml"
+  bash -c "$restore_command" || fail 'manual restore refused the original paths'
+  [ -L "$profile/config.yaml" ] && [ "$(readlink "$profile/config.yaml")" = original.yaml ] \
+    && [ "$(<"$profile/original.yaml")" = 'original config' ] || fail 'manual restore did not restore config bytes and link'
+  rm -f "$profile/config.yaml" "$tmp/hermes/hermes-called"
   ln -s "$tmp/operator.yaml" "$profile/config.yaml"
   rc=0
   PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \

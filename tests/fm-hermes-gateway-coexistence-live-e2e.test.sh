@@ -20,9 +20,6 @@ FM_HERMES_LIVE_HOME=$(cd -- "$FM_HERMES_LIVE_HOME" && pwd -P) || fail 'could not
 case "$PROFILE" in ''|.|..|*/*|*\\*) fail 'invalid throwaway profile name' ;; esac
 PROFILE_HOME=$(cd -- "$FM_HERMES_LIVE_HOME/profiles/$PROFILE" && pwd -P) || fail 'could not resolve throwaway profile'
 case "$PROFILE_HOME" in "$FM_HERMES_LIVE_HOME"/profiles/*) ;; *) fail 'profile resolves outside the throwaway root' ;; esac
-CONFIG_TARGET=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$PROFILE_HOME/config.yaml") \
-  && [ -f "$CONFIG_TARGET" ] || fail 'could not resolve profile config'
-case "$CONFIG_TARGET" in "$PROFILE_HOME"/*) ;; *) fail 'config resolves outside the throwaway profile' ;; esac
 LAB=
 SOCKET=
 BACKUP=
@@ -35,26 +32,32 @@ probe_signal=0
 TUI_PID=
 TUI_RETAIN=
 GATEWAY_RETAIN=
+print_restore_command() {
+  local config="$PROFILE_HOME/config.yaml" expected_link=$WRITTEN_LINK target_dir=${CONFIG_TARGET%/*}
+  if [ -z "$WRITTEN_CONFIG" ] && [ -L "$config" ]; then
+    expected_link=$CONFIG_LINK
+  fi
+  printf 'To restore manually: [ "$(cd -P -- %q && pwd -P)" = %q ]' "$PROFILE_HOME" "$PROFILE_HOME"
+  if [ "$target_dir" != "$PROFILE_HOME" ]; then
+    printf ' && [ "$(cd -P -- %q && pwd -P)" = %q ]' "$target_dir" "$target_dir"
+  fi
+  printf ' && [ -f %q ] && [ ! -L %q ] && [ -f %q ] && [ ! -L %q ]' \
+    "$BACKUP" "$BACKUP" "$CONFIG_TARGET" "$CONFIG_TARGET"
+  if [ -n "$expected_link" ]; then
+    printf ' && [ "$(readlink %q)" = %q ] && [ -f %q ]' "$config" "$expected_link" "$config"
+  else
+    printf ' && [ -f %q ] && [ ! -L %q ]' "$config" "$config"
+  fi
+  printf ' && cp -p -- %q %q' "$BACKUP" "$CONFIG_TARGET"
+  if [ -n "$CONFIG_LINK" ] && [ "$CONFIG_LINK" != "$expected_link" ]; then
+    printf ' && ln -sfn -- %q %q' "$CONFIG_LINK" "$config"
+  fi
+  printf '\n'
+}
 cleanup() {
   local status=$? attempt teardown_failed=0 child_lab tui_lab_retained=0
   trap '' HUP INT QUIT TERM
   if [ -n "$TUI_PID" ]; then kill -TERM "$TUI_PID" 2>/dev/null || true; fi
-  if [ -n "$BACKUP" ]; then
-    if [ "$mutation_attempted" -eq 0 ]; then
-      rm -f "$BACKUP" || { [ "$status" -ne 0 ] || status=1; }
-    elif ! restore_config; then
-      printf 'not ok - config changed or restore failed; backup retained at %s\n' "$BACKUP" >&2
-      printf 'To restore manually: cp -p -- %q %q' "$BACKUP" "$CONFIG_TARGET" >&2
-      if [ -n "$CONFIG_LINK" ]; then
-        printf ' && ln -sfn -- %q %q' "$CONFIG_LINK" "$PROFILE_HOME/config.yaml" >&2
-      fi
-      printf '\n' >&2
-      [ "$status" -ne 0 ] || status=1
-    fi
-  fi
-  if [ -n "$PROFILE_LOCK" ]; then
-    fm_lock_release "$PROFILE_LOCK" || { [ "$status" -ne 0 ] || status=1; }
-  fi
   if [ -n "$TUI_PID" ]; then
     for ((attempt=0; attempt<60; ++attempt)); do
       kill -0 "$TUI_PID" 2>/dev/null || break
@@ -79,6 +82,18 @@ cleanup() {
     teardown_failed=1
   fi
   fm_test_stop_private_tmux "$SOCKET" tmux "$GATEWAY_RETAIN" || teardown_failed=1
+  if [ -n "$BACKUP" ]; then
+    if [ "$mutation_attempted" -eq 0 ]; then
+      rm -f "$BACKUP" || { [ "$status" -ne 0 ] || status=1; }
+    elif ! restore_config; then
+      printf 'not ok - config changed or restore failed; backup retained at %s\n' "$BACKUP" >&2
+      print_restore_command >&2
+      [ "$status" -ne 0 ] || status=1
+    fi
+  fi
+  if [ -n "$PROFILE_LOCK" ]; then
+    fm_lock_release "$PROFILE_LOCK" || { [ "$status" -ne 0 ] || status=1; }
+  fi
   fm_test_cleanup || { [ "$status" -ne 0 ] || status=1; }
   if [ "$teardown_failed" -eq 0 ]; then
     [ -z "$LAB" ] || fm_test_remove_tree "$LAB" || { [ "$status" -ne 0 ] || status=1; }
@@ -104,6 +119,16 @@ lab_path=$(cd "$LAB" && pwd -P) || fail 'could not resolve gateway scratch'
 LAB=$lab_path
 SOCKET="$LAB/s"
 mkdir -p "$LAB/home" "$LAB/state" "$LAB/locks" || fail 'could not prepare gateway scratch'
+# shellcheck source=bin/fm-wake-lib.sh
+FM_STATE_OVERRIDE="$LAB/state" . "$ROOT/bin/fm-wake-lib.sh"
+publication_pending=1
+PROFILE_LOCK="$PROFILE_HOME/.fm-gateway-config-lock"
+fm_lock_try_acquire "$PROFILE_LOCK" || fail 'throwaway profile is locked by another gateway probe (or a previous interrupted probe)'
+publication_pending=0
+[ "$probe_signal" -eq 0 ] || exit "$probe_signal"
+CONFIG_TARGET=$(python3 -c 'import os, sys; print(os.path.realpath(sys.argv[1]))' "$PROFILE_HOME/config.yaml") \
+  && [ -f "$CONFIG_TARGET" ] || fail 'could not resolve profile config'
+case "$CONFIG_TARGET" in "$PROFILE_HOME"/*) ;; *) fail 'config resolves outside the throwaway profile' ;; esac
 for file in "$FM_HERMES_LIVE_HOME/.env" "$PROFILE_HOME/.env"; do
   [ ! -s "$file" ] || fail "$file may configure a messaging platform; use a profile without one"
 done
@@ -126,13 +151,6 @@ out.write_text(json.dumps({'integrity': ok, 'sessions': sessions, 'memory': dige
 PY
 }
 snapshot "$LAB/before.json" || fail 'could not snapshot the throwaway session store'
-# shellcheck source=bin/fm-wake-lib.sh
-FM_STATE_OVERRIDE="$LAB/state" . "$ROOT/bin/fm-wake-lib.sh"
-publication_pending=1
-PROFILE_LOCK="$PROFILE_HOME/.fm-gateway-config-lock"
-fm_lock_try_acquire "$PROFILE_LOCK" || fail 'throwaway profile is locked by another gateway probe (or a previous interrupted probe)'
-publication_pending=0
-[ "$probe_signal" -eq 0 ] || exit "$probe_signal"
 CONFIG_LINK=
 if [ -L "$PROFILE_HOME/config.yaml" ]; then
   CONFIG_LINK=$(readlink "$PROFILE_HOME/config.yaml") || fail 'could not read profile config link'

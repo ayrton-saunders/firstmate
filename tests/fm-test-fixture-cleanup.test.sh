@@ -405,17 +405,25 @@ test_registry_cleanup_guards() {
 }
 
 test_msys_fixture_process_inventory() {
-  local harness mode rc fixture
+  local harness mode rc fixture poller survivor=0
   harness=$(fm_test_tmproot fm-test-msys-ps)
-  mkdir "$harness/bin"
+  mkdir "$harness/bin" "$harness/proc"
+  sleep 30 &
+  poller=$!
+  mkdir "$harness/proc/$poller"
   printf '%s\n' '#!/usr/bin/env bash' 'if [ "${1:-}" = -s ]; then echo MSYS_NT-10.0; else exec "$REAL_UNAME" "$@"; fi' > "$harness/bin/uname"
   cat > "$harness/bin/ps" <<'SH'
 #!/usr/bin/env bash
 case "$*" in
-  -ef)
+  -e)
     case "$INVENTORY" in empty) exit 0 ;; failed) exit 1 ;; esac
-    printf ' UID PID PPID TTY STIME COMMAND\n 1000 %s 1 ? 12:00 /usr/bin/bash\n' "$SUITE_PID"
+    printf '      PID    PPID    PGID     WINPID   TTY         UID    STIME COMMAND\n'
+    printf ' %8s %7s %7s %10s     ?    Jane Doe    12:00 /usr/bin/bash\n' "$SUITE_PID" 1 "$SUITE_PID" 1000
+    if [ "$INVENTORY" = ready ] && kill -0 "$POLLER_PID" 2>/dev/null; then
+      printf 'I%8s %7s %7s %10s     ?    Jane Doe    12:00 /usr/bin/bash\n' "$POLLER_PID" 1 "$POLLER_PID" 1001
+    fi
     ;;
+  -ef) printf ' UID PID PPID TTY STIME COMMAND\n Jane Doe %s 1 ? 12:00 /usr/bin/bash\n' "$SUITE_PID" ;;
   *ppid=*|*pgid=*|*-eo*) exit 1 ;;
   *) exec "$REAL_PS" "$@" ;;
 esac
@@ -424,8 +432,23 @@ SH
   for mode in ready empty failed; do
     rc=0
     REAL_UNAME=$(command -v uname) REAL_PS=$(command -v ps) INVENTORY="$mode" PATH="$harness/bin:$PATH" TMPDIR="$harness" \
-      bash -ec 'export SUITE_PID=$$; . "$1"; fm_test_tmproot fixture > "$2"' _ "$LIB" "$harness/root" \
-      >"$harness/out" 2>&1 || rc=$?
+      FM_TEST_PROC_ROOT="$harness/proc" POLLER_PID="$poller" bash -ec '
+        export SUITE_PID=$$
+        . "$1"
+        mkdir "$FM_TEST_PROC_ROOT/$$"
+        printf "bash\0" > "$FM_TEST_PROC_ROOT/$$/cmdline"
+        fixture=$(fm_test_tmproot "fixture with spaces")
+        printf "%s\n" "$fixture" > "$2"
+        printf "bash\0%s\0" "$fixture/poller.sh" > "$FM_TEST_PROC_ROOT/$POLLER_PID/cmdline"
+      ' _ "$LIB" "$harness/root" >"$harness/out" 2>&1 || rc=$?
+    if [ "$mode" = ready ]; then
+      if kill -0 "$poller" 2>/dev/null; then
+        survivor=1
+        kill "$poller" 2>/dev/null || true
+      fi
+      wait "$poller" 2>/dev/null || true
+      assert_equals 0 "$survivor" 'cleanup stops the process named only by MSYS argv'
+    fi
     fixture=$(<"$harness/root")
     [ -n "$fixture" ] || fail "MSYS-style suite did not allocate a fixture: $(<"$harness/out")"
     if [ "$mode" = ready ]; then
