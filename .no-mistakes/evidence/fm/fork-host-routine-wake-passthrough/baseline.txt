@@ -1,0 +1,16 @@
+--- host routing
+1795415598	start	gen=host-37549-1795415598	primary=claude
+1795415599	pass-through	attended	main-only	check: rearm-resurface
+--- watcher closes
+arm_pid=37761	watcher_pid=37809	origin=started	started_at=1795415598	ended_at=1795415599	exit_code=0	signal=none	reason=actionable-check
+--- queue
+(empty)
+--- recovery marker
+announced:downtime:36751.1795415595.15A0OW
+--- Claude async arm generation
+epoch=1 owner_pid=37215 outcome=rewake updated_at=1795415600 session_pid=36831 recovery_generation=36751.1795415595.15A0OW claude_session=84623023-2661-4b09-a7bd-fcfef5999d53
+--- private tmux: primary
+ ▐▛███▛█   Claude Code v2.1.330
+❯ This is an isolated test lab. Reply exactly LAB READY now with no tools. If later woken by a Stop hook, reply exactly LAB WAKE RECEIVED with no tools. Do not invoke tools or     
+⏺ LAB READY
+⏺ Stop hook feedback

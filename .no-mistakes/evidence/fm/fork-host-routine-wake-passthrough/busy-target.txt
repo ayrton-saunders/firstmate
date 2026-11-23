@@ -1,0 +1,22 @@
+demo [key=demo-answer] needs-decision: Which synthetic format?
+--- first due poll (inbox record, streak, fingerprint, total where supported)
+001.msg	1	0	1
+--- second due poll after a synthetic Claude Stop continuation
+001.msg	1	1795415470897806:99	2
+--- after progress stops (unread record preserved)
+--- host routing
+1795415466	start	gen=host-8056-1795415466	primary=claude
+1795415476	pass-through	attended	main-only	stale: primary:fm-demo (unread firstmate instruction: stuck-busy after 2 consecutive busy-deferred due doorbells; {run-worktree}/.L/state/demo.inbox/001.msg stays unhandled and no doorbell was typed; inspect the worker)
+--- watcher closes
+arm_pid=8658	watcher_pid=8768	origin=started	started_at=1795415467	ended_at=1795415476	exit_code=0	signal=none	reason=actionable-stale
+--- queue
+1795415475	2	stale	primary:fm-demo	stale: primary:fm-demo (unread firstmate instruction: stuck-busy after 2 consecutive busy-deferred due doorbells; {run-worktree}/.L/state/demo.inbox/001.msg stays unhandled and no doorbell was typed; inspect the worker)
+--- recovery marker
+announced:downtime:8768.1795415475.nqk91e
+--- Claude async arm generation
+epoch=1 owner_pid=7215 outcome=rewake updated_at=1795415477 session_pid=99799 recovery_generation=8768.1795415475.nqk91e claude_session=0e80e057-ddbd-4d75-a49f-b2b00af5ba24
+--- private tmux: primary
+ ▐▛███▛█   Claude Code v2.1.330
+❯ This is an isolated test lab. Reply exactly LAB READY now with no tools. If later woken by a Stop hook, reply exactly LAB WAKE RECEIVED with no tools. Do not invoke tools or     
+⏺ LAB READY
+⏺ Stop hook feedback

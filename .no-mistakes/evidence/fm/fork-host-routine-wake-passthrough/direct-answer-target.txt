@@ -1,0 +1,22 @@
+demo [key=demo-answer] needs-decision: Which synthetic format?
+fm-gate-refuse: gate agent lifecycle permitted only against lab home {run-worktree}/.L
+--- watcher queued signal before ownership receipt was visible to host
+1795415718	2	signal	demo.status	signal: {run-worktree}/.L/state/demo.status
+--- fm-send status append and its receipt
+resolved [key=demo-answer] [at=1795415716]: answered: Use the blue format
+58	132
+--- host routing
+1795415715	start	gen=host-17834-1795415715	primary=claude
+1795415721	routine-ack	signal: {run-worktree}/.L/state/demo.status
+--- watcher closes
+arm_pid=18024	watcher_pid=18073	origin=started	started_at=1795415715	ended_at=1795415718	exit_code=0	signal=none	reason=actionable-signal
+--- queue
+(empty)
+--- recovery marker
+acked:handling:18073.1795415718.QT8gmE
+--- Claude async arm generation
+epoch=1 owner_pid=17518 outcome=arming updated_at=1795415715 owner_session_id=ee57068b-ce9b-4730-a26c-b1f9593056ba claude_session=ee57068b-ce9b-4730-a26c-b1f9593056ba
+--- private tmux: primary
+ ▐▛███▛█   Claude Code v2.1.330
+❯ This is an isolated test lab. Reply exactly LAB READY now with no tools. If later woken by a Stop hook, reply exactly LAB WAKE RECEIVED with no tools. Do not invoke tools or     
+⏺ LAB READY

@@ -1,0 +1,23 @@
+--- recovered stale before routing
+1795415506	1	stale	primary:fm-demo	stale: primary:fm-demo (unread firstmate instruction: stuck-busy after 2 consecutive busy-deferred due doorbells; {run-worktree}/.L/state/demo.inbox/001.msg stays unhandled and no doorbell was typed; inspect the worker)
+Worker receipt: {run-worktree}/.L/state/demo.inbox/handled/001.msg
+--- host routing
+1795415508	start	gen=host-72375-1795415508	primary=claude
+1795415509	pass-through	attended	main-only	check: rearm-resurface
+--- watcher closes
+arm_pid=72558	watcher_pid=72609	origin=started	started_at=1795415508	ended_at=1795415508	exit_code=0	signal=none	reason=actionable-check
+--- queue
+1795415506	1	stale	primary:fm-demo	stale: primary:fm-demo (unread firstmate instruction: stuck-busy after 2 consecutive busy-deferred due doorbells; {run-worktree}/.L/state/demo.inbox/001.msg stays unhandled and no doorbell was typed; inspect the worker)
+--- recovery marker
+announced:downtime:69959.1795415506.2QYOmL
+--- Claude async arm generation
+epoch=1 owner_pid=71833 outcome=rewake updated_at=1795415510 session_pid=67146 recovery_generation=69959.1795415506.2QYOmL claude_session=2532b8ce-d88e-455b-92e6-e9dfe28d26ea
+--- private tmux: primary
+ ▐▛███▛█   Claude Code v2.1.330
+❯ This is an isolated test lab. Reply exactly LAB READY now with no tools. If later woken by a Stop hook, reply exactly LAB WAKE RECEIVED with no tools. Do not invoke tools or     
+⏺ LAB READY
+⏺ Stop hook feedback
+--- primary drain
+WAKE_ACK_REQUIRED: after handling completes run bin/fm-wake-drain.sh --ack-through 1 --recovery-generation 69959.1795415506.2QYOmL
+STATUS OUTCOME BACKSTOP (newest captain-facing task event has no covering branch outcome):
+demo failed: synthetic export build failed

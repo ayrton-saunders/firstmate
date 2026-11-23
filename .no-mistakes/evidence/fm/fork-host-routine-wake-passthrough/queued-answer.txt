@@ -1,0 +1,20 @@
+demo [key=demo-answer] needs-decision: Which synthetic format?
+
+--- owned answer bytes
+needs-decision [key=demo-answer]: Which synthetic format?
+resolved [key=demo-answer] [at=1795415368]: answered: Use the blue format
+--- host routing
+1795415367	start	gen=host-88420-1795415367	primary=claude
+1795415373	routine-ack	check: rearm-resurface
+--- watcher closes
+arm_pid=88789	watcher_pid=88858	origin=started	started_at=1795415367	ended_at=1795415370	exit_code=0	signal=none	reason=actionable-check
+--- queue
+(empty)
+--- recovery marker
+acked:handling:93187.1795415370.eeJKHX
+--- Claude async arm generation
+epoch=1 owner_pid=87785 outcome=arming updated_at=1795415367 owner_session_id=51ccb0ca-3785-4ebc-8a17-7cc04d2b2750 claude_session=51ccb0ca-3785-4ebc-8a17-7cc04d2b2750
+--- private tmux: primary
+ ▐▛███▛█   Claude Code v2.1.330
+❯ This is an isolated test lab. Reply exactly LAB READY now with no tools. If later woken by a Stop hook, reply exactly LAB WAKE RECEIVED with no tools. Do not invoke tools or     
+⏺ LAB READY

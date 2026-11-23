@@ -1,0 +1,18 @@
+--- watcher-generated stale before the worker acknowledges
+1795415667	1	stale	primary:fm-demo	stale: primary:fm-demo (unread firstmate instruction: stuck-busy after 2 consecutive busy-deferred due doorbells; {run-worktree}/.L/state/demo.inbox/001.msg stays unhandled and no doorbell was typed; inspect the worker)
+Worker receipt: {run-worktree}/.L/state/demo.inbox/handled/001.msg
+--- host routing
+1795415661	start	gen=host-82474-1795415661	primary=claude
+1795415670	routine-ack	stale: primary:fm-demo (unread firstmate instruction: stuck-busy after 2 consecutive busy-deferred due doorbells; {run-worktree}/.L/state/demo.inbox/001.msg stays unhandled and no doorbell was typed; inspect the worker)
+--- watcher closes
+arm_pid=82630	watcher_pid=82678	origin=started	started_at=1795415661	ended_at=1795415667	exit_code=0	signal=none	reason=actionable-stale
+--- queue
+(empty)
+--- recovery marker
+acked:handling:82678.1795415667.Kz642S
+--- Claude async arm generation
+epoch=1 owner_pid=82130 outcome=arming updated_at=1795415661 owner_session_id=c0c6bdcd-a241-4dc5-94c8-5bb6de6474e7 claude_session=c0c6bdcd-a241-4dc5-94c8-5bb6de6474e7
+--- private tmux: primary
+ ▐▛███▛█   Claude Code v2.1.330
+❯ This is an isolated test lab. Reply exactly LAB READY now with no tools. If later woken by a Stop hook, reply exactly LAB WAKE RECEIVED with no tools. Do not invoke tools or     
+⏺ LAB READY
