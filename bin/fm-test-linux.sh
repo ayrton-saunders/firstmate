@@ -72,10 +72,6 @@ for entry in "$root"/.*; do
   if [ "$name" != "$fm_test_declared_scratch" ] && fm_test_is_declared_scratch "$root" "$name"; then
     scratch_pathspec+=(":(top,exclude,literal)$name")
     scratch_excludes+=("--exclude=/$name")
-  elif [ "$name" != "$fm_test_declared_scratch" ] &&
-       (shopt -s nocasematch; [[ "$name" == "$fm_test_declared_scratch" ]]) &&
-       [ "$(git -C "$root" config --bool --get core.ignoreCase)" = true ]; then
-    die "core.ignoreCase would prune distinct entry '$name'; correct the checkout's case policy before probing"
   fi
 done
 
@@ -103,6 +99,17 @@ fi
 if [ "$list_only" = 1 ]; then
   printf '%s\n' "${tests[@]}"
   exit 0
+fi
+
+if [ "$(git -C "$root" config --bool --get core.ignoreCase)" = true ]; then
+  for entry in "$root"/.*; do
+    name=${entry##*/}
+    if [ "$name" != "$fm_test_declared_scratch" ] &&
+       (shopt -s nocasematch; [[ "$name" == "$fm_test_declared_scratch" ]]) &&
+       ! fm_test_is_declared_scratch "$root" "$name"; then
+      die "core.ignoreCase would prune distinct entry '$name'; correct the checkout's case policy before probing"
+    fi
+  done
 fi
 
 scratch_base=$(fm_test_validate_scratch_base "$root" "${TMPDIR:-/tmp}") || exit "$?"
