@@ -43,6 +43,7 @@ test_checkout_scratch_is_refused_before_running_suite() {
   local repo="$TMP_ROOT/repo" suite="$TMP_ROOT/unsafe.sh" out rc=0
   mkdir -p "$repo/.test-phase-tmp"
   git -C "$repo" init -q
+  # shellcheck disable=SC2016 # Expand variables when the suite runs.
   write_suite "$suite" 'touch "$SUITE_CALLED"; printf "1..1\nok - good\nFM_TEST_COMPLETE\n"'
   out=$(TMPDIR="$repo/.test-phase-tmp" SUITE_CALLED="$TMP_ROOT/suite-called" run_verify "$suite") || rc=$?
   assert_equals 2 "$rc" "checkout TAP scratch exit status"
@@ -54,6 +55,7 @@ test_checkout_scratch_is_refused_before_running_suite() {
 test_failed_suite_scratch_is_removed() {
   local suite="$TMP_ROOT/failing-scratch.sh" base="$TMP_ROOT/verifier-temp" out rc=0
   mkdir "$base"
+  # shellcheck disable=SC2016 # Expand variables when the suite runs.
   write_suite "$suite" '
 [ "$TMPDIR" = "$TMP" ] && [ "$TMPDIR" = "$TEMP" ] || exit 8
 mkdir "$TMPDIR/read-only" || exit 8
@@ -71,6 +73,7 @@ test_retained_suite_scratch_survives_verifier_exit() {
   local base="$TMP_ROOT/retention" suite="$TMP_ROOT/retain.sh" status rc out
   for status in 0 7; do
     mkdir -p "$base/$status"
+    # shellcheck disable=SC2016 # Expand variables when the suite runs.
     write_suite "$suite" '
 mkdir "$TMPDIR/fixture" || exit 8
 touch "$TMPDIR/fixture/sentinel" "$FM_TEST_RETAIN_MARKER.fixture" || exit 8
@@ -89,6 +92,7 @@ exit "$SUITE_STATUS"'
 test_term_drains_stalled_suite() {
   local base="$TMP_ROOT/term" suite="$TMP_ROOT/stalled.sh"
   mkdir "$base"
+  # shellcheck disable=SC2016 # Expand variables when the suite runs.
   write_suite "$suite" 'printf "%s\n" "$$" >"$READY"; exec sleep 60'
   TMPDIR="$base" READY="$TMP_ROOT/suite-ready" python3 - "$BASH" "$VERIFY" "$suite" <<'PY' || fail 'TERM did not drain the TAP suite and remove scratch'
 import os, pathlib, signal, subprocess, sys, time

@@ -156,6 +156,7 @@ echo 'candidate left a background process'
 SH
   chmod +x "$proof" "$repo/bin/fm-test-run.sh" "$repo/tests/fm-proof-"*.test.sh
   mkdir -p "$repo/.test-phase-tmp" "$tmp/tools"
+  # shellcheck disable=SC2016 # Expand variables when the stub runs.
   printf '%s\n' '#!/usr/bin/env bash' 'touch "$MKTEMP_CALLED"; exit 1' >"$tmp/tools/mktemp"
   chmod +x "$tmp/tools/mktemp"
   rc=0
@@ -222,6 +223,7 @@ PY
   set -- "$tmp/retained [SSD]"/fm-isolation-proof.*
   [ "$#" -eq 1 ] && [ -f "$1/w1/tmp/sentinel" ] || fail 'proof deleted explicitly retained scratch'
   assert_contains "$(<"$tmp/retained.err")" "retaining scratch: $(cd "$1" && pwd -P)" 'retained scratch diagnostic names its root'
+  # shellcheck disable=SC2016 # Expand arguments when the stub runs.
   printf '%s\n' '#!/usr/bin/env bash' 'case "${!#}" in */fm-isolation-proof.??????) exit 1 ;; esac' 'exec "$REAL_RM" "$@"' >"$tmp/tools/rm"
   chmod +x "$tmp/tools/rm"
   rm "$tmp/tools/mktemp"

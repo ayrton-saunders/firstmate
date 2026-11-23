@@ -28,6 +28,7 @@ stop_server() {
   server_pid=''
   return "$teardown"
 }
+# shellcheck disable=SC2154 # The trap assigns status before using it.
 trap 'status=$?; teardown=0; stop_server || teardown=$?; fm_test_finalize "$status" "$teardown"' EXIT
 trap 'exit 130' INT
 trap 'exit 143' TERM

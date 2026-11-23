@@ -65,6 +65,7 @@ test_checkout_scratch_is_refused_before_build_or_clone() {
   local repo="$TMP_ROOT/unsafe" out rc=0 runtime="$TMP_ROOT/runtime-stub"
   make_repo "$repo"
   mkdir "$repo/.test-phase-tmp"
+  # shellcheck disable=SC2016 # Expand variables when the stub runs.
   printf '%s\n' '#!/usr/bin/env bash' 'touch "$RUNTIME_CALLED"; exit 1' >"$runtime"
   chmod +x "$runtime"
   out=$(cd "$repo" && TMPDIR=.test-phase-tmp RUNTIME_CALLED="$TMP_ROOT/runtime-called" \

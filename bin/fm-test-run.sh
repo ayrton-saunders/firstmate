@@ -2496,20 +2496,20 @@ interrupt_run() {
 
 stop_owned_workers() {
   local slot work pid record
-  local -a records=()
+  local -a owner_records=()
   for slot in "$@"; do
     work="$RUN_TMP/w$slot"
     pid=${WORKER_PIDS[$slot]:-}
     : >"$work/stopping"
     if [ -n "$pid" ]; then
       record=$(awk -F '|' -v pid="$pid" '$2 == pid && $3 == pid { print; exit }' "$RUN_TMP/.fm-test-run-owner")
-      if [ -n "$record" ]; then records+=("$record"); fi
+      if [ -n "$record" ]; then owner_records+=("$record"); fi
     fi
     if [ -f "$work/timed-owner" ] && IFS= read -r record <"$work/timed-owner"; then
-      records+=("$record")
+      owner_records+=("$record")
     fi
   done
-  fm_test_drain_groups "$RUN_TMP" "${records[@]+"${records[@]}"}" || return 1
+  fm_test_drain_groups "$RUN_TMP" "${owner_records[@]+"${owner_records[@]}"}" || return 1
   for slot in "$@"; do
     pid=${WORKER_PIDS[$slot]:-}
     if [ -n "$pid" ]; then wait "$pid" 2>/dev/null || true; fi
@@ -2955,6 +2955,7 @@ run_owned_timed() {
   shift 2
   export ROOT RUN_TMP
   export -f register_timed_owner record_run_owner fm_test_owner_start
+  # shellcheck disable=SC2016 # Expand arguments in the timed child shell.
   fm_run_timed "$PER_SCRIPT_TIMEOUT_SECS" bash -c '
     register_timed_owner "$1" "$2" || exit 1
     shift 2

@@ -303,6 +303,7 @@ test_changed_scratch_helper_selects_teardown_coverage() {
     touch "$repo/tests/$script.test.sh"
   done
   for script in agy cursor; do
+    # shellcheck disable=SC2016 # Expand variables when the fixture runs.
     printf '%s\n' 'fm_test_copy_primary_lab "$ROOT" "$HOME_DIR"' >"$repo/tests/fm-$script-primary-live-e2e.test.sh"
   done
   for script in backends-e2e e2e migration-e2e naming-e2e recovery-e2e; do
@@ -770,6 +771,7 @@ fi
 exec "$REAL_GIT" "$@"
 SH
   chmod +x "$fake_bin/git"
+  # shellcheck disable=SC2016 # Expand PWD when the stub runs.
   printf '#!/usr/bin/env bash\nprintf "%%s\\n" "$PWD"\n' >"$fake_bin/getconf"
   chmod +x "$fake_bin/getconf"
   out=$(cd "$repo" && PATH="$fake_bin:$PATH" REAL_GIT="$real_git" SLOW_GIT_MARKER="$tmp/slow-git" \
@@ -1708,7 +1710,7 @@ SH
   (cd "$repo" && SIMULATE_TIMEOUT=1 bin/fm-test-run.sh --changed --base HEAD) </dev/null >"$tmp/out" 2>"$tmp/err"
   rc=$?
   set -e
-  [ "$rc" -eq 1 ] && grep -Eq 'FM_TEST_END .* exit=124 ' "$tmp/out" \
+  { [ "$rc" -eq 1 ] && grep -Eq 'FM_TEST_END .* exit=124 ' "$tmp/out"; } \
     || fail "changed watcher must run through the timeout helper: $(cat "$tmp/out" "$tmp/err")"
   rm -rf "$tmp"
   pass "the automatic --changed timeout helper receives at least 1500 seconds"
@@ -1748,10 +1750,10 @@ SH
   PATH="$tmp/path:$PATH" REPLAY_PROOF="$tmp" REAL_CAT="$(command -v cat)" \
     "$repo/bin/fm-test-run.sh" --jobs 2 --per-script-timeout-secs 3 "$first" "$second" \
     </dev/null >"$tmp/out" 2>"$tmp/err" || rc=$?
-  [ "$rc" -eq 1 ] && [ -f "$tmp/replaying" ] && [ ! -e "$tmp/escaped" ] \
-    && grep -F " $second exit=124 " "$tmp/out" >/dev/null \
+  { [ "$rc" -eq 1 ] && [ -f "$tmp/replaying" ] && [ ! -e "$tmp/escaped" ] \
+    && grep -F " $second exit=124 " "$tmp/out" >/dev/null; } \
     || fail "a worker deadline must hold during another worker's replay: $(cat "$tmp/out" "$tmp/err")"
-  pass 'parallel timeout holds during another worker’s slow output replay'
+  pass "parallel timeout holds during another worker’s slow output replay"
 }
 
 test_max_wall_ms_is_a_result_not_advice() {
@@ -2041,7 +2043,7 @@ test_gateway_preflight_preserves_symlink() {
   done
   PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
     bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
-  [ "$rc" -eq 1 ] && grep -q 'may configure a messaging platform' "$tmp/out" || fail "gateway did not refuse .env: $(<"$tmp/out")"
+  { [ "$rc" -eq 1 ] && grep -q 'may configure a messaging platform' "$tmp/out"; } || fail "gateway did not refuse .env: $(<"$tmp/out")"
   [ -L "$profile/config.yaml" ] && [ "$(<"$profile/config.yaml")" = 'original config' ] \
     || fail 'gateway refusal changed the untouched config'
   rm -f "$profile/.env"
@@ -2078,8 +2080,8 @@ SH
   rc=0
   PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
     bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
-  [ "$rc" -eq 1 ] && grep -q 'config resolves outside the throwaway profile' "$tmp/out" \
-    && [ ! -e "$tmp/hermes/hermes-called" ] && cmp -s "$tmp/expected.yaml" "$tmp/operator.yaml" \
+  { [ "$rc" -eq 1 ] && grep -q 'config resolves outside the throwaway profile' "$tmp/out" \
+    && [ ! -e "$tmp/hermes/hermes-called" ] && cmp -s "$tmp/expected.yaml" "$tmp/operator.yaml"; } \
     || fail "gateway crossed the profile boundary: $(<"$tmp/out")"
   pass 'gateway preserves in-profile config links and refuses escaped targets'
 }

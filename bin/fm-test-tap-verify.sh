@@ -95,6 +95,7 @@ mkdir "$FM_TEST_SCRATCH/tmp"
 export TMPDIR="$FM_TEST_SCRATCH/tmp" TMP="$FM_TEST_SCRATCH/tmp" TEMP="$FM_TEST_SCRATCH/tmp"
 
 STATUS=0
+# shellcheck disable=SC2016 # Expand arguments in the probe shell.
 FM_TEST_RETAIN_MARKER="$FM_TEST_SCRATCH/.retain-scratch" fm_test_probe_run "$BASH" -c '
   out=$1
   shift

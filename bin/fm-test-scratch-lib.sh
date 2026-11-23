@@ -83,6 +83,7 @@ fm_test_allocate_scratch() {
 
 fm_test_owner_start() (
   [ -r "$ROOT/bin/fm-wake-lib.sh" ] && [ -r "$ROOT/bin/fm-path-lib.sh" ] || return 1
+  # shellcheck disable=SC2030 # Override state only for the owner lookup subshell.
   FM_STATE_OVERRIDE=$2
   unset FM_PROC_ROOT_OVERRIDE
   # shellcheck source=bin/fm-wake-lib.sh
@@ -301,6 +302,7 @@ fm_test_check_scratch_placement() (
   wake_home=${FM_HOME:-${FM_ROOT_OVERRIDE:-${FM_ROOT:-$root}}}
   ancestor=$base
   while :; do
+    # shellcheck disable=SC2031 # Use the caller's override, not the owner lookup's.
     for blocked in "$root" "$home" "${FM_ROOT_OVERRIDE:-}" "$wake_home" \
       "${FM_STATE_OVERRIDE:-$home/state}" "${FM_STATE_OVERRIDE:-${STATE:-$wake_home/state}}" \
       "${FM_DATA_OVERRIDE:-$home/data}" "${FM_CONFIG_OVERRIDE:-$home/config}" "${FM_PROJECTS_OVERRIDE:-$home/projects}" \

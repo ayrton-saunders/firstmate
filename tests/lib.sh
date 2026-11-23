@@ -415,7 +415,7 @@ fm_test_finalize() {
 }
 
 fm_test_tmproot() (
-  local prefix=${1:-fm-test} root= tmp_base
+  local prefix=${1:-fm-test} root='' tmp_base
   case "$prefix" in */*) return 2 ;; esac
   tmp_base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || return "$?"
   trap '' HUP INT QUIT TERM

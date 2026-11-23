@@ -31,6 +31,7 @@ test_direct_fixture_refuses_checkout_scratch() {
   fi
   for base in "${bases[@]}"; do
     rc=0
+    # shellcheck disable=SC2016 # Expand the positional parameter in the child shell.
     out=$(TMPDIR="$base" "$BASH" -c '. "$1"; printf "fixture started\n"' _ "$ROOT/tests/lib.sh" 2>&1) || rc=$?
     assert_equals 2 "$rc" 'checkout fixture scratch exit status'
     assert_contains "$out" 'unsafe scratch base' 'checkout fixture scratch refusal'
@@ -43,10 +44,12 @@ test_direct_fixture_refuses_inherited_home_scratch() {
   local tmp out rc boundary
   tmp=$(fm_test_tmproot fm-fixture-active-home) || fail 'could not create active home fixture'
   mkdir -p "$tmp/home/tmp" "$tmp/tools"
+  # shellcheck disable=SC2016 # Expand variables when the stub runs.
   printf '%s\n' '#!/usr/bin/env bash' 'touch "$MKTEMP_CALLED"; exit 1' >"$tmp/tools/mktemp"
   chmod +x "$tmp/tools/mktemp"
   for boundary in FM_HOME FM_ROOT_OVERRIDE FM_ROOT FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_CONFIG_OVERRIDE FM_PROJECTS_OVERRIDE; do
     rc=0
+    # shellcheck disable=SC2016 # Expand the positional parameter in the child shell.
     out=$(env -u FM_HOME -u FM_ROOT_OVERRIDE -u FM_ROOT "$boundary=$tmp/home" TMPDIR="$tmp/home/tmp" PATH="$tmp/tools:$PATH" \
       MKTEMP_CALLED="$tmp/mktemp-called" "$BASH" -c '. "$1"' _ "$ROOT/tests/lib.sh" 2>&1) || rc=$?
     assert_equals 2 "$rc" "$boundary scratch exit status"
@@ -72,6 +75,7 @@ test_direct_fixture_refuses_effective_operational_scratch() {
         ;;
     esac
     rc=0
+    # shellcheck disable=SC2016 # Expand the positional parameter in the child shell.
     out=$(env -u STATE -u FM_STATE_OVERRIDE -u FM_DATA_OVERRIDE -u FM_CONFIG_OVERRIDE -u FM_PROJECTS_OVERRIDE \
       "${settings[@]}" TMPDIR="$tmp/runtime/tmp" "$BASH" -c '. "$1"; printf "fixture started\n"' \
       _ "$ROOT/tests/lib.sh" 2>&1) || rc=$?
@@ -97,6 +101,7 @@ test_fixture_owner_lookup_failure_preserves_inherited_registry() {
       if [ "$registry" = inherited ]; then
         export FM_TEST_CLEANUP_REGISTRY="$tmp/parent-registry"
       fi
+      # shellcheck disable=SC2016 # Expand the positional parameter in the child shell.
       PATH="$tmp/tools:$PATH" FM_PROC_ROOT_OVERRIDE="$tmp/empty-proc" TMPDIR="$tmp/scratch" \
         "$BASH" -uc '. "$1"' _ "$ROOT/tests/lib.sh" 2>&1
     ) || rc=$?
