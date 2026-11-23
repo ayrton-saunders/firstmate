@@ -173,7 +173,9 @@ inventory="$scratch/.git/fm-test-overlay"
 git -C "$root" ls-files -z --cached --others --exclude-standard "${scratch_excludes[@]}" -- "${scratch_pathspec[@]}" >"$inventory" || die 'could not enumerate overlay paths'
 files=()
 while IFS= read -r -d '' path; do
-  fm_test_is_declared_scratch "$root" "$path" && continue
+  case "$path" in
+    */) die "cannot copy untracked directory '${path%/}'; commit its files, ignore it, or move it outside the checkout" ;;
+  esac
   parent=$path
   while [[ "$parent" == */* ]]; do
     parent=${parent%/*}

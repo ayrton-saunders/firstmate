@@ -177,7 +177,8 @@ SH
 if [ "$1" = run ]; then touch "$RUN_MARKER"; fi
 SH
   chmod +x "$mock_bin/"*
-  for stage in inventory archive; do
+  for stage in inventory archive nested; do
+    if [ "$stage" = nested ]; then make_repo "$repo/tests/nested checkout"; fi
     rc=0
     out=$(cd "$repo" && REAL_GIT="$(command -v git)" REAL_TAR="$(command -v tar)" \
       PATH="$mock_bin:$PATH" FM_CONTAINER_RUNTIME="$mock_bin/runtime" FAIL_STAGE="$stage" \
@@ -185,8 +186,12 @@ SH
     assert_equals 2 "$rc" "$stage failure aborts Linux validation: $out"
     [ ! -e "$mock_bin/ran" ] || fail "container ran after $stage failure"
     assert_not_contains "$out" 'PASS tests/kept.test.sh' "$stage failure must not report a pass"
+    if [ "$stage" = nested ]; then
+      assert_contains "$out" "cannot copy untracked directory 'tests/nested checkout'" 'refusal names the nested checkout'
+      assert_contains "$out" 'commit its files, ignore it, or move it' 'refusal explains how to proceed'
+    fi
   done
-  pass 'Linux validation refuses partial inventory and archives'
+  pass 'Linux validation refuses incomplete overlays'
 }
 
 test_attach_failure_verifies_container_stop() {
