@@ -2037,8 +2037,9 @@ chmod 0500 "$TMPDIR/read-only"
 if [ "$PROBE_MODE" = hang ] || [ "$PROBE_MODE" = stubborn ]; then
   printf '%s\\n' "$$" > "$PROOF.pid"
 fi
-if [ "$PROBE_MODE" = stubborn ]; then
-  sh -c 'trap "" TERM; printf "%s\\n" "$$" > "$1"; exec sleep 300' _ "$PROOF.child" &
+if [ "$PROBE_MODE" = stubborn ] || [ "$PROBE_MODE" = leaderless ]; then
+  sh -c 'marker=$1; note_term() { touch "$marker.term"; }; trap note_term TERM; printf "%s\\n" "$$" > "$1"; while :; do sleep 0.05; done' \
+    _ "$PROOF.child" </dev/null >/dev/null 2>&1 &
   while [ ! -s "$PROOF.child" ]; do sleep 0.01; done
 fi
 run_root=$TMPDIR
@@ -2175,6 +2176,25 @@ def live_processes(*pids):
     assert str(os.getpid()) in processes, 'incomplete process snapshot'
     return [pid for pid in pids if str(pid) in processes and not processes[str(pid)].startswith('Z')]
 
+rm_probe = fakebin / 'rm'
+rm_probe.write_bytes(b'''#!/usr/bin/env bash
+if [ -n "${PROOF:-}" ] && [ -s "$PROOF.child" ] && [ "$#" -eq 3 ] && [ "$1" = -rf ] && [ "$2" = -- ]; then
+    run_root=$(tail -1 "$PROOF")
+    if [ "$3" = "$run_root" ]; then
+        states=$(ps -e -o pid= -o stat=) || exit 1
+        awk -v self="$$" -v pid="$(<"$PROOF.child")" '
+          $1 == self { readable = 1 }
+          $1 == pid && $2 !~ /^Z/ { live = 1 }
+          END { exit (!readable || live) }
+        ' <<<"$states" || touch "$PROOF.removed-live"
+        touch "$PROOF.removing"
+    fi
+fi
+exec "$REAL_RM" "$@"
+''')
+rm_probe.chmod(0o755)
+fixture_env['REAL_RM'] = shutil.which('rm')
+
 for name, bounded in (('unbounded-term', False), ('bounded-term', True)):
     child, proof = launch(name, 'stubborn', bounded=bounded)
     worker_group = None
@@ -2188,6 +2208,8 @@ for name, bounded in (('unbounded-term', False), ('bounded-term', True)):
         assert child.wait(timeout=10) == 143
         assert not live_processes(worker, stubborn), (worker, stubborn)
         worker_group = None
+        assert (tmp / (name + '.removing')).exists()
+        assert not (tmp / (name + '.removed-live')).exists()
         assert not run.exists(), run
     finally:
         if child.poll() is None:
@@ -2198,6 +2220,40 @@ for name, bounded in (('unbounded-term', False), ('bounded-term', True)):
                 os.killpg(worker_group, signal.SIGKILL)
             except ProcessLookupError:
                 pass
+
+timeout_lib = repo / 'bin/fm-timeout-lib.sh'
+real_timeout_lib = timeout_lib.read_bytes()
+timeout_lib.write_bytes(b'''fm_run_timed() {
+    shift
+    set -m
+    "$@" </dev/null &
+    local leader=$!
+    set +m
+    wait "$leader" || return 1
+    return 124
+}
+''')
+try:
+    for name, bounded, code in (('leaderless-exit', False, 1), ('leaderless-timeout', True, 124)):
+        child, proof = launch(name, 'leaderless', bounded=bounded)
+        stubborn = None
+        try:
+            _, run = scratch(proof)
+            stubborn = int((tmp / (name + '.child')).read_text())
+            assert child.wait(timeout=10) == 1
+            log = (tmp / (name + '.log')).read_text()
+            assert f'exit={code} ' in log and f'retaining scratch: {run}' in log, log
+            assert live_processes(stubborn) == [stubborn]
+            assert not (tmp / (name + '.child.term')).exists(), log
+            assert not (tmp / (name + '.removing')).exists() and run.is_dir()
+        finally:
+            if child.poll() is None:
+                child.kill()
+                child.wait(timeout=10)
+            if stubborn is not None and live_processes(stubborn):
+                os.kill(stubborn, signal.SIGKILL)
+finally:
+    timeout_lib.write_bytes(real_timeout_lib)
 
 live, proof = launch('live', 'hang')
 worker_group = None

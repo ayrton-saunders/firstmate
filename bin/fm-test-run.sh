@@ -86,6 +86,7 @@
 # the run; a test that starts a separate session/group owns that group's cleanup.
 # A subsequent run recovers aged, marked roots when the runner and workers are gone.
 # Windows-style shells do not support orphan recovery; normal-exit and signal cleanup still apply.
+# If cleanup cannot verify a live group's leader before signaling, it waits briefly without signaling and fails with scratch retained if the group remains.
 # If interruption cuts short a nested runner's cleanup, its scratch is recovered on a later run once those workers are gone.
 # PID-directed TERM/HUP waits for a foreground TTY test to finish or time out, or for blocked output replay to return; background worker waits are interruptible.
 # Keep requested reports and redirected logs outside runner scratch.
@@ -2519,7 +2520,7 @@ interrupt_run() {
 }
 
 owned_group_live() {
-  local pid=$1 start=$2 current snapshot
+  local pid=$1 start=$2 verified=${3:-0} current snapshot
   kill -0 -- "-$pid" 2>/dev/null || return 1
   current=$(run_owner_start "$pid") || current=
   if [ -n "$current" ]; then
@@ -2527,11 +2528,15 @@ owned_group_live() {
     [ "$current" = "$start" ] || return 1
   fi
   if snapshot=$(LC_ALL=C ps -e -o pid= -o pgid= -o stat= 2>/dev/null); then
-    awk -v self="$$" -v pid="$pid" -v start="$start" -v checked="$current" '
+    awk -v self="$$" -v pid="$pid" -v start="$start" -v checked="$current" -v verified="$verified" '
       $1 == self && NF == 3 { readable = 1 }
-      $1 == pid && checked == "" && $3 !~ /^Z/ { unverified = 1 }
+      $1 == pid && $3 !~ /^Z/ { leader = 1 }
       $2 == pid && $3 !~ /^Z/ { live = 1 }
-      END { exit (!readable || (live && (unverified || start == "unknown"))) ? 2 : !live }
+      END {
+        if (!readable) exit 2
+        if (!live) exit 1
+        exit (start == "unknown" || (checked == "" && (leader || !verified))) ? 2 : 0
+      }
     ' <<<"$snapshot"
   else
     [ -n "$current" ] || return 2
@@ -2540,7 +2545,7 @@ owned_group_live() {
 
 stop_owned_workers() {
   local slot work pid record owner group start extra rc i attempt drained=0
-  local -a records=() groups=() starts=()
+  local -a records=() groups=() starts=() verified=()
   for slot in "$@"; do
     work="$RUN_TMP/w$slot"
     pid=${WORKER_PIDS[$slot]:-}
@@ -2560,19 +2565,27 @@ stop_owned_workers() {
     rc=0
     owned_group_live "$group" "$start" || rc=$?
     case "$rc" in
-      0) groups+=("$group"); starts+=("$start"); kill -TERM -- "-$group" 2>/dev/null || true ;;
-      2) drained=1 ;;
+      0|2)
+        groups+=("$group"); starts+=("$start")
+        if [ "$rc" -eq 0 ] && kill -TERM -- "-$group" 2>/dev/null; then
+          verified+=(1)
+        else
+          verified+=(0)
+        fi
+        ;;
     esac
   done
   if [ "${#groups[@]}" -gt 0 ]; then
     sleep 0.2
     for i in "${!groups[@]}"; do
-      if owned_group_live "${groups[$i]}" "${starts[$i]}"; then kill -KILL -- "-${groups[$i]}" 2>/dev/null || true; fi
+      if [ "${verified[$i]}" -eq 1 ] && owned_group_live "${groups[$i]}" "${starts[$i]}" 1; then
+        kill -KILL -- "-${groups[$i]}" 2>/dev/null || true
+      fi
     done
     for i in "${!groups[@]}"; do
       for ((attempt=0; attempt<20; ++attempt)); do
         rc=0
-        owned_group_live "${groups[$i]}" "${starts[$i]}" || rc=$?
+        owned_group_live "${groups[$i]}" "${starts[$i]}" "${verified[$i]}" || rc=$?
         [ "$rc" -ne 1 ] || break
         sleep 0.01
       done
@@ -2588,9 +2601,15 @@ stop_owned_workers() {
 
 # shellcheck disable=SC2329
 cleanup_run() {
+  local status=$?
   trap '' HUP INT TERM
   stop_owned_workers "${!WORKER_PIDS[@]}" || KEEP_RUN_TMP=1
-  if [ -n "$RUN_TMP" ] && [ "$KEEP_RUN_TMP" -eq 0 ]; then remove_run_tree "$RUN_TMP"; fi
+  if [ "$KEEP_RUN_TMP" -eq 1 ]; then
+    log "could not confirm worker group exit; retaining scratch: $RUN_TMP"
+    [ "$status" -ne 0 ] || status=1
+    exit "$status"
+  fi
+  if [ -n "$RUN_TMP" ]; then remove_run_tree "$RUN_TMP"; fi
 }
 
 prepare_run_scratch() {
@@ -3082,10 +3101,9 @@ collect_worker() {
     rm -f "$work/timed-owner"
   else
     KEEP_RUN_TMP=1
-    log "could not confirm worker group exit; retaining scratch: $RUN_TMP"
   fi
-  active_workers=$((active_workers - 1))
   rc=$(cat "$work/exit" 2>/dev/null || echo 1)
+  if [ "$KEEP_RUN_TMP" -eq 1 ] && [ "$rc" -eq 0 ]; then rc=1; fi
   duration=$(cat "$work/duration_ms" 2>/dev/null || echo 0)
   unset 'WORKER_PIDS[slot]' 'WORKER_SCRIPTS[slot]'
   end_iso=$(now_iso)
@@ -3099,11 +3117,13 @@ collect_worker() {
       700|0700) ;;
       *)
         log "isolation failure: worker root mode is $mode, expected 0700 ($work)"
-        rc=1
+        [ "$rc" -ne 0 ] || rc=1
         ;;
     esac
   fi
   record_script_result "$script" "$rc" "$duration" "$out" "$end_iso"
+  if [ "$KEEP_RUN_TMP" -eq 1 ]; then exit 1; fi
+  active_workers=$((active_workers - 1))
 }
 
 wait_one_completed_job_worker() {
