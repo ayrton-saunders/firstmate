@@ -50,7 +50,8 @@ PUBLISH_PID=
 mkdir -p "$PARENT/data" "$PARENT/state" "$PARENT/config" "$PARENT/projects" "$REMOTE_ROOT" "$CLAIMS"
 
 cleanup() {
-  local worker_pid=''
+  local status=$? worker_pid=''
+  trap '' HUP INT QUIT TERM
   if [ -n "$PUBLISH_PID" ]; then
     touch "$PUBLISH_RELEASE" 2>/dev/null || true
     kill "$PUBLISH_PID" 2>/dev/null || true
@@ -62,7 +63,7 @@ cleanup() {
     worker_pid=$(cat "$TMP_ROOT/remote-jobs/worker.pid")
     kill "$worker_pid" 2>/dev/null || true
   fi
-  fm_test_remove_tree "$TMP_ROOT"
+  fm_test_finalize "$status"
 }
 trap cleanup EXIT
 
@@ -113,10 +114,10 @@ assert_present "$PUBLISH_HOME/.fm-secondmate-home" \
 pass "remote provisioning publishes durable parent state before its completion marker"
 
 # --- the remote host's tracked code root, real git repos, one project --------
-(
-  cd "$ROOT" || exit
-  tar --exclude=.git --exclude=.no-mistakes --exclude=data --exclude=state --exclude=config -cf - .
-) | (cd "$REMOTE_ROOT" && tar -xf -)
+# shellcheck source=tests/remote-secondmate-source-copy-helpers.sh
+. "$ROOT/tests/remote-secondmate-source-copy-helpers.sh"
+fm_fixture_copy_remote_source "$ROOT" "$REMOTE_ROOT" || fail 'could not copy fixture code root'
+assert_absent "$REMOTE_ROOT/.test-phase-tmp" 'remote code root must not include checkout scratch'
 install_remote_herdr_fixture "$REMOTE_ROOT" "$HERDR_STATE" "$HERDR_LOG" \
   "$TMP_ROOT/herdr-send-fail" "$TMP_ROOT/herdr.sock"
 git -C "$REMOTE_ROOT" init -q -b main

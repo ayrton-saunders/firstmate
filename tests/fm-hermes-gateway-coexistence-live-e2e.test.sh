@@ -44,12 +44,12 @@ def fingerprint(info):
 
 def read_record(file):
     before = os.fstat(file.fileno())
-    if not stat.S_ISREG(before.st_mode):
-        sys.exit("config recovery requires regular files")
+    if not stat.S_ISREG(before.st_mode) or before.st_nlink != 1:
+        sys.exit("config recovery requires singly linked regular files")
     data = file.read()
     record = fingerprint(before)
     after = os.fstat(file.fileno())
-    if record != fingerprint(after) or before.st_ctime_ns != after.st_ctime_ns:
+    if record != fingerprint(after) or before.st_ctime_ns != after.st_ctime_ns or after.st_nlink != 1:
         sys.exit("file changed while reading config recovery data")
     return record + ":" + hashlib.sha256(data).hexdigest(), data, after.st_ctime_ns
 
@@ -121,7 +121,8 @@ with ExitStack() as stack:
         )):
             sys.exit("config entries changed before restore")
         dst.seek(0)
-        if os.fstat(dst.fileno()).st_ctime_ns != verified_ctime:
+        verified = os.fstat(dst.fileno())
+        if verified.st_ctime_ns != verified_ctime or verified.st_nlink != 1:
             sys.exit("config target changed after verification")
         dst.write(data)
         dst.truncate()

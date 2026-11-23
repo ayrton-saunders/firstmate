@@ -2522,6 +2522,9 @@ cleanup_run() {
   trap '' HUP INT QUIT TERM
   stop_owned_workers "${!WORKER_SCRIPTS[@]}" || KEEP_RUN_TMP=1
   if [ "$KEEP_RUN_TMP" -eq 1 ]; then
+    if [ -n "$RUN_TMP" ]; then
+      : > "$RUN_TMP/.retain-scratch.groups" || log "could not mark retained scratch: $RUN_TMP"
+    fi
     log "could not confirm worker group exit; retaining scratch: $RUN_TMP"
     [ "$status" -ne 0 ] || status=1
     exit "$status"
@@ -2542,6 +2545,7 @@ prepare_run_scratch() {
   . "$ROOT/bin/fm-test-scratch-lib.sh"
   local base parent mode
   fm_test_anchor_inherited_paths "$invocation_dir" || exit "$?"
+  fm_test_export_boundaries "$ROOT" || exit "$?"
   base=$(fm_test_os_scratch_base "$ROOT" "$invocation_dir") || exit "$?"
   parent="${base%/}/fm$UID"
   fm_test_check_scratch_placement "$ROOT" "$parent" "$invocation_dir" || exit "$?"

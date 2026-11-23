@@ -96,7 +96,8 @@ test_overlay_keeps_work_but_excludes_legacy_scratch() {
   if [ "$distinct_case" -eq 1 ]; then
     mkdir "$repo/.TEST-PHASE-TMP"
     printf 'distinct work\n' >"$repo/.TEST-PHASE-TMP/keep"
-    git -C "$repo" add .TEST-PHASE-TMP/keep
+    # The case-distinct work must be discovered as untracked, not from the index.
+    git -C "$repo" config core.ignoreCase false
   else
     mv "$repo/$indexed_scratch" "$repo/scratch-intermediate"
     mv "$repo/scratch-intermediate" "$repo/.test-phase-tmp"
@@ -165,6 +166,15 @@ SH
   assert_not_contains "$out" 'unexpected host temp paths' 'host runtime receives the validated base'
   assert_contains "$out" 'verified tests/kept.test.sh mount' 'selected suite used the verified overlay'
   assert_contains "$out" 'PASS tests/kept.test.sh' 'container tested the overlay'
+  if [ "$distinct_case" -eq 1 ]; then
+    local rc=0
+    git -C "$repo" config core.ignoreCase true
+    out=$(cd "$repo" && TMPDIR="$expected_tmp" FM_CONTAINER_RUNTIME="$runtime" \
+      "$BASH" "$LINUX_CHECK" tests/kept.test.sh 2>&1) || rc=$?
+    [ "$rc" -ne 0 ] || fail 'Linux probe silently dropped case-distinct untracked work'
+    assert_contains "$out" 'core.ignoreCase would prune distinct entry' 'case-policy mismatch diagnostic'
+    assert_equals 'distinct work' "$(<"$repo/.TEST-PHASE-TMP/keep")" 'refusal preserves source work'
+  fi
   pass 'Linux overlay skips legacy scratch but keeps dirty and untracked work'
 }
 

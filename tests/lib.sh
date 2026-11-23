@@ -40,18 +40,8 @@ umask 022
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 # shellcheck source=bin/fm-test-scratch-lib.sh
 . "$ROOT/bin/fm-test-scratch-lib.sh"
-fm_test_capture_boundaries() {
-  local boundary resolved
-  local -a protected_paths
-  fm_test_protected_paths "$ROOT"
-  FM_TEST_ORIGINAL_BOUNDARIES=()
-  for boundary in "${protected_paths[@]}" "${FM_ROOT:-}" "${STATE:-}"; do
-    [ -n "$boundary" ] || continue
-    resolved=$(fm_test_resolve_boundary "$boundary") || return 2
-    FM_TEST_ORIGINAL_BOUNDARIES+=("$resolved")
-  done
-}
-fm_test_capture_boundaries || exit "$?"
+fm_test_export_boundaries "$ROOT" || exit "$?"
+readonly FM_TEST_PARENT_BOUNDARIES
 FM_TEST_TMPDIR=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || exit "$?"
 export TMPDIR="$FM_TEST_TMPDIR" TMP="$FM_TEST_TMPDIR" TEMP="$FM_TEST_TMPDIR"
 
@@ -486,6 +476,51 @@ fm_test_drain_fixture_jobs() {
   fm_test_write_live_jobs "$jobs_file" && [ ! -s "$jobs_file" ]
 }
 
+# An orphaned helper can keep a cwd without a path in argv or a Bash job.
+# A missing or failed inventory does not authorize removal.
+fm_test_scratch_has_no_users() (
+  [ "$#" -gt 0 ] || return 0
+  if [ "$OSTYPE" = linux-gnu ] || [[ "$OSTYPE" == linux-* ]]; then
+    python3 - "$@" <<'PY'
+import os
+import sys
+
+roots = tuple(map(os.fsencode, sys.argv[1:]))
+
+def matches(path):
+    return any(path == root or path.startswith(root + b'/') for root in roots)
+
+with os.scandir(b'/proc') as processes:
+    for process in processes:
+        if not process.name.isdigit():
+            continue
+        try:
+            if process.stat().st_uid != os.geteuid():
+                continue
+            if matches(os.readlink(process.path + b'/cwd')):
+                sys.exit(1)
+        except (FileNotFoundError, ProcessLookupError):
+            # A vanished process or a zombie no longer has a cwd.
+            continue
+PY
+  else
+    # -b avoids blocking stat/readlink on unrelated network mounts on macOS.
+    # NUL fields keep a different process's newline-bearing cwd unambiguous.
+    set -o pipefail
+    lsof -b -w -a -u "$UID" -d cwd -F0n | python3 -c '
+import os
+import sys
+roots = tuple(map(os.fsencode, sys.argv[1:]))
+for field in sys.stdin.buffer.read().split(b"\0"):
+    field = field.lstrip(b"\n")
+    if field.startswith(b"n"):
+        path = field[1:]
+        if any(path == root or path.startswith(root + b"/") for root in roots):
+            sys.exit(1)
+' "$@"
+  fi
+)
+
 fm_test_cleanup() {
   local d rc=0
   local -a roots=()
@@ -506,6 +541,7 @@ fm_test_cleanup() {
   # Use this shell's job table, including stopped jobs. A live child can use
   # scratch as its cwd without having the path in argv. Do not guess its group.
   fm_test_drain_fixture_jobs || rc=1
+  fm_test_scratch_has_no_users "$FM_TEST_REGISTRY_DIR" ${roots[@]+"${roots[@]}"} || rc=1
   if [ "$rc" -ne 0 ]; then
     fm_test_retain_registered_scratch
     return 1
@@ -551,9 +587,12 @@ fm_test_register_scratch() {
 }
 
 fm_test_mkdir_scratch() (
-  local root=$1 parent
-  parent=$(cd -P -- "${root%/*}" && pwd -P) || return 1
-  root="$parent/${root##*/}"
+  local root=$1 parent leaf=${1##*/}
+  case "$root" in /*|[a-zA-Z]:/*) ;; *) return 2 ;; esac
+  case "$leaf" in ''|.|..|*[[:cntrl:]]*) return 2 ;; esac
+  parent=$(fm_test_validate_scratch_base "$ROOT" "${root%/*}/") || return "$?"
+  root="${parent%/}/$leaf"
+  fm_test_check_scratch_placement "$ROOT" "$root" || return "$?"
   trap '' HUP INT QUIT TERM
   mkdir -m 700 -- "$root" || return 1
   trap 'fm_test_remove_tree "$root"' EXIT
@@ -636,8 +675,9 @@ fm_test_reap_orphans() (
   done
   fm_test_reap_root_processes ${roots[@]+"${roots[@]}"} || return 0
   for dir in ${roots[@]+"${roots[@]}"}; do
-    fm_test_remove_tree "$dir"
+    fm_test_scratch_has_no_users "$dir" && fm_test_remove_tree "$dir"
   done
+  return 0
 )
 
 # A parent coordinator can reap once before it starts isolated child sections.

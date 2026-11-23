@@ -2304,16 +2304,20 @@ sys.argv = sys.argv[1:]
 open_file, fchmod, lstat = os.open, os.fchmod, os.lstat
 save, changed, phase = (os.environ[key] for key in ("EDITOR_SAVE", "CHANGED", "PHASE"))
 opened_target = False
+def replace_with_save():
+    os.rename(changed, os.path.join(os.path.dirname(save), "before-save"))
+    os.replace(save, changed)
+
 def open_with_save(path, flags, *args, **kwargs):
     global opened_target
     if flags & (os.O_WRONLY | os.O_RDWR) and os.path.basename(path) == os.path.basename(changed):
         opened_target = True
         if phase == "open":
-            os.replace(save, changed)
+            replace_with_save()
     return open_file(path, flags, *args, **kwargs)
 def chmod_with_save(fd, mode):
     if phase == "chmod":
-        os.replace(save, changed)
+        replace_with_save()
     fchmod(fd, mode)
 def lstat_with_edit(path, *args, **kwargs):
     before = lstat(path, *args, **kwargs)
@@ -2330,7 +2334,6 @@ SH
   chmod +x "$tmp/path/python3"
   for phase in open chmod edit; do
     changed="$profile/original.yaml"
-    ln -- "$changed" "$tmp/before-save"
     printf 'private editor save\n' >"$tmp/editor-save"
     chmod 0600 "$tmp/editor-save"
     if PATH="$tmp/path:$PATH" REAL_PYTHON="$real_python" PHASE="$phase" \
@@ -2348,7 +2351,7 @@ assert not file.is_symlink() and file.read_text() == expected
 assert stat.S_IMODE(file.stat().st_mode) == 0o600
 PY
     [ -L "$profile/config.yaml" ] || fail 'failed manual restore rewrote the config link'
-    mv -- "$tmp/before-save" "$changed"
+    if [ "$phase" != edit ]; then mv -- "$tmp/before-save" "$changed"; fi
     python3 - "$profile/original.yaml" "$target_mtime" <<'PY'
 import os, sys
 path, mtime = sys.argv[1:]
@@ -2359,6 +2362,13 @@ os.utime(path, ns=(os.stat(path).st_atime_ns, int(mtime)))
 PY
   done
   rm -- "$tmp/path/python3"
+  if ln "$profile/original.yaml" "$tmp/restore-hardlink" 2>/dev/null; then
+    if bash -c "$restore_command" >"$tmp/hardlink-restore.out" 2>&1; then
+      fail 'manual restore accepted a multiply linked config target'
+    fi
+    assert_equals mutated "$(<"$tmp/restore-hardlink")" 'manual restore did not modify the external inode'
+    rm -- "$tmp/restore-hardlink"
+  fi
   bash -c "$restore_command" || fail 'manual restore refused the original paths'
   python3 - "$profile/original.yaml" <<'PY' || fail 'manual restore did not restore mode 0644'
 import os, stat, sys
@@ -2375,6 +2385,15 @@ PY
     && [ ! -e "$tmp/hermes/hermes-called" ] && cmp -s "$tmp/expected.yaml" "$tmp/operator.yaml"; } \
     || fail "gateway crossed the profile boundary: $(<"$tmp/out")"
   rm -f "$profile/config.yaml"
+  if ln "$tmp/operator.yaml" "$profile/config.yaml" 2>/dev/null; then
+    rc=0
+    PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
+      bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+    { [ "$rc" -eq 1 ] && grep -q 'singly linked regular files' "$tmp/out" \
+      && [ ! -e "$tmp/hermes/hermes-called" ] && cmp -s "$tmp/expected.yaml" "$tmp/operator.yaml"; } \
+      || fail "gateway reached a multiply linked config target: $(<"$tmp/out")"
+    rm -- "$profile/config.yaml"
+  fi
   mkdir "$profile/nested" "$tmp/outside"
   printf 'original config\n' >"$profile/nested/original.yaml"
   printf 'mutated\n' >"$tmp/outside/original.yaml"
@@ -2625,6 +2644,22 @@ finally:
 result = subprocess.run(base_query, cwd=tmp, env=fixture_env, capture_output=True)
 assert result.returncode == 0 and native_path(os.fsdecode(result.stdout).strip()).resolve() == base.resolve(), result
 assert not list(base.iterdir()), 'OS-temp selection must not allocate'
+parallel_suites = ('tests/fm-cd-pretool-check.test.sh', 'tests/fm-ask-user-authority.test.sh')
+protected_child = tmp / 'fm-home/sub'
+protected_child.mkdir()
+for suite in parallel_suites:
+    (repo / suite).write_bytes(b'''set -eu
+[ -z "${FM_HOME+x}" ] && [ -z "${FM_DATA_OVERRIDE+x}" ]
+. tests/lib.sh
+if TMPDIR="$PROTECTED_CHILD" fm_test_tmproot blocked; then exit 1; fi
+allowed=$(fm_test_tmproot allowed)
+[ -d "$allowed" ]
+''')
+result = subprocess.run([*runner_cmd, '--jobs', '2', *parallel_suites], cwd=repo, capture_output=True, timeout=30,
+                        env=dict(fixture_env, PROTECTED_CHILD=shell_path(protected_child),
+                                 FM_DATA_OVERRIDE=shell_path(tmp / 'fm-home/data')))
+assert result.returncode == 0 and b'total=2 failed=0' in result.stdout, result
+assert not list(protected_child.iterdir()), 'parallel child allocated in the parent operational home'
 for expected, data in (('eof', None), ('redirected', b'input from pipe\n')):
     result = subprocess.run([bash, '-c', 'if [ "$1" = eof ]; then exec 0<&-; fi; shift; exec "$@"',
                              '_', expected, *cmd], cwd=repo, input=data, capture_output=True, timeout=20,
@@ -2949,6 +2984,7 @@ try:
             assert live_processes(stubborn) == [stubborn]
             assert not (tmp / (name + '.child.term')).exists(), log
             assert not (tmp / (name + '.removing')).exists() and run.is_dir()
+            assert list(run.glob('.retain-scratch.*')), 'unverified worker group has no persistent retention'
         finally:
             if child.poll() is None:
                 child.kill()

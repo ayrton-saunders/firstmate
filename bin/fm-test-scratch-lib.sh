@@ -286,6 +286,28 @@ fm_test_anchor_inherited_paths() {
   done
 }
 
+# Snapshot physical paths for validation in child shells, not as operational overrides.
+# The newline-delimited handoff accepts spaces but not control characters.
+fm_test_snapshot_boundaries() {
+  local boundary resolved
+  local -a protected_paths
+  fm_test_protected_paths "$1"
+  for boundary in "${protected_paths[@]}" "${FM_ROOT:-}" "${STATE:-}"; do
+    [ -n "$boundary" ] || continue
+    resolved=$(fm_test_resolve_boundary "$boundary" && printf '.') || return 2
+    resolved=${resolved%$'\n.'}
+    case "$resolved" in *[[:cntrl:]]*) printf 'unsupported character in scratch boundary\n' >&2; return 2 ;; esac
+    printf '%s\n' "$resolved"
+  done
+}
+
+fm_test_export_boundaries() {
+  local snapshot
+  snapshot=$(fm_test_snapshot_boundaries "$1") || return "$?"
+  FM_TEST_PARENT_BOUNDARIES=${FM_TEST_PARENT_BOUNDARIES:+$FM_TEST_PARENT_BOUNDARIES$'\n'}$snapshot
+  export FM_TEST_PARENT_BOUNDARIES
+}
+
 # Populate the caller's protected_paths array before a fixture clears its environment.
 fm_test_protected_paths() {
   local repo_root=$1 home wake_home
@@ -305,9 +327,17 @@ fm_test_check_scratch_placement() (
     CDPATH='' cd -P -- "$3" || return 2
   fi
   fm_test_protected_paths "$repo_root"
+  while IFS= read -r blocked; do
+    case "$blocked" in
+      /*|[a-zA-Z]:/*) protected_paths+=("$blocked") ;;
+      '') ;;
+      *) printf 'invalid inherited scratch boundary\n' >&2; return 2 ;;
+    esac
+    case "$blocked" in *[[:cntrl:]]*) return 2 ;; esac
+  done <<< "${FM_TEST_PARENT_BOUNDARIES:-}"
   ancestor=$base
   while :; do
-    for blocked in "${protected_paths[@]}" "${FM_TEST_ORIGINAL_BOUNDARIES[@]+"${FM_TEST_ORIGINAL_BOUNDARIES[@]}"}"; do
+    for blocked in "${protected_paths[@]}"; do
       [ -n "$blocked" ] || continue
       rc=1
       if [ "$ancestor" = "${blocked%/}" ] || [ "$ancestor" -ef "$blocked" ]; then

@@ -367,6 +367,42 @@ test_primary_lab_copy_excludes_only_declared_scratch() {
   pass 'primary lab copies omit only root-level declared scratch'
 }
 
+test_helper_child_keeps_its_live_cwd() {
+  local harness rc=0 pid
+  harness=$(fm_test_tmproot fm-test-helper-cwd)
+  TMPDIR="$harness" bash -ec '
+    . "$1"
+    d=$(fm_test_tmproot fm-helper-cwd)
+    printf "%s\n" "$d" > "$2/root"
+    (
+      cd "$d"
+      bash -c '\''touch "$1/ready"; exec sleep 30'\'' _ "$2" </dev/null >/dev/null 2>&1 &
+      printf "%s\n" "$!" > "$2/pid"
+    )
+    [ -z "$(jobs -pr)" ] || exit 7
+    for ((i=0; i<100; ++i)); do
+      [ ! -f "$2/ready" ] || exit 0
+      sleep 0.02
+    done
+    exit 8
+  ' _ "$LIB" "$harness" >"$harness/out" 2>&1 || rc=$?
+  pid=$(<"$harness/pid")
+  kill -0 "$pid" 2>/dev/null || fail 'helper child was not alive when the suite exited'
+  kill "$pid" 2>/dev/null || true
+  assert_equals 1 "$rc" 'a helper with no suite job requires retention'
+  assert_present "$(<"$harness/root")/.retain-scratch.fixture" 'still-live helper cwd must not be deleted'
+  pass 'fixture cleanup retains an orphaned helper cwd'
+}
+
+test_direct_claim_retention_cleans_common_fixtures() {
+  local harness
+  harness=$(fm_test_tmproot fm-test-claim-direct)
+  mkdir "$harness/tmp"
+  TMPDIR="$harness/tmp" bash "$ROOT/tests/fm-remote-job-claim-retention.test.sh" || fail 'direct claim suite failed'
+  assert_equals '' "$(ls -A "$harness/tmp")" 'direct claim suite left common fixture scratch behind'
+  pass 'direct claim suite cleans up its common fixtures'
+}
+
 test_registry_cleanup_guards() {
   local harness rc=0
   harness=$(fm_test_tmproot fm-test-cleanup-guards)
@@ -376,9 +412,13 @@ test_registry_cleanup_guards() {
     printf "%s\n" "$2/unmarked" >> "$FM_TEST_CLEANUP_REGISTRY"
   ' _ "$LIB" "$harness" || fail 'unmarked record interrupted normal cleanup'
   [ -d "$harness/unmarked" ] || fail 'cleanup deleted an unmarked root'
-  FM_TEST_RETAIN_MARKER="$harness/.retain-scratch" TMPDIR="$harness" FM_HOME="$harness/original" bash -ec '
+  FM_TEST_RETAIN_MARKER="$harness/.retain-scratch" TMPDIR="$harness" FM_HOME="$harness/original" \
+    FM_DATA_OVERRIDE="$harness/missing-home" bash -ec '
     . "$1"
     if TMPDIR="$2/original/tmp" fm_test_tmproot blocked; then exit 8; fi
+    if fm_test_mkdir_scratch "$2/original/tmp/named"; then exit 12; fi
+    if fm_test_mkdir_scratch "$2/missing-home"; then exit 13; fi
+    if fm_test_mkdir_scratch "$2/name"$'"'"'\nsplit'"'"'; then exit 14; fi
     if fm_test_tmproot $'"'"'prefix\nsplit'"'"'; then exit 9; fi
     ln -s "$2/unsafe"$'"'"'\n'"'"' "$2/alias"
     if TMPDIR="$2/alias" fm_test_tmproot blocked; then exit 10; fi
@@ -563,6 +603,8 @@ test_orphan_sweep_retains_private_tmux
 test_successful_cleanup_can_be_repeated
 test_msys_fixture_process_inventory
 test_registry_cleanup_guards
+test_helper_child_keeps_its_live_cwd
+test_direct_claim_retention_cleans_common_fixtures
 test_custom_finalizer_cleans_or_retains_after_teardown
 test_primary_lab_copy_excludes_only_declared_scratch
 test_removal_failure_preserves_existing_status
