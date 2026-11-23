@@ -508,15 +508,20 @@ SH
   elif [ "$mode" = stuck-late ]; then
     printf '0\n' > "$home/park-clock"
     install_first_offer_action "$home" 'printf "121\n" > "$FM_HOME/park-clock"'
-  elif [ "$mode" = final-decision ] || [ "$mode" = final-handled-decision ]; then
-    local first_action=:
-    if [ "$mode" = final-handled-decision ]; then
+  elif [[ "$mode" = final-* ]]; then
+    local first_action=: second_action=''
+    if [ "$mode" != final-decision ]; then
       first_action='mv "$FM_HOME/state/demo.inbox/001.msg" "$FM_HOME/state/demo.inbox/handled/"'
     fi
+    if [ "$mode" = final-after-offer ]; then
+      printf -v second_action '%q "$@" || exit 1\nprintf "110\\n" > "$FM_HOME/park-clock"\n' "$(command -v node)"
+    else
+      second_action='printf "120\n" > "$FM_HOME/park-clock"'
+    fi
+    second_action+=$'\n''printf "needs-decision [key=inbox-choice]: choose an approach\n" >> "$FM_HOME/state/demo.status"'
+    if [ "$mode" = final-after-offer ]; then second_action+=$'\n''exit'; fi
     printf '0\n' > "$home/park-clock"
-    install_first_offer_action "$home" "$first_action" '
-    printf "120\n" > "$FM_HOME/park-clock"
-    printf "needs-decision [key=inbox-choice]: choose an approach\n" >> "$FM_HOME/state/demo.status"'
+    install_first_offer_action "$home" "$first_action" "$second_action"
   elif [ "$mode" = missing ] || [ "$mode" = unhandled-decision ]; then
     if [ "$mode" = missing ]; then : > "$home/missing-endpoint"; fi
     printf '117\n' > "$home/park-clock"
@@ -538,12 +543,12 @@ SH
     fi
     assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "the ordinary stale offer must not use the routine timeout"
     [ -f "$rec" ] || fail "missing endpoint work was lost"
-  elif [ "$mode" = final-decision ] || [ "$mode" = final-handled-decision ]; then
+  elif [[ "$mode" = final-* ]]; then
     wait_until_deadline 60 host_exited "$home" || fail "the final decision-owned stale did not reach main"
     assert_re '^stale: .*stuck-busy' "$home/host.out" "the final main-only close was lost"
     assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "the final hand-back must preserve the successor"
     watcher_live "$home" || fail "the final hand-back left no live successor"
-    if [ "$mode" = final-handled-decision ]; then
+    if [ "$mode" != final-decision ]; then
       [ -f "${rec%/*}/handled/${rec##*/}" ] || fail "the handled steer receipt was lost"
       assert_grep 'stuck-busy' "$home/state/.wake-queue" "the decision-owned stale must remain queued"
     else
@@ -1640,6 +1645,7 @@ test_missing_endpoint_stale_uses_ordinary_offer() { test_attended_busy_inbox_clo
 test_unhandled_decision_stale_uses_ordinary_offer() { test_attended_busy_inbox_close unhandled-decision; }
 test_final_main_only_stale_keeps_successor() { test_attended_busy_inbox_close final-decision; }
 test_final_handled_decision_keeps_successor() { test_attended_busy_inbox_close final-handled-decision; }
+test_decision_after_final_offer_keeps_successor() { test_attended_busy_inbox_close final-after-offer; }
 test_captain_hold_divergence_resurface() { test_attended_resurface divergence; }
 test_new_decision_resurface() { test_attended_resurface new-decision; }
 test_reopened_decision_resurface() { test_attended_resurface reopened-decision; }
@@ -1753,6 +1759,7 @@ fm_test_run \
   test_unhandled_decision_stale_uses_ordinary_offer \
   test_final_main_only_stale_keeps_successor \
   test_final_handled_decision_keeps_successor \
+  test_decision_after_final_offer_keeps_successor \
   test_captain_hold_divergence_resurface \
   test_new_decision_resurface \
   test_reopened_decision_resurface \

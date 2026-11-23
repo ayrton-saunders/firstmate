@@ -1086,13 +1086,13 @@ attended_routine_rows() {  # <reason> <decision keys> [preflight]
   if [ "$reason" = 'check: rearm-resurface' ]; then
       pending=$("$SCRIPT_DIR/fm-branch-outcome.sh" present) || return 1
       [ "$(printf '%s\n' "$pending" | jq -rs 'any(.verdict == "captain")')" = false ] || return 1
-      FM_SUPERVISION_ACTOR=main "$SCRIPT_DIR/fm-wake-drain.sh" --recovery-presentation-clear || return 1
       _fm_wake_require_classify || return 1
       exclude=$(status_scan_parent_channel_exclude "$STATE")
       for f in "$STATE"/*.status; do
         [ -e "$f" ] && [ "$f" != "$exclude" ] && [ ! -L "$f" ] || continue
-        attended_no_open_decision "$f" || return 1
+        attended_no_open_decision "$f" || return $?
       done
+      FM_SUPERVISION_ACTOR=main "$SCRIPT_DIR/fm-wake-drain.sh" --recovery-presentation-clear || return 1
       [ -n "$queue" ] || return 0
   fi
   while IFS=$'\t' read -r epoch seq kind key payload extra; do
@@ -1109,7 +1109,7 @@ attended_no_open_decision() {  # <status-file>
   [ -e "$1" ] || { [ ! -L "$1" ]; return; }
   [ -f "$1" ] && [ -r "$1" ] && [ ! -L "$1" ] || return 1
   open=$(status_open_decisions "$1") || return 1
-  [ -z "$open" ]
+  [ -z "$open" ] || return 3
 }
 
 attended_handled_stale_task() {  # <queue-key> <reason>
@@ -1127,7 +1127,7 @@ attended_handled_stale_task() {  # <queue-key> <reason>
 }
 
 attended_routine_row() {  # <kind> <key> <reason>
-  local kind=$1 key=$2 reason=$3 task f found=0
+  local kind=$1 key=$2 reason=$3 task f found=0 answer_rc
   local -a files
   case "$kind:$reason" in
     signal:signal:*)
@@ -1141,8 +1141,10 @@ attended_routine_row() {  # <kind> <key> <reason>
         [ "${f##*/}" != "$key" ] || found=1
         case "$proven_answers" in
           *" $f "*) ;;
-          *) status_unread_only_home_answers "$f" || return 1
-             attended_no_open_decision "$f" || return 3
+          *) answer_rc=0
+             status_unread_only_home_answers "$f" || answer_rc=$?
+             attended_no_open_decision "$f" || return $?
+             [ "$answer_rc" -eq 0 ] || return 1
              proven_answers="$proven_answers$f " ;;
         esac
       done
