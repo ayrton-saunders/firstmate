@@ -182,6 +182,7 @@ EOF
 `bin/fm-test-run.sh` is the single owner of behavior-suite selection, portable CI lane composition, bounded concurrency admission, per-script timing markers, family totals, the coverage guard, and the optional JSON timing artifact.
 Its header and `--help` own the flags, family labels, lanes, and changed-file map; this section only documents the entry points.
 If a suite is killed, the orphan sweep does not recover fixtures allocated with an explicit `TMPDIR` outside the runner’s scratch base.
+The fixture sweep may also retain an old fixture if its PID has been reused and the live process’s command line is unavailable.
 After `SIGKILL`, standalone `bin/fm-test-isolation-proof.sh`, `bin/fm-test-tap-verify.sh`, and `bin/fm-test-linux.sh` scratch roots are not enrolled in orphan recovery.
 Before scratch allocation, Bash may use inherited `TMPDIR` for short-lived here-string and here-document redirections.
 `bin/fm-test-isolation-proof.sh` remains the single owner of the portable candidate proof and reusable family proof harness; see `docs/fm-test-isolation-proof.md`.

@@ -138,7 +138,7 @@ test_orphan_sweep_respects_fixture_ownership() {
   touch -t 202001010000 "$unmarked_dir"
 
   stale_dir=$(mktemp -d "$harness/fm-test-cleanup-stale.XXXXXX")
-  printf '%s\n%s\n' "$$" invalid-start-identity > "$stale_dir/.fm-test-fixture"
+  printf '%s\n%s\n' "$pid" invalid-start-identity > "$stale_dir/.fm-test-fixture"
   touch -t 202001010000 "$stale_dir/.fm-test-fixture"
   fresh_dir=$(mktemp -d "$harness/fm-test-cleanup-fresh.XXXXXX")
   cp "$active_dir/.fm-test-fixture" "$fresh_dir/.fm-test-fixture"
@@ -163,7 +163,7 @@ test_orphan_sweep_respects_fixture_ownership() {
   assert_present "$unmarked_dir" 'orphan recovery leaves an old unmarked directory intact'
   assert_absent "$registry_dir" 'orphan recovery removed the killed suite registry'
   assert_present "$fresh_dir" 'a fresh fixture survives even after its owner exits'
-  assert_present "$stale_dir" 'an aged malformed marker still does not authorize removal'
+  assert_present "$stale_dir" 'an aged malformed marker for a dead owner does not authorize removal'
   pass "the orphan sweep reaps only old fixtures without a live owner"
 }
 

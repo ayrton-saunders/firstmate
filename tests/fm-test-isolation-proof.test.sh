@@ -44,7 +44,11 @@ if { [ "$1" = --list ] || [ "$1" = --list-scheduled ]; } && [ "$2" = --family ];
       exit 0
       ;;
     admitted-family)
-      printf '%s\n' tests/fm-proof-slow.test.sh tests/fm-proof-fast.test.sh tests/fm-proof-replacement.test.sh
+      if [ "${PROOF_UNDRAINED:-0}" = 1 ]; then
+        printf '%s\n' tests/fm-proof-undrained.test.sh tests/fm-proof-slow.test.sh tests/fm-proof-replacement.test.sh
+      else
+        printf '%s\n' tests/fm-proof-slow.test.sh tests/fm-proof-fast.test.sh tests/fm-proof-replacement.test.sh
+      fi
       exit 0
       ;;
     skipped-family)
@@ -140,6 +144,12 @@ set -eu
 . bin/fm-test-scratch-lib.sh
 fm_test_arm_private_tmux MARKER
 printf '%s\n' 'retained scratch' >"$TMPDIR/sentinel"
+SH
+  cat >"$repo/tests/fm-proof-undrained.test.sh" <<'SH'
+#!/usr/bin/env bash
+sleep 20 &
+printf '%s\n' "$!" >"$PROOF_SCHED_EVIDENCE/lingering-pid"
+echo 'candidate left a background process'
 SH
   chmod +x "$proof" "$repo/bin/fm-test-run.sh" "$repo/tests/fm-proof-"*.test.sh
   mkdir -p "$repo/.test-phase-tmp" "$tmp/tools"
@@ -252,6 +262,38 @@ assert artifact["fm_test_run_jobs_enabled"] is True
 assert artifact["summary"]["total"] == 3
 assert artifact["summary"]["failed"] == 0
 ' "$admitted_json" || fail "admitted family pool artifact metadata is incorrect"
+  mkdir "$tmp/undrained"
+  cp "$admitted_json" "$tmp/undrained/proof.json"
+  TMPDIR="$tmp/undrained" PROOF_SCHED_EVIDENCE="$tmp/undrained" PROOF_UNDRAINED=1 \
+    python3 - "$proof" <<'PY' || fail 'undrained proof did not publish a failed artifact'
+import json, os, pathlib, signal, subprocess, sys
+
+if os.name != 'posix':
+    print('skip leaderless process group subcase: requires POSIX signals')
+    sys.exit(0)
+
+base = pathlib.Path(os.environ['TMPDIR'])
+artifact = base / 'proof.json'
+try:
+    result = subprocess.run([sys.argv[1], '--pool', 'admitted-family', '--jobs', '2', '--json', str(artifact)],
+                            capture_output=True, text=True, timeout=10)
+    assert result.returncode == 1, result
+    assert 'FM_ISOLATION_SUMMARY total=1 failed=1' in result.stdout, result
+    assert 'candidate left a background process' in result.stderr, result
+    assert 'could not confirm worker group exit; retaining scratch:' in result.stderr, result
+    assert not (base / 'replacement-started').exists()
+    assert len(list(base.glob('fm-isolation-proof.*'))) == 1
+    report = json.loads(artifact.read_text())
+    assert report['summary']['failed'] == 1 and not report['fm_test_run_jobs_enabled'], report
+    assert [(s['path'], s['exit']) for s in report['scripts']] == [('tests/fm-proof-undrained.test.sh', 1)], report
+finally:
+    pid_file = base / 'lingering-pid'
+    if pid_file.exists():
+        try:
+            os.kill(int(pid_file.read_text()), signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+PY
   mkdir "$tmp/capped-evidence"
   set +e
   PROOF_SCHED_EVIDENCE="$tmp/capped-evidence" "$proof" --pool admitted-family --jobs 3 --json "$capped_json" >"$tmp/capped.out" 2>"$tmp/capped.err"

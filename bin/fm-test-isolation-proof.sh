@@ -472,10 +472,10 @@ wait_one_slot() {
   unset 'WORKER_PIDS[slot]' 'WORKER_OWNERS[slot]'
   unset 'WORKER_IDX[slot]'
   ACTIVE_WORKERS=$((ACTIVE_WORKERS - 1))
-  [ "$retain_root" -eq 0 ] || exit 1
   work="$PROOF_ROOT/w$idx"
   script=${CANDIDATES[$((idx - 1))]}
   rc=$(cat "$work/out/exit" 2>/dev/null || echo 1)
+  if [ "$retain_root" -ne 0 ] && [ "$rc" -eq 0 ]; then rc=1; fi
   if fm_test_scratch_retained "$PROOF_ROOT" "w$idx"; then
     private_teardown_failed=1
     [ "$rc" -ne 0 ] || rc=1
@@ -542,7 +542,7 @@ wait_one_completed_slot() {
 
 idx=0
 for script in "${CANDIDATES[@]}"; do
-  [ "$private_teardown_failed" -eq 0 ] || break
+  [ "$private_teardown_failed" -eq 0 ] && [ "$retain_root" -eq 0 ] || break
   idx=$((idx + 1))
   work="$PROOF_ROOT/w$idx"
   # Create then chmod: mkdir -m can still be umask-adjusted on some platforms.
@@ -595,12 +595,12 @@ for script in "${CANDIDATES[@]}"; do
   [ "$pending_signal" -eq 0 ] || exit "$pending_signal"
 
   # Bound concurrency.
-  while [ "$ACTIVE_WORKERS" -ge "$JOBS" ]; do
+  while [ "$ACTIVE_WORKERS" -ge "$JOBS" ] && [ "$retain_root" -eq 0 ]; do
     wait_one_completed_slot
   done
 done
 
-while [ "$ACTIVE_WORKERS" -gt 0 ]; do
+while [ "$ACTIVE_WORKERS" -gt 0 ] && [ "$retain_root" -eq 0 ]; do
   wait_one_completed_slot
 done
 
@@ -626,7 +626,7 @@ fi
 
 cleanup_failed=0
 records=$(<"$RECORDS")
-if ! fm_test_scratch_retained "$PROOF_ROOT"; then
+if [ "$retain_root" -eq 0 ] && ! fm_test_scratch_retained "$PROOF_ROOT"; then
   if ! fm_test_cleanup_scratch "$PROOF_ROOT"; then
     AGG_RC=1
     cleanup_failed=1
