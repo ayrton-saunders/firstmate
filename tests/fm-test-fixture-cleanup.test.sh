@@ -138,18 +138,17 @@ test_orphan_sweep_respects_fixture_ownership() {
   touch -t 202001010000 "$unmarked_dir"
 
   stale_dir=$(mktemp -d "$harness/fm-test-cleanup-stale.XXXXXX")
-  printf '%s\n%s\n' "$$" reused-process-identity > "$stale_dir/.fm-test-fixture"
+  printf '%s\n%s\n' "$$" invalid-start-identity > "$stale_dir/.fm-test-fixture"
   touch -t 202001010000 "$stale_dir/.fm-test-fixture"
   fresh_dir=$(mktemp -d "$harness/fm-test-cleanup-fresh.XXXXXX")
-  : > "$fresh_dir/.fm-test-fixture"
+  cp "$active_dir/.fm-test-fixture" "$fresh_dir/.fm-test-fixture"
 
   TMPDIR="$harness" bash -c '
     # shellcheck source=tests/lib.sh
     . "'"$LIB"'"
   '
 
-  assert_absent "$stale_dir" \
-    "a stale fixture root whose PID was reused by another process was not reaped"
+  assert_present "$stale_dir" 'an aged malformed owner marker must not authorize removal'
   assert_present "$active_dir" \
     "the orphan reaper removed an old fixture root whose owning process was still alive"
   assert_present "$fresh_dir" \
@@ -163,16 +162,22 @@ test_orphan_sweep_respects_fixture_ownership() {
   assert_absent "$custom_dir" 'orphan recovery removed the killed suite hidden fixture'
   assert_present "$unmarked_dir" 'orphan recovery leaves an old unmarked directory intact'
   assert_absent "$registry_dir" 'orphan recovery removed the killed suite registry'
-  rm -rf "$fresh_dir"
+  assert_present "$fresh_dir" 'a fresh fixture survives even after its owner exits'
+  assert_present "$stale_dir" 'an aged malformed marker still does not authorize removal'
   pass "the orphan sweep reaps only old fixtures without a live owner"
 }
 
 test_orphan_sweep_reaps_read_only_package_tree() {
-  local stale_dir package_dir
+  local stale_dir package_dir pid identity
   stale_dir=$(mktemp -d "$FM_TEST_TMPDIR/fm-test-cleanup-read-only.XXXXXX")
   package_dir="$stale_dir/packages/extension"
   mkdir -p "$package_dir"
-  printf '%s\n%s\n' "$$" reused-process-identity > "$stale_dir/.fm-test-fixture"
+  sleep 30 &
+  pid=$!
+  identity=$(fm_test_pid_identity "$pid") || { kill "$pid"; fail 'could not identify fixture owner'; }
+  printf '%s\n%s\n' "$pid" "$identity" > "$stale_dir/.fm-test-fixture"
+  kill "$pid"
+  wait "$pid" 2>/dev/null || true
   printf 'installed package\n' > "$package_dir/entrypoint.py"
   chmod -R a-w "$stale_dir/packages"
   touch -t 202001010000 "$stale_dir/.fm-test-fixture"

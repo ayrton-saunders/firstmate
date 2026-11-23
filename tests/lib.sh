@@ -444,38 +444,44 @@ export TREEHOUSE_ROOT
 # marker fm_test_tmproot writes, so it never touches unrelated temp dirs
 # from real (non-test) firstmate commands. The marker identifies the owning
 # shell across PID reuse, so the same live owner always wins over the age
-# fallback for dead or unowned roots.
+# cutoff for abandoned roots.
 FM_TEST_ORPHAN_MAX_AGE_SECONDS=${FM_TEST_ORPHAN_MAX_AGE_SECONDS:-3600}
 
+fm_test_fixture_start() {
+  local LC_ALL=C identity=$1
+  local proc_pattern='^((linux|proc)-starttime=[0-9]+) cmdline-hex=([0-9a-f]{2})+$'
+  local ps_pattern='^((Mon|Tue|Wed|Thu|Fri|Sat|Sun) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) [ ]?[0-9]{1,2} [0-9]{2}:[0-9]{2}:[0-9]{2} [0-9]{4}) [[:blank:]]*[^[:space:]]'
+  if [[ "$identity" =~ $proc_pattern ]]; then
+    printf 'proc %s\n' "${BASH_REMATCH[1]#*=}"
+  elif [[ "$identity" =~ $ps_pattern ]]; then
+    printf 'ps %s\n' "${BASH_REMATCH[1]}"
+  else
+    return 1
+  fi
+}
+
 fm_test_reap_orphans() (
-  local marker dir mtime now owner_pid owner_identity current_identity
-  local -a fixtures=() registries=()
+  local marker dir mtime now owner_pid owner_identity owner_start current_identity current_start probe
   unset GLOBIGNORE
   shopt -u failglob
   shopt -s dotglob nullglob
   now=$(date +%s)
   for marker in "$FM_TEST_TMPDIR"/*/.fm-test-fixture; do
     dir=${marker%/*}
-    [ -f "$marker" ] && [ ! -L "$marker" ] && [ ! -L "$dir" ] || continue
-    case "${dir##*/}" in
-      .fm-test-registry.*) registries+=("$marker") ;;
-      *) fixtures+=("$marker") ;;
-    esac
-  done
-  for marker in ${fixtures[@]+"${fixtures[@]}"} ${registries[@]+"${registries[@]}"}; do
-    dir=${marker%/*}
     [ "$dir" != "$FM_TEST_REGISTRY_DIR" ] || continue
-    owner_pid=$(sed -n '1p' "$marker" 2>/dev/null) || owner_pid=
-    owner_identity=$(sed -n '2,$p' "$marker" 2>/dev/null) || owner_identity=
-    case "$owner_pid" in
-      '' | *[!0-9]*) ;;
-      *)
-        current_identity=$(fm_test_pid_identity "$owner_pid" 2>/dev/null) || current_identity=
-        if [ -n "$owner_identity" ] && [ "$current_identity" = "$owner_identity" ]; then
-          continue
-        fi
-        ;;
-    esac
+    [ -d "$dir" ] && [ ! -L "$dir" ] && [ -O "$dir" ] || continue
+    [ -f "$marker" ] && [ ! -L "$marker" ] && [ -O "$marker" ] || continue
+    owner_pid=$(sed -n '1p' "$marker" 2>/dev/null) || continue
+    [[ "$owner_pid" =~ ^[1-9][0-9]{0,9}$ ]] && [ "$owner_pid" -le 2147483647 ] || continue
+    owner_identity=$(sed -n '2,$p' "$marker" 2>/dev/null) || continue
+    owner_start=$(fm_test_fixture_start "$owner_identity") || continue
+    if current_identity=$(fm_test_pid_identity "$owner_pid" 2>/dev/null); then
+      current_start=$(fm_test_fixture_start "$current_identity") || continue
+      [ "${owner_start%% *}" = "${current_start%% *}" ] && [ "$owner_start" != "$current_start" ] || continue
+    else
+      if probe=$(LC_ALL=C kill -0 "$owner_pid" 2>&1); then continue; fi
+      case "$probe" in *'No such process') ;; *) continue ;; esac
+    fi
     mtime=$(stat -c %Y "$marker" 2>/dev/null || stat -f %m "$marker" 2>/dev/null) || continue
     [ $((now - mtime)) -ge "$FM_TEST_ORPHAN_MAX_AGE_SECONDS" ] || continue
     fm_test_scratch_retained "$dir" && continue
