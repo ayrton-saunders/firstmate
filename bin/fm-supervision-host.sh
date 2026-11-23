@@ -1489,16 +1489,18 @@ attended_acceptor() {  # <reason-lines> [final]
         boundary_reached && boundary_exit
         return 0
       fi
-      [ "$rc" -eq 2 ] || candidate=0
-      if [ "$rc" -eq 124 ]; then ROUTINE_HAND_BACK=1; boundary_exit; fi
-      if [ "$rc" -eq 75 ]; then
-        ROUTINE_HAND_BACK=1
-        ATTENDED_WHY=main-only
-        return 1
-      fi
-      ROUTINE_HAND_BACK=0
+      case "$rc" in
+        124) ROUTINE_HAND_BACK=1; boundary_exit ;;
+        2) ROUTINE_HAND_BACK=0 ;;
+        *)
+          ROUTINE_HAND_BACK=0
+          [ "$rc" -ne 75 ] || ROUTINE_HAND_BACK=1
+          ATTENDED_WHY=main-only
+          return 1
+          ;;
+      esac
     fi
-    if [ "$candidate" -eq 0 ] && [ "$rc" -ne 3 ] && health_cooling; then
+    if [ "$candidate" -eq 0 ] && health_cooling; then
       ATTENDED_WHY="the supervision session is cooling down after engine errors"
       return 1
     fi
@@ -1506,7 +1508,7 @@ attended_acceptor() {  # <reason-lines> [final]
       ROUTINE_HAND_BACK=0
       ATTENDED_WHY="branch eligibility could not be computed"
     else
-      [ "$rc" -eq 3 ] || rc=1
+      rc=1
       decision_keys=$(printf '%s\n' "$offer" | sed -n 's/^decision-keys=//p')
       if { [ "${2:-}" = final ] && [ "$candidate" -eq 1 ]; } ||
          { [ "${2:-}" != final ] && { [ "$candidate" -eq 1 ] || [[ "$first" = stale:* ]]; } && attended_routine_candidate "$1" "$decision_keys"; }; then

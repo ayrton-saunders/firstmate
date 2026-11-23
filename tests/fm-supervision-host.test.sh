@@ -606,14 +606,22 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
   routine_wake_lib "$home" fm_recovery_marker_publish "$home/state/.watcher-down" downtime || fail "fixture: no recovery episode"
   printf '0\n' > "$home/park-clock"
   case "$mode" in
-    empty) install_first_offer_action "$home" ': > "$FM_HOME/unexpected-empty-offer"; exit 1' ;;
+    empty|divergence) install_first_offer_action "$home" ': > "$FM_HOME/unexpected-empty-offer"; exit 1' ;;
     routine) install_first_offer_action "$home" 'printf "105\n" > "$FM_HOME/park-clock"' ;;
     locked-captain-outcome)
       lock_timeout=2
-      install_first_offer_action "$home" 'lock="$FM_HOME/state/.watcher-down.lock"
-        mkdir "$lock" || exit 1
-        ( sleep 5; rm -f "$lock/pid"; rmdir "$lock" ) </dev/null >/dev/null 2>&1 &
-        printf "%s\n" "$!" > "$lock/pid"'
+      {
+        printf '#!/usr/bin/env bash\n'
+        printf '%s\n' 'if [ "${1:-}" = -rs ] && [ "${2:-}" = '\''any(.verdict == "captain")'\'' ]; then
+          lock="$FM_HOME/state/.watcher-down.lock"
+          mkdir "$lock" || exit 1
+          ( sleep 5; rm -f "$lock/pid"; rmdir "$lock" ) </dev/null >/dev/null 2>&1 &
+          printf "%s\n" "$!" > "$lock/pid"
+          : > "$FM_HOME/outcome-lock-held"
+        fi'
+        printf 'exec %q "$@"\n' "$(command -v jq)"
+      } > "$home/fakebin/jq"
+      chmod +x "$home/fakebin/jq"
       ;;
     cooldown)
       install_first_offer_action "$home" 'key=$(bash -c '\''. "$1/fm-wake-lib.sh"; . "$1/fm-supervision-engine-lib.sh"; fm_supervision_host_config "$FM_HOME/config" claude; fm_supervision_host_health_key "$FM_HOME/state"'\'' _ "${1%/*}") || exit 1
@@ -634,6 +642,8 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
     case "$mode" in
       credential) assert_contains "$drain" 'GitHub login required' "the credentials request was lost" ;;
       divergence)
+        [ ! -e "$home/unexpected-empty-offer" ] || fail "rejected empty recovery invoked the offer"
+        watcher_live "$home" || fail "rejected empty recovery left no successor watcher"
         assert_contains "$drain" 'RECORD DIVERGENCE' "recovery lost the captain hold divergence"
         assert_contains "$drain" 'routing-call [key=routing-call] reads resolved' "the unresolved captain call was lost"
         ;;
@@ -643,7 +653,13 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
         assert_contains "$drain" 'STATUS OUTCOME BACKSTOP (' "recovery did not preserve the backstop surface"
         assert_contains "$drain" 'review build failed without a branch outcome' "recovery lost the uncovered failure"
         ;;
-      captain-outcome|read-captain-outcome|locked-captain-outcome) assert_contains "$drain" 'a review requires attention' "the captain outcome was lost" ;;
+      captain-outcome|read-captain-outcome|locked-captain-outcome)
+        if [ "$mode" = locked-captain-outcome ]; then
+          [ -f "$home/outcome-lock-held" ] || fail "fixture: no recovery marker contention"
+          watcher_live "$home" || fail "captain outcome hand-back left no successor watcher"
+        fi
+        assert_contains "$drain" 'a review requires attention' "the captain outcome was lost"
+        ;;
     esac
   fi
   stop_home_processes "$home"

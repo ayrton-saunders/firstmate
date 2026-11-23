@@ -664,7 +664,7 @@ inbox_steer_progress_fingerprint() {  # <window> <task>
 }
 
 inbox_steer_check() {  # <window> <task>
-  local w=$1 task=$2 action verb rec count tail40 reason='' ring_rc backend agent_state progress
+  local w=$1 task=$2 action verb rec count tail40 reason='' ring_rc backend agent_state progress counts total max limit_kind
   action=$(fm_task_inbox_due_action "$STATE" "$task") || return 0
   verb=${action%% *}
   [ "$verb" != quiet ] || return 0
@@ -696,13 +696,21 @@ inbox_steer_check() {  # <window> <task>
   if inbox_steer_busy "$w" "$backend" "$task" "$tail40"; then
     [ "$verb" != retry ] || return 0
     progress=$(inbox_steer_progress_fingerprint "$w" "$task")
-    if ! count=$(fm_task_inbox_record_busy "$STATE" "$task" "$rec" "$progress"); then
+    if ! counts=$(fm_task_inbox_record_busy "$STATE" "$task" "$rec" "$progress"); then
       [ -f "$rec" ] || return 0
       reason="stale: $w (steering-inbox busy bookkeeping unwritable: ${rec%/*}/.busy-state cannot be written while $rec stays unhandled; inspect the inbox directory)"
-    elif [ "$count" -ge "$(fm_task_inbox_busy_max)" ]; then
-      reason="stale: $w (unread firstmate instruction: stuck-busy after $count consecutive busy-deferred due doorbells; $rec stays unhandled and no doorbell was typed; inspect the worker)"
     else
-      return 0
+      read -r count total <<< "$counts"
+      max=$(fm_task_inbox_busy_max)
+      if [ "$count" -ge "$max" ]; then
+        limit_kind=consecutive
+      elif [ "$total" -ge "$((2 * max))" ]; then
+        limit_kind=total
+        count=$total
+      else
+        return 0
+      fi
+      reason="stale: $w (unread firstmate instruction: stuck-busy after $count $limit_kind busy-deferred due doorbells; $rec stays unhandled and no doorbell was typed; inspect the worker)"
     fi
     verb=escalate
   elif [ "$verb" != retry ] && ! fm_task_inbox_clear_busy "$STATE" "$task"; then

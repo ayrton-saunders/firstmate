@@ -129,13 +129,13 @@ fm_task_inbox_busy_max() {
   if [ "${#m}" -gt 9 ] || [ "$m" -eq 0 ]; then
     m=$FM_TASK_INBOX_BUSY_MAX_DEFAULT
   fi
-  printf '%s' "$m"
+  printf '%s' "$((10#$m))"
 }
 
 # Persist before returning the new count, so a fresh watcher continues the same
 # bounded wait. A removed or acknowledged record is a quiet no-op.
 fm_task_inbox_record_busy() {  # <state-dir> <task-id> <record-path> [progress fingerprint]
-  local dir base previous count prior total max progress=${4:-0} prior_time progress_time
+  local dir base previous count prior total progress=${4:-0} prior_time progress_time
   dir=$(fm_task_inbox_dir "$1" "$2")
   base=${3##*/}
   { IFS=$(printf '\t') read -r previous count prior total < "$dir/.busy-state"; } 2>/dev/null || true
@@ -154,27 +154,23 @@ fm_task_inbox_record_busy() {  # <state-dir> <task-id> <record-path> [progress f
   else
     progress=$prior
   fi
-  [ -f "$3" ] || { printf '0'; return 0; }
+  [ -f "$3" ] || { printf '0 0'; return 0; }
   count=$((count + 1))
   total=$((total + 1))
   if ! { printf '%s\t%s\t%s\t%s\n' "$base" "$count" "$progress" "$total" > "$dir/.busy-state"; } 2>/dev/null; then
-    [ -f "$3" ] || { printf '0'; return 0; }
+    [ -f "$3" ] || { printf '0 0'; return 0; }
     return 1
   fi
-  max=$(fm_task_inbox_busy_max)
-  if [ "$total" -ge "$((2 * max))" ] && [ "$count" -lt "$max" ]; then
-    count=$max
-  fi
-  printf '%s' "$count"
+  printf '%s %s' "$count" "$total"
 }
 
 # Extract the message named by the watcher's stuck-busy reason, not by the
 # current ladder (which may already have advanced to a different message).
 fm_task_inbox_stuck_busy_record() {  # <state-dir> <wake-reason>
   local state=$1 reason=$2 record task
-  local pattern='^stale: [^[:space:]]+ \(unread firstmate instruction: stuck-busy after [0-9]+ consecutive busy-deferred due doorbells; (.+) stays unhandled and no doorbell was typed; inspect the worker\)$'
+  local pattern='^stale: [^[:space:]]+ \(unread firstmate instruction: stuck-busy after [0-9]+ (consecutive|total) busy-deferred due doorbells; (.+) stays unhandled and no doorbell was typed; inspect the worker\)$'
   [[ "$reason" =~ $pattern ]] || return 1
-  record=${BASH_REMATCH[1]}
+  record=${BASH_REMATCH[2]}
   case "$record" in "$state"/*.inbox/*.msg) ;; *) return 1 ;; esac
   task=${record%/*}; task=${task#"$state/"}; task=${task%.inbox}
   case "$task" in ''|*[!A-Za-z0-9._-]*|.|..) return 1 ;; esac

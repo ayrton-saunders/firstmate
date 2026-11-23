@@ -116,6 +116,7 @@ Routine rearm recovery requires no pending captain outcome, no captain-hold reco
 
 - A Claude mate may stay in one uninterrupted turn across both inbox polls without reaching Stop.
 - A Pi foreground progress write may still be in flight when the watcher samples it.
+- Continued task-wide progress can defer, but not permanently suppress, a wake for an unhandled message.
 - An answer can reach main if preflight races with publication of its ownership receipt.
 On a main-only pass-through the host starts the successor watcher cycle and leaves it running, then prints the close unchanged.
 That successor, like one a turn hands back at its start (see [Away](#away)), runs in a process group of its own, so the harness tearing down the hook's group after the rewake does not stop it.

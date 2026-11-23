@@ -946,21 +946,24 @@ test_watcher_busy_budget_resets_on_progress() {
 }
 
 test_continued_activity_cannot_hide_unread_steer() {
-  local dir state gen i event="$ROOT/bin/fm-busy-event.sh"
-  dir=$(busy_case continuous-progress)
+  local dir state gen i limit=${1:-2} expected=${2:-4} reason event="$ROOT/bin/fm-busy-event.sh"
+  dir=$(busy_case "continuous-progress-$limit")
   state="$dir/state"
   fm_write_meta "$state/t1.meta" 'window=sess:fm-t1' 'kind=secondmate' 'harness=pi'
   gen=$("$event" arm "$state" t1) || fail "fixture: could not arm Pi busy state"
   "$event" apply "$state" t1 busy --gen "$gen" --source pi-ext --event agent-start || fail "fixture: Pi turn refused"
-  for i in 1 2 3 4; do
+  for ((i=1; i<=expected; i++)); do
     "$event" progress "$state" t1 --gen "$gen" || fail "fixture: could not record progress"
     perl -MTime::HiRes=utime -e 'my $t = 1700000000 + $ARGV[0] / 10; utime($t, $t, $ARGV[1]) or die $!' "$i" "$state/t1.progress"
-    busy_steer_check "$dir"
-    if [ "$i" -lt 4 ]; then
+    busy_steer_check "$dir" "$dir/busy.capture" "$limit"
+    if [ "$i" -lt "$expected" ]; then
       [ ! -s "$state/.wake-queue" ] || fail "progress did not defer escalation"
     fi
   done
-  grep -q 'stuck-busy' "$state/.wake-queue" || fail "continuing progress hid an unread steer"
+  reason=$(cut -f5 "$state/.wake-queue")
+  case "$reason" in *"stuck-busy after $expected total busy-deferred"*) ;; *) fail "wrong total-limit wake: $reason" ;; esac
+  [ "$(inbox_lib "$state" fm_task_inbox_stuck_busy_record "$state" "$reason")" = "$state/t1.inbox/001.msg" ] \
+    || fail "total-limit wake did not identify the unread steer"
   [ -f "$state/t1.inbox/001.msg" ] || fail "escalation removed the unread steer"
   pass "watcher: continued progress can defer but cannot hide an unread steer"
 }
@@ -1504,6 +1507,7 @@ test_watcher_waits_on_busy_pane
 test_watcher_busy_budget_resets_on_progress
 test_pi_stream_progress_resets_busy_budget
 test_continued_activity_cannot_hide_unread_steer
+test_continued_activity_cannot_hide_unread_steer 010 20
 test_claude_stop_continuation_resets_busy_budget
 test_watcher_busy_retry_is_not_progress
 test_watcher_busy_budget_resets_on_ring_and_ack
@@ -1520,6 +1524,7 @@ test_watcher_busy_limit_validation '' 2
 test_watcher_busy_limit_validation invalid 2
 test_watcher_busy_limit_validation 1 1
 test_watcher_busy_limit_validation 3 3
+test_watcher_busy_limit_validation 08 8
 test_watcher_retry_ignores_busy_reset_failure
 test_watcher_successor_escalation_stays_quiet busy
 test_watcher_successor_escalation_stays_quiet dead
