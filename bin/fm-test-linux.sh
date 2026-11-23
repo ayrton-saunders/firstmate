@@ -199,6 +199,7 @@ for t in "${tests[@]}"; do
   if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
     : > "$FM_TEST_RETAIN_MARKER.$$.linux" || die 'could not arm Linux retention marker'
   fi
+  printf 'Linux container launch: scratch: %s; selector: label=%s\n' "$scratch" "$container_label" >&2
   rc=0
   fm_test_probe_run "$runtime" run --rm --label "$container_label" "${identity[@]}" -v "$scratch:/work" -w /work -e HOME=/tmp -e TMPDIR=/tmp "$image" bash "$t" || rc=$?
   [ -z "$probe_owner" ] || exit 1

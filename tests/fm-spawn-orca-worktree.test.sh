@@ -795,10 +795,11 @@ EOF
 # The real tmux client sanitizes control characters without UTF-8 mode. A
 # private socket and synthetic environment catch corruption the stub cannot.
 test_orca_source_preserves_values_without_utf8_locale() {
-  local real_tmux case_dir
+  local real_tmux case_dir tmux_hold= status=0
   real_tmux=$(command -v tmux) || fail "tmux is required for the Orca source locale regression"
-  case_dir=$(TMPDIR=/tmp fm_test_tmproot oenv)
-  if ! python3 - "$real_tmux" "$case_dir" "$ROOT/bin/backends/orca.sh" <<'PY'
+  case_dir=$(TMPDIR=/tmp fm_test_tmproot oenv) || fail 'could not allocate Orca scratch'
+  FM_TEST_RETAIN_MARKER= fm_test_arm_private_tmux tmux_hold "$case_dir" || fail 'could not protect Orca scratch'
+  python3 - "$real_tmux" "$case_dir" "$ROOT/bin/backends/orca.sh" <<'PY' || status=$?
 import os, pathlib, shlex, shutil, subprocess, sys
 tmux, directory, adapter = sys.argv[1:]
 root = pathlib.Path(directory)
@@ -809,7 +810,8 @@ snapshot = '. "$1"; fm_backend_orca_launch_env_args scoped-source "$2"'
 def call(args, environment=env):
     return subprocess.run(args, env=environment, capture_output=True, text=True,
                           check=True, timeout=10).stdout
-try:
+
+def check_source():
     call([tmux, '-S', socket, '-f', '/dev/null', 'new-session', '-d',
           '-s', 'scoped-source', 'sleep 60'], dict(env, SSH_AUTH_SOCK='/tmp/fm-test-personal-agent'))
     call([tmux, '-S', socket, 'set-environment', '-t', '=scoped-source', 'GH_TOKEN', value])
@@ -860,11 +862,11 @@ try:
                 raise AssertionError('missing session-local name was accepted: '+names)
             if 'evil' in result.stderr or 'personal-global' in result.stderr:
                 raise AssertionError('snapshot refusal echoed a source value')
-finally:
-    subprocess.run([tmux, '-S', socket, 'kill-server'], env=env,
-                   capture_output=True, timeout=10, check=False)
+
+check_source()
 PY
-  then fail "real-tmux source must preserve exact values and refuse missing names"; fi
+  fm_test_stop_private_tmux "$case_dir/tmux.sock" "$real_tmux" "$tmux_hold" || fail 'could not verify Orca tmux teardown'
+  [ "$status" -eq 0 ] || fail 'real-tmux source must preserve exact values and refuse missing names'
   pass "real tmux preserves absent/C locale values and reported raw bytes, rejects missing/phantom names and excludes the automatic SSH agent"
 }
 

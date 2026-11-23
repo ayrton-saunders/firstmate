@@ -114,17 +114,20 @@ case "$1" in
   *) exit 1 ;;
 esac
 copy=
+workdir=/
 while [ "$#" -gt 1 ]; do
   if [ "$#" -eq 3 ] && [ "$1" = sh ] && [ "$2" = -c ] && [ "$3" = 'uname -sr' ]; then
     printf '%s\n' 'Linux fixture'
     exit 0
   fi
   if [ "$#" -eq 2 ] && [ "$1" = bash ] && [ "$2" = tests/kept.test.sh ]; then
+    suite="${workdir%/}/$2"
+    case "$suite" in /work/*) ;; *) exit 1 ;; esac
     [ -n "$copy" ] && [ ! -e "$copy/.test-phase-tmp" ] &&
       { [ "$CHECK_ALIAS" -eq 0 ] || [ ! -e "$copy/alias/committed" ]; } &&
       [ ! -e "$copy/replaced/private" ] &&
       [ "$(<"$copy/replaced/public")" = included ] &&
-      [ "$(<"$copy/tests/kept.test.sh")" = dirty ] &&
+      [ "$(<"$copy/${suite#/work/}")" = dirty ] &&
       [ "$(<"$copy/tests/.test-phase-tmp/keep")" = 'nested work' ] &&
       [ "$(<"$copy/tests/real work.txt")" = untracked ] || exit 1
     printf '%s\n' 'verified tests/kept.test.sh mount'
@@ -133,6 +136,9 @@ while [ "$#" -gt 1 ]; do
   if [ "$1" = -v ]; then
     case "$2" in /*:/work) ;; *) exit 1 ;; esac
     copy=${2%:/work}
+    shift
+  elif [ "$1" = -w ]; then
+    workdir=$2
     shift
   fi
   shift
@@ -279,6 +285,7 @@ SH
     if [ "$mode" = killed ]; then
       assert_equals 137 "$rc" "wrapper was killed during container run: $out"
       assert_present "$state/running" 'daemon still owns the container'
+      assert_contains "$out" "Linux container launch: scratch: $scratch; selector: label=$(<"$state/launch-label")" 'launch reports the backing tree and selector even without EXIT'
       fm_test_scratch_retained "$state" || fail 'wrapper did not publish retention before launch'
       assert_present "$scratch/tests/kept.test.sh" 'killed wrapper left the backing tree intact'
       continue

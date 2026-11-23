@@ -497,10 +497,10 @@ test_successful_cleanup_can_be_repeated() {
   pass 'successful fixture cleanup is safe to repeat from EXIT'
 }
 
-test_orphan_sweep_retains_stopped_private_tmux() {
+test_orphan_sweep_retains_private_tmux() {
   local harness
   if ! command -v tmux >/dev/null || ! command -v python3 >/dev/null; then
-    printf '%s\n' 'skip: stopped-server orphan recovery needs tmux and python3'
+    printf '%s\n' 'skip: private tmux orphan recovery needs tmux and python3'
     return 0
   fi
   harness=$(fm_test_tmproot t)
@@ -516,48 +516,54 @@ env['FM_TEST_ORPHAN_MAX_AGE_SECONDS'] = '0'
 base = pathlib.Path(base)
 script = '''
 . "$1"
-root=$(fm_test_tmproot r)
+root=$(fm_test_tmproot oenv)
 printf '%s\\n' "$root" > "$2/root"
 printf '%s\\n' "$FM_TEST_REGISTRY_DIR" > "$2/registry"
 marker=
-fm_test_arm_private_tmux marker "$root"
-tmux -S "$root/s" -f /dev/null new-session -d 'exec sleep 60'
-if [ "$3" = stopped ]; then
+FM_TEST_RETAIN_MARKER= fm_test_arm_private_tmux marker "$root"
+tmux -S "$root/s" -f /dev/null new-session -d -s scoped-source 'exec sleep 60'
+if [ "$3" != normal ]; then
   pid=$(tmux -S "$root/s" display-message -p '#{pid}')
   printf '%s\\n' "$pid" > "$2/pid"
-  kill -STOP "$pid"
+  if [ "$3" = stopped ]; then kill -STOP "$pid"; fi
   kill -KILL "$$"
 fi
 fm_test_stop_private_tmux "$root/s" tmux "$marker"
 '''
-try:
-    result = subprocess.run([bash, '-ec', script, '_', lib, base, 'stopped'], env=env, timeout=10)
-    assert result.returncode == -signal.SIGKILL, result.returncode
-    root = pathlib.Path((base / 'root').read_text().strip())
-    registry = pathlib.Path((base / 'registry').read_text().strip())
-    assert registry.is_dir(), 'killed fixture did not leave a registry to reap'
-    subprocess.run([bash, '-ec', '. "$1"; fm_test_reap_orphans', '_', lib], env=env, check=True, timeout=10)
-    assert not registry.exists(), 'orphan recovery did not remove the abandoned registry'
-    assert (root / 's').is_socket(), 'recovery deleted scratch below the stopped server'
-finally:
-    if (base / 'root').is_file():
+for mode in ('live', 'stopped'):
+    (base / 'root').unlink(missing_ok=True)
+    (base / 'pid').unlink(missing_ok=True)
+    try:
+        result = subprocess.run([bash, '-ec', script, '_', lib, base, mode], env=env, timeout=10)
+        assert result.returncode == -signal.SIGKILL, result.returncode
         root = pathlib.Path((base / 'root').read_text().strip())
-        if (base / 'pid').is_file():
-            pid = int((base / 'pid').read_text())
-            try:
-                os.kill(pid, signal.SIGCONT)
-                if not (root / 's').is_socket():
-                    os.kill(pid, signal.SIGTERM)
-            except ProcessLookupError:
-                pass
-        subprocess.run(['tmux', '-S', str(root / 's'), 'kill-server'], env=env, capture_output=True, timeout=5)
+        registry = pathlib.Path((base / 'registry').read_text().strip())
+        assert registry.is_dir(), 'killed fixture did not leave a registry to reap'
+        subprocess.run([bash, '-ec', '. "$1"; fm_test_reap_orphans', '_', lib], env=env, check=True, timeout=10)
+        assert not registry.exists(), 'orphan recovery did not remove the abandoned registry'
+        assert (root / 's').is_socket(), f'recovery deleted scratch below the {mode} Orca server'
+        if mode == 'live':
+            subprocess.run(['tmux', '-S', str(root / 's'), 'has-session', '-t', '=scoped-source'],
+                           env=env, check=True, timeout=5)
+    finally:
+        if (base / 'root').is_file():
+            root = pathlib.Path((base / 'root').read_text().strip())
+            if (base / 'pid').is_file():
+                pid = int((base / 'pid').read_text())
+                try:
+                    os.kill(pid, signal.SIGCONT)
+                    if not (root / 's').is_socket():
+                        os.kill(pid, signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
+            subprocess.run(['tmux', '-S', str(root / 's'), 'kill-server'], env=env, capture_output=True, timeout=5)
 subprocess.run([bash, '-ec', script, '_', lib, base, 'normal'], env=env, check=True, timeout=10)
 assert not pathlib.Path((base / 'root').read_text().strip()).exists(), 'verified teardown left scratch behind'
 PY
-  pass 'orphan recovery preserves a stopped private tmux fixture'
+  pass 'orphan recovery preserves live and stopped Orca tmux fixtures'
 }
 
-test_orphan_sweep_retains_stopped_private_tmux
+test_orphan_sweep_retains_private_tmux
 test_successful_cleanup_can_be_repeated
 test_msys_fixture_process_inventory
 test_registry_cleanup_guards
