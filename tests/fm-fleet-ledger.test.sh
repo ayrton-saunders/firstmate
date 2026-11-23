@@ -36,7 +36,13 @@ case "${1:-}" in
 esac
 exit 0
 SH
-  chmod +x "$fakebin/tmux"
+  # The watcher's terminal wait is after the ledger poll. Stop there instead
+  # of racing a two-second SIGINT deadline against startup and polling.
+  # shellcheck disable=SC2016 # Expansions are for the generated sleep stub.
+  printf '%s\n' '#!/usr/bin/env bash' \
+    'if [ -n "${FM_LEDGER_TEST_POLL:-}" ] && [ "$FM_LEDGER_TEST_POLL" = "${1:-}" ]; then kill -TERM "$PPID"; exit; fi' \
+    "$(printf 'exec %q "$@"' "$(command -v sleep)")" > "$fakebin/sleep"
+  chmod +x "$fakebin/tmux" "$fakebin/sleep"
   fm_fake_exit0 "$fakebin" treehouse no-mistakes
   printf '%s\n' "$fakebin"
 }
@@ -76,7 +82,7 @@ in_home() {  # <command...>: run one real script against the case home
 
 # Spawn, write status lines, poll once, land locally, clean up.
 run_lifecycle() {
-  local out
+  local out rc=0
   out=$(in_home "$ROOT/bin/fm-spawn.sh" "$TASK" "$PROJ_DIR" --mode local-only --yolo off 2>&1) \
     || fail "spawn failed: $out"
   {
@@ -85,9 +91,9 @@ run_lifecycle() {
     printf 'resolved: [key=pick-one]  chose a\n'
     printf 'partial line without its newline'
   } >> "$HOME_DIR/state/$TASK.status"
-  out=$(in_home env FM_POLL=1 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 \
-    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 2 2>&1)
-  case "$out" in *"checkpoint:"*|*"signal:"*) ;; *) fail "watcher checkpoint did not run: $out" ;; esac
+  out=$(in_home env FM_POLL=37 FM_LEDGER_TEST_POLL=37 FM_SIGNAL_GRACE=1 FM_CHECK_INTERVAL=999999 \
+    "$ROOT/bin/fm-watch-checkpoint.sh" --seconds 30 2>&1) || rc=$?
+  case "$rc:$out" in 143:*|0:*"signal:"*) ;; *) fail "watcher did not complete its poll: $out" ;; esac
   LEDGER_AFTER_POLL=$(cat "$HOME_DIR/state/fleet-ledger.jsonl" 2>/dev/null || true)
   printf ' finished\ndone: ready in branch\n' >> "$HOME_DIR/state/$TASK.status"
   printf 'landed\n' > "$WT_DIR/landed.txt"

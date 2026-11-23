@@ -376,7 +376,7 @@ test_registry_cleanup_guards() {
     printf "%s\n" "$2/unmarked" >> "$FM_TEST_CLEANUP_REGISTRY"
   ' _ "$LIB" "$harness" || fail 'unmarked record interrupted normal cleanup'
   [ -d "$harness/unmarked" ] || fail 'cleanup deleted an unmarked root'
-  TMPDIR="$harness" FM_HOME="$harness/original" bash -ec '
+  FM_TEST_RETAIN_MARKER="$harness/.retain-scratch" TMPDIR="$harness" FM_HOME="$harness/original" bash -ec '
     . "$1"
     if TMPDIR="$2/original/tmp" fm_test_tmproot blocked; then exit 8; fi
     if fm_test_tmproot $'"'"'prefix\nsplit'"'"'; then exit 9; fi
@@ -432,7 +432,7 @@ SH
   for mode in ready clean empty failed; do
     rc=0
     REAL_UNAME=$(command -v uname) REAL_PS=$(command -v ps) INVENTORY="$mode" \
-      PATH="$harness/bin:$PATH" TMPDIR="$harness" \
+      PATH="$harness/bin:$PATH" TMPDIR="$harness" FM_TEST_RETAIN_MARKER="$harness/.retain-scratch" \
       POLLER_PID="$poller" FM_TEST_SKIP_ORPHAN_REAP=1 bash -ec '
         export SUITE_PID=$$
         . "$1"

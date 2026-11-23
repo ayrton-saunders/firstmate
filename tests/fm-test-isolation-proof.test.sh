@@ -255,7 +255,8 @@ PY
   printf '%s\n' 'if [ -n "${PROOF_PID_FILE:-}" ]; then printf "%s\n" "$$" > "$PROOF_PID_FILE"; fi' \
     'exec "$NESTED_PROOF" --pool "$NESTED_POOL" --jobs 2 --json "$NESTED_REPORT"' > "$wrapper"
   rc=0
-  TMPDIR="$tmp/retained [SSD]" NESTED_PROOF="$proof" NESTED_POOL=retaining-family NESTED_REPORT="$tmp/retained.json" \
+  FM_TEST_RETAIN_MARKER="$tmp/.retain-scratch" \
+    TMPDIR="$tmp/retained [SSD]" NESTED_PROOF="$proof" NESTED_POOL=retaining-family NESTED_REPORT="$tmp/retained.json" \
     "$verify" "$wrapper" >"$tmp/retained.out" 2>"$tmp/retained.err" || rc=$?
   assert_equals 1 "$rc" 'unverified private teardown fails the proof'
   assert_contains "$(<"$tmp/retained.out")" 'FM_ISOLATION_SUMMARY total=1 failed=1' 'retained worker fails the summary'
@@ -270,7 +271,8 @@ PY
   rm "$tmp/tools/mktemp"
   mkdir "$tmp/cleanup-evidence"
   rc=0
-  PROOF_SCHED_EVIDENCE="$tmp/cleanup-evidence" REAL_RM="$(command -v rm)" \
+  FM_TEST_RETAIN_MARKER="$tmp/.retain-scratch" \
+    PROOF_SCHED_EVIDENCE="$tmp/cleanup-evidence" REAL_RM="$(command -v rm)" \
     PATH="$tmp/tools:$PATH" TMPDIR="$tmp/proof-tmp" \
     "$proof" --pool admitted-family --jobs 2 --json "$tmp/cleanup.json" >"$tmp/cleanup.out" 2>"$tmp/cleanup.err" || rc=$?
   assert_equals 1 "$rc" 'failed proof removal cannot produce success'
@@ -375,7 +377,8 @@ SH
   local replay_order
   for replay_order in group private final; do
     mkdir "$tmp/replay-$replay_order"
-    TMPDIR="$tmp/replay-$replay_order" PROOF_SCHED_EVIDENCE="$tmp/replay-$replay_order" PROOF_UNDRAINED=1 \
+    FM_TEST_RETAIN_MARKER="$tmp/replay-$replay_order/.retain-scratch" \
+      TMPDIR="$tmp/replay-$replay_order" PROOF_SCHED_EVIDENCE="$tmp/replay-$replay_order" PROOF_UNDRAINED=1 \
       PROOF_REPLAY_ORDER="$replay_order" python3 - "$proof" <<'PY' || fail "proof replayed before stopping the sibling worker ($replay_order)"
 import os, pathlib, select, signal, subprocess, sys, time
 
@@ -416,7 +419,8 @@ PY
   done
   mkdir "$tmp/undrained"
   cp "$admitted_json" "$tmp/undrained/proof.json"
-  TMPDIR="$tmp/undrained" PROOF_SCHED_EVIDENCE="$tmp/undrained" PROOF_UNDRAINED=1 \
+  FM_TEST_RETAIN_MARKER="$tmp/undrained/.retain-scratch" \
+    TMPDIR="$tmp/undrained" PROOF_SCHED_EVIDENCE="$tmp/undrained" PROOF_UNDRAINED=1 \
     NESTED_PROOF="$proof" NESTED_POOL=admitted-family NESTED_REPORT="$tmp/undrained/proof.json" \
     python3 - "$verify" "$wrapper" <<'PY' || fail 'undrained proof did not publish a failed artifact'
 import json, os, pathlib, signal, subprocess, sys

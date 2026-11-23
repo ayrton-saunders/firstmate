@@ -17,6 +17,13 @@ set -u
 command -v jq >/dev/null 2>&1 || { echo "skip: jq not found (required by the rex adapter)"; exit 0; }
 
 TMP_ROOT=$(fm_test_tmproot fm-backend-rex-tests)
+# Closing an event reader can leave its simulated producer's sleep behind.
+# Keep the sleeper identifiable by the fixture root, even after reparenting.
+mkdir "$TMP_ROOT/fixture-bin"
+# shellcheck disable=SC2016 # Arguments expand in the fixture command.
+printf '#!/usr/bin/env bash\nexec -a "$0" %q "$@"\n' "$(command -v sleep)" > "$TMP_ROOT/fixture-bin/sleep"
+chmod +x "$TMP_ROOT/fixture-bin/sleep"
+export PATH="$TMP_ROOT/fixture-bin:$PATH"
 
 # A pid that no live process carries, so the shared agent classifier's live
 # pid probe never reads a real process.

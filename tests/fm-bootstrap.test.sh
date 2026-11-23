@@ -326,15 +326,17 @@ test_record_hygiene_archives_old_orphan_status() {
 }
 
 test_record_hygiene_absent_flag_is_inert() {
-  local case_dir fakebin out_off out_on before after
+  local case_dir fakebin out_off out_on
   case_dir="$TMP_ROOT/record-hygiene-off"
   fakebin=$(seed_record_hygiene_home "$case_dir")
-  before=$(cd "$case_dir/home" && ls -laR state data)
+  mkdir "$case_dir/before"
+  cp -RP "$case_dir/home/state" "$case_dir/home/data" "$case_dir/before/" || fail 'could not copy baseline records'
   out_off=$(PATH="$fakebin:$BASE_PATH" FM_HOME="$case_dir/home" FM_ROOT_OVERRIDE="$case_dir/home" \
     FM_BOOTSTRAP_NETWORK=skip FM_FAKE_TREEHOUSE_LEASE_HELP=1 "$ROOT/bin/fm-bootstrap.sh")
-  after=$(cd "$case_dir/home" && ls -laR state data)
   assert_not_contains "$out_off" 'RECORD_HYGIENE' "bootstrap reported record hygiene without config/record-hygiene"
-  [ "$before" = "$after" ] || fail "bootstrap changed state or data records without config/record-hygiene"
+  diff -r "$case_dir/before/state" "$case_dir/home/state" &&
+    diff -r "$case_dir/before/data" "$case_dir/home/data" ||
+    fail "bootstrap changed state or data records without config/record-hygiene"
   [ -f "$case_dir/home/state/orphan.status" ] || fail "bootstrap archived an orphan status log without config/record-hygiene"
   ! grep -q in_flight "$case_dir/tasks-axi-list.log" 2>/dev/null \
     || fail "bootstrap read the In-flight backlog for record hygiene without config/record-hygiene"

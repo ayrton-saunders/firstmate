@@ -17,7 +17,7 @@ import sys
 repo, lab = map(Path, sys.argv[1:])
 bin_dir = lab / "bin"
 bin_dir.mkdir()
-for tool in ("bash", "dirname", "basename", "mktemp", "mkdir", "rm", "uname", "cat", "od", "tr", "ps", "sed", "grep", "head", "git"):
+for tool in ("bash", "dirname", "basename", "mktemp", "mkdir", "rm", "uname", "cat", "od", "tr", "ps", "awk", "sed", "grep", "head", "git"):
     target = shutil.which(tool)
     assert target, f"required test tool missing: {tool}"
     (bin_dir / tool).symlink_to(target)

@@ -13,6 +13,13 @@ set -u
 command -v python3 >/dev/null 2>&1 || { echo "skip: python3 not found (pty fake-terminal)"; exit 0; }
 
 TMP_ROOT=$(fm_test_tmproot fm-osc7501-tests)
+# A reporter can exit while its poll sleep is still running. Name the fixture
+# in the sleeper's argv so the common reaper can drain it too.
+mkdir "$TMP_ROOT/fixture-bin"
+# shellcheck disable=SC2016 # Arguments expand in the fixture command.
+printf '#!/usr/bin/env bash\nexec -a "$0" %q "$@"\n' "$(command -v sleep)" > "$TMP_ROOT/fixture-bin/sleep"
+chmod +x "$TMP_ROOT/fixture-bin/sleep"
+export PATH="$TMP_ROOT/fixture-bin:$PATH"
 SCRIPT=$ROOT/bin/fm-osc7501.sh
 DRIVER=$TMP_ROOT/fake-term.py
 
