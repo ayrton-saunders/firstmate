@@ -845,9 +845,7 @@ trap 'exit 143' TERM
 if [ "${1:-}" = --recovery-presentation-clear ]; then
   snapshot=$(status_presentation_snapshot "$STATE") || exit 1
   backstop=$(print_status_outcome_backstop_section "$snapshot") || exit 1
-  [ -z "$backstop" ] || exit 1
-  diverged=$("$SCRIPT_DIR/fm-captain-hold.sh" diverged) || exit 1
-  [ -z "$diverged" ]
+  [ -z "$backstop" ]
   exit $?
 fi
 

@@ -626,22 +626,35 @@ inbox_steer_busy() {  # <window> <backend> <task> <tail40>
 # Normal retries keep the watcher blocking rather than waking firstmate.
 # Runs for secondmates too: their pane-staleness exemption is about quiet panes
 # being healthy, while an unacknowledged instruction can still be a stuck steer.
-inbox_steer_progress_mtime() {  # <window> <task>
-  local base="$STATE/$2" progress=0 mtime marker record
-  for marker in "$base.progress" "$base.turn-ended"; do
-    mtime=$(stat_mtime "$marker") || continue
-    [ "$mtime" -le "$progress" ] || progress=$mtime
-  done
+inbox_steer_progress_fingerprint() {  # <window> <task>
+  local base="$STATE/$2" marker record stamp fingerprint
+  local -a markers=("$base.progress" "$base.turn-ended")
   case "$(window_harness "$1")" in
     claude*)
-      marker=$(fm_busy_record_path "$STATE" "$2")
-      if mtime=$(stat_mtime "$marker") && [ "$mtime" -gt "$progress" ] &&
-         record=$(fm_busy_record_read "$STATE" "$2"); then
-        case "$record" in 'busy claude-hook stop-blocked '*) progress=$mtime ;; esac
+      if record=$(fm_busy_record_read "$STATE" "$2"); then
+        case "$record" in 'busy claude-hook stop-blocked '*)
+          markers+=("$(fm_busy_record_path "$STATE" "$2")") ;;
+        esac
       fi
       ;;
   esac
-  printf '%s\n' "$progress"
+  if fingerprint=$(LC_ALL=C perl -MTime::HiRes=stat -e '
+    my ($time, $size) = (0, 0);
+    for (@ARGV) {
+      my @st = stat($_);
+      ($time, $size) = @st[9,7] if @st && $st[9] > $time;
+    }
+    printf "%.0f:%d\n", $time * 1_000_000, $size;
+  ' -- "${markers[@]}" 2>/dev/null); then
+    printf '%s\n' "$fingerprint"
+  else
+    stamp=0
+    for marker in "${markers[@]}"; do
+      record=$(stat_mtime "$marker") || continue
+      [ "$record" -le "$stamp" ] || stamp=$record
+    done
+    printf '%s\n' "$stamp"
+  fi
 }
 
 inbox_steer_check() {  # <window> <task>
@@ -676,7 +689,7 @@ inbox_steer_check() {  # <window> <task>
   tail40=$WATCHER_CAPTURE
   if inbox_steer_busy "$w" "$backend" "$task" "$tail40"; then
     [ "$verb" != retry ] || return 0
-    progress=$(inbox_steer_progress_mtime "$w" "$task")
+    progress=$(inbox_steer_progress_fingerprint "$w" "$task")
     if ! count=$(fm_task_inbox_record_busy "$STATE" "$task" "$rec" "$progress"); then
       [ -f "$rec" ] || return 0
       reason="stale: $w (steering-inbox busy bookkeeping unwritable: ${rec%/*}/.busy-state cannot be written while $rec stays unhandled; inspect the inbox directory)"

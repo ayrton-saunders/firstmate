@@ -323,11 +323,24 @@ test_answer_receipt_is_serialized_with_classification() {
   pass "host: answer classification waits for an in-flight owned append receipt"
 }
 
-test_attended_answer_close() {  # <owned|external|mixed|capped>
+seed_open_captain_hold() {  # <home> <key>
+  local home=$1 key=$2
+  fm_test_tasks_toml "$home/.tasks.toml"
+  mkdir -p "$home/data"
+  printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
+  (cd "$home" && FM_HOME="$home" tasks-axi add demo 'Inspect routing' --kind scout --repo demo --start) >/dev/null \
+    || fail "fixture: could not create the origin task"
+  FM_HOME="$home" "$ROOT/bin/fm-captain-hold.sh" hold "$key" --open-ended \
+    --title 'Choose the route' --reason 'A routing decision is pending' --repo demo --origin demo >/dev/null \
+    || fail "fixture: could not register the captain call"
+}
+
+test_attended_answer_close() {  # <owned|external|mixed|capped|divergence>
   local mode=$1 home state f baseline action real_mv i note initial prior_size
   home=$(make_home "attended-answer-$mode" quiet)
   state="$home/state"
   f="$state/demo.status"
+  if [ "$mode" = divergence ]; then seed_open_captain_hold "$home" answer-test; fi
   printf 'kind=secondmate\n' >> "$state/demo.meta"
   printf 'needs-decision [key=answer-test]: choose\n' > "$f"
   routine_wake_lib "$home" fm_wake_status_mark_current "$state" "$f" || fail "fixture: could not baseline the decision"
@@ -387,6 +400,10 @@ SH
     wait_until_deadline 60 host_exited "$home" || fail "$mode: did not hand the signal back to main"
     assert_re '^signal: .*demo.status' "$home/host.out" "$mode: the signal did not reach main"
     [ -s "$state/.wake-queue" ] || fail "$mode: the host consumed consequential work"
+    if [ "$mode" = divergence ]; then
+      initial=$(FM_HOME="$home" "$ROOT/bin/fm-wake-drain.sh" 2>&1)
+      assert_contains "$initial" 'answer-test [key=answer-test] reads resolved' "the open structured hold must reach main"
+    fi
   fi
   stop_home_processes "$home"
   pass "host: attended answer signal with $mode provenance/content routes correctly"
@@ -456,14 +473,7 @@ test_attended_resurface() {  # <empty|routine|credential|captain-outcome|read-ca
   : > "$home/state/.wake-queue"
   case "$mode" in
     divergence)
-      fm_test_tasks_toml "$home/.tasks.toml"
-      mkdir -p "$home/data"
-      printf '## In flight\n\n## Queued\n\n## Done\n' > "$home/data/backlog.md"
-      (cd "$home" && FM_HOME="$home" tasks-axi add demo 'Inspect routing' --kind scout --repo demo --start) >/dev/null \
-        || fail "fixture: could not create the origin task"
-      FM_HOME="$home" "$ROOT/bin/fm-captain-hold.sh" hold routing-call --open-ended \
-        --title 'Choose the route' --reason 'A routing decision is pending' --repo demo --origin demo >/dev/null \
-        || fail "fixture: could not register the captain call"
+      seed_open_captain_hold "$home" routing-call
       f="$home/state/demo.status"
       printf 'needs-decision [key=routing-call]: north or south\nresolved [key=routing-call]: answered: north\n' > "$f"
       routine_wake_lib "$home" fm_wake_status_mark_current "$home/state" "$f" || fail "fixture: status would wake independently"
@@ -1404,6 +1414,7 @@ test_owned_answer_close() { test_attended_answer_close owned; }
 test_external_answer_close() { test_attended_answer_close external; }
 test_mixed_answer_close() { test_attended_answer_close mixed; }
 test_capped_answer_close() { test_attended_answer_close capped; }
+test_direct_answer_preserves_hold_divergence() { test_attended_answer_close divergence; }
 test_handled_busy_inbox_close() { test_attended_busy_inbox_close handled; }
 test_stuck_busy_inbox_close() { test_attended_busy_inbox_close stuck; }
 test_routine_resurface() { test_attended_resurface routine; }
@@ -1418,23 +1429,35 @@ test_status_backstop_resurface() { test_attended_resurface backstop; }
 test_status_backstop_with_routine_rows_resurface() { test_attended_resurface routine-backstop; }
 test_cooldown_resurface() { test_attended_resurface cooldown; }
 
-test_routine_resurface_respects_park_deadline() {
-  local home lock
-  home=$(make_home resurface-deadline quiet)
+assert_routine_resurface_lock_wait() {  # <park|command>
+  local home lock mode=$1 limit=10
+  home=$(make_home "resurface-deadline-$mode" quiet)
   lock="$home/state/.branch-outcomes.lock"
   mkdir "$lock" || fail "fixture: could not hold the outcome lock"
   printf '%s\n' "$$" > "$lock/pid"
   routine_wake_lib "$home" fm_recovery_marker_publish "$home/state/.watcher-down" downtime || fail "fixture: no recovery episode"
   printf '0\n' > "$home/park-clock"
-  install_first_offer_action "$home" 'printf "117\n" > "$FM_HOME/park-clock"'
-  FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 start_host "$home"
+  if [ "$mode" = park ]; then
+    install_first_offer_action "$home" 'printf "117\n" > "$FM_HOME/park-clock"'
+  else
+    limit=2
+  fi
+  FM_STATUS_PRESENTATION_LOCK_TIMEOUT="$limit" FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" \
+    FM_SUPERVISION_HOST_PARK_SECONDS=120 start_host "$home"
   wait_until_deadline 20 host_exited "$home" || fail "routine proof waited past the park bound for a live lock"
-  assert_re '^supervision-host: cycle boundary' "$home/host.out" "the park deadline must use the normal boundary hand-back"
+  if [ "$mode" = park ]; then
+    assert_re '^supervision-host: cycle boundary' "$home/host.out" "the park deadline must use the normal boundary hand-back"
+  else
+    assert_no_re '^supervision-host: cycle boundary' "$home/host.out" "a proof timeout is not the park deadline"
+    [ "$(engine_calls "$home")" -eq 0 ] || fail "proof timeout launched an engine turn"
+  fi
   assert_re '^check: rearm-resurface$' "$home/host.out" "recovery must remain visible on hand-back"
   assert_no_re '^acked:' "$home/state/.watcher-down" "a timed-out proof must not acknowledge recovery"
   stop_home_processes "$home"
-  pass "host: lock contention cannot extend the routine recovery proof past the park budget"
+  pass "host: lock contention cannot extend the routine recovery proof past its $mode budget"
 }
+test_routine_resurface_respects_park_deadline() { assert_routine_resurface_lock_wait park; }
+test_routine_resurface_respects_command_deadline() { assert_routine_resurface_lock_wait command; }
 test_read_captain_outcome_resurface() { test_attended_resurface read-captain-outcome; }
 test_empty_resurface() { test_attended_resurface empty; }
 test_credential_resurface() { test_attended_resurface credential; }
@@ -1456,6 +1479,7 @@ fm_test_run \
   test_external_answer_close \
   test_mixed_answer_close \
   test_capped_answer_close \
+  test_direct_answer_preserves_hold_divergence \
   test_handled_busy_inbox_close \
   test_stuck_busy_inbox_close \
   test_routine_resurface \
@@ -1470,6 +1494,7 @@ fm_test_run \
   test_status_backstop_with_routine_rows_resurface \
   test_cooldown_resurface \
   test_routine_resurface_respects_park_deadline \
+  test_routine_resurface_respects_command_deadline \
   test_empty_resurface \
   test_credential_resurface \
   test_captain_outcome_resurface \

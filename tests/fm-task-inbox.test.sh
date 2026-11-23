@@ -930,9 +930,12 @@ test_watcher_busy_budget_resets_on_progress() {
   gen=$("$event" arm "$state" t1) || fail "fixture: could not arm semantic busy state"
   "$event" apply "$state" t1 busy --gen "$gen" --source pi-ext --event agent-start \
     || fail "fixture: could not record the busy turn"
+  "$event" progress "$state" t1 --gen "$gen" || fail "fixture: could not publish native progress"
+  perl -MTime::HiRes=utime -e 'utime(1700000000.1, 1700000000.1, $ARGV[0]) or die $!' "$state/t1.progress"
   busy_steer_check "$dir"
   [ ! -s "$state/.wake-queue" ] || fail "the first busy deferral must wait"
-  "$event" progress "$state" t1 --gen "$gen" || fail "fixture: could not publish native progress"
+  "$event" progress "$state" t1 --gen "$gen" || fail "fixture: could not update native progress"
+  perl -MTime::HiRes=utime -e 'utime(1700000000.2, 1700000000.2, $ARGV[0]) or die $!' "$state/t1.progress"
   busy_steer_check "$dir"
   [ ! -s "$state/.wake-queue" ] || fail "progress between due checks was treated as stuck"
   [ -f "$state/t1.inbox/001.msg" ] || fail "progress removed an unhandled steer"

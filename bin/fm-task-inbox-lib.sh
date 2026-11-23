@@ -28,7 +28,7 @@
 #   <task>.inbox/.seq.lock     serializes sequence allocation across writers
 #                              (the session and the away daemon)
 #   <task>.inbox/.ring-state   watcher re-ring ladder: "<msg>\t<count>\t<epoch>"
-#   <task>.inbox/.busy-state   consecutive busy deferrals: "<msg>\t<count>\t<progress-mtime>"
+#   <task>.inbox/.busy-state   consecutive busy deferrals: "<msg>\t<count>\t<progress-fingerprint>"
 #   <task>.inbox/.escalated    oldest-message name already surfaced as stale,
 #                              so later polls suppress another escalation
 #   <task>.inbox/.retry-ring   name of a fire-and-forget record still owed its
@@ -134,16 +134,21 @@ fm_task_inbox_busy_max() {
 
 # Persist before returning the new count, so a fresh watcher continues the same
 # bounded wait. A removed or acknowledged record is a quiet no-op.
-fm_task_inbox_record_busy() {  # <state-dir> <task-id> <record-path> [progress mtime]
-  local dir base previous count prior progress=${4:-0}
+fm_task_inbox_record_busy() {  # <state-dir> <task-id> <record-path> [progress fingerprint]
+  local dir base previous count prior progress=${4:-0} prior_time progress_time
   dir=$(fm_task_inbox_dir "$1" "$2")
   base=${3##*/}
   { IFS=$(printf '\t') read -r previous count prior < "$dir/.busy-state"; } 2>/dev/null || true
   [ "${previous:-}" = "$base" ] || { count=0; prior=0; }
   case "${count:-}" in ''|*[!0-9]*) count=0 ;; esac
-  case "${prior:-}" in ''|*[!0-9]*) prior=0 ;; esac
-  case "$progress" in ''|*[!0-9]*) progress=0 ;; esac
-  if [ "$progress" -gt "$prior" ]; then
+  case "${prior:-}" in ''|*[!0-9:]*|:*|*:) prior=0 ;; esac
+  case "$progress" in ''|*[!0-9:]*|:*|*:) progress=0 ;; esac
+  prior_time=${prior%%:*}
+  progress_time=${progress%%:*}
+  [ "$prior_time" != "$prior" ] || prior_time=${prior_time}000000
+  [ "$progress_time" != "$progress" ] || progress_time=${progress_time}000000
+  if [ "$progress_time" -gt "$prior_time" ] || { [ "$progress_time" -eq "$prior_time" ] &&
+     [[ "$prior" = *:* && "$progress" = *:* ]] && [ "$prior" != "$progress" ]; }; then
     count=0
   else
     progress=$prior

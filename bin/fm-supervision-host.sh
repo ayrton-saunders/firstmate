@@ -715,10 +715,16 @@ retire_successor() {
 # any further "supervision-host:" lines, and exit.
 exit_to_main() {  # <why> [further lines]
   acknowledged_handback "supervision-host: $1" "${2:-}"
-  local lines=${2:-} rc=0
+  local lines=${2:-} rc=0 restore_rc=0
   retire_successor
-  if [ -n "$SUCCESSOR_GENERATION" ] \
-    && ! fm_recovery_marker_publish "$STATE/.watcher-down" downtime >/dev/null 2>&1; then
+  if [ -n "$SUCCESSOR_GENERATION" ]; then
+    if [ "${ATTENDED_ROUTINE:-0}" -eq 1 ]; then
+      attended_park_worker fm_recovery_marker_publish "$STATE/.watcher-down" downtime >/dev/null 2>&1 || restore_rc=$?
+    else
+      fm_recovery_marker_publish "$STATE/.watcher-down" downtime >/dev/null 2>&1 || restore_rc=$?
+    fi
+  fi
+  if [ "$restore_rc" -ne 0 ]; then
     log_line "to-main	downtime-unrestored	$1"
     lines=${lines:+$lines$'\n'}"supervision-host: watcher downtime could not be restored for the main hand-back"
     rc=1
@@ -1341,16 +1347,29 @@ turn_captain_seqs() {  # <turn>
 }
 
 attended_park_run() {  # <command> [args...]
-  local remaining rc=0
-  if [ "$PRIMARY" = codex ] && [ "${FM_CODEX_MODEL_FREE_PARK:-0}" = 1 ]; then
-    "$@" || rc=$?
-    [ "$rc" -ne 124 ] || return 1
-    return "$rc"
+  local limit
+  limit=$(numeric_or "${FM_STATUS_PRESENTATION_LOCK_TIMEOUT:-}" 10)
+  attended_park_run_with_limit "$limit" "$@"
+}
+
+attended_park_run_with_limit() {  # <seconds> <command> [args...]
+  local limit=$1 remaining rc=0 park_limited=0
+  shift
+  if [ "$PRIMARY" != codex ] || [ "${FM_CODEX_MODEL_FREE_PARK:-0}" != 1 ]; then
+    park_elapsed
+    remaining=$((PARK_SECONDS - PARK_ELAPSED))
+    [ "$remaining" -gt 0 ] || return 124
+    if [ "$remaining" -le "$limit" ]; then
+      limit=$remaining
+      park_limited=1
+    fi
   fi
-  park_elapsed
-  remaining=$((PARK_SECONDS - PARK_ELAPSED))
-  [ "$remaining" -gt 0 ] || return 124
-  fm_run_timed "$remaining" "$@"
+  fm_run_timed "$limit" "$@" || rc=$?
+  if fm_timed_out "$rc"; then
+    [ "$park_limited" -eq 0 ] || return 124
+    return 75
+  fi
+  return "$rc"
 }
 
 attended_park_worker() {  # <function> [args...]
@@ -1392,7 +1411,7 @@ attended_routine_candidate() {  # <reason>
 # or nothing when the supervision session may take it. Sets ATTENDED_WHY, and
 # ATTENDED_OFFER to the offer's verdict and the scope it judged.
 attended_acceptor() {  # <reason-lines>
-  local offer='' first=${1%%$'\n'*} rc=0 decision_keys candidate=0
+  local offer='' first=${1%%$'\n'*} rc=0 decision_keys candidate=0 diverged divergence_limit
   local -a offer_runner=()
   boundary_reached && boundary_exit
   ATTENDED_WHY=
@@ -1406,10 +1425,15 @@ attended_acceptor() {  # <reason-lines>
   else
     if attended_routine_candidate "$1"; then
       candidate=1
-      offer_runner=(attended_park_run)
+      if [ "$PRIMARY" != codex ] || [ "${FM_CODEX_MODEL_FREE_PARK:-0}" != 1 ]; then
+        offer_runner=(attended_park_run_with_limit "$PARK_SECONDS")
+      fi
+    elif health_cooling; then
+      ATTENDED_WHY="the supervision session is cooling down after engine errors"
+      return 1
     fi
     offer=$("${offer_runner[@]+${offer_runner[@]}}" node "$SCRIPT_DIR/fm-branch-dispatch.mjs" offer 2>/dev/null <<< "$first") || rc=$?
-    if [ "$candidate" -eq 1 ] && [ "$rc" -eq 124 ]; then boundary_exit; fi
+    if [ "$rc" -eq 124 ] && [ -n "${offer_runner[0]:-}" ]; then boundary_exit; fi
     if [ "$rc" -ne 0 ]; then
       ATTENDED_WHY="branch eligibility could not be computed"
     else
@@ -1419,6 +1443,13 @@ attended_acceptor() {  # <reason-lines>
         rc=0
         ATTENDED_ROUTINE_ROWS=$(attended_park_worker attended_routine_rows <<< "$1"$'\n'"$decision_keys") || rc=$?
         if [ "$rc" -eq 124 ]; then boundary_exit; fi
+        if [ "$rc" -eq 75 ]; then rc=3; fi
+        if [ "$rc" -eq 0 ]; then
+          divergence_limit=$(numeric_or "${FM_DIVERGENCE_TIMEOUT:-}" 20)
+          diverged=$(attended_park_run_with_limit "$divergence_limit" "$SCRIPT_DIR/fm-captain-hold.sh" diverged 2>/dev/null) || rc=$?
+          if [ "$rc" -eq 124 ]; then boundary_exit; fi
+          if [ "$rc" -ne 0 ] || [ -n "$diverged" ]; then rc=3; fi
+        fi
       fi
       boundary_reached && boundary_exit
       if [ "$rc" -eq 0 ]; then
@@ -1601,6 +1632,9 @@ while :; do
     ARM_TEXT=
     attended_park_worker fm_recovery_marker_handling_settled "$STATE/.watcher-down" || HANDOFF_RC=$?
     if [ "$HANDOFF_RC" -eq 124 ]; then boundary_exit; fi
+    if [ "$HANDOFF_RC" -ne 0 ]; then
+      exit_to_main "the routine handoff could not be settled safely"
+    fi
   else
     fm_recovery_marker_handling_settled "$STATE/.watcher-down" || HANDOFF_RC=$?
   fi
