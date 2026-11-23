@@ -422,6 +422,7 @@ RUN_ID="fm-isolation-${RUN_STARTED_MS}-$$"
 TOTAL=0
 private_teardown_failed=0
 FAILED=0
+failure_output=
 AGG_RC=0
 
 printf 'FM_ISOLATION_BEGIN %s concurrency=%s candidates=%s\n' \
@@ -500,7 +501,7 @@ wait_one_slot() {
   duration=$(cat "$work/out/duration_ms" 2>/dev/null || echo 0)
   if [ "$rc" -eq 0 ] && gate_skip=$(detect_gate_skip "$work/out/output"); then
     rc=1
-    log "pool $POOL candidate gate-skipped without proving concurrency: $script: $gate_skip"
+    failure_output+="fm-test-isolation-proof: pool $POOL candidate gate-skipped without proving concurrency: $script: $gate_skip"$'\n'
   fi
   printf 'FM_ISOLATION_CANDIDATE_END %s %s exit=%s duration_ms=%s worker=%s\n' \
     "$(now_iso)" "$script" "$rc" "$duration" "$idx"
@@ -508,10 +509,10 @@ wait_one_slot() {
   if [ "$rc" -ne 0 ]; then
     FAILED=$((FAILED + 1))
     AGG_RC=1
-    log "candidate failed: $script exit=$rc"
+    failure_output+="fm-test-isolation-proof: candidate failed: $script exit=$rc"$'\n'
     if [ -s "$work/out/output" ]; then
-      log "--- output ($script) ---"
-      tail -n 40 "$work/out/output" >&2 || true
+      failure_output+="fm-test-isolation-proof: --- output ($script) ---"$'\n'
+      failure_output+=$(tail -n 40 "$work/out/output" 2>&1 || true)$'\n'
     fi
   fi
   # Isolation: worker root must remain mode 0700 and under the proof parent.
@@ -651,6 +652,8 @@ if [ "$retain_root" -eq 0 ] && ! fm_test_scratch_retained "$PROOF_ROOT"; then
     cleanup_failed=1
   fi
 fi
+
+printf '%s' "$failure_output" >&2
 
 RUN_FINISHED_ISO=$(now_iso)
 RUN_FINISHED_MS=$(now_ms)

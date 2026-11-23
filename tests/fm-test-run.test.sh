@@ -2216,34 +2216,50 @@ exec "$REAL_PYTHON" -I -c '
 import os, sys
 code = sys.argv[1]
 sys.argv = sys.argv[1:]
-open_file, fchmod = os.open, os.fchmod
+open_file, fchmod, lstat = os.open, os.fchmod, os.lstat
 save, changed, phase = (os.environ[key] for key in ("EDITOR_SAVE", "CHANGED", "PHASE"))
+opened_target = False
 def open_with_save(path, flags, *args, **kwargs):
-    if phase == "open" and flags & (os.O_WRONLY | os.O_RDWR) and os.path.basename(path) == os.path.basename(changed):
-        os.replace(save, changed)
+    global opened_target
+    if flags & (os.O_WRONLY | os.O_RDWR) and os.path.basename(path) == os.path.basename(changed):
+        opened_target = True
+        if phase == "open":
+            os.replace(save, changed)
     return open_file(path, flags, *args, **kwargs)
 def chmod_with_save(fd, mode):
-    if phase != "open":
+    if phase == "chmod":
         os.replace(save, changed)
     fchmod(fd, mode)
-os.open, os.fchmod = open_with_save, chmod_with_save
+def lstat_with_edit(path, *args, **kwargs):
+    before = lstat(path, *args, **kwargs)
+    if phase == "edit" and opened_target and path == changed and os.path.exists(save):
+        with open(changed, "r+b") as file:
+            file.write(b"X")
+        os.utime(changed, ns=(before.st_atime_ns, before.st_mtime_ns))
+        os.unlink(save)
+    return before
+os.open, os.fchmod, os.lstat = open_with_save, chmod_with_save, lstat_with_edit
 exec(code)
 ' "$3" "${@:4}"
 SH
   chmod +x "$tmp/path/python3"
-  for phase in open chmod; do
+  for phase in open chmod edit; do
     changed="$profile/original.yaml"
     ln -- "$changed" "$tmp/before-save"
     printf 'private editor save\n' >"$tmp/editor-save"
     chmod 0600 "$tmp/editor-save"
     if PATH="$tmp/path:$PATH" REAL_PYTHON="$real_python" PHASE="$phase" \
-        EDITOR_SAVE="$tmp/editor-save" CHANGED="$changed" bash -c "$restore_command"; then
-      fail "manual restore reported success after an atomic editor save at $phase"
+        EDITOR_SAVE="$tmp/editor-save" CHANGED="$changed" bash -c "$restore_command" >"$tmp/restore.out" 2>&1; then
+      fail "manual restore reported success after an editor save at $phase"
     fi
-    python3 - "$changed" <<'PY' || fail "manual restore changed the private editor save at $phase"
+    if [ "$phase" = edit ]; then
+      assert_contains "$(<"$tmp/restore.out")" 'config target changed after verification' 'in-place edit reached the final descriptor check'
+    fi
+    python3 - "$changed" "$phase" <<'PY' || fail "manual restore changed the private editor save at $phase"
 import pathlib, stat, sys
 file = pathlib.Path(sys.argv[1])
-assert not file.is_symlink() and file.read_text() == 'private editor save\n'
+expected = 'Xutated\n' if sys.argv[2] == 'edit' else 'private editor save\n'
+assert not file.is_symlink() and file.read_text() == expected
 assert stat.S_IMODE(file.stat().st_mode) == 0o600
 PY
     [ -L "$profile/config.yaml" ] || fail 'failed manual restore rewrote the config link'

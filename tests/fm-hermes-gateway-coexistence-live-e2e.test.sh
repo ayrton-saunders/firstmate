@@ -46,9 +46,10 @@ def read_record(file):
         sys.exit("config recovery requires regular files")
     data = file.read()
     record = fingerprint(before)
-    if record != fingerprint(os.fstat(file.fileno())):
+    after = os.fstat(file.fileno())
+    if record != fingerprint(after) or before.st_ctime_ns != after.st_ctime_ns:
         sys.exit("file changed while reading config recovery data")
-    return record + ":" + hashlib.sha256(data).hexdigest(), data
+    return record + ":" + hashlib.sha256(data).hexdigest(), data, after.st_ctime_ns
 
 def file_record(path, parent=None):
     with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=parent), "rb") as file:
@@ -90,8 +91,9 @@ with ExitStack() as stack:
     ):
         sys.exit("config restore found an unexpected file or link")
     target_record = file_record(name, target_fd)
-    config_record = fingerprint(config_info) if expected_link else file_record(config, profile_fd)
-    record = target_record + "/" + config_record
+    record = target_record
+    if expected_link:
+        record += "/" + fingerprint(config_info)
     if not restore:
         print(record)
         sys.exit(0)
@@ -106,24 +108,27 @@ with ExitStack() as stack:
     with os.fdopen(os.open(os.path.basename(backup), os.O_RDONLY | flags, dir_fd=profile_fd), "rb") as src, \
          os.fdopen(os.open(name, os.O_RDWR | flags, dir_fd=target_fd), "r+b") as dst:
         before = os.fstat(dst.fileno())
-        actual_backup, data = read_record(src)
+        actual_backup, data, _ = read_record(src)
         if actual_backup != backup_record or file_record(backup) != backup_record:
             sys.exit("config backup changed")
-        if read_record(dst)[0] != target_record or fingerprint(before) != fingerprint(target_info):
+        actual_target, _, verified_ctime = read_record(dst)
+        if actual_target != target_record or fingerprint(before) != fingerprint(target_info):
             sys.exit("config target changed before restore opened it")
-        if fingerprint(os.lstat(target)) != fingerprint(target_info) or \
-           fingerprint(os.lstat(config_path)) != fingerprint(config_info) or \
-           (os.path.realpath(config_path) != target if expected_link else file_record(config_path) != config_record):
+        if fingerprint(os.lstat(target)) != fingerprint(target_info) or (expected_link and (
+            fingerprint(os.lstat(config_path)) != fingerprint(config_info) or os.path.realpath(config_path) != target
+        )):
             sys.exit("config entries changed before restore")
         dst.seek(0)
+        if os.fstat(dst.fileno()).st_ctime_ns != verified_ctime:
+            sys.exit("config target changed after verification")
         dst.write(data)
         dst.truncate()
         dst.flush()
         os.fchmod(dst.fileno(), int(mode, 8))
         if not os.path.samestat(before, os.lstat(target)):
             sys.exit("config target was replaced during restore")
-        expected_config = os.fstat(dst.fileno()) if target == config_path else config_info
-        if fingerprint(os.lstat(config_path)) != fingerprint(expected_config):
+        if expected_link and (fingerprint(os.lstat(config_path)) != fingerprint(config_info) or
+                              os.path.realpath(config_path) != target):
             sys.exit("config entry was replaced during restore")
         if file_record(backup) != backup_record:
             sys.exit("config backup was replaced during restore")'

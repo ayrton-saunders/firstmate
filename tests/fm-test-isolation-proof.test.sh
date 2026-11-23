@@ -129,6 +129,7 @@ mkdir "$TMPDIR/readonly"
 printf '%s\n' 'scratch' >"$TMPDIR/readonly/file"
 chmod 0500 "$TMPDIR/readonly"
 printf '%s\n' 'readonly fixture ready'
+python3 -c 'print("x" * 262144)'
 exit 7
 SH
   cat >"$repo/tests/fm-proof-interrupt.test.sh" <<'SH'
@@ -173,11 +174,26 @@ SH
   assert_equals 2 "$rc" 'relative operational proof scratch exit status'
   assert_contains "$(<"$tmp/err")" 'unsafe scratch base' 'relative operational proof scratch refusal'
   [ ! -e "$tmp/mktemp-called" ] && [ ! -e "$json" ] || fail 'proof allocated scratch before refusing it'
-  rc=0
-  TMPDIR="$tmp/proof-tmp" "$proof" --pool failing-family --jobs 1 >"$tmp/readonly.out" 2>"$tmp/readonly.err" || rc=$?
-  assert_equals 1 "$rc" 'proof reports a failing candidate'
-  assert_contains "$(<"$tmp/readonly.err")" 'readonly fixture ready' 'the failing candidate created read-only scratch'
-  [ -z "$(ls -A "$tmp/proof-tmp")" ] || fail 'failing proof left read-only scratch behind'
+  TMPDIR="$tmp/proof-tmp" FM_TEST_RETAIN_MARKER="$tmp/proof-tmp/.retain-scratch" \
+    python3 - "$proof" <<'PY' || fail 'failed candidate replay did not follow verified scratch cleanup'
+import os, pathlib, subprocess, sys
+
+base = pathlib.Path(os.environ['TMPDIR'])
+with subprocess.Popen([sys.argv[1], '--pool', 'failing-family', '--jobs', '1'],
+                      stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) as proof:
+    try:
+        for line in proof.stderr:
+            if b'candidate failed:' in line:
+                break
+        else:
+            raise AssertionError('missing failure diagnostic')
+        assert not list(base.iterdir()), 'replay began with scratch or parent marker present'
+        assert b'readonly fixture ready' in proof.stderr.read()
+        assert proof.wait(timeout=5) == 1
+    finally:
+        if proof.poll() is None:
+            proof.kill()
+PY
   TMPDIR="$tmp/proof-tmp" PROOF_SIGNAL_DIR="$tmp" python3 - "$proof" <<'PY' || fail 'interrupted proof did not drain its candidate before cleanup'
 import os, pathlib, signal, subprocess, sys, time
 
