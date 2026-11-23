@@ -505,6 +505,9 @@ SH
   elif [ "$mode" = decision ]; then
     install_first_offer_action "$home" 'mv "$FM_HOME/state/demo.inbox/001.msg" "$FM_HOME/state/demo.inbox/handled/"
     printf "needs-decision [key=inbox-choice]: choose an approach\n" >> "$FM_HOME/state/demo.status"'
+  elif [ "$mode" = stuck-late ]; then
+    printf '0\n' > "$home/park-clock"
+    install_first_offer_action "$home" 'printf "121\n" > "$FM_HOME/park-clock"'
   elif [ "$mode" = final-decision ]; then
     printf '0\n' > "$home/park-clock"
     install_first_offer_action "$home" ':' '
@@ -516,8 +519,11 @@ SH
     install_first_offer_action "$home" 'sleep 4
     printf "needs-decision [key=inbox-choice]: choose an approach\n" >> "$FM_HOME/state/demo.status"'
   fi
+  local park_limit=120
+  [ "$mode" != stuck-late ] || park_limit=240
   FM_TEST_SUPERVISION_HOST_CLOCK="$home/park-clock" FM_SUPERVISION_HOST_PARK_SECONDS=120 \
-    FM_SUPERVISION_HOST_TURN_TIMEOUT=20 FM_BUSY_REGEX=BUSYTOKEN FM_TASK_INBOX_GRACE_SECS=0 start_host "$home"
+    FM_SUPERVISION_HOST_PARK_LIMIT="$park_limit" FM_SUPERVISION_HOST_TURN_TIMEOUT=20 \
+    FM_BUSY_REGEX=BUSYTOKEN FM_TASK_INBOX_GRACE_SECS=0 start_host "$home"
   if [ "$mode" = missing ] || [ "$mode" = unhandled-decision ]; then
     wait_until_deadline 30 host_exited "$home" || fail "ordinary stale did not reach main"
     if [ "$mode" = missing ]; then
@@ -1557,6 +1563,7 @@ test_other_pending_reply_answer() { test_attended_answer_close other-reply; }
 test_handled_busy_inbox_close() { test_attended_busy_inbox_close handled; }
 test_handled_ship_busy_inbox_close() { test_attended_busy_inbox_close handled ship; }
 test_stuck_busy_inbox_close() { test_attended_busy_inbox_close stuck; }
+test_ordinary_attended_offer_can_cross_park_boundary() { test_attended_busy_inbox_close stuck-late; }
 test_routine_resurface() { test_attended_resurface routine; }
 test_handled_scout_stale_resurface() { test_attended_resurface routine scout; }
 test_handled_decision_stale() { test_attended_busy_inbox_close decision; }
@@ -1644,6 +1651,7 @@ test_locked_captain_outcome_resurface() { test_attended_resurface locked-captain
 fm_test_run \
   test_park_exit_probe_uses_half_second_child_sleeps \
   test_attended_routine_wake_is_handled_on_the_engine_and_stays_off_main \
+  test_ordinary_attended_offer_can_cross_park_boundary \
   test_host_stopped_right_after_a_handled_wake_exits_and_frees_the_queue \
   test_engine_in_another_time_zone_handles_its_granted_rows \
   test_attended_captain_outcome_reaches_main_through_branch_outcomes \

@@ -1626,8 +1626,9 @@ while :; do
   fi
 
   # A turn that could outlive the boundary would outlive the hook registration.
-  boundary_reached && boundary_exit
-  if [ "$ATTENDED_ROUTINE" -eq 0 ]; then
+  if [ "$ATTENDED_ROUTINE" -eq 1 ]; then
+    boundary_reached && boundary_exit
+  else
     turn_crosses_boundary && boundary_exit
   fi
   HANDOFF_RC=0
