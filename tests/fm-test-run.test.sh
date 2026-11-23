@@ -2120,7 +2120,7 @@ repo = tmp / 'repo'
 shutil.copy2(runner, repo / 'bin')
 for name in ('fm-path-lib.sh', 'fm-wake-lib.sh', 'fm-timeout-lib.sh', 'fm-test-scratch-lib.sh'):
     shutil.copy2(root / 'bin' / name, repo / 'bin')
-for name in ('git-config-helpers.sh', 'remote-secondmate-source-copy-helpers.sh'):
+for name in ('lib.sh', 'git-config-helpers.sh', 'remote-secondmate-source-copy-helpers.sh'):
     shutil.copy2(root / 'tests' / name, repo / 'tests')
 script = repo / 'tests/copy.test.sh'
 script.write_bytes(b'''#!/usr/bin/env bash
@@ -2150,8 +2150,8 @@ done
 printf '%s\\n%s\\n' "$TMPDIR" "$run_root" > "$PROOF"
 if [ "$PROBE_MODE" = hang ] || [ "$PROBE_MODE" = stubborn ]; then exec sleep 300; fi
 if [ "$PROBE_MODE" = retain ]; then
-  . bin/fm-test-scratch-lib.sh
-  fm_test_arm_private_tmux MARKER
+  . tests/lib.sh
+  trap 'fm_test_finalize "$?" 1' EXIT
 fi
 if [ "$PROBE_MODE" = evidence ]; then
   . bin/fm-test-scratch-lib.sh
@@ -2294,7 +2294,7 @@ assert json.loads((repo / '--scratch-base').read_text())['summary']['failed'] ==
 child, proof = launch('retain', 'retain', options=('--json', 'retained.json'))
 assert child.wait(timeout=20) == 1
 _, retained_run = scratch(proof)
-assert retained_run.is_dir()
+assert (retained_run / 'w1/t/read-only/entry').is_file()
 assert json.loads((repo / 'retained.json').read_text())['summary']['failed'] == 1
 (repo / 'retained.json').unlink()
 subprocess.run([bash, '-c', '. bin/fm-test-scratch-lib.sh; fm_test_remove_tree "$1"', '_', shell_path(retained_run)], cwd=repo, check=True)
@@ -2355,8 +2355,24 @@ case "${!#}" in */r.??????) touch "$CLEANUP_CLOCK" ;; esac
         clock.unlink()
         remover.unlink()
 
-child, proof = launch('evidence-copy', 'evidence')
-assert child.wait(timeout=20) == 0
+rename_probe = fakebin / 'python3'
+rename_probe.write_bytes(b'''#!/usr/bin/env bash
+if [[ ${2:-} == *os.rename* ]]; then
+  if [ "${3%/*}" != "${4%/*}" ]; then
+    "$REAL_PYTHON" -c 'import errno; raise OSError(errno.EXDEV, "cross-device rename")'
+    exit 1
+  fi
+fi
+exec "$REAL_PYTHON" "$@"
+''')
+rename_probe.chmod(0o755)
+fixture_env['REAL_PYTHON'] = shell_path(sys.executable)
+try:
+    child, proof = launch('evidence-copy', 'evidence')
+    assert child.wait(timeout=20) == 0, (tmp / 'evidence-copy.log').read_text()
+finally:
+    rename_probe.unlink()
+    del fixture_env['REAL_PYTHON']
 _, run = scratch(proof)
 label = 'Hermes guard evidence: '
 line, = [line for line in (tmp / 'evidence-copy.log').read_text().splitlines() if line.startswith(label)]
@@ -2407,7 +2423,7 @@ if os.name != 'posix' or subprocess.run(
 
 tar_probe = fakebin / 'tar'
 tar_probe.write_bytes(b'''#!/usr/bin/env bash
-if [ "$1" = -C ] && [ "$3" = -xf ] && [[ "$2" == */fm-hermes-evidence.* ]]; then
+if [ "$1" = -C ] && [ "$3" = -xf ] && [[ "$2" == */.fm-hermes-evidence-staging.* ]]; then
     touch "$2/partial"
     touch "$PROOF.extracting"
     exec sleep 60
@@ -2427,7 +2443,8 @@ try:
             time.sleep(0.05)
         else:
             raise AssertionError('evidence extractor never wrote partial data')
-        assert set(base.iterdir()) == {private, evidence}, 'partial evidence already published'
+        assert set(base.glob('fm-hermes-evidence.*')) == {evidence}, 'partial evidence already published'
+        assert len(list(base.glob('.fm-hermes-evidence-staging.*'))) == 1
         child.terminate()
         assert child.wait(timeout=10) == 143
         assert not run.exists() and set(base.iterdir()) == {private, evidence}

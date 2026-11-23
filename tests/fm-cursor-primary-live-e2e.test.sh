@@ -43,13 +43,14 @@ harness_fail() {  # <message>
 }
 
 SOCKET="fm-cursor-primary-$$"
-LAB=$(mktemp -d "${TMPDIR:-/tmp}/fm-cursor-primary.XXXXXX")
+LAB=$(fm_test_tmproot fm-cursor-primary) || harness_fail "could not create isolated Cursor lab"
 HOME_DIR="$LAB/home"
 MARKER="FM_CURSOR_LIVE_MARKER_$$"
 
 cleanup_all() {
+  local status=$?
   "$REAL_TMUX" -L "$SOCKET" kill-server >/dev/null 2>&1 || true
-  [ -n "${LAB:-}" ] && rm -rf "$LAB"
+  fm_test_finalize "$status"
 }
 trap cleanup_all EXIT
 
@@ -207,6 +208,3 @@ wait_for_pane "$AWAY_TOKEN" 180 "the away-mode escalation processed by the Curso
 pass "cursor primary: an away-mode escalation is delivered, confirmed, and processed"
 
 rm -f "$HOME_DIR/state/.afk"
-
-cleanup_all
-trap - EXIT

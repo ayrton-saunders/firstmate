@@ -204,26 +204,22 @@ fm_test_validate_scratch_base() {
 
 # An interrupt just after publication can leave complete opt-in evidence without a printed path.
 fm_test_copy_hermes_evidence() (
-  local lab=$1 base=$2 stage= evidence entry
+  local lab=$1 base=$2 stage evidence entry
   local -a entries=()
   set -o pipefail
-  trap '[ -z "$stage" ] || fm_test_remove_tree "$stage"' EXIT
-  trap 'exit 129' HUP
-  trap 'exit 130' INT
-  trap 'exit 131' QUIT
-  trap 'exit 143' TERM
   shopt -s dotglob nullglob
   set -- "$lab"/*
   [ "$#" -gt 0 ] || return 1
   for entry in "$@"; do entries+=("./${entry##*/}"); done
-  stage=$(mktemp -d "${lab%/}/fm-hermes-evidence.XXXXXX") || return 1
-  evidence="${base%/}/${stage##*/}"
+  fm_test_allocate_scratch -d "${base%/}/.fm-hermes-evidence-staging.XXXXXX" || return 1
+  stage=$FM_TEST_SCRATCH
+  evidence="${base%/}/fm-hermes-evidence.${stage##*.}"
   tar -C "$lab" -cf - "${entries[@]}" | tar -C "$stage" -xf - || return 1
   set -- "$stage"/*
   [ "$#" -gt 0 ] || return 1
 
   python3 -c 'import os, sys; os.rename(sys.argv[1], sys.argv[2])' "$stage" "$evidence" || return 1
-  stage=
+  FM_TEST_SCRATCH=
   printf 'Hermes guard evidence: %s\n' "$evidence"
 )
 

@@ -395,6 +395,9 @@ fm_test_finalize() {
   local status=$1 teardown=${2:-0}
   trap '' HUP INT QUIT TERM
   if [ "$teardown" -ne 0 ]; then
+    if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
+      : > "$FM_TEST_RETAIN_MARKER.$$.fixture" || printf 'could not publish fixture retention marker\n' >&2
+    fi
     printf 'fixture teardown unverified; retaining scratch registered in %s\n' "$FM_TEST_CLEANUP_REGISTRY" >&2
     [ "$status" -ne 0 ] || status=1
   elif ! fm_test_cleanup; then
