@@ -141,8 +141,7 @@ finish_linux() {
 cleanup_linux() {
   local status=$? teardown=0
   trap '' HUP INT QUIT TERM
-  fm_test_probe_drain || teardown=1
-  stop_linux_container || teardown=1
+  { fm_test_probe_drain && stop_linux_container; } || teardown=1
   finish_linux "$status" "$teardown"
 }
 trap cleanup_linux EXIT

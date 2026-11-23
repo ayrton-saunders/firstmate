@@ -175,6 +175,7 @@ test_attach_failure_verifies_container_stop() {
 case "$1" in
   ps)
     if [ "$MODE" = prelaunch ]; then touch "$STATE/daemon-contacted"; exit 1; fi
+    if [ "$MODE" = undrained ]; then touch "$STATE/daemon-contacted"; exit 0; fi
     pattern=.
     if [ "${3:-}" = --filter ]; then pattern=${4#name=}; fi
     name=$(<"$STATE/container-name")
@@ -199,6 +200,10 @@ case "$1" in
         if [ -f "$STATE/scratch-path" ]; then touch "$STATE/next-test"; exit 0; fi
         printf '%s\n' "${2%:/work}" >"$STATE/scratch-path"
         touch "$STATE/neighbor"
+        if [ "$MODE" = undrained ]; then
+          kill -TERM "$WRAPPER_PID" || exit 2
+          exec sleep 3
+        fi
         if [ "$MODE" = created ]; then touch "$STATE/created"; else touch "$STATE/running"; fi
         if [ "$MODE" = killed ]; then kill -KILL "$WRAPPER_PID" || exit 2; fi
         exit 7
@@ -213,9 +218,14 @@ SH
 unset BASH_ENV
 if [ "$MODE" = prelaunch ]; then
   trap 'if [ -f "$FM_TEST_RETAIN_MARKER.$$.linux" ]; then trap - DEBUG; kill -TERM "$$"; fi' DEBUG
+elif [ "$MODE" = undrained ]; then
+  ps() {
+    if [ "$*" = '-e -o pid= -o pgid= -o stat=' ]; then return 0; fi
+    command ps "$@"
+  }
 fi
 SH
-  for mode in resolved unresolved created killed prelaunch; do
+  for mode in resolved unresolved created killed prelaunch undrained; do
     state="$TMP_ROOT/$mode"
     mkdir "$state"
     rc=0
@@ -228,6 +238,14 @@ SH
       continue
     fi
     scratch=$(<"$state/scratch-path")
+    if [ "$mode" = undrained ]; then
+      assert_equals 143 "$rc" "TERM with an unverified client: $out"
+      assert_contains "$out" 'retaining scratch:' 'unverified drain retains scratch'
+      assert_absent "$state/daemon-contacted" 'daemon teardown must wait for verified client drain'
+      assert_present "$scratch/tests/kept.test.sh" 'unverified client keeps its backing tree'
+      fm_test_scratch_retained "$state" || fail 'unverified client lost parent retention'
+      continue
+    fi
     if [ "$mode" = killed ]; then
       assert_equals 137 "$rc" "wrapper was killed during container run: $out"
       assert_present "$state/running" 'daemon still owns the container'
