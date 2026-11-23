@@ -21,6 +21,7 @@ cleanup() {
   else
     [ "$status" -ne 0 ] || status=1
   fi
+  fm_test_cleanup
   exit "$status"
 }
 trap cleanup EXIT

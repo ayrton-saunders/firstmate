@@ -86,6 +86,7 @@
 # the run; a test that starts a separate session/group owns that group's cleanup.
 # A subsequent run recovers aged, marked roots when the runner and workers are gone.
 # Windows-style shells do not support orphan recovery; normal-exit and signal cleanup still apply.
+# Scratch marked for unverified teardown is never reaped automatically, even after its owners exit.
 # If cleanup cannot verify a live group's leader before signaling, it waits briefly without signaling and fails with scratch retained if the group remains.
 # If interruption cuts short a nested runner's cleanup, its scratch is recovered on a later run once those workers are gone.
 # PID-directed TERM/HUP waits for a foreground TTY test to finish or time out, or for blocked output replay to return; background worker waits are interruptible.
@@ -2629,7 +2630,7 @@ cleanup_run() {
   fi
   if [ -n "$RUN_TMP" ]; then
     if compgen -G "$RUN_TMP/.retain-scratch.??????" >/dev/null; then
-      log "private teardown unverified; retaining scratch: $RUN_TMP"
+      log "private teardown unverified; retaining scratch: $RUN_TMP; delete it by hand once nothing is using it"
       [ "$status" -ne 0 ] || status=1
       exit "$status"
     fi

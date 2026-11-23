@@ -22,12 +22,13 @@ SOCKET="$LAB/s"
 mkdir -p "$LAB/home" "$LAB/state" "$LAB/locks"
 [ -f "$PROFILE_HOME/config.yaml" ] || fail "throwaway profile $PROFILE_HOME is not prepared"
 BACKUP=
-backup_pending=0
+publication_pending=0
 mutation_attempted=0
 probe_signal=0
 TUI_PID=
+TUI_RETAIN=
 cleanup() {
-  local status=$? socket teardown_failed=0
+  local status=$? attempt teardown_failed=0
   trap '' HUP INT QUIT TERM
   if [ -n "$TUI_PID" ]; then kill -TERM "$TUI_PID" 2>/dev/null || true; fi
   if [ -n "$BACKUP" ]; then
@@ -38,9 +39,25 @@ cleanup() {
       [ "$status" -ne 0 ] || status=1
     fi
   fi
-  for socket in "$SOCKET" "$LAB"/hm.??????/s; do
-    fm_test_stop_private_tmux "$socket" tmux || teardown_failed=1
-  done
+  if [ -n "$TUI_PID" ]; then
+    for ((attempt=0; attempt<60; ++attempt)); do
+      kill -0 "$TUI_PID" 2>/dev/null || break
+      sleep 0.1
+    done
+    if kill -0 "$TUI_PID" 2>/dev/null; then
+      teardown_failed=1
+    else
+      wait "$TUI_PID" || true
+      TUI_PID=
+    fi
+  fi
+  if [ -z "$TUI_PID" ] && ! compgen -G "$LAB/hm.??????" >/dev/null; then
+    if [ -n "$TUI_RETAIN" ]; then rm -f -- "$TUI_RETAIN"; fi
+  else
+    printf 'not ok - TUI teardown unverified; retaining %s; delete it by hand once nothing is using it\n' "$LAB" >&2
+    teardown_failed=1
+  fi
+  fm_test_stop_private_tmux "$SOCKET" tmux || teardown_failed=1
   fm_test_cleanup
   if [ "$teardown_failed" -eq 0 ]; then
     fm_test_remove_tree "$LAB" || { [ "$status" -ne 0 ] || status=1; }
@@ -52,7 +69,7 @@ cleanup() {
 trap cleanup EXIT
 interrupt_probe() {
   probe_signal=$1
-  [ "$backup_pending" -ne 0 ] || exit "$probe_signal"
+  [ "$publication_pending" -ne 0 ] || exit "$probe_signal"
 }
 trap 'interrupt_probe 129' HUP
 trap 'interrupt_probe 130' INT
@@ -61,6 +78,7 @@ trap 'interrupt_probe 143' TERM
 for file in "$FM_HERMES_LIVE_HOME/.env" "$PROFILE_HOME/.env"; do
   [ ! -s "$file" ] || fail "$file may configure a messaging platform; use a profile without one"
 done
+[ ! -L "$PROFILE_HOME/config.yaml" ] || fail 'gateway probe requires a non-symlinked profile config'
 HERMES_HOME="$FM_HERMES_LIVE_HOME" "$HERMES_BIN" -p "$PROFILE" config get platforms --json > "$LAB/platforms.json" 2>/dev/null || echo null > "$LAB/platforms.json"
 jq -e '. == null or . == {} or ([.[]? | objects | select(.enabled == true)] | length == 0)' "$LAB/platforms.json" >/dev/null \
   || fail 'throwaway profile configures a messaging platform'
@@ -82,7 +100,7 @@ PY
 snapshot "$LAB/before.json" || fail 'could not snapshot the throwaway session store'
 # Native Hermes runs a profile-owned gateway only in its standalone mode, the
 # shape of an operator profile whose own gateway serves only itself.
-backup_pending=1
+publication_pending=1
 BACKUP=$(
   trap '' HUP INT QUIT TERM
   backup=$(mktemp "$PROFILE_HOME/.fm-gateway-config.XXXXXX") || exit 1
@@ -92,7 +110,7 @@ BACKUP=$(
   fi
   printf '%s\n' "$backup"
 ) || fail 'could not back up profile config'
-backup_pending=0
+publication_pending=0
 [ "$probe_signal" -eq 0 ] || exit "$probe_signal"
 mutation_attempted=1
 HERMES_HOME="$FM_HERMES_LIVE_HOME" "$HERMES_BIN" -p "$PROFILE" config set gateway.standalone true >/dev/null \
@@ -119,11 +137,19 @@ printf 'idle gateway before: %s\n' "$(gateway_state)"
 . "$ROOT/bin/fm-hermes-lib.sh"
 HERMES_GATEWAY_LOCK_DIR="$LAB/locks" fm_hermes_gateway_check "$PROFILE_HOME" "$PROFILE" || fail 'idle own gateway refused'
 pass 'real idle profile gateway accepted by the read-only preflight'
+if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
+  TUI_RETAIN=$(mktemp "$FM_TEST_RETAIN_MARKER.XXXXXX") || fail 'could not protect pending TUI teardown'
+fi
+publication_pending=1
 TMPDIR="$LAB" TMP="$LAB" TEMP="$LAB" FM_HERMES_SIGNALS_LIVE=1 HERMES_GATEWAY_LOCK_DIR="$LAB/locks" \
   bash "$ROOT/tests/fm-hermes-signals-live-e2e.test.sh" &
 TUI_PID=$!
-wait "$TUI_PID" || fail 'TUI worker guard failed beside the idle gateway'
+publication_pending=0
+[ "$probe_signal" -eq 0 ] || exit "$probe_signal"
+tui_status=0
+wait "$TUI_PID" || tui_status=$?
 TUI_PID=
+[ "$tui_status" -eq 0 ] || fail 'TUI worker guard failed beside the idle gateway'
 before_stamp=$(jq -r .updated_at "$PROFILE_HOME/gateway_state.json")
 for _ in $(seq 1 150); do
   [ "$(jq -r .updated_at "$PROFILE_HOME/gateway_state.json")" != "$before_stamp" ] && break

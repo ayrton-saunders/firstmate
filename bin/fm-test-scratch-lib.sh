@@ -11,7 +11,7 @@ fm_test_remove_tree() {
 }
 
 fm_test_copy_hermes_evidence() (
-  local lab=$1 base=$2 evidence file
+  local lab=$1 base=$2 evidence file copied=0
   evidence=$(mktemp -d "${base%/}/fm-hermes-evidence.XXXXXX") || return 1
   for file in "$lab"/*.txt "$lab"/*.ansi "$lab"/*.log; do
     [ -f "$file" ] && [ ! -L "$file" ] || continue
@@ -19,7 +19,12 @@ fm_test_copy_hermes_evidence() (
       fm_test_remove_tree "$evidence"
       return 1
     fi
+    copied=1
   done
+  if [ "$copied" -eq 0 ]; then
+    fm_test_remove_tree "$evidence"
+    return 1
+  fi
   printf 'Hermes guard evidence: %s\n' "$evidence"
 )
 
@@ -27,6 +32,7 @@ fm_test_stop_private_tmux() (
   local socket=$1 tmux_bin=$2 marker= diagnostics output status=0
   [ -S "$socket" ] || return 0
   if [ -n "${FM_TEST_RETAIN_MARKER:-}" ]; then
+    # An unresolved teardown marker excludes this root from automatic reaping, even after its owners exit.
     marker=$(mktemp "$FM_TEST_RETAIN_MARKER.XXXXXX") || return 1
   fi
   # shellcheck source=bin/fm-timeout-lib.sh

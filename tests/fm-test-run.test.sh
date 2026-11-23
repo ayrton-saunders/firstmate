@@ -2014,7 +2014,15 @@ test_gateway_preflight_preserves_symlink() {
   [ "$rc" -eq 1 ] && grep -q 'may configure a messaging platform' "$tmp/out" || fail "gateway did not refuse .env: $(<"$tmp/out")"
   [ -L "$profile/config.yaml" ] && [ "$(<"$profile/config.yaml")" = 'original config' ] \
     || fail 'gateway refusal changed the untouched config'
-  pass 'gateway refusal leaves symlinked profile config untouched'
+  rm -f "$profile/.env"
+  rc=0
+  PATH="$tmp/path:$PATH" FM_HERMES_GATEWAY_LIVE=1 FM_HERMES_LIVE_HOME="$tmp/hermes" FM_HERMES_LIVE_PROFILE=worker \
+    bash "$ROOT/tests/fm-hermes-gateway-coexistence-live-e2e.test.sh" >"$tmp/out" 2>&1 || rc=$?
+  [ "$rc" -eq 1 ] && grep -q 'requires a non-symlinked profile config' "$tmp/out" \
+    || fail "gateway accepted a symlinked config: $(<"$tmp/out")"
+  [ -L "$profile/config.yaml" ] && [ "$(<"$profile/config.yaml")" = 'original config' ] \
+    || fail 'gateway symlink refusal changed the untouched config'
+  pass 'gateway preflight refuses symlinked config without changing it'
 }
 
 test_readonly_probe_scratch_cleanup() {
@@ -2094,6 +2102,10 @@ if [ "$PROBE_MODE" = hang ] || [ "$PROBE_MODE" = stubborn ]; then exec sleep 300
 if [ "$PROBE_MODE" = evidence ]; then
   . bin/fm-test-scratch-lib.sh
   printf '%s\\n' 'captured output' >"$TMPDIR/screen.ansi"
+  base=$(bash bin/fm-test-run.sh --scratch-base)
+  fm_test_copy_hermes_evidence "$TMPDIR" "$base"
+elif [ "$PROBE_MODE" = empty-evidence ]; then
+  . bin/fm-test-scratch-lib.sh
   base=$(bash bin/fm-test-run.sh --scratch-base)
   fm_test_copy_hermes_evidence "$TMPDIR" "$base"
 fi
@@ -2200,6 +2212,10 @@ line, = [line for line in (tmp / 'evidence-copy.log').read_text().splitlines() i
 evidence = native_path(line[len(label):])
 assert evidence.parent.resolve() == base.resolve(), evidence
 assert not run.exists() and (evidence / 'screen.ansi').read_text() == 'captured output\n'
+child, proof = launch('empty-evidence-copy', 'empty-evidence')
+assert child.wait(timeout=20) == 1
+assert label not in (tmp / 'empty-evidence-copy.log').read_text()
+assert set(base.iterdir()) == {private, evidence}
 
 if os.name == 'posix':
     allocator = fakebin / 'mktemp'
