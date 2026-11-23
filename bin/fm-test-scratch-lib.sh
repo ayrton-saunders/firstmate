@@ -219,7 +219,7 @@ fm_test_scratch_retained() (
 )
 
 fm_test_resolve_boundary() (
-  local path=$1 parent leaf
+  local path=$1 links_left=${2:-40} parent leaf target
   if CDPATH='' cd -P -- "$path" 2>/dev/null; then
     pwd -P
     return
@@ -227,8 +227,19 @@ fm_test_resolve_boundary() (
   path=${path%"${path##*[!/]}"}
   [ -n "$path" ] || return 1
   leaf=${path##*/}
+  if [ -L "$path" ]; then
+    [ "$links_left" -gt 0 ] || return 1
+    target=$(readlink -- "$path") || return 1
+    case "$OSTYPE" in msys*|cygwin*) target=${target//\\//} ;; esac
+    case "$target" in
+      /*|[a-zA-Z]:/*) ;;
+      *) target=${path%"$leaf"}$target ;;
+    esac
+    fm_test_resolve_boundary "$target" "$((links_left - 1))"
+    return
+  fi
   case "$path" in
-    */*) parent=$(fm_test_resolve_boundary "${path%/*}/") || return 1 ;;
+    */*) parent=$(fm_test_resolve_boundary "${path%/*}/" "$links_left") || return 1 ;;
     *) parent=$(pwd -P) || return 1 ;;
   esac
   case "$leaf" in

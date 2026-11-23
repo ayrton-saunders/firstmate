@@ -2269,6 +2269,17 @@ except (OSError, NotImplementedError):
     print('skip: operational parent alias check requires directory symlink support')
 else:
     protected_paths.append(f'{base_alias.name}/{parent.name}')
+alias_dir = tmp / 'operational-aliases'
+alias_dir.mkdir()
+for alias, target in ((alias_dir / 'relative-state', pathlib.Path('..') / base.name / parent.name),
+                      (alias_dir / 'absolute-state', parent)):
+    try:
+        alias.symlink_to(target, target_is_directory=True)
+    except (OSError, NotImplementedError):
+        print('skip: missing operational target check requires directory symlink support')
+    else:
+        assert alias.is_symlink() and not alias.exists()
+        protected_paths.append(alias.relative_to(tmp).as_posix())
 for protected in protected_paths:
     result = subprocess.run([*external_runner, cmd[-1]], cwd=tmp,
                             env=dict(fixture_env, FM_STATE_OVERRIDE=protected), capture_output=True)
