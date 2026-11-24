@@ -9,7 +9,8 @@ Primary, secondmate, non-tmux backends, desktop/web, bridges, and Hermes messagi
 Use a prepared **throwaway** Hermes root and profile for the credentialed guard.
 It uses the profile's own inference model/authentication only for small synthetic prompts and sends no message to a gateway.
 The guard's native first-run consent check uses a separate fresh, uncredentialed profile.
-Both guards create their own private tmux servers and preserve no shared endpoint ownership.
+Each live guard uses its own private tmux server.
+Before running the gateway coexistence probe, read its [profile isolation and recovery requirements](../../tests/fm-hermes-gateway-coexistence-live-e2e.test.sh).
 
 ```bash
 FM_HERMES_SIGNALS_LIVE=1 \
@@ -27,12 +28,15 @@ FM_HERMES_PYTHON="$installed_hermes_python" \
 bash bin/fm-test-run.sh tests/fm-hermes-profile-safety-live-e2e.test.sh
 
 bash bin/fm-test-run.sh tests/fm-hermes-harness.test.sh tests/fm-tmux-agent-liveness.test.sh
-FM_TEST_STOCK_BASH=1 bash tests/fm-backend.test.sh
+FM_TEST_STOCK_BASH=1 /bin/bash bin/fm-test-tap-verify.sh tests/fm-backend.test.sh
 ```
 
 `FM_HERMES_PYTHON` must name the interpreter from the installed Hermes environment, so the native profile-safety guard imports that version's own APIs rather than substituting Firstmate implementations.
 When the bare runtime interpreter cannot import the gateway modules, point `FM_HERMES_PYTHON` at a small wrapper that runs it through Hermes's own `hermes_bootstrap`.
 An unavailable required tool is reported by the shared `fm_live_gate`; explicit opt-in refuses missing capabilities.
+
+For opt-in TUI diagnostics, see the [TUI guard header](../../tests/fm-hermes-signals-live-e2e.test.sh) and collect the complete copy from the printed `Hermes guard evidence:` path.
+If the probe is interrupted and no path prints, see the [evidence export helper](../../bin/fm-test-scratch-lib.sh) for what staging or completed evidence may remain.
 
 ## Live worker observations
 
@@ -134,7 +138,7 @@ session store: integrity ok, 7 prior sessions and their messages retained, 2 new
 ok - Hermes Agent v0.21.7 (2026.9.24) · stable · local 71d34bad1045: TUI worker completed beside a real idle gateway; gateway, session store and memory intact
 ```
 
-Native Hermes runs a profile-owned gateway only with `gateway.standalone: true`; the guard sets it on the throwaway profile and restores the original config afterward.
+Native Hermes required `gateway.standalone: true` to run a profile-owned gateway; the guard temporarily set it on the throwaway profile for this verification.
 The gateway ran under a cleared environment with a private `HOME`, `XDG_STATE_HOME`, and `HERMES_GATEWAY_LOCK_DIR`, so no inherited platform credential, operator Hermes root, or host gateway rendezvous was visible to it.
 The profile configured no messaging platform; the guard refuses one.
 Both the spawn and the relaunch preflights accepted the live idle gateway.

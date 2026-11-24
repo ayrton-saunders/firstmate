@@ -28,13 +28,15 @@ fi
 command -v tmux >/dev/null 2>&1 || { echo "skip: tmux not found"; exit 0; }
 unset TMUX TMUX_TMPDIR
 
-TMP_ROOT=$(fm_test_tmproot fm-lab-iso)
+TMP_ROOT=$(fm_test_tmproot fm-s) || fail 'cannot allocate fixture scratch'
 LIVE_LAB="$ROOT/bin/fm-live-lab.sh"
-GATE_SOCKET="$TMP_ROOT/base/tmux-$(id -u)/default"
+GATE_SOCKET=
 DEFAULT_SOCKET="/tmp/tmux-$(id -u)/default"
-STUCK_SOCKET="$TMP_ROOT/stuck/tmux-$(id -u)/default"
+STUCK_SOCKET=
 DECOY_PID=''
 STUCK_PID=''
+GATE_RETAIN=
+STUCK_RETAIN=
 
 # Poll steps (0.05s each) a process gets to exit after each escalation step.
 DECOY_POLLS=100
@@ -87,19 +89,22 @@ stop_decoy() {
 isolation_cleanup() {
   # Only the servers this suite started, each by its own explicit socket, and
   # only while it is still there; the decoy is gone before the suite returns.
-  local rc=0
-  [ ! -S "$GATE_SOCKET" ] || tmux -S "$GATE_SOCKET" kill-server 2>/dev/null
+  local status=$? rc=0
+  fm_test_stop_private_tmux "$GATE_SOCKET" tmux "$GATE_RETAIN" || rc=1
   if [ -n "$STUCK_PID" ]; then
     kill -CONT "$STUCK_PID" 2>/dev/null
-    stop_decoy "$STUCK_PID" "$STUCK_SOCKET" || rc=1
   fi
+  fm_test_stop_private_tmux "$STUCK_SOCKET" tmux "$STUCK_RETAIN" || rc=1
   if [ -n "$DECOY_PID" ]; then
     stop_decoy "$DECOY_PID" "$DEFAULT_SOCKET" || rc=1
   fi
-  fm_test_cleanup
-  [ "$rc" -eq 0 ] || exit 1
+  fm_test_finalize "$status" "$rc"
 }
 trap isolation_cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+trap 'exit 131' QUIT
 
 # gate_run <base> [NAME=VALUE...]: the gate's output and exit, in a subshell,
 # followed by RAN when the gate let the script continue.
@@ -118,48 +123,59 @@ gate_run() {
 # FM_LAB_ISO_TMP_COPY marks the copy of this suite under /tmp (below), which
 # needs only the decoy preflight.
 if [ -z "${FM_LAB_ISO_HOST_MARKER:-}" ] && [ -z "${FM_LAB_ISO_TMP_COPY:-}" ]; then
-  out=$(gate_run "$TMP_ROOT/base")
+  GATE_SOCKET="$TMP_ROOT/tmux-$(id -u)/s"
+  STUCK_SOCKET="$TMP_ROOT/b/tmux-$(id -u)/s"
+  out=$(gate_run "$TMP_ROOT")
   expect_code 0 "$?" "the gate passes with no socket directory: $out"
   assert_equals RAN "$out" "the gate runs the suite where no tmux server can answer"
 
-  mkdir -p "$TMP_ROOT/base"
-  mkdir -m 700 "$TMP_ROOT/base/tmux-$(id -u)"
+  mkdir -m 700 "${GATE_SOCKET%/*}"
+  fm_test_arm_private_tmux GATE_RETAIN "$TMP_ROOT" || fail 'could not protect gate scratch'
   tmux -S "$GATE_SOCKET" -f /dev/null new-session -d -s live 'exec sleep 600' || fail "cannot start the gate's own server"
-  out=$(gate_run "$TMP_ROOT/base")
+  out=$(gate_run "$TMP_ROOT")
   expect_code 0 "$?" "the gate skips cleanly beside a live server: $out"
   assert_contains "$(printf '%s\n' "$out" | head -n 1)" "skip: tmux isolation: a live tmux server answers on $GATE_SOCKET" "the skip is the first line and names the live socket"
   assert_contains "$out" "unshare -Urm" "the skip names the isolation it needs"
   assert_not_contains "$out" RAN "the gate stops the suite beside a live server"
 
-  out=$(gate_run "$TMP_ROOT/base" CI=true)
+  out=$(gate_run "$TMP_ROOT" CI=true)
   expect_code 0 "$?" "under CI the gate skips the same way: $out"
   assert_contains "$out" "skip: tmux isolation" "under CI the gate still says why it skips"
   assert_not_contains "$out" RAN "under CI the gate stops the suite beside a live server"
 
-  tmux -S "$GATE_SOCKET" kill-server 2>/dev/null
-  out=$(gate_run "$TMP_ROOT/base")
+  fm_test_stop_private_tmux "$GATE_SOCKET" tmux "$GATE_RETAIN" || fail 'could not stop the gate server'
+  out=$(gate_run "$TMP_ROOT")
   assert_equals RAN "$out" "the gate runs again once only a dead socket is left"
   pass "fm_tmux_isolation_gate runs isolated and skips beside a live server"
 
   # A server that accepts the connection but never answers (stopped here) must
   # not hold the gate: it gives up at its probe deadline and skips.
-  mkdir -p "$TMP_ROOT/stuck"
-  mkdir -m 700 "$TMP_ROOT/stuck/tmux-$(id -u)"
+  mkdir -p "$TMP_ROOT/b"
+  mkdir -m 700 "${STUCK_SOCKET%/*}"
+  fm_test_arm_private_tmux STUCK_RETAIN "$TMP_ROOT" || fail 'could not protect stuck-server scratch'
   tmux -S "$STUCK_SOCKET" -f /dev/null new-session -d -s stuck 'exec sleep 600' || fail "cannot start the stuck server"
+  [ -f "$STUCK_RETAIN" ] || fail 'running server lacks scratch protection'
   STUCK_PID=$(tmux -S "$STUCK_SOCKET" display-message -p '#{pid}')
   [ -n "$STUCK_PID" ] || fail "the stuck server has no pid"
   kill -STOP "$STUCK_PID" || fail "cannot stop the stuck server"
   start=$(date +%s)
   # shellcheck disable=SC2016 # $1 and $2 expand in the bounded shell.
-  out=$(FM_TMUX_ISOLATION_PROBE_SECONDS=1 fm_run_timed 30 bash -c '. "$1/tests/lib.sh"; fm_tmux_isolation_gate "$2"; echo RAN' _ "$ROOT" "$TMP_ROOT/stuck" 2>&1)
+  out=$(FM_TMUX_ISOLATION_PROBE_SECONDS=1 fm_run_timed 30 bash -c '. "$1/tests/lib.sh"; fm_tmux_isolation_gate "$2"; echo RAN' _ "$ROOT" "$TMP_ROOT/b" 2>&1)
   code=$?
+  gate_elapsed=$(($(date +%s) - start))
+  shutdown_rc=0
+  shutdown=$(fm_test_stop_private_tmux "$STUCK_SOCKET" tmux "$STUCK_RETAIN" 2>&1) || shutdown_rc=$?
   kill -CONT "$STUCK_PID" 2>/dev/null
+  expect_code 1 "$shutdown_rc" "shutdown returns when the private server does not answer"
+  assert_contains "$shutdown" "retained socket: $STUCK_SOCKET" 'unverified teardown names the retained socket'
+  [ -f "$STUCK_RETAIN" ] || fail 'unverified teardown released scratch protection'
   stop_decoy "$STUCK_PID" "$STUCK_SOCKET" || fail "cannot stop the stuck server"
+  if [ -n "$STUCK_RETAIN" ]; then rm -f -- "$STUCK_RETAIN"; fi
   STUCK_PID=''
   expect_code 0 "$code" "the gate returns from a server that never answers: $out"
   assert_contains "$out" "skip: tmux isolation: the tmux server on $STUCK_SOCKET did not answer within 1s" "the skip names the silent socket and the deadline"
   assert_not_contains "$out" RAN "the gate stops the suite beside a server that never answers"
-  [ $(($(date +%s) - start)) -lt 10 ] || fail "the gate waited past its probe deadline"
+  [ "$gate_elapsed" -lt 10 ] || fail "the gate waited past its probe deadline"
   pass "fm_tmux_isolation_gate skips at its deadline when a tmux server does not answer"
 
   # ---- the decoy cleanup is bounded ------------------------------------------

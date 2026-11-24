@@ -126,9 +126,8 @@ if [ -e "$FM_HOME/state/arm-fast" ]; then
   printf 'stale: fixture-win fast\n'
   exit 0
 fi
-sleep 30
-printf 'stale: fixture-win late\n'
-exit 0
+# The guard retires this PID on takeover; no child may outlive it.
+exec sleep 30
 SH
       ;;
   esac

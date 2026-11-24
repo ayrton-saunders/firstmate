@@ -30,11 +30,11 @@ test_family_pool_json_identifies_admission() {
   repo="$tmp/repo"
   proof="$repo/bin/fm-test-isolation-proof.sh"
   json="$tmp/proof.json"
-  admitted_json="$tmp/admitted-proof.json"
+  admitted_json="$tmp/admitted/proof.json"
   capped_json="$tmp/capped-proof.json"
   skipped_json="$tmp/skipped-proof.json"
   mkdir -p "$repo/bin" "$repo/tests"
-  cp "$PROOF" "$proof"
+  cp "$PROOF" "$ROOT/bin/fm-test-scratch-lib.sh" "$ROOT/bin/fm-wake-lib.sh" "$ROOT/bin/fm-path-lib.sh" "$repo/bin/"
   cat >"$repo/bin/fm-test-run.sh" <<'SH'
 #!/usr/bin/env bash
 if { [ "$1" = --list ] || [ "$1" = --list-scheduled ]; } && [ "$2" = --family ]; then
@@ -44,22 +44,38 @@ if { [ "$1" = --list ] || [ "$1" = --list-scheduled ]; } && [ "$2" = --family ];
       exit 0
       ;;
     admitted-family)
-      printf '%s\n' tests/fm-proof-slow.test.sh tests/fm-proof-fast.test.sh tests/fm-proof-replacement.test.sh
+      if [ "${PROOF_UNDRAINED:-0}" = 1 ]; then
+        printf '%s\n' tests/fm-proof-undrained.test.sh tests/fm-proof-slow.test.sh tests/fm-proof-replacement.test.sh
+      else
+        printf '%s\n' tests/fm-proof-slow.test.sh tests/fm-proof-z-fast.test.sh tests/fm-proof-replacement.test.sh
+      fi
       exit 0
       ;;
     skipped-family)
       printf '%s\n' tests/fm-proof-skipped.test.sh
       exit 0
       ;;
+    interrupt-family)
+      printf '%s\n' tests/fm-proof-interrupt.test.sh tests/fm-proof-fixture-a.test.sh
+      exit 0
+      ;;
+    retaining-family)
+      printf '%s\n' tests/fm-proof-retaining.test.sh
+      exit 0
+      ;;
+    failing-family)
+      printf '%s\n' tests/fm-proof-readonly.test.sh
+      exit 0
+      ;;
   esac
 fi
 if [ "$1" = --list-concurrent-safe-families ]; then
-  printf '%s\n' admitted-family skipped-family
+  printf '%s\n' admitted-family skipped-family retaining-family
   exit 0
 fi
 if [ "$1" = --concurrent-safe-family-jobs-max ]; then
   case "$2" in
-    admitted-family|skipped-family)
+    admitted-family|skipped-family|retaining-family)
       printf '2\n'
       exit 0
       ;;
@@ -70,12 +86,23 @@ SH
   for fixture in fm-proof-fixture-a.test.sh fm-proof-fixture-b.test.sh; do
     cat >"$repo/tests/$fixture" <<'SH'
 #!/usr/bin/env bash
+[ -d "$TMPDIR" ] && [ "$TMP" = "$TMPDIR" ] && [ "$TEMP" = "$TMPDIR" ] || exit 1
+if [ -n "${EXPECTED_PROOF_HOME:-}" ]; then
+  [ "$FM_ROOT" -ef "$EXPECTED_PROOF_HOME" ] && [ "$STATE" -ef "$EXPECTED_PROOF_HOME/state" ] || exit 1
+fi
 echo "ok - proof fixture"
 SH
     chmod +x "$repo/tests/$fixture"
   done
   cat >"$repo/tests/fm-proof-slow.test.sh" <<'SH'
 #!/usr/bin/env bash
+if [ "${PROOF_REPLAY_ORDER:-0}" != 0 ]; then
+  trap 'touch "$PROOF_SCHED_EVIDENCE/sibling-stopped"; exit 0' TERM
+  printf '%s\n' "$PPID" > "$PROOF_SCHED_EVIDENCE/sibling-group"
+  printf '%s\n' "$$" > "$PROOF_SCHED_EVIDENCE/sibling-ready"
+  for ((i=0; i<200; ++i)); do sleep 0.05; done
+  exit 1
+fi
 waited=0
 while [ ! -e "$PROOF_SCHED_EVIDENCE/replacement-started" ] && [ "$waited" -lt 200 ]; do
   sleep 0.05
@@ -84,7 +111,7 @@ done
 touch "$PROOF_SCHED_EVIDENCE/slow-done"
 echo "ok - slow proof fixture"
 SH
-  cat >"$repo/tests/fm-proof-fast.test.sh" <<'SH'
+  cat >"$repo/tests/fm-proof-z-fast.test.sh" <<'SH'
 #!/usr/bin/env bash
 echo "ok - fast proof fixture"
 SH
@@ -102,12 +129,182 @@ SH
 echo
 echo "skip: herdr not found"
 SH
+  cat >"$repo/tests/fm-proof-readonly.test.sh" <<'SH'
+#!/usr/bin/env bash
+set -e
+mkdir "$TMPDIR/readonly"
+printf '%s\n' 'scratch' >"$TMPDIR/readonly/file"
+chmod 0500 "$TMPDIR/readonly"
+printf '%s\n' 'readonly fixture ready'
+python3 -c 'print("x" * 262144)'
+exit 7
+SH
+  cat >"$repo/tests/fm-proof-interrupt.test.sh" <<'SH'
+#!/usr/bin/env bash
+on_term() {
+  [ -d "$TMPDIR" ] && printf 'scratch existed at TERM\n' >"$PROOF_SIGNAL_DIR/term"
+  exit 0
+}
+trap on_term TERM
+printf '%s\n' "$$" >"$PROOF_SIGNAL_DIR/ready"
+while :; do sleep 0.1; done
+SH
+  cat >"$repo/tests/fm-proof-retaining.test.sh" <<'SH'
+#!/usr/bin/env bash
+set -eu
+. bin/fm-test-scratch-lib.sh
+fm_test_arm_private_tmux MARKER
+printf '%s\n' 'retained scratch' >"$TMPDIR/sentinel"
+SH
+  cat >"$repo/tests/fm-proof-undrained.test.sh" <<'SH'
+#!/usr/bin/env bash
+if [ "${PROOF_REPLAY_ORDER:-0}" != 0 ]; then
+  for ((i=0; i<100; ++i)); do
+    [ ! -s "$PROOF_SCHED_EVIDENCE/sibling-ready" ] || break
+    sleep 0.05
+  done
+  [ -s "$PROOF_SCHED_EVIDENCE/sibling-ready" ] || exit 1
+  python3 -c 'print("x" * 262144)'
+fi
+if [ "${PROOF_REPLAY_ORDER:-0}" = private ] || [ "${PROOF_REPLAY_ORDER:-0}" = final ]; then
+  : > "$FM_TEST_RETAIN_MARKER.fixture"
+  exit 0
+fi
+sleep 20 &
+printf '%s\n' "$!" >"$PROOF_SCHED_EVIDENCE/lingering-pid"
+echo 'candidate left a background process'
+SH
   chmod +x "$proof" "$repo/bin/fm-test-run.sh" "$repo/tests/fm-proof-"*.test.sh
-  set +e
-  "$proof" --pool fixture-family --jobs 1 --json "$json" >"$tmp/out" 2>"$tmp/err"
-  rc=$?
-  set -e
+  mkdir -p "$repo/.test-phase-tmp" "$tmp/tools"
+  # shellcheck disable=SC2016 # Expand variables when the stub runs.
+  printf '%s\n' '#!/usr/bin/env bash' 'touch "$MKTEMP_CALLED"; exit 1' >"$tmp/tools/mktemp"
+  chmod +x "$tmp/tools/mktemp"
+  rc=0
+  PATH="$tmp/tools:$PATH" TMPDIR="$repo/.test-phase-tmp" MKTEMP_CALLED="$tmp/mktemp-called" \
+    "$proof" --pool fixture-family --jobs 1 --json "$json" >"$tmp/out" 2>"$tmp/err" || rc=$?
+  assert_equals 2 "$rc" "checkout proof scratch exit status"
+  assert_contains "$(<"$tmp/err")" "unsafe scratch base" "checkout proof scratch refusal"
+  [ ! -e "$tmp/mktemp-called" ] && [ ! -e "$json" ] || fail "proof allocated scratch before refusing it"
+  mkdir "$tmp/proof-tmp"
+  rc=0
+  (cd "$tmp" && PATH="$tmp/tools:$PATH" TMPDIR=./proof-tmp FM_STATE_OVERRIDE=proof-tmp \
+    MKTEMP_CALLED="$tmp/mktemp-called" "$proof" --pool fixture-family --jobs 1 --json "$json") \
+    >"$tmp/out" 2>"$tmp/err" || rc=$?
+  assert_equals 2 "$rc" 'relative operational proof scratch exit status'
+  assert_contains "$(<"$tmp/err")" 'unsafe scratch base' 'relative operational proof scratch refusal'
+  [ ! -e "$tmp/mktemp-called" ] && [ ! -e "$json" ] || fail 'proof allocated scratch before refusing it'
+  TMPDIR="$tmp/proof-tmp" FM_TEST_RETAIN_MARKER="$tmp/proof-tmp/.retain-scratch" \
+    python3 - "$proof" <<'PY' || fail 'failed candidate replay did not follow verified scratch cleanup'
+import os, pathlib, subprocess, sys
+
+base = pathlib.Path(os.environ['TMPDIR'])
+with subprocess.Popen([sys.argv[1], '--pool', 'failing-family', '--jobs', '1'],
+                      stdout=subprocess.DEVNULL, stderr=subprocess.PIPE) as proof:
+    try:
+        for line in proof.stderr:
+            if b'candidate failed:' in line:
+                break
+        else:
+            raise AssertionError('missing failure diagnostic')
+        assert not list(base.iterdir()), 'replay began with scratch or parent marker present'
+        assert b'readonly fixture ready' in proof.stderr.read()
+        assert proof.wait(timeout=5) == 1
+    finally:
+        if proof.poll() is None:
+            proof.kill()
+PY
+  TMPDIR="$tmp/proof-tmp" PROOF_SIGNAL_DIR="$tmp" python3 - "$proof" <<'PY' || fail 'interrupted proof did not drain its candidate before cleanup'
+import os, pathlib, signal, subprocess, sys, time
+
+if os.name != 'posix':
+    print('skip proof cancellation subcase: native Python cannot deliver catchable TERM')
+    sys.exit(0)
+
+base = pathlib.Path(os.environ['PROOF_SIGNAL_DIR'])
+with (base / 'interrupted.log').open('w') as log:
+    proof = subprocess.Popen([sys.argv[1], '--pool', 'interrupt-family', '--jobs', '2'],
+                             stdout=log, stderr=log, stdin=subprocess.DEVNULL)
+    try:
+        for _ in range(100):
+            if (base / 'ready').exists():
+                break
+            assert proof.poll() is None
+            time.sleep(0.05)
+        else:
+            raise AssertionError('candidate never started')
+        proof.send_signal(signal.SIGTERM)
+        assert proof.wait(timeout=10) == 143
+        assert (base / 'term').read_text() == 'scratch existed at TERM\n'
+        assert not list((base / 'proof-tmp').iterdir())
+    finally:
+        if proof.poll() is None:
+            proof.kill()
+            proof.wait()
+        ready = base / 'ready'
+        if ready.exists() and not (base / 'term').exists():
+            pid = ready.read_text().strip()
+            if pid:
+                try:
+                    os.kill(int(pid), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+PY
+  mkdir "$tmp/retained [SSD]"
+  local wrapper="$tmp/nested-proof.sh" verify="$ROOT/bin/fm-test-tap-verify.sh"
+  # shellcheck disable=SC2016 # Expand variables when the wrapper runs.
+  printf '%s\n' 'if [ -n "${PROOF_PID_FILE:-}" ]; then printf "%s\n" "$$" > "$PROOF_PID_FILE"; fi' \
+    'exec "$NESTED_PROOF" --pool "$NESTED_POOL" --jobs 2 --json "$NESTED_REPORT"' > "$wrapper"
+  rc=0
+  FM_TEST_RETAIN_MARKER="$tmp/.retain-scratch" \
+    TMPDIR="$tmp/retained [SSD]" NESTED_PROOF="$proof" NESTED_POOL=retaining-family NESTED_REPORT="$tmp/retained.json" \
+    "$verify" "$wrapper" >"$tmp/retained.out" 2>"$tmp/retained.err" || rc=$?
+  assert_equals 1 "$rc" 'unverified private teardown fails the proof'
+  assert_contains "$(<"$tmp/retained.out")" 'FM_ISOLATION_SUMMARY total=1 failed=1' 'retained worker fails the summary'
+  python3 -c 'import json, sys; r = json.load(open(sys.argv[1])); assert r["summary"]["failed"] == 1 and not r["fm_test_run_jobs_enabled"] and r["scripts"][0]["exit"] == 1' "$tmp/retained.json" || fail 'retained worker was admitted in JSON'
+  set -- "$tmp/retained [SSD]"/fm-test-tap-verify.*/tmp/fm-isolation-proof.*
+  [ "$#" -eq 1 ] && [ -f "$1/w1/tmp/sentinel" ] || fail 'enclosing verifier deleted explicitly retained proof scratch'
+  assert_contains "$(<"$tmp/retained.out")" "retaining scratch: $(cd "$1" && pwd -P)" 'proof diagnostic names its retained root'
+  assert_contains "$(<"$tmp/retained.err")" 'fixture teardown unverified' 'enclosing verifier honors proof retention'
+  # shellcheck disable=SC2016 # Expand arguments when the stub runs.
+  printf '%s\n' '#!/usr/bin/env bash' 'case "${!#}" in */fm-isolation-proof.??????) exit 1 ;; esac' 'exec "$REAL_RM" "$@"' >"$tmp/tools/rm"
+  chmod +x "$tmp/tools/rm"
+  rm "$tmp/tools/mktemp"
+  mkdir "$tmp/cleanup-evidence"
+  rc=0
+  FM_TEST_RETAIN_MARKER="$tmp/.retain-scratch" \
+    PROOF_SCHED_EVIDENCE="$tmp/cleanup-evidence" REAL_RM="$(command -v rm)" \
+    PATH="$tmp/tools:$PATH" TMPDIR="$tmp/proof-tmp" \
+    "$proof" --pool admitted-family --jobs 2 --json "$tmp/cleanup.json" >"$tmp/cleanup.out" 2>"$tmp/cleanup.err" || rc=$?
+  assert_equals 1 "$rc" 'failed proof removal cannot produce success'
+  assert_contains "$(<"$tmp/cleanup.err")" 'could not remove scratch' 'proof reports failed removal'
+  assert_contains "$(<"$tmp/cleanup.out")" 'FM_ISOLATION_CLEANUP failed' 'cleanup failure has its own summary line'
+  python3 -c 'import json, sys; r = json.load(open(sys.argv[1])); assert r["cleanup_failed"] is True and r["summary"]["failed"] == 0 and all(s["exit"] == 0 for s in r["scripts"]) and not r["fm_test_run_jobs_enabled"]' "$tmp/cleanup.json" || fail 'failed removal was admitted in JSON'
+  mkdir "$tmp/snapshot-tools"
+  cat >"$tmp/snapshot-tools/git" <<'SH'
+#!/usr/bin/env bash
+if [ "$*" = 'config --global --list' ]; then
+  if [ "$TMPDIR" = "$EXPECTED_PROOF_BASE" ] && [ "$TMP" = "$EXPECTED_PROOF_BASE" ] &&
+     [ "$TEMP" = "$EXPECTED_PROOF_BASE" ]; then
+    printf 'validated\n' >>"$PROOF_SNAPSHOT_LOG"
+  else
+    printf 'unvalidated: %s %s %s\n' "$TMPDIR" "$TMP" "$TEMP" >>"$PROOF_SNAPSHOT_LOG"
+  fi
+  exit 0
+fi
+exec "$REAL_GIT" "$@"
+SH
+  chmod +x "$tmp/snapshot-tools/git"
+  rc=0
+  mkdir -p "$tmp/worker-home/state"
+  (cd "$tmp" && TMPDIR=./proof-tmp TMP="$repo" TEMP="$repo" \
+    FM_ROOT=./worker-home STATE=./worker-home/state EXPECTED_PROOF_HOME="$tmp/worker-home" \
+    EXPECTED_PROOF_BASE="$(cd proof-tmp && pwd -P)" PROOF_SNAPSHOT_LOG="$tmp/snapshots" \
+    REAL_GIT="$(command -v git)" PATH="$tmp/snapshot-tools:$PATH" \
+    "$proof" --pool fixture-family --jobs 1 --json "$json") \
+    >"$tmp/out" 2>"$tmp/err" || rc=$?
   [ "$rc" -eq 0 ] || fail "family pool proof fixture failed: $(cat "$tmp/out") $(cat "$tmp/err")"
+  assert_present "$tmp/snapshots" 'proof ran both parent snapshots'
+  assert_equals $'validated\nvalidated' "$(<"$tmp/snapshots")" 'parent snapshots use the canonical launch-directory base'
   python3 -c '
 import json, sys
 artifact = json.load(open(sys.argv[1], encoding="utf-8"))
@@ -118,10 +315,22 @@ assert artifact["production_sharding_enabled"] is False
 assert artifact["summary"]["total"] == 2
 assert artifact["summary"]["failed"] == 0
 ' "$json" || fail "serial family pool artifact metadata is incorrect"
-  set +e
-  PROOF_SCHED_EVIDENCE="$tmp" "$proof" --pool admitted-family --jobs 2 --json "$admitted_json" >"$tmp/admitted.out" 2>"$tmp/admitted.err"
-  rc=$?
-  set -e
+  mkdir -p "$tmp/report-tools" "$tmp/report-scratch"
+  cat > "$tmp/report-tools/mkdir" <<'SH'
+#!/usr/bin/env bash
+if [ "$*" = "-p $REPORT_DIR" ]; then
+  for entry in "$PROOF_BASE"/fm-isolation-proof.* "$PROOF_BASE"/.retain-scratch.*; do
+    [ ! -e "$entry" ] || exit 9
+  done
+fi
+exec "$REAL_MKDIR" "$@"
+SH
+  chmod +x "$tmp/report-tools/mkdir"
+  rc=0
+  TMPDIR="$tmp/report-scratch" FM_TEST_RETAIN_MARKER="$tmp/report-scratch/.retain-scratch" \
+    PROOF_BASE="$tmp/report-scratch" REPORT_DIR="${admitted_json%/*}" REAL_MKDIR="$(command -v mkdir)" \
+    PATH="$tmp/report-tools:$PATH" PROOF_SCHED_EVIDENCE="$tmp" \
+    "$proof" --pool admitted-family --jobs 2 --json "$admitted_json" >"$tmp/admitted.out" 2>"$tmp/admitted.err" || rc=$?
   [ "$rc" -eq 0 ] || fail "admitted family proof fixture failed: $(cat "$tmp/admitted.out") $(cat "$tmp/admitted.err")"
   python3 -c '
 import json, sys
@@ -131,7 +340,153 @@ assert artifact["concurrency"] == 2
 assert artifact["fm_test_run_jobs_enabled"] is True
 assert artifact["summary"]["total"] == 3
 assert artifact["summary"]["failed"] == 0
-' "$admitted_json" || fail "admitted family pool artifact metadata is incorrect"
+paths = [s["path"] for s in artifact["scripts"]]
+assert paths == ["tests/fm-proof-replacement.test.sh", "tests/fm-proof-slow.test.sh", "tests/fm-proof-z-fast.test.sh"], paths
+with open(sys.argv[2], encoding="utf-8") as output:
+    ends = [line.split()[2] for line in output if line.startswith("FM_ISOLATION_CANDIDATE_END ")]
+assert ends[0] == "tests/fm-proof-z-fast.test.sh", ends
+' "$admitted_json" "$tmp/admitted.out" || fail "admitted family proof must serialize paths independently of completion order"
+  cat >> "$repo/bin/fm-test-scratch-lib.sh" <<'SH'
+if [ "${PROOF_REPLAY_ORDER:-0}" != 0 ]; then
+  eval "$(declare -f fm_test_drain_groups | awk 'NR == 1 {sub(/^fm_test_drain_groups/, "fixture_drain_groups")} {print}')"
+  fixture_sibling_refused=0
+  fm_test_drain_groups() {
+    local sibling record i
+    sibling=$(<"$PROOF_SCHED_EVIDENCE/sibling-group")
+    for record in "${@:2}"; do
+      case "$record" in
+        "$UID|$sibling|$sibling|"*)
+          if [ "$PROOF_REPLAY_ORDER" = final ] && [ "$fixture_sibling_refused" -eq 0 ]; then
+            fixture_sibling_refused=1
+            return 1
+          fi
+          printf '%s\n' 'fixture sibling drain waiting'
+          for ((i=0; i<160; ++i)); do
+            if [ -f "$PROOF_SCHED_EVIDENCE/release-drain" ]; then break; fi
+            sleep 0.05
+          done
+          [ -f "$PROOF_SCHED_EVIDENCE/release-drain" ] || return 1
+          break
+          ;;
+      esac
+    done
+    fixture_drain_groups "$@"
+  }
+fi
+SH
+  local replay_order
+  for replay_order in group private final; do
+    mkdir "$tmp/replay-$replay_order"
+    FM_TEST_RETAIN_MARKER="$tmp/replay-$replay_order/.retain-scratch" \
+      TMPDIR="$tmp/replay-$replay_order" PROOF_SCHED_EVIDENCE="$tmp/replay-$replay_order" PROOF_UNDRAINED=1 \
+      PROOF_REPLAY_ORDER="$replay_order" python3 - "$proof" <<'PY' || fail "proof replayed before stopping the sibling worker ($replay_order)"
+import os, pathlib, select, signal, subprocess, sys, time
+
+if os.name != 'posix':
+    sys.exit(0)
+base = pathlib.Path(os.environ['TMPDIR'])
+with subprocess.Popen([sys.argv[1], '--pool', 'admitted-family', '--jobs', '2'],
+                      stdout=subprocess.PIPE, stderr=subprocess.STDOUT) as proof:
+    try:
+        output = b''
+        deadline = time.monotonic() + 8
+        end = b'FM_ISOLATION_CANDIDATE_END '
+        while b'fixture sibling drain waiting\n' not in output:
+            assert select.select([proof.stdout], [], [], max(0, deadline - time.monotonic()))[0], output
+            chunk = os.read(proof.stdout.fileno(), 4096)
+            assert chunk, output
+            output += chunk
+            assert end not in output, output
+        assert not (base / 'sibling-stopped').exists(), output
+        (base / 'release-drain').touch()
+        remaining, _ = proof.communicate(timeout=5)
+        assert end in remaining and b'candidate failed:' in remaining, remaining
+        assert (base / 'sibling-stopped').exists(), remaining
+        assert not (base / 'replacement-started').exists()
+        assert len(list(base.glob('fm-isolation-proof.*'))) == 1
+        assert proof.returncode == 1
+    finally:
+        if proof.poll() is None:
+            proof.kill()
+        for name in ('lingering-pid', 'sibling-ready'):
+            pid_file = base / name
+            if pid_file.exists() and (name != 'sibling-ready' or not (base / 'sibling-stopped').exists()):
+                try:
+                    os.kill(int(pid_file.read_text()), signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+PY
+  done
+  mkdir "$tmp/undrained"
+  cp "$admitted_json" "$tmp/undrained/proof.json"
+  FM_TEST_RETAIN_MARKER="$tmp/undrained/.retain-scratch" \
+    TMPDIR="$tmp/undrained" PROOF_SCHED_EVIDENCE="$tmp/undrained" PROOF_UNDRAINED=1 \
+    NESTED_PROOF="$proof" NESTED_POOL=admitted-family NESTED_REPORT="$tmp/undrained/proof.json" \
+    python3 - "$verify" "$wrapper" <<'PY' || fail 'undrained proof did not publish a failed artifact'
+import json, os, pathlib, signal, subprocess, sys
+
+if os.name != 'posix':
+    print('skip leaderless process group subcase: requires POSIX signals')
+    sys.exit(0)
+
+base = pathlib.Path(os.environ['TMPDIR'])
+artifact = base / 'proof.json'
+try:
+    result = subprocess.run(sys.argv[1:], capture_output=True, text=True, timeout=10)
+    assert result.returncode == 1, result
+    assert 'FM_ISOLATION_SUMMARY total=1 failed=1' in result.stdout, result
+    assert 'candidate left a background process' in result.stdout, result
+    assert 'could not confirm worker group exit; retaining scratch:' in result.stdout, result
+    assert 'fixture teardown unverified' in result.stderr, result
+    assert not (base / 'replacement-started').exists()
+    assert len(list(base.glob('fm-test-tap-verify.*/tmp/fm-isolation-proof.*'))) == 1
+    report = json.loads(artifact.read_text())
+    assert report['summary']['failed'] == 1 and not report['fm_test_run_jobs_enabled'], report
+    assert [(s['path'], s['exit']) for s in report['scripts']] == [('tests/fm-proof-undrained.test.sh', 1)], report
+finally:
+    pid_file = base / 'lingering-pid'
+    if pid_file.exists():
+        try:
+            os.kill(int(pid_file.read_text()), signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+PY
+  mkdir -p "$tmp/escalate/tmp"
+  TMPDIR="$tmp/escalate/tmp" FM_TEST_RETAIN_MARKER="$tmp/escalate/.retain-scratch" \
+    PROOF_SIGNAL_DIR="$tmp/escalate" PROOF_PID_FILE="$tmp/escalate/proof-pid" \
+    NESTED_PROOF="$proof" NESTED_POOL=interrupt-family NESTED_REPORT="$tmp/escalate/proof.json" \
+    python3 - "$verify" "$wrapper" <<'PY' || fail 'parent escalation lost nested scratch protection'
+import os, pathlib, signal, subprocess, sys, time
+
+if os.name != 'posix':
+    sys.exit(0)
+base = pathlib.Path(os.environ['PROOF_SIGNAL_DIR'])
+proof_pid = candidate_pid = None
+with (base / 'log').open('w') as log:
+    tap = subprocess.Popen(sys.argv[1:], stdin=subprocess.DEVNULL, stdout=log, stderr=log)
+    try:
+        for _ in range(100):
+            if (base / 'ready').exists() and (base / 'ready').read_text().strip():
+                break
+            assert tap.poll() is None
+            time.sleep(0.05)
+        candidate_pid = int((base / 'ready').read_text())
+        proof_pid = int((base / 'proof-pid').read_text())
+        os.kill(proof_pid, signal.SIGSTOP)
+        tap.send_signal(signal.SIGTERM)
+        assert tap.wait(timeout=8) == 143
+        assert (base / f'.retain-scratch.{tap.pid}.tap').exists()
+        assert list((base / 'tmp').glob('fm-test-tap-verify.*/tmp/fm-isolation-proof.*/w1/tmp'))
+        os.kill(candidate_pid, 0)
+    finally:
+        for pid in (tap.pid if tap.poll() is None else None, proof_pid, candidate_pid):
+            if pid is not None:
+                try:
+                    os.kill(pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
+        tap.wait()
+PY
   mkdir "$tmp/capped-evidence"
   set +e
   PROOF_SCHED_EVIDENCE="$tmp/capped-evidence" "$proof" --pool admitted-family --jobs 3 --json "$capped_json" >"$tmp/capped.out" 2>"$tmp/capped.err"

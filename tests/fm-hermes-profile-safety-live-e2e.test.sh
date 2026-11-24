@@ -11,15 +11,42 @@ set -u
 fm_live_gate opt-in FM_HERMES_PROFILE_SAFETY_LIVE hermes tmux python3
 : "${FM_HERMES_PYTHON:?provide the installed Hermes Python environment}"
 HERMES_BIN=$(command -v hermes)
-LAB=$(mktemp -d "${TMPDIR:-/tmp}/hm-safety.XXXXXX")
-LAB=$(cd "$LAB" && pwd -P)
-cleanup() { rm -rf "$LAB"; }
+LAB=
+SOCKET=
+allocating=1
+probe_signal=0
+TMUX_RETAIN=
+cleanup() {
+  local status=$?
+  if fm_test_stop_private_tmux "$SOCKET" tmux "$TMUX_RETAIN"; then
+    [ -z "$LAB" ] || fm_test_remove_tree "$LAB" || { [ "$status" -ne 0 ] || status=1; }
+  else
+    [ "$status" -ne 0 ] || status=1
+  fi
+  fm_test_cleanup || { [ "$status" -ne 0 ] || status=1; }
+  exit "$status"
+}
 trap cleanup EXIT
+interrupt_probe() {
+  probe_signal=$1
+  [ "$allocating" -ne 0 ] || exit "$probe_signal"
+}
+trap 'interrupt_probe 129' HUP
+trap 'interrupt_probe 130' INT
+trap 'interrupt_probe 131' QUIT
+trap 'interrupt_probe 143' TERM
+LAB=$(trap '' HUP INT QUIT TERM; mktemp -d "${FM_TEST_TMPDIR%/}/hm.XXXXXX") || fail 'could not allocate profile scratch'
+allocating=0
+[ "$probe_signal" -eq 0 ] || exit "$probe_signal"
+lab_path=$(cd "$LAB" && pwd -P) || fail 'could not resolve profile scratch'
+LAB=$lab_path
+SOCKET="$LAB/s"
 mkdir -p "$LAB/profiles/worker" "$LAB/work"
 printf '%s\n' '{"model":{"default":"gpt-6-astra","provider":"openai-codex"},"telemetry":{"shared_metrics":{"enabled":false,"send":false,"offer_version":2}}}' > "$LAB/profiles/worker/config.yaml"
 VERSION=$(HERMES_HOME="$LAB" "$HERMES_BIN" --version 2>/dev/null | head -1)
 VERSION=${VERSION:-Hermes version unknown}
-HERMES_HOME="$LAB/profiles/worker" "$FM_HERMES_PYTHON" - "$LAB" "$HERMES_BIN" "$ROOT" <<'PY'
+fm_test_arm_private_tmux TMUX_RETAIN || fail 'could not protect profile scratch'
+HERMES_HOME="$LAB/profiles/worker" "$FM_HERMES_PYTHON" - "$LAB" "$HERMES_BIN" "$ROOT" "$SOCKET" <<'PY'
 import os, shlex, shutil, subprocess, sys, time
 from pathlib import Path
 from gateway.status import acquire_gateway_runtime_lock, release_gateway_runtime_lock
@@ -29,7 +56,7 @@ home = root / 'profiles/worker'
 assert Path(os.environ['HERMES_HOME']) == home
 assert acquire_gateway_runtime_lock()
 print('native gateway runtime lock: held', flush=True)
-socket = str(root / 'native-safety.sock')
+socket = sys.argv[4]
 command = ('env HERMES_HOME=' + shlex.quote(str(root)) + ' ' + shlex.quote(binary)
            + ' -p worker --tui --yolo --in ' + shlex.quote(str(root / 'work')))
 try:
@@ -77,7 +104,6 @@ assert not result.get('error'), result
     print('two native session-store writers: distinct sessions retained', flush=True)
     print('two native memory add writers: both entries retained', flush=True)
 finally:
-    subprocess.run(['tmux', '-S', socket, 'kill-server'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     release_gateway_runtime_lock()
     print('native gateway runtime lock: released', flush=True)
 PY

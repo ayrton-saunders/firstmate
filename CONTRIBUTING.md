@@ -176,11 +176,13 @@ bin/fm-test-isolation-proof.sh --pool watcher-wake-lock --jobs 4   # re-run an a
 @AGENTS.md
 EOF
 [ "$(readlink .claude/skills)" = "../.agents/skills" ]
-tmp=$(mktemp -d) && printf 'done: smoke\n' > "$tmp/smoke.status" && FM_STATE_OVERRIDE="$tmp" FM_SIGNAL_GRACE=1 FM_POLL=1 FM_HEARTBEAT=999999 bin/fm-watch-arm.sh  # watcher re-arm smoke test (prints arm status, then an actionable signal)
+( . bin/fm-test-scratch-lib.sh && base=$(fm_test_os_scratch_base "$PWD") && fm_test_allocate_scratch "$base/fm-watch-smoke.XXXXXX" || exit 1; printf 'done: smoke\n' > "$FM_TEST_SCRATCH/smoke.status" && FM_STATE_OVERRIDE="$FM_TEST_SCRATCH" FM_SIGNAL_GRACE=1 FM_POLL=1 FM_HEARTBEAT=999999 bin/fm-watch-arm.sh )  # watcher re-arm smoke test (prints arm status, then an actionable signal)
 ```
 
 `bin/fm-test-run.sh` is the single owner of behavior-suite selection, portable CI lane composition, bounded concurrency admission, per-script timing markers, family totals, the coverage guard, and the optional JSON timing artifact.
-Its header and `--help` own the flags, family labels, lanes, and changed-file map; this section only documents the entry points.
+See the [runner header](bin/fm-test-run.sh) for its flags, OS scratch selection, and cleanup and recovery limits.
+For standalone tests and probes, see the [shared scratch library](bin/fm-test-scratch-lib.sh) for temp placement and the [fixture library](tests/lib.sh) for fixture recovery limits.
+The terminal-managed preservation copier has no tracked implementation in this fork and is outside the scope of these safeguards.
 `bin/fm-test-isolation-proof.sh` remains the single owner of the portable candidate proof and reusable family proof harness; see `docs/fm-test-isolation-proof.md`.
 Portable shard balance evidence lives in `docs/fm-test-portable-shards.md`.
 `bin/fm-test-linux.sh` is optional and never part of CI: on macOS, run it before publishing a branch whose tests depend on `stat`, `date`, or process behavior, because BSD and GNU tools differ.

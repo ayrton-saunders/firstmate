@@ -14,18 +14,26 @@ fm_live_gate default-on FM_CLAUDE_SAFEGUARD_LIVE claude python3 tmux
 . "$ROOT/bin/fm-busy-lib.sh"
 # shellcheck source=bin/fm-timeout-lib.sh
 . "$ROOT/bin/fm-timeout-lib.sh"
-TMP_ROOT=$(fm_test_tmproot fm-claude-safeguard-live)
+TMP_ROOT=$(fm_test_tmproot fm-s) || fail 'cannot allocate fixture scratch'
 version=$(claude --version 2>/dev/null | head -n 1)
 server_pid=''
 tmux_socket=''
+TMUX_RETAIN=
 stop_server() {
-  [ -z "$tmux_socket" ] || tmux -S "$tmux_socket" kill-server 2>/dev/null || true
+  local teardown=0
+  fm_test_stop_private_tmux "$tmux_socket" tmux "$TMUX_RETAIN" || teardown=1
   tmux_socket=''
   [ -z "$server_pid" ] || kill "$server_pid" 2>/dev/null || true
   [ -z "$server_pid" ] || wait "$server_pid" 2>/dev/null || true
   server_pid=''
+  return "$teardown"
 }
-trap 'stop_server; fm_test_cleanup' EXIT
+# shellcheck disable=SC2154 # The trap assigns status before using it.
+trap 'status=$?; teardown=0; stop_server || teardown=$?; fm_test_finalize "$status" "$teardown"' EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
+trap 'exit 129' HUP
+trap 'exit 131' QUIT
 for category in cyber none; do
   python3 "$ROOT/tests/fixtures/fm-claude-refusal.py" "$TMP_ROOT/$category.port" "$category" &
   server_pid=$!
@@ -69,7 +77,8 @@ config.mkdir(parents=True, exist_ok=True)
 }))
 PY
   for width in 180 64 40; do
-    tmux_socket="$TMP_ROOT/$category-$width.sock"
+    tmux_socket="$TMP_ROOT/${category:0:1}$width"
+    fm_test_arm_private_tmux TMUX_RETAIN "$TMP_ROOT" || fail 'could not protect Claude probe scratch'
     env -i PATH="$PATH" HOME="$TMP_ROOT/home-$category" TERM=xterm-256color \
       CLAUDE_CONFIG_DIR="$TMP_ROOT/config-$category" \
       ANTHROPIC_API_KEY=sk-ant-synthetic-loopback-only \
@@ -86,7 +95,8 @@ PY
     done
     fm_busy_safeguard_pause claude "$pane" \
       || fail "Claude $version: unrecognized interactive $category refusal at $width columns: $pane"
-    tmux -S "$tmux_socket" kill-server 2>/dev/null || true
+    fm_test_stop_private_tmux "$tmux_socket" tmux "$TMUX_RETAIN" || exit 1
+    TMUX_RETAIN=
     tmux_socket=''
     pass "Claude Code $version: interactive $category refusal is recognized at $width columns"
   done

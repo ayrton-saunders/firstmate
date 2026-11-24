@@ -29,8 +29,13 @@
 #   fm-test-tap-verify.sh TEST_SCRIPT
 #   fm-test-tap-verify.sh -h|--help
 #
-# The suite's stdout and stderr are replayed unchanged, then a one-line
-# summary is printed. Non-zero exit means the completeness check failed.
+# The suite's combined stdout and stderr are replayed after scratch cleanup is
+# attempted. Only a complete suite with successful cleanup gets a success
+# summary. If suite teardown cannot be verified, the verifier reports and
+# retains its scratch instead of deleting files a process may still be using.
+# Terminal stdin is preserved; a signal sent only to the verifier can wait
+# for a foreground suite or blocked output replay to return.
+# See bin/fm-test-scratch-lib.sh for standalone scratch placement and recovery.
 set -eu
 
 usage() {
@@ -70,15 +75,48 @@ fi
 SCRIPT=$1
 [ -f "$SCRIPT" ] || fail_verify "not a file: $SCRIPT"
 
-OUT=$(mktemp "${TMPDIR:-/tmp}/fm-test-tap-verify.XXXXXX") || exit 1
-trap 'rm -f "$OUT"' EXIT
+ROOT=$(cd -- "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P) || exit 1
+. "$ROOT/bin/fm-test-scratch-lib.sh"
+base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}") || exit "$?"
+fm_test_allocate_scratch "${base%/}/fm-test-tap-verify.XXXXXX" || exit 1
+OUT="$FM_TEST_SCRATCH/output"
+probe_owner=
+parent_marker=${FM_TEST_RETAIN_MARKER:+$FM_TEST_RETAIN_MARKER.$$.tap}
+remove_verify_scratch() {
+  if ! fm_test_probe_drain || { [ -n "$FM_TEST_SCRATCH" ] && fm_test_scratch_retained "$FM_TEST_SCRATCH"; }; then
+    printf 'fixture teardown unverified; retaining scratch: %s\n' "$FM_TEST_SCRATCH" >&2
+    return 1
+  fi
+  fm_test_cleanup_scratch "$FM_TEST_SCRATCH" || return 1
+  FM_TEST_SCRATCH=
+  if [ -n "$parent_marker" ]; then
+    rm -f -- "$parent_marker" || return 1
+    parent_marker=
+  fi
+}
+cleanup_verify() {
+  local status=$?
+  trap '' HUP INT QUIT TERM
+  remove_verify_scratch || { [ "$status" -ne 0 ] || status=1; }
+  exit "$status"
+}
+trap cleanup_verify EXIT
+mkdir "$FM_TEST_SCRATCH/tmp"
+export TMPDIR="$FM_TEST_SCRATCH/tmp" TMP="$FM_TEST_SCRATCH/tmp" TEMP="$FM_TEST_SCRATCH/tmp"
 
-set +e
-"$BASH" "$SCRIPT" >"$OUT" 2>&1
-STATUS=$?
-set -e
-
-cat "$OUT"
+run_suite() {
+  if [ -t 0 ]; then
+    "$BASH" "$SCRIPT" >"$OUT" 2>&1
+  else
+    # shellcheck disable=SC2016 # Expand arguments in the probe shell.
+    fm_test_probe_run "$BASH" -c 'out=$1; shift; exec "$@" >"$out" 2>&1' _ "$OUT" "$BASH" "$SCRIPT"
+  fi
+}
+STATUS=0
+if [ -n "$parent_marker" ]; then
+  : > "$parent_marker" || fail_verify 'could not arm TAP retention marker'
+fi
+FM_TEST_RETAIN_MARKER="$FM_TEST_SCRATCH/.retain-scratch" run_suite || STATUS=$?
 
 PLAN_COUNT=$(count_matches '^1\.\.[1-9][0-9]*$' "$OUT")
 OK_COUNT=$(count_matches '^ok - ' "$OUT")
@@ -91,6 +129,12 @@ case "$PLANNED" in
 esac
 
 LABEL=${SCRIPT##*/}
+
+exec 3< "$OUT"
+cleanup_status=0
+remove_verify_scratch || cleanup_status=1
+cat <&3
+exec 3<&-
 
 if [ "$STATUS" -ne 0 ]; then
   fail_verify "$LABEL exited $STATUS (planned $PLANNED, ok $OK_COUNT, not ok $NOT_OK_COUNT, complete $COMPLETE_COUNT)"
@@ -108,5 +152,6 @@ if [ "$OK_COUNT" -ne "$PLANNED" ]; then
   fail_verify "$LABEL planned $PLANNED ok lines, got $OK_COUNT"
 fi
 
+[ "$cleanup_status" -eq 0 ] || fail_verify "suite scratch cleanup failed: $FM_TEST_SCRATCH"
 printf 'fm-test-tap-verify: %s: %s planned, %s ok, complete, exit 0\n' \
   "$LABEL" "$PLANNED" "$OK_COUNT"

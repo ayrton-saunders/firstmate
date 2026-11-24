@@ -40,7 +40,11 @@ SH
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP_ROOT/fakebin/ps"
 printf '#!/usr/bin/env bash\nexit 0\n' > "$TMP_ROOT/fakebin/sleep"
 chmod +x "$TMP_ROOT/fakebin/"*
-export FM_HC_BIN="$TMP_ROOT/fakebin/hc" PATH="$TMP_ROOT/fakebin:$PATH"
+export FM_HC_BIN="$TMP_ROOT/fakebin/hc"
+
+run_lab() {
+  PATH="$TMP_ROOT/fakebin:$PATH" bash "$LAB" "$@"
+}
 
 refuse() {
   local diagnostic=$1
@@ -55,19 +59,19 @@ for root in "$FM_HC_LAB_DIR" "$FM_HC_LAB_SOCK_DIR"; do
   mkdir -m 777 "$root"
   chmod 777 "$root"
   for command in provision run stop teardown; do
-    refuse 'unsafe root' bash "$LAB" "$command" fm-hclab-unsafe ls
+    refuse 'unsafe root' run_lab "$command" fm-hclab-unsafe ls
   done
   [ ! -e "$FM_HC_LAB_DIR/fm-hclab-unsafe" ] || fail 'unsafe root accepted'
   rm -rf "$root"
   mkdir -m 700 "$TMP_ROOT/redirect"
   ln -s "$TMP_ROOT/redirect" "$root"
-  refuse 'unsafe root' bash "$LAB" provision fm-hclab-redirected
+  refuse 'unsafe root' run_lab provision fm-hclab-redirected
   [ ! -e "$TMP_ROOT/redirect/fm-hclab-redirected" ] || fail 'symlink root accepted'
   rm "$root"
   rmdir "$TMP_ROOT/redirect"
 done
 
-bash "$LAB" provision fm-hclab-good
+run_lab provision fm-hclab-good
 # The filesystem's permission bits are the owned output contract here.
 python3 - "$FM_HC_LAB_DIR" "$FM_HC_LAB_SOCK_DIR" <<'PY'
 import os, stat, sys
@@ -75,15 +79,15 @@ for path in sys.argv[1:]:
     assert stat.S_IMODE(os.stat(path).st_mode) == 0o700, path
 PY
 printf 'do not overwrite\n' > "$FM_HC_LAB_DIR/fm-hclab-good/sentinel"
-refuse 'refusing to adopt or overwrite' bash "$LAB" provision fm-hclab-good
+refuse 'refusing to adopt or overwrite' run_lab provision fm-hclab-good
 [ "$(cat "$FM_HC_LAB_DIR/fm-hclab-good/sentinel")" = 'do not overwrite' ] || fail 'existing session overwritten'
 
 for failure in find metadata roots baseline; do
-  refuse 'refusing unverified teardown' env FAIL_READ=$failure bash "$LAB" teardown fm-hclab-good
+  FAIL_READ=$failure refuse 'refusing unverified teardown' run_lab teardown fm-hclab-good
   [ -d "$FM_HC_LAB_DIR/fm-hclab-good" ] || fail 'failed verification removed evidence'
 done
-refuse 'could not record the fleet-state tripwire' env FAIL_READ=find bash "$LAB" provision fm-hclab-incomplete
+FAIL_READ='find' refuse 'could not record the fleet-state tripwire' run_lab provision fm-hclab-incomplete
 [ ! -e "$FM_HC_LAB_DIR/fm-hclab-incomplete" ] || fail 'incomplete provision retained'
-bash "$LAB" teardown fm-hclab-good
+run_lab teardown fm-hclab-good
 [ ! -e "$FM_HC_LAB_DIR/fm-hclab-good" ] || fail 'successful teardown retained session'
 printf 'ok - private roots, exclusive sessions, and fail-closed tripwire\n'

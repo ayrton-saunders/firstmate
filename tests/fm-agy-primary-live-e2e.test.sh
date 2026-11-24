@@ -18,7 +18,7 @@ AGY_BIN=${FM_AGY_BIN:-$(command -v agy 2>/dev/null || true)}
 [ -n "$AGY_BIN" ] && [ -x "$AGY_BIN" ] \
   || fail "agy not found; install it or set FM_AGY_BIN"
 
-LAB=$(mktemp -d "${TMPDIR:-/tmp}/fm-agy-primary-live.XXXXXX") || fail "could not create isolated agy lab"
+LAB=$(fm_test_tmproot fm-agy-primary-live) || fail "could not create isolated agy lab"
 HOME_DIR="$LAB/home"
 SM_HOME="$LAB/sm-home"
 SM_ID="live-agy-sm"
@@ -38,8 +38,9 @@ stop_watchers() {
 }
 
 cleanup_all() {
+  local status=$?
   stop_watchers
-  [ -n "${LAB:-}" ] && rm -rf -- "$LAB"
+  fm_test_finalize "$status"
 }
 trap cleanup_all EXIT
 
@@ -58,8 +59,7 @@ for auth_file in antigravity-oauth-token installation_id jetski_state.pbtxt sett
   fi
 done
 
-(cd "$ROOT" && tar --exclude=.git --exclude=state --exclude=projects --exclude=node_modules -cf - .) \
-  | (cd "$HOME_DIR" && tar -xf -) \
+fm_test_copy_primary_lab "$ROOT" "$HOME_DIR" \
   || fail "could not stage the working tree into the throwaway home"
 
 git init -q -b main "$HOME_DIR"
@@ -154,6 +154,3 @@ OUT=$(run_agy "$SM_HOME" "Reply with the exact live marker token from session st
 [ -f "$SM_HOME/state/.lock" ] || fail "SessionStart hook did not create state/.lock in the live secondmate home"
 assert_contains "$OUT" "$SM_MARKER" "a pre-trusted secondmate home did not reach its own SessionStart digest in live agy"
 pass "agy secondmate live: pre-seeded workspace trust launches straight into the secondmate home's digest"
-
-cleanup_all
-trap - EXIT

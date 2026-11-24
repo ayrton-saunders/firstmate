@@ -35,8 +35,8 @@
 #
 # Isolation contract for each concurrent worker:
 #   - distinct mode-0700 temporary root under a proof-owned parent
-#   - TMPDIR/TMP point only at that root so mktemp/fm_test_tmproot stay private
-#   - ambient FM_HOME / FM_*_OVERRIDE cleared so no shared home is reused
+#   - TMPDIR/TMP/TEMP point at a private temp directory inside the worker root
+#   - ambient fleet home and operational overrides are cleared for fixtures
 #   - no global git config mutation (snapshot before/after)
 #   - no production sharding and no retry-until-green
 #
@@ -45,16 +45,25 @@
 #   FM_ISOLATION_CANDIDATE_BEGIN <iso8601> <script> worker=<i>
 #   FM_ISOLATION_CANDIDATE_END <iso8601> <script> exit=<code> duration_ms=<n> worker=<i>
 #   FM_ISOLATION_SUMMARY total=<n> failed=<n> concurrency=<n> duration_ms=<n>
+#   FM_ISOLATION_CLEANUP failed  (proof scratch removal failed)
 #
-# Exit status is the aggregate of candidate exits: non-zero if any candidate
-# fails, gate-skips (first meaningful line matching ^skip:), if isolation checks
-# fail, or if the candidate set is empty. A gate skip names the pool, candidate,
-# and missing prerequisite and cannot admit concurrency. A script that fails
-# only under concurrency must be removed from the candidate set and investigated;
-# this harness never retries a failure into green.
+# A scratch removal failure at proof finalization sets cleanup_failed: true
+# in the proof JSON without increasing the candidate failure count.
+# Unverified worker or private-service teardown stops new launches and retains
+# the proof root. Confirm the reported workload is gone before removing it.
+# Finalize scratch before replaying failure excerpts and reporting the summary
+# and JSON. Keep requested reports and redirected logs outside proof scratch.
+# See bin/fm-test-scratch-lib.sh for standalone scratch placement and recovery.
+# Exit status is non-zero if cleanup fails, a candidate fails or gate-skips
+# (first meaningful line matching ^skip:), an isolation check fails, or the
+# candidate set is empty. A gate skip names the pool, candidate, and missing
+# prerequisite and cannot admit concurrency. A script that fails only under
+# concurrency must be removed from the candidate set and investigated; this
+# harness never retries a failure into green.
 set -eu
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+invocation_dir=$PWD
 cd "$ROOT" || exit 1
 
 JOBS=4
@@ -249,12 +258,13 @@ detect_gate_skip() {
 }
 
 write_json_artifact() {
-  local out=$1 started=$2 finished=$3 run_id=$4 total=$5 failed=$6 concurrency=$7 duration=$8 records=$9 pool=${10} jobs_enabled=${11}
-  python3 - "$out" "$started" "$finished" "$run_id" "$total" "$failed" "$concurrency" "$duration" "$records" "$pool" "$jobs_enabled" <<'PY'
+  local out=$1 started=$2 finished=$3 run_id=$4 total=$5 failed=$6 concurrency=$7 duration=$8 pool=$9 jobs_enabled=${10} cleanup_failed=${11}
+  python3 -c '
 import json, sys
-out, started, finished, run_id, total, failed, concurrency, duration, records_path, pool, jobs_enabled = sys.argv[1:12]
+out, started, finished, run_id, total, failed, concurrency, duration, pool, jobs_enabled, cleanup_failed = sys.argv[1:]
 scripts = []
-with open(records_path, encoding="utf-8") as fh:
+import io
+with io.TextIOWrapper(sys.stdin.buffer, encoding="utf-8") as fh:
     for line in fh:
         line = line.rstrip("\n")
         if not line:
@@ -283,10 +293,12 @@ doc = {
     "production_sharding_enabled": False,
     "fm_test_run_jobs_enabled": jobs_enabled == "1",
 }
+if cleanup_failed == "1":
+    doc["cleanup_failed"] = True
 with open(out, "w", encoding="utf-8") as fh:
     json.dump(doc, fh, indent=2, sort_keys=True)
     fh.write("\n")
-PY
+' "$out" "$started" "$finished" "$run_id" "$total" "$failed" "$concurrency" "$duration" "$pool" "$jobs_enabled" "$cleanup_failed"
 }
 
 while [ "$#" -gt 0 ]; do
@@ -398,56 +410,133 @@ for s in "${CANDIDATES[@]}"; do
   [ -f "$s" ] || die "candidate not found: $s"
 done
 
-PROOF_ROOT=$(mktemp -d "${TMPDIR:-/tmp}/fm-isolation-proof.XXXXXX")
+. "$ROOT/bin/fm-test-scratch-lib.sh"
+fm_test_anchor_inherited_paths "$invocation_dir" || exit "$?"
+fm_test_export_boundaries "$ROOT" || exit "$?"
+proof_base=$(fm_test_validate_scratch_base "$ROOT" "${TMPDIR:-/tmp}" "$invocation_dir") || exit "$?"
+export TMPDIR="$proof_base" TMP="$proof_base" TEMP="$proof_base"
+fm_test_allocate_scratch "${proof_base%/}/fm-isolation-proof.XXXXXX" || exit "$?"
+PROOF_ROOT=$FM_TEST_SCRATCH
 chmod 0700 "$PROOF_ROOT" || die "could not chmod 0700 proof root $PROOF_ROOT"
 RECORDS="$PROOF_ROOT/records.tsv"
 : >"$RECORDS"
-trap 'rm -rf "$PROOF_ROOT"' EXIT
 
 GIT_BEFORE=$(global_git_snapshot)
 RUN_STARTED_ISO=$(now_iso)
 RUN_STARTED_MS=$(now_ms)
 RUN_ID="fm-isolation-${RUN_STARTED_MS}-$$"
-TOTAL=${#CANDIDATES[@]}
+TOTAL=0
+private_teardown_failed=0
 FAILED=0
+cleanup_failed=0
+failure_output=
+retained_end=
 AGG_RC=0
 
 printf 'FM_ISOLATION_BEGIN %s concurrency=%s candidates=%s\n' \
-  "$RUN_STARTED_ISO" "$JOBS" "$TOTAL"
+  "$RUN_STARTED_ISO" "$JOBS" "${#CANDIDATES[@]}"
 
 # Worker state arrays parallel to CANDIDATES indices (1-based worker labels).
-declare -a WORKER_PIDS=()
+declare -a WORKER_PIDS=() WORKER_OWNERS=()
 declare -a WORKER_IDX=()
 ACTIVE_WORKERS=0
+launching=0
+pending_signal=0
+retain_root=0
+parent_marker=${FM_TEST_RETAIN_MARKER:+$FM_TEST_RETAIN_MARKER.$$.proof}
+
+remove_proof_scratch() {
+  fm_test_cleanup_scratch "$PROOF_ROOT" || return 1
+  PROOF_ROOT=
+  if [ -n "$parent_marker" ]; then
+    rm -f -- "$parent_marker" || return 1
+    parent_marker=
+  fi
+}
+
+drain_proof_workers() {
+  local pid
+  fm_test_drain_groups "$PROOF_ROOT" "${WORKER_OWNERS[@]+"${WORKER_OWNERS[@]}"}" || return 1
+  for pid in "${WORKER_PIDS[@]+"${WORKER_PIDS[@]}"}"; do wait "$pid" 2>/dev/null || true; done
+  WORKER_PIDS=() WORKER_OWNERS=() WORKER_IDX=() ACTIVE_WORKERS=0
+}
+
+finalize_proof_scratch() {
+  drain_proof_workers || retain_root=1
+  if [ "$retain_root" -ne 0 ]; then
+    log "could not confirm worker group exit; retaining scratch: $PROOF_ROOT"
+    return 1
+  fi
+  if [ -n "$PROOF_ROOT" ] && fm_test_scratch_retained "$PROOF_ROOT"; then
+    log "private teardown unverified; retaining scratch: $PROOF_ROOT; delete it by hand once nothing is using it"
+    return 1
+  fi
+  remove_proof_scratch || { cleanup_failed=1; return 1; }
+}
+
+# shellcheck disable=SC2329 # Invoked by the EXIT trap.
+cleanup_proof() {
+  local status=$?
+  trap '' HUP INT QUIT TERM
+  finalize_proof_scratch || { [ "$status" -ne 0 ] || status=1; }
+  exit "$status"
+}
+
+# shellcheck disable=SC2329 # Invoked by the signal traps.
+interrupt_proof() {
+  pending_signal=$1
+  [ "$launching" -ne 0 ] || exit "$pending_signal"
+}
+
+trap cleanup_proof EXIT
+trap 'interrupt_proof 129' HUP
+trap 'interrupt_proof 130' INT
+trap 'interrupt_proof 131' QUIT
+trap 'interrupt_proof 143' TERM
+set -m
 
 wait_one_slot() {
-  local slot=$1 pid idx work rc duration script mode gate_skip
+  local slot=$1 pid idx work rc duration script mode gate_skip end
   pid=${WORKER_PIDS[$slot]}
   idx=${WORKER_IDX[$slot]}
-  unset 'WORKER_PIDS[slot]'
+  wait "$pid" || true
+  fm_test_drain_groups "$PROOF_ROOT" "${WORKER_OWNERS[$slot]}" || retain_root=1
+  unset 'WORKER_PIDS[slot]' 'WORKER_OWNERS[slot]'
   unset 'WORKER_IDX[slot]'
   ACTIVE_WORKERS=$((ACTIVE_WORKERS - 1))
-  set +e
-  wait "$pid"
-  set -e
+  if fm_test_scratch_retained "$PROOF_ROOT" "w$idx"; then
+    private_teardown_failed=1
+  fi
+  if [ "$retain_root" -ne 0 ] || [ "$private_teardown_failed" -ne 0 ]; then
+    drain_proof_workers || retain_root=1
+  fi
   work="$PROOF_ROOT/w$idx"
   script=${CANDIDATES[$((idx - 1))]}
   rc=$(cat "$work/out/exit" 2>/dev/null || echo 1)
+  if [ "$retain_root" -ne 0 ] || [ "$private_teardown_failed" -ne 0 ]; then
+    [ "$rc" -ne 0 ] || rc=1
+  fi
+  TOTAL=$((TOTAL + 1))
   duration=$(cat "$work/out/duration_ms" 2>/dev/null || echo 0)
   if [ "$rc" -eq 0 ] && gate_skip=$(detect_gate_skip "$work/out/output"); then
     rc=1
-    log "pool $POOL candidate gate-skipped without proving concurrency: $script: $gate_skip"
+    failure_output+="fm-test-isolation-proof: pool $POOL candidate gate-skipped without proving concurrency: $script: $gate_skip"$'\n'
   fi
-  printf 'FM_ISOLATION_CANDIDATE_END %s %s exit=%s duration_ms=%s worker=%s\n' \
+  printf -v end 'FM_ISOLATION_CANDIDATE_END %s %s exit=%s duration_ms=%s worker=%s' \
     "$(now_iso)" "$script" "$rc" "$duration" "$idx"
+  if [ "$retain_root" -ne 0 ] || [ "$private_teardown_failed" -ne 0 ]; then
+    retained_end=$end
+  else
+    printf '%s\n' "$end"
+  fi
   printf '%s\t%s\t%s\t%s\n' "$script" "$rc" "$duration" "$idx" >>"$RECORDS"
   if [ "$rc" -ne 0 ]; then
     FAILED=$((FAILED + 1))
     AGG_RC=1
-    log "candidate failed: $script exit=$rc"
+    failure_output+="fm-test-isolation-proof: candidate failed: $script exit=$rc"$'\n'
     if [ -s "$work/out/output" ]; then
-      log "--- output ($script) ---"
-      tail -n 40 "$work/out/output" >&2 || true
+      failure_output+="fm-test-isolation-proof: --- output ($script) ---"$'\n'
+      failure_output+=$(tail -n 40 "$work/out/output" 2>&1 || true)$'\n'
     fi
   fi
   # Isolation: worker root must remain mode 0700 and under the proof parent.
@@ -455,7 +544,7 @@ wait_one_slot() {
   case "$mode" in
     700|0700) ;;
     *)
-      log "isolation failure: worker root mode is $mode, expected 0700 ($work)"
+      failure_output+="fm-test-isolation-proof: isolation failure: worker root mode is $mode, expected 0700 ($work)"$'\n'
       AGG_RC=1
       FAILED=$((FAILED + 1))
       ;;
@@ -463,7 +552,7 @@ wait_one_slot() {
   case "$work" in
     "$PROOF_ROOT"/*) ;;
     *)
-      log "isolation failure: worker root escaped proof parent: $work"
+      failure_output+="fm-test-isolation-proof: isolation failure: worker root escaped proof parent: $work"$'\n'
       AGG_RC=1
       ;;
   esac
@@ -493,7 +582,11 @@ wait_one_completed_slot() {
 }
 
 idx=0
+if [ -n "$parent_marker" ]; then
+  : > "$parent_marker" || die 'could not arm proof retention marker'
+fi
 for script in "${CANDIDATES[@]}"; do
+  [ "$private_teardown_failed" -eq 0 ] && [ "$retain_root" -eq 0 ] || break
   idx=$((idx + 1))
   work="$PROOF_ROOT/w$idx"
   # Create then chmod: mkdir -m can still be umask-adjusted on some platforms.
@@ -514,10 +607,12 @@ for script in "${CANDIDATES[@]}"; do
   printf 'FM_ISOLATION_CANDIDATE_BEGIN %s %s worker=%s\n' \
     "$(now_iso)" "$script" "$idx"
 
+  launching=1
   (
+    set +m
     set +e
-    export TMPDIR="$work/tmp"
-    export TMP="$work/tmp"
+    export TMPDIR="$work/tmp" TMP="$work/tmp" TEMP="$work/tmp"
+    export FM_TEST_RETAIN_MARKER="$PROOF_ROOT/.retain-scratch.w$idx"
     # Clear ambient fleet overrides so candidates cannot share a live home.
     unset FM_HOME FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_ROOT_OVERRIDE \
       FM_PROJECTS_OVERRIDE FM_CONFIG_OVERRIDE FM_BACKEND 2>/dev/null || true
@@ -534,19 +629,35 @@ for script in "${CANDIDATES[@]}"; do
     printf '%s\n' "$duration" >"$work/out/duration_ms"
     exit 0
   ) &
-  WORKER_PIDS[idx]=$!
+  pid=$!
+  WORKER_PIDS[idx]=$pid
+  start=$(fm_test_owner_start "$pid" "$PROOF_ROOT") || start=unknown
+  WORKER_OWNERS[idx]="$UID|$pid|$pid|$start"
   WORKER_IDX[idx]=$idx
   ACTIVE_WORKERS=$((ACTIVE_WORKERS + 1))
+  launching=0
+  [ "$pending_signal" -eq 0 ] || exit "$pending_signal"
 
   # Bound concurrency.
-  while [ "$ACTIVE_WORKERS" -ge "$JOBS" ]; do
+  while [ "$ACTIVE_WORKERS" -ge "$JOBS" ] && [ "$retain_root" -eq 0 ] && [ "$private_teardown_failed" -eq 0 ]; do
     wait_one_completed_slot
   done
 done
 
-while [ "$ACTIVE_WORKERS" -gt 0 ]; do
+while [ "$ACTIVE_WORKERS" -gt 0 ] && [ "$retain_root" -eq 0 ] && [ "$private_teardown_failed" -eq 0 ]; do
   wait_one_completed_slot
 done
+
+# Candidate arm-pretool diagnostics inside the proof root are transient.
+# This check does not inspect paths outside the proof root.
+if find "$PROOF_ROOT" -type f -name 'fm-arm-pretool-check-claude-stderr.*' 2>/dev/null | grep -q .; then
+  : # allowed only under proof roots; nothing to do
+fi
+
+records=$(<"$RECORDS")
+finalize_proof_scratch || AGG_RC=1
+trap - EXIT
+if [ -n "$retained_end" ]; then printf '%s\n' "$retained_end"; fi
 
 GIT_AFTER=$(global_git_snapshot)
 if [ "$GIT_BEFORE" != "$GIT_AFTER" ]; then
@@ -559,14 +670,7 @@ if [ "$GIT_BEFORE" != "$GIT_AFTER" ]; then
   FAILED=$((FAILED + 1))
 fi
 
-# Cross-process artifact check: no candidate may leave debris outside the
-# proof-owned TMPDIR tree. Workers only receive TMPDIR under PROOF_ROOT, so any
-# residual path under PROOF_ROOT is expected and cleaned by trap. Refuse if a
-# worker wrote a fixed global path we know about from audit (none remain after
-# the arm-pretool stderr path uses TMPDIR).
-if find "$PROOF_ROOT" -type f -name 'fm-arm-pretool-check-claude-stderr.*' 2>/dev/null | grep -q .; then
-  : # allowed only under proof roots; nothing to do
-fi
+printf '%s' "$failure_output" >&2
 
 RUN_FINISHED_ISO=$(now_iso)
 RUN_FINISHED_MS=$(now_ms)
@@ -577,11 +681,10 @@ fi
 
 printf 'FM_ISOLATION_SUMMARY total=%s failed=%s concurrency=%s duration_ms=%s\n' \
   "$TOTAL" "$FAILED" "$JOBS" "$RUN_DURATION"
+if [ "$cleanup_failed" -eq 1 ]; then printf 'FM_ISOLATION_CLEANUP failed\n'; fi
 
 if [ -n "$JSON_PATH" ]; then
   mkdir -p "$(dirname "$JSON_PATH")"
-  # Stable record order for the artifact.
-  sort -t$'\t' -k1,1 "$RECORDS" -o "$RECORDS"
   jobs_enabled=0
   jobs_max=0
   if "$ROOT/bin/fm-test-run.sh" --list-concurrent-safe-families | grep -Fxq "$POOL"; then
@@ -592,7 +695,7 @@ if [ -n "$JSON_PATH" ]; then
   fi
   write_json_artifact "$JSON_PATH" \
     "$RUN_STARTED_ISO" "$RUN_FINISHED_ISO" "$RUN_ID" \
-    "$TOTAL" "$FAILED" "$JOBS" "$RUN_DURATION" "$RECORDS" "$POOL" "$jobs_enabled"
+    "$TOTAL" "$FAILED" "$JOBS" "$RUN_DURATION" "$POOL" "$jobs_enabled" "$cleanup_failed" <<<"$records"
   log "wrote isolation proof artifact: $JSON_PATH"
 fi
 

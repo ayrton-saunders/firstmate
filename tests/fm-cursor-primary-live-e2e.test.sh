@@ -42,22 +42,23 @@ harness_fail() {  # <message>
   fail "$1 [harness: $HARNESS_LABEL]"
 }
 
-SOCKET="fm-cursor-primary-$$"
-LAB=$(mktemp -d "${TMPDIR:-/tmp}/fm-cursor-primary.XXXXXX")
+LAB=$(fm_test_tmproot fm-cu) || harness_fail "could not create isolated Cursor lab"
+SOCKET="$LAB/s"
+TMUX_RETAIN=
 HOME_DIR="$LAB/home"
 MARKER="FM_CURSOR_LIVE_MARKER_$$"
 
 cleanup_all() {
-  "$REAL_TMUX" -L "$SOCKET" kill-server >/dev/null 2>&1 || true
-  [ -n "${LAB:-}" ] && rm -rf "$LAB"
+  local status=$? teardown=0
+  fm_test_stop_private_tmux "$SOCKET" "$REAL_TMUX" "$TMUX_RETAIN" || teardown=1
+  fm_test_finalize "$status" "$teardown"
 }
 trap cleanup_all EXIT
 
 # A plain (non-worktree) checkout of the CURRENT working tree, so the guard
 # tests the code under review rather than whatever is committed.
 mkdir -p "$HOME_DIR"
-(cd "$ROOT" && tar --exclude=.git --exclude=state --exclude=projects --exclude=node_modules -cf - .) \
-  | (cd "$HOME_DIR" && tar -xf -) \
+fm_test_copy_primary_lab "$ROOT" "$HOME_DIR" \
   || harness_fail "could not stage the working tree into the throwaway home"
 git init -q "$HOME_DIR"
 git -C "$HOME_DIR" add -A >/dev/null 2>&1 || true
@@ -83,12 +84,13 @@ window=fm-probe
 EOF
 printf 'blocked: fixture needs a decision\n' > "$HOME_DIR/state/probe.status"
 
-"$REAL_TMUX" -L "$SOCKET" new-session -d -s primary -x 220 -y 60 -c "$HOME_DIR" \
+fm_test_arm_private_tmux TMUX_RETAIN "$LAB" || harness_fail "could not protect Cursor scratch"
+"$REAL_TMUX" -S "$SOCKET" new-session -d -s primary -x 220 -y 60 -c "$HOME_DIR" \
   "cd '$HOME_DIR' && FM_HOME='$HOME_DIR' FM_HEARTBEAT=30 FM_HEARTBEAT_MAX=30 exec '$CURSOR_BIN' --trust --yolo --workspace '$HOME_DIR'" \
   || harness_fail "could not start the private tmux server"
 
 pane_text() {
-  "$REAL_TMUX" -L "$SOCKET" capture-pane -p -t primary 2>/dev/null
+  "$REAL_TMUX" -S "$SOCKET" capture-pane -p -t primary 2>/dev/null
 }
 
 wait_for_file() {  # <path> <seconds> <what>
@@ -113,16 +115,16 @@ wait_for_pane() {  # <needle> <seconds> <what>
 }
 
 submit() {  # <text>
-  "$REAL_TMUX" -L "$SOCKET" send-keys -t primary -l "$1"
+  "$REAL_TMUX" -S "$SOCKET" send-keys -t primary -l "$1"
   sleep 1
-  "$REAL_TMUX" -L "$SOCKET" send-keys -t primary Enter
+  "$REAL_TMUX" -S "$SOCKET" send-keys -t primary Enter
 }
 
 # --- 1. run-tier session start ----------------------------------------------
 
 wait_for_file "$HOME_DIR/state/.lock" 180 "the fleet session lock"
 LOCK_PID=$(cat "$HOME_DIR/state/.lock" 2>/dev/null)
-PANE_PID=$("$REAL_TMUX" -L "$SOCKET" display-message -p -t primary '#{pane_pid}' 2>/dev/null)
+PANE_PID=$("$REAL_TMUX" -S "$SOCKET" display-message -p -t primary '#{pane_pid}' 2>/dev/null)
 [ -n "$LOCK_PID" ] && [ "$LOCK_PID" = "$PANE_PID" ] \
   || harness_fail "the session lock must be owned by the Cursor pane process (lock=$LOCK_PID pane=$PANE_PID); Cursor is not resolving in the session-lock ancestry"
 pass "cursor primary: the sessionStart hook takes the fleet lock as the Cursor process itself"
@@ -184,7 +186,7 @@ INJECT_RC=0
 cat > "$LAB/inject.sh" <<EOS
 #!/usr/bin/env bash
 set -u
-tmux() { command "$REAL_TMUX" -L "$SOCKET" "\$@"; }
+tmux() { command "$REAL_TMUX" -S "$SOCKET" "\$@"; }
 export -f tmux 2>/dev/null || true
 export FM_STATE_OVERRIDE="$HOME_DIR/state"
 export FM_SUPERVISOR_TARGET=primary
@@ -208,6 +210,3 @@ wait_for_pane "$AWAY_TOKEN" 180 "the away-mode escalation processed by the Curso
 pass "cursor primary: an away-mode escalation is delivered, confirmed, and processed"
 
 rm -f "$HOME_DIR/state/.afk"
-
-cleanup_all
-trap - EXIT

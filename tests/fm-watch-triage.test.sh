@@ -967,7 +967,12 @@ test_turn_ended_churn_existing_marker_absorbed() {
   [ ! -s "$state/.wake-queue" ] || fail "an absorbed marked-churn turn-end enqueued a durable wake record"
   [ "$(cat "$state/.churn-since-$key" 2>/dev/null || true)" = "$marker_since" ] \
     || { reap "$pid"; fail "an already-marked churn re-opened or lost the existing deferral window"; }
-  reap "$pid"
+  # Exit on a real wake: TERM here can orphan the watcher's foreground poll
+  # sleep, which the TAP verifier correctly flags as unfinished child work.
+  printf 'done: churn fixture complete\n' > "$state/codexmarked.status"
+  wait_for_exit "$pid" 100 || fail "watcher did not exit cleanly on the closing status: $(cat "$out")"
+  grep -Fxq "signal: $state/codexmarked.status" "$out" \
+    || fail "watcher exited for a different wake: $(cat "$out")"
   unset FM_FAKE_CREW_STATE
   pass "a churning turn-end inside an already-open deferral window is absorbed without re-marking"
 }

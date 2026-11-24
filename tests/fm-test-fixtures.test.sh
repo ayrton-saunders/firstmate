@@ -19,13 +19,107 @@ set -u
 
 TMP_ROOT=$(fm_test_tmproot fm-test-fixtures)
 
+test_direct_fixture_refuses_checkout_scratch() {
+  local tmp out rc base
+  local -a bases
+  tmp=$(fm_test_tmproot fm-fixture-scratch-refusal) || fail 'could not create scratch test fixture'
+  mkdir -p "$tmp/repo/.test-phase-tmp"
+  git -C "$tmp/repo" init -q
+  bases=("$tmp/repo/.test-phase-tmp")
+  if ln -s "${bases[0]}" "$tmp/alias" 2>/dev/null && [ -L "$tmp/alias" ]; then
+    bases+=("$tmp/alias")
+  fi
+  for base in "${bases[@]}"; do
+    rc=0
+    # shellcheck disable=SC2016 # Expand the positional parameter in the child shell.
+    out=$(TMPDIR="$base" "$BASH" -c '. "$1"; printf "fixture started\n"' _ "$ROOT/tests/lib.sh" 2>&1) || rc=$?
+    assert_equals 2 "$rc" 'checkout fixture scratch exit status'
+    assert_contains "$out" 'unsafe scratch base' 'checkout fixture scratch refusal'
+    assert_not_contains "$out" 'fixture started' 'fixture ran before scratch refusal'
+  done
+  pass 'direct fixtures reject checkout scratch and supported aliases'
+}
+
+test_direct_fixture_refuses_inherited_home_scratch() {
+  local tmp out rc boundary
+  tmp=$(fm_test_tmproot fm-fixture-active-home) || fail 'could not create active home fixture'
+  mkdir -p "$tmp/home/tmp" "$tmp/tools"
+  # shellcheck disable=SC2016 # Expand variables when the stub runs.
+  printf '%s\n' '#!/usr/bin/env bash' 'touch "$MKTEMP_CALLED"; exit 1' >"$tmp/tools/mktemp"
+  chmod +x "$tmp/tools/mktemp"
+  for boundary in FM_HOME FM_ROOT_OVERRIDE FM_ROOT FM_STATE_OVERRIDE FM_DATA_OVERRIDE FM_CONFIG_OVERRIDE FM_PROJECTS_OVERRIDE; do
+    rc=0
+    # shellcheck disable=SC2016 # Expand the positional parameter in the child shell.
+    out=$(env -u FM_HOME -u FM_ROOT_OVERRIDE -u FM_ROOT "$boundary=$tmp/home" TMPDIR="$tmp/home/tmp" PATH="$tmp/tools:$PATH" \
+      MKTEMP_CALLED="$tmp/mktemp-called" "$BASH" -c '. "$1"' _ "$ROOT/tests/lib.sh" 2>&1) || rc=$?
+    assert_equals 2 "$rc" "$boundary scratch exit status"
+    assert_contains "$out" 'unsafe scratch base' "$boundary scratch refusal"
+    [ ! -e "$tmp/mktemp-called" ] || fail "$boundary scratch reached registry allocation"
+  done
+  pass 'direct fixture preflight sees inherited Firstmate home boundaries'
+}
+
+test_direct_fixture_refuses_effective_operational_scratch() {
+  local tmp dir out rc
+  tmp=$(fm_test_tmproot fm-fixture-operational-paths) || fail 'could not create operational path fixture'
+  mkdir -p "$tmp/home" "$tmp/runtime/tmp"
+  for dir in state data config projects wake-state; do
+    local -a settings
+    settings=("FM_HOME=$tmp/home")
+    case "$dir" in
+      wake-state) settings+=("STATE=$tmp/runtime") ;;
+      *)
+        if ! ln -s "$tmp/runtime" "$tmp/home/$dir" 2>/dev/null || [ ! -L "$tmp/home/$dir" ]; then
+          continue
+        fi
+        ;;
+    esac
+    rc=0
+    # shellcheck disable=SC2016 # Expand the positional parameter in the child shell.
+    out=$(env -u STATE -u FM_STATE_OVERRIDE -u FM_DATA_OVERRIDE -u FM_CONFIG_OVERRIDE -u FM_PROJECTS_OVERRIDE \
+      "${settings[@]}" TMPDIR="$tmp/runtime/tmp" "$BASH" -c '. "$1"; printf "fixture started\n"' \
+      _ "$ROOT/tests/lib.sh" 2>&1) || rc=$?
+    assert_equals 2 "$rc" "$dir effective directory scratch exit status"
+    assert_contains "$out" 'unsafe scratch base' "$dir effective directory scratch refusal"
+    [ -z "$(ls -A "$tmp/runtime/tmp")" ] || fail "$dir scratch reached allocation"
+    [ "$dir" = wake-state ] || rm "$tmp/home/$dir"
+  done
+  pass 'direct fixtures reject effective operational directories outside the home'
+}
+
+test_fixture_owner_lookup_failure_preserves_inherited_registry() {
+  local tmp out rc registry
+  tmp=$(fm_test_tmproot fm-fixture-no-identity) || fail 'could not create owner lookup fixture'
+  mkdir "$tmp/tools" "$tmp/empty-proc" "$tmp/scratch"
+  printf '%s\n' '#!/usr/bin/env bash' 'exit 1' >"$tmp/tools/ps"
+  chmod +x "$tmp/tools/ps"
+  printf 'parent registry\n' >"$tmp/parent-registry"
+  for registry in unset inherited; do
+    rc=0
+    out=$(
+      unset FM_TEST_CLEANUP_REGISTRY
+      if [ "$registry" = inherited ]; then
+        export FM_TEST_CLEANUP_REGISTRY="$tmp/parent-registry"
+      fi
+      # shellcheck disable=SC2016 # Expand the positional parameter in the child shell.
+      PATH="$tmp/tools:$PATH" FM_PROC_ROOT_OVERRIDE="$tmp/empty-proc" TMPDIR="$tmp/scratch" \
+        "$BASH" -uc '. "$1"' _ "$ROOT/tests/lib.sh" 2>&1
+    ) || rc=$?
+    assert_equals 1 "$rc" "$registry registry owner lookup failure status"
+    assert_contains "$out" 'could not identify fixture owner process' 'owner lookup failure diagnostic'
+    assert_equals 'parent registry' "$(<"$tmp/parent-registry")" 'identity failure preserves inherited registry bytes'
+    [ -z "$(ls -A "$tmp/scratch")" ] || fail 'owner lookup failure allocated scratch'
+  done
+  pass 'identity lookup failure leaves scratch and inherited registry untouched'
+}
+
 test_git_config_isolation() (
   local dir="$TMP_ROOT/git-config" helper jobs timeout fakebin rc
   mkdir -p "$dir/runner/bin" "$dir/runner/tests"
   git init -q "$dir/caller"
   git -C "$dir/caller" config commit.gpgsign false
   cd "$dir/caller" || exit 1
-  cp "$ROOT/bin/fm-test-run.sh" "$ROOT/bin/fm-timeout-lib.sh" "$dir/runner/bin/"
+  cp "$ROOT/bin/fm-test-run.sh" "$ROOT/bin/fm-timeout-lib.sh" "$ROOT/bin/fm-test-scratch-lib.sh" "$dir/runner/bin/"
   cp "$ROOT/tests/git-config-helpers.sh" "$dir/runner/tests/"
   fakebin=$(fm_fakebin "$dir/standalone")
   fm_fake_exit0 "$fakebin" pi
@@ -334,7 +428,7 @@ test_inherited_git_location_isolation() (
   mkdir -p "$dir/runner/bin" "$dir/runner/tests"
   fm_git_init_commit "$dir/ambient"
   git -C "$dir/ambient" worktree add -q --detach "$dir/linked" main
-  cp "$ROOT/bin/fm-test-run.sh" "$ROOT/bin/fm-timeout-lib.sh" "$dir/runner/bin/"
+  cp "$ROOT/bin/fm-test-run.sh" "$ROOT/bin/fm-timeout-lib.sh" "$ROOT/bin/fm-test-scratch-lib.sh" "$dir/runner/bin/"
   cp "$ROOT/tests/git-config-helpers.sh" "$dir/runner/tests/"
   cat > "$dir/setup.sh" <<'SH'
 case_dir=$(mktemp -d "${TMPDIR:-/tmp}/fm-git-location.XXXXXX")
@@ -452,6 +546,10 @@ test_inherited_launcher_env_is_cleared() (
   pass "tests/lib.sh clears an inherited launcher environment and honors later exports"
 )
 
+test_direct_fixture_refuses_checkout_scratch
+test_direct_fixture_refuses_inherited_home_scratch
+test_direct_fixture_refuses_effective_operational_scratch
+test_fixture_owner_lookup_failure_preserves_inherited_registry
 test_git_config_isolation || fail "Git fixture config isolation"
 test_inherited_launcher_env_is_cleared || fail "launcher environment isolation"
 test_inherited_git_location_isolation || fail "Git fixture location isolation"

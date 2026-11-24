@@ -33,15 +33,24 @@ TMUX_LOG="$TMP_ROOT/remote-tmux.log"
 TMUX_STATE="$TMP_ROOT/remote-tmux.state"
 CLAIMS="$TMP_ROOT/claims"
 mkdir -p "$PARENT/data" "$PARENT/state" "$PARENT/config" "$PARENT/projects" "$REMOTE_ROOT" "$CLAIMS"
-trap 'FM_HOME="$PARENT" FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" "$ROOT/bin/fm-procevent.sh" sweep-home >/dev/null 2>&1 || true; if [ -f "$TMP_ROOT/remote-jobs/worker.pid" ]; then kill "$(cat "$TMP_ROOT/remote-jobs/worker.pid")" 2>/dev/null || true; fi; fm_test_remove_tree "$TMP_ROOT"' EXIT
+cleanup() {
+  local status=$?
+  trap '' HUP INT QUIT TERM
+  FM_HOME="$PARENT" FM_PROCEVENT_CLAIM_ROOT="$CLAIMS" "$ROOT/bin/fm-procevent.sh" sweep-home >/dev/null 2>&1 || true
+  if [ -f "$TMP_ROOT/remote-jobs/worker.pid" ]; then
+    kill "$(<"$TMP_ROOT/remote-jobs/worker.pid")" 2>/dev/null || true
+  fi
+  fm_test_finalize "$status"
+}
+trap cleanup EXIT
 
 # The remote host's tracked code root is this branch, as a real git repository:
 # fm-on and the remote entrypoint both require the dispatched command to be
 # tracked there, and the remote side runs the real scripts under test.
-(
-  cd "$ROOT" || exit
-  tar --exclude=.git --exclude=.no-mistakes --exclude=data --exclude=state --exclude=config -cf - .
-) | (cd "$REMOTE_ROOT" && tar -xf -)
+# shellcheck source=tests/remote-secondmate-source-copy-helpers.sh
+. "$ROOT/tests/remote-secondmate-source-copy-helpers.sh"
+fm_fixture_copy_remote_source "$ROOT" "$REMOTE_ROOT" || fail 'could not copy fixture code root'
+assert_absent "$REMOTE_ROOT/.test-phase-tmp" 'remote code root must not include checkout scratch'
 
 # The remote host runs the Herdr fixture, whose every invocation is logged
 # verbatim, so the pre-launch `export TRACEPARENT=` line and the launch

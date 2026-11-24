@@ -388,6 +388,11 @@ jobs:
           # default-session tripwire can arm. Start it headless; never use it
           # for lab work (tests still refuse default and use fm-lab-* only).
           mkdir -p "$RUNNER_TEMP/fm-herdr"
+          # Pinned Herdr can leave an in-flight update subprocess behind on
+          # server stop. Neither background check belongs in this test job.
+          export HERDR_CONFIG_PATH="$RUNNER_TEMP/fm-herdr/config.toml"
+          printf '[update]\nversion_check = false\nmanifest_check = false\n' > "$HERDR_CONFIG_PATH"
+          printf 'HERDR_CONFIG_PATH=%s\n' "$HERDR_CONFIG_PATH" >> "$GITHUB_ENV"
           nohup herdr server >"$RUNNER_TEMP/fm-herdr/default-server.log" 2>&1 &
           echo $! >"$RUNNER_TEMP/fm-herdr/default-server.pid"
           attempt=0

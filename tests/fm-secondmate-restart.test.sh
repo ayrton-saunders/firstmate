@@ -39,7 +39,8 @@ TMP_ROOT=$(fm_test_tmproot fm-secondmate-restart)
 mkdir -p "$TMP_ROOT"
 TMP_ROOT=$(cd "$TMP_ROOT" && pwd -P)
 # Preserve registered fixture cleanup, including read-only hook dirs.
-trap 't3_fake_stop; fm_test_cleanup' EXIT
+# shellcheck disable=SC2154 # The trap assigns status before using it.
+trap 'status=$?; t3_fake_stop; fm_test_finalize "$status"' EXIT
 
 # A session-provider stub that models the two things this pass depends on: the
 # harness exit command stops the agent, a launch brief starts the replacement,

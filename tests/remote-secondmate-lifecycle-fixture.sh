@@ -33,7 +33,7 @@ SID='remote-reply-ios'
 NAMING_PARENTS=()
 mkdir -p "$PARENT/data" "$PARENT/state" "$PARENT/config" "$PARENT/projects" "$REMOTE_ROOT" "$CLAIMS"
 cleanup() {
-  local status=$? worker_pid='' log
+  local status=$? teardown=0 worker_pid='' log
   if [ "$status" -ne 0 ]; then
     for log in "$TMP_ROOT"/remote-jobs/logs/*.log; do
       [ ! -f "$log" ] || tail -n 15 "$log" >&2
@@ -55,15 +55,14 @@ cleanup() {
     # The published pid is the serving child; killing it alone lets its
     # detached supervisor restart it while the fixture root is being removed.
     . "$ROOT/bin/fm-remote-job-lib.sh"
-    fm_remote_job_stop_worker_tree "$worker_pid" || true
+    fm_remote_job_stop_worker_tree "$worker_pid" || teardown=1
   fi
   if [ -s "$TMP_ROOT/unexpected-tools" ]; then
     printf 'Unexpected fixture tool calls:\n' >&2
     cat "$TMP_ROOT/unexpected-tools" >&2
-    fm_test_remove_tree "$TMP_ROOT"
-    exit 1
+    [ "$status" -ne 0 ] || status=1
   fi
-  fm_test_remove_tree "$TMP_ROOT"
+  fm_test_finalize "$status" "$teardown"
 }
 trap cleanup EXIT
 
@@ -132,12 +131,9 @@ unset XDG_CONFIG_HOME XDG_DATA_HOME XDG_STATE_HOME XDG_CACHE_HOME SSH_AUTH_SOCK
 # Materialize the current branch as the remote host's tracked code root. The
 # fixture is a real git repository because provisioning and guarded sync exercise
 # the same clone and fast-forward path as a second Mac.
-# Copy working-tree bytes for tracked paths only, never runner scratch or
-# private files even when the invoking checkout contains them.
-git -C "$ROOT" ls-files -z > "$TMP_ROOT/source-files" || fail 'could not list fixture source files'
-( set -o pipefail
-  tar -C "$ROOT" -cf - --null -T "$TMP_ROOT/source-files" | tar -C "$REMOTE_ROOT" -xf -
-) || fail 'could not copy fixture code root'
+# shellcheck source=tests/remote-secondmate-source-copy-helpers.sh
+. "$ROOT/tests/remote-secondmate-source-copy-helpers.sh" || fail 'could not load fixture source copier'
+fm_fixture_copy_remote_source "$ROOT" "$REMOTE_ROOT" || fail 'could not copy fixture code root'
 cat > "$REMOTE_ROOT/bin/tmux" <<SH
 #!/usr/bin/env bash
 set -u

@@ -65,7 +65,7 @@ JS
 # RPC forced to fail. After the first recovery follow-up, wait past the old
 # ~52s loop period so a regression would emit a second follow-up.
 test_unacknowledged_recovery_is_announced_once_per_generation() {
-  local repo home plugin fakebin out status lock_pid messages
+  local repo home plugin fakebin out status messages
   repo="$TMP_ROOT/t1-root"
   home="$TMP_ROOT/t1-home"
   fakebin="$TMP_ROOT/t1-fakebin"
@@ -101,8 +101,9 @@ import { pathToFileURL } from "node:url";
 
 let tool = null;
 const prompts = [];
+const handlers = new Map();
 const pi = {
-  on() {},
+  on(event, handler) { handlers.set(event, handler); },
   registerCommand() {},
   registerTool(candidate) {
     if (candidate.name === "fm_watch_arm_pi") tool = candidate;
@@ -115,50 +116,49 @@ writeFileSync(`${process.env.FM_HOME}/state/.lock`, `${process.pid}\n`);
 const mod = await import(pathToFileURL(process.env.PLUGIN).href);
 mod.default(pi);
 if (!tool) throw new Error("Pi watch tool was not registered");
-await tool.execute("tool-call-t1", {}, undefined, undefined, {});
-const deadline = Date.now() + 75000;
-let firstAt = 0;
-while (Date.now() < deadline) {
-  const rearm = prompts.filter((message) => message.includes("check: rearm-resurface"));
-  if (rearm.length > 1) {
-    throw new Error(`unbounded recovery loop: ${rearm.length} rearm-resurface follow-ups`);
-  }
-  if (rearm.length === 1 && firstAt === 0) firstAt = Date.now();
-  if (firstAt && Date.now() - firstAt >= 55000) break;
-  await new Promise((resolve) => setTimeout(resolve, 200));
-}
-const rearm = prompts.filter((message) => message.includes("check: rearm-resurface"));
-if (rearm.length !== 1) {
-  throw new Error(`expected exactly one recovery follow-up, got ${rearm.length}: ${prompts.join(" || ")}`);
-}
-const lockPid = existsSync(`${process.env.FM_HOME}/state/.watch.lock/pid`)
-  ? readFileSync(`${process.env.FM_HOME}/state/.watch.lock/pid`, "utf8").trim()
-  : "";
-if (!/^[0-9]+$/.test(lockPid)) throw new Error("successor watcher lock pid missing");
 try {
-  process.kill(Number(lockPid), 0);
-} catch {
-  throw new Error(`successor watcher ${lockPid} is not alive`);
+  await tool.execute("tool-call-t1", {}, undefined, undefined, {});
+  const deadline = Date.now() + 75000;
+  let firstAt = 0;
+  while (Date.now() < deadline) {
+    const rearm = prompts.filter((message) => message.includes("check: rearm-resurface"));
+    if (rearm.length > 1) {
+      throw new Error(`unbounded recovery loop: ${rearm.length} rearm-resurface follow-ups`);
+    }
+    if (rearm.length === 1 && firstAt === 0) firstAt = Date.now();
+    if (firstAt && Date.now() - firstAt >= 55000) break;
+    await new Promise((resolve) => setTimeout(resolve, 200));
+  }
+  const rearm = prompts.filter((message) => message.includes("check: rearm-resurface"));
+  if (rearm.length !== 1) {
+    throw new Error(`expected exactly one recovery follow-up, got ${rearm.length}: ${prompts.join(" || ")}`);
+  }
+  const lockPid = existsSync(`${process.env.FM_HOME}/state/.watch.lock/pid`)
+    ? readFileSync(`${process.env.FM_HOME}/state/.watch.lock/pid`, "utf8").trim()
+    : "";
+  if (!/^[0-9]+$/.test(lockPid)) throw new Error("successor watcher lock pid missing");
+  try {
+    process.kill(Number(lockPid), 0);
+  } catch {
+    throw new Error(`successor watcher ${lockPid} is not alive`);
+  }
+  const marker = readFileSync(`${process.env.FM_HOME}/state/.watcher-down`, "utf8").trim();
+  if (!marker.startsWith("announced:") && !marker.startsWith("pending:")) {
+    throw new Error(`successor did not keep a live recovery episode: ${marker}`);
+  }
+  console.log(`T1_MESSAGES=${rearm.length}`);
+  console.log(`T1_LOCK_PID=${lockPid}`);
+  console.log(`T1_MARKER=${marker}`);
+} finally {
+  await handlers.get("session_shutdown")({ reason: "quit" });
 }
-const marker = readFileSync(`${process.env.FM_HOME}/state/.watcher-down`, "utf8").trim();
-if (!marker.startsWith("announced:") && !marker.startsWith("pending:")) {
-  throw new Error(`successor did not keep a live recovery episode: ${marker}`);
-}
-console.log(`T1_MESSAGES=${rearm.length}`);
-console.log(`T1_LOCK_PID=${lockPid}`);
-console.log(`T1_MARKER=${marker}`);
-process.exit(0);
 EOF
   )
   status=$?
   if [ "${FM_TEST_EVIDENCE:-0}" = 1 ]; then
     printf '%s\n' "$out"
   fi
-  lock_pid=$(sed -n 's/^T1_LOCK_PID=//p' <<<"$out" | tail -1)
   messages=$(sed -n 's/^T1_MESSAGES=//p' <<<"$out" | tail -1)
-  if [ -n "$lock_pid" ]; then
-    kill -TERM "$lock_pid" 2>/dev/null || true
-  fi
   expect_code 0 "$status" "an unacknowledged recovery must be announced at most once per generation: $out"
   [ "$messages" = 1 ] || fail "T1 did not report a single recovery follow-up: $out"
   pass "unacknowledged recovery is announced at most once per generation and the successor stays alive"

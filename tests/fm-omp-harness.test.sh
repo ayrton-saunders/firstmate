@@ -727,7 +727,7 @@ if [ ! -e "${FM_HOME:?}/state/.e2e-fired" ]; then
   printf 'signal: omp-e2e done\n'
   exit 0
 fi
-sleep 30
+exec sleep 30
 SH
   chmod +x "$repo/bin/fm-watch-arm.sh"
   out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$repo" FM_OMP_ARM_READY_TIMEOUT_MS=3000 FM_WATCH_REARM_RETRY_LIMIT=1 FM_WATCH_REARM_RETRY_BASE_MS=5 FM_WATCH_REARM_RETRY_MAX_MS=10 \
@@ -810,7 +810,7 @@ if [ "$(grep -c '^host=' "$FM_ARM_LOG")" -eq 1 ]; then
   exit 0
 fi
 printf 'watcher: started pid=%s (beacon fresh) recovery-generation=gen-2\n' "$$"
-sleep 30
+exec sleep 30
 SH
   chmod +x "$repo/bin/fm-watch-arm.sh" "$repo/bin/fm-supervision-host.sh"
   out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$repo" FM_ARM_LOG="$log" FM_WATCH_REARM_RETRY_LIMIT=1 FM_WATCH_REARM_RETRY_BASE_MS=5 FM_WATCH_REARM_RETRY_MAX_MS=10 \
@@ -876,13 +876,13 @@ test_watch_extension_keeps_the_arm_without_the_file_or_with_off() {
 [ "${1:-}" = --handling-delivered ] && exit 0
 printf 'plain-arm=%s\n' "$$" >> "${FM_ARM_LOG:?}"
 printf 'watcher: started pid=%s (beacon fresh)\n' "$$"
-sleep 30
+exec sleep 30
 SH
     cat > "$repo/bin/fm-supervision-host.sh" <<'SH'
 #!/usr/bin/env bash
 printf 'host=%s\n' "$$" >> "${FM_ARM_LOG:?}"
 printf 'watcher: started pid=%s (beacon fresh)\n' "$$"
-sleep 30
+exec sleep 30
 SH
     chmod +x "$repo/bin/fm-watch-arm.sh" "$repo/bin/fm-supervision-host.sh"
     out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$repo" FM_ARM_LOG="$log" \
@@ -939,7 +939,7 @@ if [ "$(grep -c '^host=' "$FM_ARM_LOG")" -eq 1 ]; then
   printf 'supervision-host: outcome 1 for demo [captain]: fixture boundary\n'
   exit 0
 fi
-sleep 30
+exec sleep 30
 SH
   chmod +x "$repo/bin/fm-watch-arm.sh" "$repo/bin/fm-supervision-host.sh"
   out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$repo" FM_ARM_LOG="$log" FM_WATCH_REARM_RETRY_LIMIT=1 FM_WATCH_REARM_RETRY_BASE_MS=5 FM_WATCH_REARM_RETRY_MAX_MS=10 \
@@ -1019,7 +1019,7 @@ case "$(grep -c '^host=' "$FM_ARM_LOG")" in
     ;;
 esac
 printf '%s\n' "$started"
-sleep 30
+exec sleep 30
 SH
   chmod +x "$repo/bin/fm-watch-arm.sh" "$repo/bin/fm-supervision-host.sh"
   out=$(FM_HOME="$home" FM_ROOT_OVERRIDE="$repo" FM_ARM_LOG="$log" FM_WATCH_REARM_RETRY_LIMIT=1 FM_WATCH_REARM_RETRY_BASE_MS=5 FM_WATCH_REARM_RETRY_MAX_MS=10 \
