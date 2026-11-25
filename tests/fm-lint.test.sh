@@ -1071,7 +1071,7 @@ test_changed_flag_upgrades_when_a_lint_definition_is_renamed() {
   pass "fm-lint.sh --changed upgrades to full lint when a lint definition file is renamed"
 }
 
-test_installer_skips_download_when_pinned_binary_is_present() {
+test_installer_verifies_download_when_pinned_binary_is_present() {
   local tmp fakebin destination out
   tmp=$(fm_test_tmproot fm-shellcheck-cached)
   fakebin=$(fm_fakebin "$tmp")
@@ -1092,10 +1092,10 @@ SH
   out=$(CURL_COUNT="$tmp/curl-count" \
     FM_TEST_UNAME_S=Linux FM_TEST_UNAME_M=x86_64 \
     PATH="$fakebin:$PATH" "$INSTALLER" "$destination" 2>&1) \
-    || fail "installer failed to reuse a pinned ShellCheck"$'\n'"$out"
-  assert_contains "$out" "already at" "installer did not skip a present pinned binary"
-  [ ! -f "$tmp/curl-count" ] || fail "installer downloaded ShellCheck even though the pin was already present"
-  pass "ShellCheck installer skips download when the pinned binary is already present"
+    && fail "installer accepted a version-matching binary without verifying a fresh archive"
+  [ -s "$tmp/curl-count" ] || fail "installer did not download a fresh ShellCheck archive"
+  assert_contains "$out" "checksum mismatch" "installer did not reject the invalid archive"
+  pass "ShellCheck installer verifies a fresh archive even when the pinned version is already present"
 }
 
 test_local_exclusion_list_covers_every_no_external_sources_code() {
@@ -2286,7 +2286,7 @@ test_ci_rejects_explicit_fast_mode
 test_fast_mode_catches_a_real_lint_defect
 test_pins_an_explicit_version
 test_installer_retries_transient_download_failure
-test_installer_skips_download_when_pinned_binary_is_present
+test_installer_verifies_download_when_pinned_binary_is_present
 test_installer_selects_platform_archive_url_and_checksum
 test_installer_rejects_wrong_checksum
 test_installer_falls_back_to_shasum
