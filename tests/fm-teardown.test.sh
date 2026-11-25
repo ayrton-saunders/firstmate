@@ -2596,6 +2596,61 @@ test_forced_secondmate_dirty_child_return_warns_and_completes() {
   pass "a forced secondmate teardown warns about a dirty child return and still completes"
 }
 
+test_secondmate_teardown_checks_child_returns_before_removing_pool() {
+  local result case_dir home pool_root project_pool slot rc
+  for result in clean dirty unverified; do
+    case_dir=$(make_case "secondmate-pool-$result")
+    write_meta "$case_dir" local-only secondmate
+    home="$case_dir/secondmate-home"
+    mkdir -p "$home/state" "$home/data" "$home/config" "$home/projects"
+    printf '%s\n' task-x1 > "$home/.fm-secondmate-home"
+    printf 'schema=fm-secondmate-parent.v1\nroute=local\nparent_home=%s\n' \
+      "$case_dir" > "$home/.fm-secondmate-parent"
+    printf '%s\n' "home=$home" >> "$case_dir/state/task-x1.meta"
+    pool_root=$(TREEHOUSE_ROOT="$case_dir/treehouse" FM_HOME="$home" bash -c \
+      '. "$1" && fm_treehouse_spawn_root "$2"' _ "$ROOT/bin/fm-wake-lib.sh" "$home")
+    case "$pool_root" in
+      "$case_dir/treehouse/fm-secondmate/"*) ;;
+      *) fail "secondmate-pool-$result: fixture pool not isolated: $pool_root" ;;
+    esac
+    project_pool="$pool_root/project-pool"
+    slot="$project_pool/6/repo"
+    mkdir -p "$project_pool/6"
+    git -C "$case_dir/project" worktree add -q -b fm/child-scout "$slot" main
+    printf '{"worktrees":[{"name":"6","path":"%s"}]}\n' "$slot" \
+      > "$project_pool/treehouse-state.json"
+    fm_write_meta "$home/state/child-scout.meta" \
+      "window=firstmate:fm-child-scout" \
+      "endpoint_task_id=child-scout" \
+      "worktree=$slot" \
+      "project=$case_dir/project" \
+      "kind=scout" \
+      "mode=local-only"
+    case "$result" in
+      dirty) add_treehouse_that_leaves_residue "$case_dir" ;;
+      unverified) add_treehouse_that_removes_copy "$case_dir" ;;
+    esac
+
+    rc=0
+    TREEHOUSE_ROOT="$case_dir/treehouse" run_teardown "$case_dir" --force \
+      > "$case_dir/stdout" 2> "$case_dir/stderr" || rc=$?
+    assert_absent "$home" "secondmate-pool-$result: secondmate home survived"
+    if [ "$result" = clean ]; then
+      expect_code 0 "$rc" "secondmate-pool-clean: teardown failed: $(<"$case_dir/stderr")"
+      assert_absent "$pool_root" "secondmate-pool-clean: verified-clean pool survived"
+    else
+      expect_code 4 "$rc" "secondmate-pool-$result: expected a lost-slot warning"
+      assert_present "$slot" "secondmate-pool-$result: surviving slot was deleted"
+      if [ "$result" = dirty ]; then
+        assert_present "$slot/left-behind-clone" "secondmate-pool-dirty: residue was deleted"
+      else
+        assert_grep 'cannot verify' "$case_dir/stderr" "secondmate-pool-unverified: verification did not fail"
+      fi
+    fi
+  done
+  pass "secondmate teardown removes a verified-clean pool and retains dirty or unverified child slots"
+}
+
 test_secondmate_teardown_removes_its_pool_root_and_leaves_a_sibling() {
   local case_dir home sibling pool_root sibling_root rc
   case_dir=$(make_case secondmate-pool-root)
@@ -7120,6 +7175,7 @@ test_dirty_return_warns_even_when_a_later_step_refuses
 test_forced_secondmate_child_polytoken_wiring_ownership
 test_forced_secondmate_child_scout_nested_clone_returns_clean
 test_forced_secondmate_dirty_child_return_warns_and_completes
+test_secondmate_teardown_checks_child_returns_before_removing_pool
 test_secondmate_teardown_removes_its_pool_root_and_leaves_a_sibling
 test_return_that_removes_copy_warns_cannot_verify
 test_retired_pool_home_scrubs_private_dirs

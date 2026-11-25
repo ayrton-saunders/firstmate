@@ -2225,10 +2225,13 @@ teardown_scrub_firstmate_private_dirs() {
 # Callers run this only for a copy that was a Treehouse pool slot before the
 # return; a return removes any other copy, and the pool cannot lose it.
 teardown_note_dirty_return() {
-  local wt=$1 residue_rc=0 residue slot_dir slot_label
+  local wt=$1 pending_return=${2:-} residue_rc=0 residue slot_dir slot_label
   if git -C "$wt" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
     residue=$(git -C "$wt" status --porcelain --untracked-files=all) || residue_rc=$?
-    [ "$residue_rc" -ne 0 ] || [ -n "$residue" ] || return 0
+    if [ "$residue_rc" -eq 0 ] && [ -z "$residue" ]; then
+      [ -z "$pending_return" ] || rmdir -- "$pending_return"
+      return $?
+    fi
   else
     residue_rc=1
   fi
@@ -2986,7 +2989,7 @@ safe_rm_rf() {
 # directory sitting directly under an fm-secondmate/ parent. Child task slots
 # are returned before this runs; this only removes that leftover root.
 remove_secondmate_treehouse_pool() {  # <pool-root>
-  local pool=$1 parent
+  local pool=$1 parent pending
   [ -n "$pool" ] || return 0
   case "$pool" in
     /*) ;;
@@ -2996,6 +2999,12 @@ remove_secondmate_treehouse_pool() {  # <pool-root>
   parent=$(dirname "$pool")
   [ "$(basename "$parent")" = fm-secondmate ] || return 0
   [ -d "$parent" ] && [ ! -L "$parent" ] || return 0
+  for pending in "$pool"/.fm-unverified-return.*; do
+    if [ -e "$pending" ] || [ -L "$pending" ]; then
+      echo "warning: retaining secondmate pool $pool because a child slot return was not verified clean" >&2
+      return 0
+    fi
+  done
   rm -rf -- "$pool"
 }
 
@@ -3649,8 +3658,14 @@ endpoint_close_refusal() {  # <subject> <backend> <target> <honors-force>
 
 cleanup_firstmate_home_children() {
   local home=$1 archive_parent=${2:-$ID} sub_state child_meta child_id child_t child_wt child_proj child_kind child_home child_rex_home child_backend child_orca_worktree_id child_return_rc child_busy_gen child_owner_rc child_pool_slot
+  local pool_root pool_physical child_physical pending_return
   sub_state="$home/state"
   [ -d "$sub_state" ] || return 0
+  pool_root=$(fm_treehouse_spawn_root "$home") || pool_root=
+  pool_physical=
+  if [ -n "$pool_root" ] && [ -d "$pool_root" ] && [ ! -L "$pool_root" ] && [ ! -L "${pool_root%/*}" ]; then
+    pool_physical=$(canonical_existing_dir "$pool_root") || return 1
+  fi
   for child_meta in "$sub_state"/*.meta; do
     [ -e "$child_meta" ] || continue
     child_id=$(basename "$child_meta" .meta)
@@ -3728,6 +3743,17 @@ cleanup_firstmate_home_children() {
       if fm_treehouse_pool_slot "$child_proj" "$child_wt"; then
         require_owned_worktree_slot_record "$child_id" "$child_wt" 2>/dev/null || child_owner_rc=$?
       fi
+      pending_return=
+      if [ -n "$pool_physical" ]; then
+        child_physical=$(canonical_existing_dir "$child_wt") || return 1
+        case "$child_physical" in
+          "$pool_physical"/*)
+            # Persist before the return so an interrupted teardown cannot
+            # forget an unverified slot on retry.
+            pending_return=$(mktemp -d "$pool_physical/.fm-unverified-return.XXXXXX") || return 1
+            ;;
+        esac
+      fi
       if [ "$child_owner_rc" -eq "$TEARDOWN_SLOT_REASSIGNED_RC" ]; then
         :
       elif [ "$child_owner_rc" -ne 0 ]; then
@@ -3748,15 +3774,20 @@ cleanup_firstmate_home_children() {
           child_pool_slot=0
           fm_treehouse_pool_slot "$child_proj" "$child_wt" && child_pool_slot=1
           if teardown_treehouse_return "$child_wt" "$child_proj" "child worktree"; then
-            [ "$child_pool_slot" = 0 ] || teardown_note_dirty_return "$child_wt"
+            if [ "$child_pool_slot" = 1 ] || [ -n "$pending_return" ]; then
+              teardown_note_dirty_return "$child_wt" "$pending_return" || return 1
+            fi
             fm_treehouse_slot_owner_release "$child_wt" "$child_id"
           else
             child_return_rc=$?
-            if [ "$child_return_rc" -eq "$TEARDOWN_TREEHOUSE_LOCK_REFUSED" ]; then
+            if [ -n "$pending_return" ] || [ "$child_return_rc" -eq "$TEARDOWN_TREEHOUSE_LOCK_REFUSED" ]; then
               return "$child_return_rc"
             fi
             safe_rm_rf_child_worktree "$child_wt" "$child_proj"
           fi
+        elif [ -n "$pending_return" ]; then
+          echo "error: cannot return child worktree $child_wt; retaining its pool and task record" >&2
+          return 1
         else
           safe_rm_rf_child_worktree "$child_wt" "$child_proj"
         fi
