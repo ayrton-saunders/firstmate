@@ -1,0 +1,83 @@
+
+Exact unlanded candidate: read-only Git fetch from ayrton-saunders/firstmate
+fatal: remote error: upload-pack: not our ref 9fedfb189847308ad755665938533fd6283d401f
+
+Exact unlanded candidate: read-only Git fetch from kunchenguid/firstmate
+fatal: remote error: upload-pack: not our ref 9fedfb189847308ad755665938533fd6283d401f
+fatal: Not a valid object name 9fedfb189847308ad755665938533fd6283d401f^{commit}
+
+Draft CLI on available worktree objects (no lazy fetch):
+Cannot draft repair approval from this history.
+Draft exit=1
+
+Canonical commit and clean rebuild viability:
+2f000eb4301c2d733bef163621e9ac3d740f21cf Port of #7390: per-secondmate Treehouse pool outside the home (#8718)
+7e0d468e4d116d7e446ebbba0db0bca850b721af
+100644 80d7d8b1fb89901b5474ca248d73f29612cb6826 1	.github/workflows/ci.yml
+100644 55dc2a0fcdd56c1cc321f3d588bd7bbb733dea43 2	.github/workflows/ci.yml
+100644 df689cab9de49755eb36cac9232b6f2ba37ddfe2 3	.github/workflows/ci.yml
+100644 9e0d494b2d85cd5d70812b7f0dd3a65bc7488819 1	CONTRIBUTING.md
+100644 2c98636505a7a349e93c4036fa269f1776ba7992 2	CONTRIBUTING.md
+100644 87fefc4f583e5a564296d8dd9bc55678f0568230 3	CONTRIBUTING.md
+100755 b472af511a3d041e66687b3568246d7f8f9b19f8 1	bin/fm-lint.sh
+100755 a1ddd9eb541728de102b6f96787ca2936998e90a 2	bin/fm-lint.sh
+100755 1f6b2750f4f81e7db35df3f59a6646e2315a58bf 3	bin/fm-lint.sh
+100755 5b5a553a03a767fd5cf56f5b9c21b534252d3922 1	bin/fm-test-run.sh
+100755 f18e1d5f4a0c3241edcbf01ca5282b4073cfc9c1 2	bin/fm-test-run.sh
+100755 22041137c0e0987c304fb8d153fcbe7ad0d82056 3	bin/fm-test-run.sh
+100644 2eea56469344a212bb230eea1212d46a54508b85 1	docs/fm-test-portable-shards.md
+100644 307e4c3d9dc5c590802dde33c9d0a47d8cfc20a7 2	docs/fm-test-portable-shards.md
+100644 d7613e67f7a604416120395d747bbd03e42d3ec7 3	docs/fm-test-portable-shards.md
+100755 70590fb6be557b6e86a66b0b41b40449c3841b88 1	tests/fm-captain-hold-lifecycle.test.sh
+100755 a7bbfdcbbc6701c9f3457821ecabe7365bce55a0 2	tests/fm-captain-hold-lifecycle.test.sh
+100755 f32d3bec69126d9d91e4bb806bc276e54dc4c83a 3	tests/fm-captain-hold-lifecycle.test.sh
+100755 dddb998fa5c8b472c41ed0340bbb0ef4de32ee88 1	tests/fm-ci-workflow.test.sh
+100755 b0724f5739f0ed83bcb790df7ea5419a4c3b9758 2	tests/fm-ci-workflow.test.sh
+100755 e6807c46cfd881c1e3ecbf0209abc880f2e5977c 3	tests/fm-ci-workflow.test.sh
+100755 e6c6edf5f94c471504971292044340a1c197ce7b 1	tests/fm-lint.test.sh
+100755 fa0a39d8fee5447823da74b59d4922e555a2dfb5 2	tests/fm-lint.test.sh
+100755 793f6b68fc2453064cd0e2b00dbfbb732d3e0cbe 3	tests/fm-lint.test.sh
+100755 895466aded3834c821f667236f1dfc8ce7597316 1	tests/fm-remote-secondmate-lifecycle-e2e.test.sh
+100755 3be50fdb7b7674a356eb9f8af0e7e7e7eba20358 2	tests/fm-remote-secondmate-lifecycle-e2e.test.sh
+100755 fcec14d8fd24df572dcd2b16e7a967e37d907c88 3	tests/fm-remote-secondmate-lifecycle-e2e.test.sh
+100755 292b9a43767b62c99517624b6d0b30031bace1c6 1	tests/fm-test-run.test.sh
+100755 568394b56e2bd9b2c5e0c1cc887aa78871ffbaa5 2	tests/fm-test-run.test.sh
+100755 6c2ad5e6bba700abef66c64a561442c337f0b4a0 3	tests/fm-test-run.test.sh
+
+Auto-merging .agents/skills/operational-home-layout/SKILL.md
+Auto-merging .github/workflows/ci.yml
+CONFLICT (content): Merge conflict in .github/workflows/ci.yml
+Auto-merging CONTRIBUTING.md
+CONFLICT (content): Merge conflict in CONTRIBUTING.md
+Auto-merging bin/fm-lint.sh
+CONFLICT (content): Merge conflict in bin/fm-lint.sh
+Auto-merging bin/fm-spawn.sh
+Auto-merging bin/fm-teardown.sh
+Auto-merging bin/fm-test-run.sh
+CONFLICT (content): Merge conflict in bin/fm-test-run.sh
+Auto-merging bin/fm-wake-lib.sh
+Auto-merging docs/architecture.md
+Auto-merging docs/configuration.md
+Auto-merging docs/fm-test-portable-shards.md
+CONFLICT (content): Merge conflict in docs/fm-test-portable-shards.md
+Auto-merging docs/scripts.md
+Auto-merging tests/fm-bootstrap.test.sh
+Auto-merging tests/fm-captain-hold-lifecycle.test.sh
+CONFLICT (content): Merge conflict in tests/fm-captain-hold-lifecycle.test.sh
+Auto-merging tests/fm-ci-workflow.test.sh
+CONFLICT (content): Merge conflict in tests/fm-ci-workflow.test.sh
+Auto-merging tests/fm-lint.test.sh
+CONFLICT (content): Merge conflict in tests/fm-lint.test.sh
+Auto-merging tests/fm-remote-secondmate-lifecycle-e2e.test.sh
+CONFLICT (content): Merge conflict in tests/fm-remote-secondmate-lifecycle-e2e.test.sh
+Auto-merging tests/fm-secondmate-harness.test.sh
+Auto-merging tests/fm-secondmate-liveness.test.sh
+Auto-merging tests/fm-secondmate-sync.test.sh
+Auto-merging tests/fm-teardown.test.sh
+Auto-merging tests/fm-test-run.test.sh
+CONFLICT (content): Merge conflict in tests/fm-test-run.test.sh
+Auto-merging tests/fm-watch-triage.test.sh
+1178:test_installer_selects_platform_archive_url_and_checksum() {
+1218:test_installer_rejects_wrong_checksum() {
+2286:test_installer_selects_platform_archive_url_and_checksum
+2287:test_installer_rejects_wrong_checksum
