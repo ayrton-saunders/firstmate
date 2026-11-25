@@ -1,0 +1,19 @@
+Base: 20a07c6ec639f097d485b12d3039b666c9da0e3c
+Approval head: e64a664291dd2f8fd61aca38d7a796ec9cd566e1
+Git diff: M	.github/upstream-repairs.json
+Actual approval blob (byte-for-byte match to the draft as provided in the intent):
+{
+  "schema": 1,
+  "integrations": [
+    {
+      "upstream": "2f000eb4301c2d733bef163621e9ac3d740f21cf",
+      "fork_tree": "9cc93c67292547b3f6eded5f6100d488f191b839320d9eb2a1f87b8df7cee593",
+      "integration_tree": "4b1f9357054826aa94d9fa143a1b195af28ee001031c5b4b9f7dc9f93a955e89",
+      "repairs": [
+        "367a1c3880dda2ecdb4d38e77773d3e41e7f3e5eb9844bf056a0c0415104df00"
+      ]
+    }
+  ]
+}
+Trusted verifier loaded 1 entry from approval head (none on base).
+Verifier fork-tree digest, identical before and after the approval: 9cc93c67292547b3f6eded5f6100d488f191b839320d9eb2a1f87b8df7cee593

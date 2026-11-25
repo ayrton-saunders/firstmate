@@ -1,0 +1,24 @@
+Verifier CLI draft (disposable Git history, not the Firstmate candidate):
+{
+  "schema": 1,
+  "integrations": [
+    {
+      "upstream": "04878fb5b3de0053e31f765a7c844266c1dc5dac",
+      "fork_tree": "d7470baaff6584fc11f37bb4caf92d5f69c740cc5926754c1c087a02c1fd8ba1",
+      "integration_tree": "4afa2e582d71a5d3e0ed9f04ebaacde5c3e42b2a179c7d99ed2215ca453a41e4",
+      "repairs": [
+        "f07932e0087e4910ba5ec371d6a5e4702500068bae11cabe5b8acedc7bfd2fd5"
+      ]
+    }
+  ]
+}
+diff --git a/pool-state b/pool-state
+index 87e9e74..cc710b2 100644
+--- a/pool-state
++++ b/pool-state
+@@ -1 +1 @@
+-retain=1
++retain=0
+Exact rebuilt repair, synthetic approval: matches trusted base approval
+One-byte change to rebuilt repair, synthetic approval: does not match trusted base approval
+Unrelated rebuilt repair, actual Firstmate approval: does not match trusted base approval

@@ -1,0 +1,4 @@
+Local workflow entry against synthetic localhost PR: ayrton-saunders/firstmate:fm/fork-upstream-sync-20261124-u2-repair-approval -> ayrton-saunders/firstmate:main
+Changed files from actual Git commits: [{"filename": ".github/upstream-repairs.json", "additions": 10, "deletions": 1, "status": "modified"}]
+PR compliance route: native
+GitHub Actions output: route=native
