@@ -1556,15 +1556,15 @@ The CLI reference documents the one file-or-JSON flag, the settings page documen
 
 ### Codex automatic approval review
 
-Codex crewmate, scout, and secondmate launches default to `--dangerously-bypass-approvals-and-sandbox`.
-The local, gitignored `config/codex-approval-mode` accepts one whitespace-trimmed token: absent or `bypass` retains that default; `approve-for-me` selects `--approve-for-me`.
+Firstmate-built, pane-backed Codex crewmate, scout, and secondmate commands default to `--dangerously-bypass-approvals-and-sandbox`.
+The local, gitignored `config/codex-approval-mode` accepts one whitespace-trimmed token: absent or `bypass` retains that default; `approve-for-me` selects `--approve-for-me` unless [restricted mode](#codex-permission-mode-configcodex-permission-mode) takes precedence.
+`fm-spawn.sh` validates the file even when launching a different harness.
 Malformed values and unreadable files refuse before spawn mutation, and the setting applies to relaunches and is inherited into secondmate homes.
-`backend=t3code` always runs Codex at T3's `full-access`, so it refuses `approve-for-me` before mutation; [`t3code-backend.md`](t3code-backend.md#active-limits) owns that backend limit.
+For T3 Code, see [provider launch limits](t3code-backend.md#active-limits).
 The fallback uses a model reviewer in the workspace-write sandbox, which starts with network access disabled and reviews writes outside the working directory.
 It remedies a managed policy that leaves bypass launches with user-reviewed approvals even when its sandbox bypass applies.
 Firstmate targets current CLIs rather than detecting versions or emulating older approval flags.
-Crew and scout launches still request hook disablement and retain their notification wiring, while secondmates retain their primary-session hooks.
-A managed policy can override the requested hook disablement, so it may still require an operator's hook review.
+Approval mode does not change [Codex hook and notification wiring](../.agents/skills/harness-adapters/references/harness/codex.md#hook-trust).
 See the [current verification and limits](verification/runtime-backends.md#codex-automatic-approval-review) for observed task-channel and network access.
 
 ## Claude permission mode (config/claude-permission-mode)
@@ -1608,13 +1608,12 @@ The optional local, gitignored `config/codex-permission-mode` selects the permis
 
 | File content | Launch permission flags |
 | --- | --- |
-| Absent or `bypass` | The [Codex approval mode](#codex-automatic-approval-review) flag, `--dangerously-bypass-approvals-and-sandbox` by default |
+| Absent or `bypass` | Uses the flag selected by [Codex approval mode](#codex-automatic-approval-review) |
 | `restricted` | `--sandbox workspace-write --ask-for-approval on-request` |
 
 Create the file containing exactly one of the two tokens, optionally followed by a newline.
-An absent file preserves the existing launch command.
 Restricted mode changes only the permission flags; model, effort, and hook wiring stay the same.
-It replaces whichever flag `config/codex-approval-mode` selects, and the task record reports `restricted`, so managed approval failover never treats the launch as bypass.
+The task record reports `restricted`, so managed approval failover never treats a restricted launch as bypass.
 It grants no additional writable directories, including the shared Firstmate state directory.
 Writes outside the worker's worktree, including status reports and steering-inbox acknowledgements, remain subject to operator approval.
 Codex `--sandbox workspace-write` also disables network access and does not permit writes to shared Git metadata by default, so `git commit`, `git push`, `gh`, and no-mistakes pipeline steps from a restricted worker likewise stop at an approval prompt.

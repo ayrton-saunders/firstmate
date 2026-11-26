@@ -799,7 +799,7 @@ No generic remote delete or write surface exists:
 
 The portable tests use these pieces:
 
-- The real entrypoint protocol.
+- The [real entrypoint](../tests/fm-remote-entrypoint.test.sh), including refusal of a protocol mismatch before dispatch or queue creation.
 - Real git repositories.
 - A deterministic SSH boundary.
 - Stateful host-local Herdr and Rex CLI fixtures.
