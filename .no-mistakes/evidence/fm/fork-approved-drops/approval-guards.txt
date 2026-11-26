@@ -1,0 +1,34 @@
+/private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.YzOrVV/h
+
+$ fm-spawn.sh approval-guard-YzOrVV <lab-repo> codex --scout [config: empty]
+error: config/codex-approval-mode holds ''; accepted values are: bypass (the default), approve-for-me
+exit=1; no task record or new worktree
+
+$ fm-spawn.sh approval-guard-YzOrVV <lab-repo> codex --scout [config: multiword]
+error: config/codex-approval-mode holds 'approve-for-me bypass'; accepted values are: bypass (the default), approve-for-me
+exit=1; no task record or new worktree
+
+$ fm-spawn.sh approval-guard-YzOrVV <lab-repo> codex --scout [config: directory]
+error: config/codex-approval-mode must be a readable regular file holding one of: bypass, approve-for-me
+exit=1; no task record or new worktree
+
+$ fm-spawn.sh approval-guard-YzOrVV <lab-repo> codex --scout [config: dangling]
+error: config/codex-approval-mode must be a readable regular file holding one of: bypass, approve-for-me
+exit=1; no task record or new worktree
+
+$ fm-approval-failover.sh apply approval-guard-YzOrVV [existing explicit bypass]
+error: config/codex-approval-mode already exists; nothing overwritten
+exit=1; persisted codex-approval-mode=bypass
+
+$ fm-approval-failover.sh apply approval-guard-YzOrVV [T3 record]
+error: backend=t3code already runs codex at T3's full-access runtime mode and cannot honor config/codex-approval-mode=approve-for-me; approve the pending request in T3 Code itself or choose another backend; nothing changed
+exit=1; no setting written
+
+$ fm-remote-inherit.sh put config/codex-approval-mode <synthetic bytes>
+/private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.YzOrVV/remote
+pushed: config/codex-approval-mode
+remote setting=approve-for-me
+
+$ fm-remote-inherit.sh absent config/codex-approval-mode
+removed: config/codex-approval-mode
+remote setting absent after primary removal

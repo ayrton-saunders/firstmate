@@ -1,0 +1,52 @@
+/private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/h
+t3 v0.1.0
+{"ok":true,"tokenFile":"/private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/h/config/t3code-token","origin":"http://127.0.0.1:49939","access":"full-access","scope":"orchestration:read orchestration:operate settings:write source-control:write","expiresAt":"2026-12-26T10:46:49.032Z","environmentId":"0356b085-90c2-4757-aac4-22b4f9360d14","serverVersion":"0.1.0"}
+{"ok":true,"origin":"http://127.0.0.1:49939","access":"full-access","expiresAt":"2026-12-26T10:46:49.032Z","daysLeft":30,"environmentId":"0356b085-90c2-4757-aac4-22b4f9360d14","serverVersion":"0.1.0","recordedServerVersion":"0.1.0","telemetry":"off"}
+
+$ fm-spawn.sh <id> <repo> codex --scout --backend t3code [config: approve-for-me]
+error: backend=t3code runs codex at T3's full-access runtime mode and cannot honor config/codex-approval-mode=approve-for-me; remove that file or choose another backend
+exit=1; no task record or new worktree
+
+$ fm-spawn.sh <id> <repo> codex --scout --backend t3code [config: absent]
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/h
+🌳 Setting up worktree...
+🌳 Leased worktree at /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/treehouse/.treehouse/project-5b87f8/1/project. Run 'treehouse return /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/treehouse/.treehouse/project-5b87f8/1/project' to release it.
+spawned t3approval-LFNetU harness=codex kind=scout window=fm-t3approval-LFNetU worktree=/private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/treehouse/.treehouse/project-5b87f8/1/project
+approval_mode=bypass
+backend=t3code
+{"ok":true,"threadId":"mcp:22ea1d26-a912-416c-9d42-a82bffa99a43","runId":"run:thread:mcp%3A22ea1d26-a912-416c-9d42-a82bffa99a43:ordinal:1","status":"completed","timedOut":false}
+[user_message/completed] ⁣FIRSTMATE_OP: v1 launch-brief: # Current worker role contract You are a crewmate: an autonomous worker agent managed by firstmate. This section establishes your current identity before every project or task instruction below and supersedes any conflicting role identity in those instructions. Do the assigned work yourself and report only to firstmate; do not adopt a firstmate or secondmate supervisor identity, delegate the task, run fleet supervision, or address the captain. Your steering inbox is `/private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/h/sta
+[assistant_message/completed] Local approval lab complete.
+[checkpoint/completed] []
+t3code: status=completed run=none
+complete: t3approval-LFNetU captain-call inventory reviewed
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/h
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+●  WATCHER DOWN - SUPERVISION IS OFF
+●  1 task(s) in flight, but no live watcher process holds this home lock (last beat: 8s ago).
+●  Trust the emitted supervision protocol for this harness; do not use shell & for watcher repair.
+●  This is a supervision warning only; the guarded operation WILL still run.
+●  repair a missing or failed watcher cycle with the Pi tool fm_watch_arm_pi, or restart Pi with -e {run-worktree}/.pi/extensions/fm-primary-turnend-guard.ts -e {run-worktree}/.pi/extensions/fm-primary-pi-watch.ts if the extensions are not loaded.
+●━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🌳 Worktree returned to pool.
+teardown t3approval-LFNetU complete (window mcp:22ea1d26-a912-416c-9d42-a82bffa99a43, worktree /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/treehouse/.treehouse/project-5b87f8/1/project)
+Backlog: t3approval-LFNetU just finished (config/backlog-backend selects manual editing). Update /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/h/data/backlog.md - move t3approval-LFNetU to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.
+
+$ fm-spawn.sh <id> <repo> codex --scout --backend t3code [config: bypass]
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/h
+🌳 Setting up worktree...
+🌳 Leased worktree at /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/treehouse/.treehouse/project-5b87f8/1/project. Run 'treehouse return /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/treehouse/.treehouse/project-5b87f8/1/project' to release it.
+spawned t3approval-LFNetU harness=codex kind=scout window=fm-t3approval-LFNetU worktree=/private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/treehouse/.treehouse/project-5b87f8/1/project
+approval_mode=bypass
+backend=t3code
+{"ok":true,"threadId":"mcp:8e2bcd15-b75b-45de-ae48-62a9bca50ee9","runId":"run:thread:mcp%3A8e2bcd15-b75b-45de-ae48-62a9bca50ee9:ordinal:1","status":"completed","timedOut":false}
+[user_message/completed] ⁣FIRSTMATE_OP: v1 launch-brief: # Current worker role contract You are a crewmate: an autonomous worker agent managed by firstmate. This section establishes your current identity before every project or task instruction below and supersedes any conflicting role identity in those instructions. Do the assigned work yourself and report only to firstmate; do not adopt a firstmate or secondmate supervisor identity, delegate the task, run fleet supervision, or address the captain. Your steering inbox is `/private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/h/sta
+[assistant_message/completed] Local approval lab complete.
+[checkpoint/completed] []
+t3code: status=completed run=none
+complete: t3approval-LFNetU captain-call inventory reviewed
+fm-gate-refuse: gate agent lifecycle permitted only against lab home /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/h
+WARNING: watcher still down (same stale episode; last beat: 16s ago, grace 300s) - full banner already printed this episode.
+🌳 Worktree returned to pool.
+teardown t3approval-LFNetU complete (window mcp:8e2bcd15-b75b-45de-ae48-62a9bca50ee9, worktree /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/treehouse/.treehouse/project-5b87f8/1/project)
+Backlog: t3approval-LFNetU just finished (config/backlog-backend selects manual editing). Update /private/var/folders/fw/sxjfzyxn1w58yrhpvd5mctvh0000gn/T/l.LFNetU/h/data/backlog.md - move t3approval-LFNetU to Done, keep Done to the 10 most recent, then re-scan Queued and dispatch only work whose blockers are gone and date is due.

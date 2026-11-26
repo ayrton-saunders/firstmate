@@ -1,0 +1,10 @@
+test_adapter (__main__.Adapter.test_adapter) ... Executing <Task finished name='Task-2' coro=<Adapter.test_adapter() done, defined at {run-worktree}/.test-probe/ack.py:6> result=None created at ~/.local/share/uv/python/cpython-3.14.10-macos-aarch64-none/lib/python3.14/asyncio/runners.py:110> took 4.557 seconds
+ok
+
+----------------------------------------------------------------------
+Ran 1 test in 5.115s
+
+OK
+Imminent answer: no acknowledgement published.
+Slow answer, replayed command: one synthetic Discord post in the bound thread: I'm checking the title's contrast against the page background.
+Final remains a separate post: The title has enough contrast against the page background.

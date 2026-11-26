@@ -1,0 +1,12 @@
+Firstmate away notice CLI + real parent facade 45e67bfe, isolated journals and synthetic forge inputs
+test_real_no_ci_pr_creates_one_notice (__main__.Evidence.test_real_no_ci_pr_creates_one_notice) ... {"template": "pr-ready", "outbound_text": "The Personal work is ready for review: <https://github.com/owner/repo/pull/1>. Review it in our usual conversation. Discord replies do not approve it."}
+ok
+test_real_templates_dedupe_and_receipt_only_reconciliation (__main__.Evidence.test_real_templates_dedupe_and_receipt_only_reconciliation) ... {"template": "decision-waiting", "outbound_text": "A decision is waiting for the Personal work. Please review it in our usual conversation."}
+{"template": "sensitive-decision", "outbound_text": "A decision is waiting. Please review it in our usual conversation."}
+ok
+test_real_mixed_domain_withdrawal_and_return (__main__.Evidence.test_real_mixed_domain_withdrawal_and_return) ... ok
+
+----------------------------------------------------------------------
+Ran 3 tests in 8.136s
+
+OK
