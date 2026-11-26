@@ -200,8 +200,8 @@ puts(value ? Expression.evaluate(value[1], {"matrix.shard" => Integer(ARGV[2])})
 # Tier membership is the executable inventory of the timeout policy: a new job
 # must join a tier, and a job-level value outside these tiers is exactly the
 # one-off number the policy removed.
-FAST_TIER_JOBS='test-coverage invariants tests-timing-aggregate full-suite'
-NORMAL_TIER_JOBS='lint lint-partitions tests-portable-parallel-1 tests-portable-parallel-2 tests-portable-serial macos-stock-bash'
+FAST_TIER_JOBS='lint test-coverage invariants tests-timing-aggregate full-suite'
+NORMAL_TIER_JOBS='lint-partitions tests-portable-parallel-1 tests-portable-parallel-2 tests-portable-serial macos-stock-bash'
 HEAVY_TIER_JOBS='tests-herdr tests-hc'
 
 # Print the one timeout every listed job shares; fail on any disagreement.
@@ -454,7 +454,7 @@ test_fast_tier_shares_one_short_tripwire() {
   pass "fast tier jobs share one $fast minute tripwire"
 }
 
-# Normal tier: one shared 45-minute budget, including every serial shard.
+# Normal tier: one shared 30-minute budget, including every serial shard.
 # That budget is a hang tripwire, not a packing estimate.
 test_normal_tier_shares_one_budget() {
   local fast normal
@@ -464,8 +464,8 @@ test_normal_tier_shares_one_budget() {
   normal=$(tier_timeout normal $NORMAL_TIER_JOBS) || exit 1
   [ "$normal" -gt "$fast" ] \
     || fail "normal tier ($normal) must exceed the fast tier ($fast)"
-  [ "$normal" = 45 ] \
-    || fail "normal tier must be the single 45-minute shared budget, got $normal"
+  [ "$normal" = 30 ] \
+    || fail "normal tier must be the single 30-minute shared budget, got $normal"
   pass "normal tier jobs share one $normal minute budget"
 }
 
@@ -640,7 +640,68 @@ end
 }
 
 test_required_lint_verdicts_preserve_coverage
+
+test_ci_keeps_the_timecap_safeguards() {
+  ruby -ryaml - "$CI_WORKFLOW" <<'RUBY' || fail "CI timecap safeguards"
+doc = YAML.load_file(ARGV[0])
+jobs = doc.fetch("jobs")
+lint = jobs.fetch("lint-partitions")
+raise "lint timeout-minutes must stay 30" unless lint.fetch("timeout-minutes") == 30
+raise "lint matrix must be four partitions" unless lint.fetch("strategy").fetch("matrix").fetch("partition") == [1, 2, 3, 4]
+steps = lint.fetch("steps")
+raise "lint checkout must fetch full history for --changed" unless steps.any? { |s|
+  s["uses"].to_s.include?("actions/checkout@") && s.dig("with", "fetch-depth") == 0
+}
+lint_run = steps.find { |s| s["name"] == "Lint canonical partition" } or raise "lint step missing"
+raise "PR lint must pass --changed" unless lint_run.fetch("run").include?("--changed")
+raise "lint must keep FM_LINT_JOBS=1" unless lint_run.dig("env", "FM_LINT_JOBS") == "1"
+
+serial = jobs.fetch("tests-portable-serial")
+raise "serial timeout-minutes must stay 30" unless serial.fetch("timeout-minutes") == 30
+shards = serial.fetch("strategy").fetch("matrix").fetch("shard")
+raise "serial matrix must be 20 shards" unless shards == (1..20).to_a
+
+%w[lint-partitions tests-portable-parallel-1 tests-portable-parallel-2 tests-portable-serial].each do |name|
+  job = jobs.fetch(name)
+  raise "#{name} timeout-minutes must stay 30" unless job.fetch("timeout-minutes") == 30
+  job_steps = job.fetch("steps")
+  raise "#{name} must not restore cached lint tools" if job_steps.any? { |s|
+    s["uses"].to_s.start_with?("actions/cache@") && s.dig("with", "path").to_s.include?("fm-ci-tools")
+  }
+  %w[shellcheck actionlint].each do |tool|
+    raise "#{name} must install pinned #{tool}" unless job_steps.any? { |s|
+      s["run"].to_s.include?("bin/fm-install-#{tool}.sh")
+    }
+  end
+end
+
+%w[tests-portable-parallel-1 tests-portable-parallel-2].each do |name|
+  job = jobs.fetch(name)
+  run = job.fetch("steps").find { |s| s["run"].to_s.include?("fm-test-run.sh --lane") } or raise "#{name} run step missing"
+  raise "#{name} must run with --jobs 2" unless run.fetch("run").include?("--jobs 2")
+end
+
+agg = jobs.fetch("tests-timing-aggregate")
+raise "timing aggregate must depend on lint" unless Array(agg["needs"]).include?("lint")
+agg_run = agg.fetch("steps").find { |s| s["run"].to_s.include?("fm-ci-budget-warn.sh") } or raise "budget warn step missing"
+raise "budget warn must stay a warning, not a failing gate" if agg_run["continue-on-error"]
+lint_up = lint.fetch("steps").find { |s| s["name"] == "Upload lint telemetry" } or raise "lint telemetry upload missing"
+raise "lint telemetry upload must not fail the lint job when a partition has no files" unless lint_up.dig("with", "if-no-files-found") == "warn"
+raise "lint telemetry download must stay a hard dependency of the aggregate" unless agg.fetch("steps").any? { |s| s["name"] == "Download lint telemetry" }
+
+jobs.each do |name, job|
+  next unless job.is_a?(Hash)
+  raise "#{name} must not set continue-on-error" if job["continue-on-error"]
+  Array(job["steps"]).each do |step|
+    raise "#{name} step must not set continue-on-error" if step.is_a?(Hash) && step["continue-on-error"]
+  end
+end
+RUBY
+  pass "CI keeps the 15-minute packing layout, 30-minute caps, verified lint installs, and warning-only budget check"
+}
+
 test_ci_matrices_match_executable_partitions
+test_ci_keeps_the_timecap_safeguards
 test_pr_pushes_supersede_within_one_pr
 test_separate_prs_do_not_cancel_each_other
 test_main_pushes_keep_only_the_newest_run
