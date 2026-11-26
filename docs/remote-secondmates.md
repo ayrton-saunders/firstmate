@@ -8,8 +8,6 @@ The primary still owns routing and supervision, while the remote home owns its o
 Firstmate does not support placing an individual worker remotely or failing a remote route over to a local replacement.
 
 Per-lane named execution-root isolation is not supported: distinct homes and Herdr sessions do not pin independent Firstmate versions against account-wide transport repair, cleanup, or updates.
-Characterization tests and the inactive closure audit remain; named enrollment and dispatch are unavailable.
-The [`stage_map` in the audit policy](../tests/fixtures/remote-root-boundaries.json) records unimplemented qualification criteria, test targets, and failure oracles, not a supported roadmap.
 
 ## Find a topic
 
@@ -840,15 +838,6 @@ bash bin/fm-test-run.sh --jobs 4 --per-script-timeout-secs 0 --max-wall-ms 12000
 bin/fm-test-run.sh tests/fm-remote-secondmate-omp.test.sh
 bin/fm-test-run.sh tests/fm-remote-secondmate-trace-context.test.sh
 ```
-
-### Execution-root characterization and closure audit
-
-[`remote-root-inventory.py`](../tests/remote-root-inventory.py) generates the inactive source index from tracked runtime entries and the [audit policy](../tests/fixtures/remote-root-boundaries.json); do not maintain a prose copy of its generated findings or stage map.
-Its header owns invocation and evidence limits.
-[`fm-remote-root-inventory.test.sh`](../tests/fm-remote-root-inventory.test.sh) checks index/exclusion mechanics, interpreted-module invocation mappings, and the current ingress's protocol-2 refusal, not named runtime admission.
-The no-enrollment fixtures are [`fm-remote-legacy-golden.test.sh`](../tests/fm-remote-legacy-golden.test.sh), [`fm-remote-legacy-cleanup.test.sh`](../tests/fm-remote-legacy-cleanup.test.sh), and [`fm-remote-root-characterization.test.sh`](../tests/fm-remote-root-characterization.test.sh); their headers own baseline selection and sandboxing.
-[`fm-remote-legacy-mutation.test.sh`](../tests/fm-remote-legacy-mutation.test.sh) verifies that deliberately broken implementations fail those frozen observations.
-The candidate runner and descendant processes constrain a future command shape; they do not qualify an installed launcher, a real adapter, or mixed-account cleanup.
 
 ### What the portable tests cannot prove
 

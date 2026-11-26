@@ -1,19 +1,16 @@
 #!/usr/bin/env bash
-# No-enrollment route/readiness/sync observations through public libraries.
-# Canonical 315c82ae makes unattended repair explicitly --automatic; session
-# argv and all other frozen single-root observations retain their contract.
-# FM_CHARACTERIZATION_ROOT is a test-only baseline selection; no remote tools run.
+# Legacy route defaults, readiness, sync and queue setup through public libraries.
+# No remote tools run.
 set -eu
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
-SUBJECT=${FM_CHARACTERIZATION_ROOT:-$ROOT}
 TMP_ROOT=$(fm_test_tmproot fm-remote-legacy-golden)
 mkdir -p "$TMP_ROOT/home" "$TMP_ROOT/fakebin"
 TMP_ROOT=$(cd "$TMP_ROOT" && pwd -P)
 trap fm_test_cleanup EXIT
 export HOME="$TMP_ROOT/home"
-. "$SUBJECT/bin/fm-secondmate-registry-lib.sh"
+. "$ROOT/bin/fm-secondmate-registry-lib.sh"
 {
   secondmate_registry_parse_line '- ios - legacy (host: remote-mac; root: /remote/code; home: /remote/home; scope: delivery; projects: alpha; added 2026-08-02)'
   printf 'route=%s host=%s root=%s home=%s session=%s remote=%s\n' \
@@ -47,7 +44,7 @@ exit 1
 SH
 chmod +x "$TMP_ROOT/fakebin/fm-on.sh"
 export READINESS_CALLS="$TMP_ROOT/calls" READINESS_EFFECT="$HOME/ready" READINESS_MODE=normal
-. "$SUBJECT/bin/fm-remote-readiness-lib.sh"
+. "$ROOT/bin/fm-remote-readiness-lib.sh"
 # The function deliberately captures nonzero probe exits; it is a conditional
 # command just as in its real callers, so errexit must not interrupt the probe.
 if fm_remote_readiness_ensure "$TMP_ROOT/fakebin" ios herdr; then rc=0; else rc=$?; fi
@@ -81,7 +78,7 @@ A=$(git -C "$TMP_ROOT/source" rev-parse HEAD)
 printf 'B\n' > "$TMP_ROOT/source/payload"
 git -C "$TMP_ROOT/source" commit -qam B
 B=$(git -C "$TMP_ROOT/source" rev-parse HEAD)
-. "$SUBJECT/bin/fm-ff-lib.sh"
+. "$ROOT/bin/fm-ff-lib.sh"
 FF_IMPORT_FROM="$TMP_ROOT/source"
 ff_target "$TMP_ROOT/destination" home "$B" > "$TMP_ROOT/sync"
 [ "$FF_STATUS" = updated ] || fail "legacy home did not fast-forward"
@@ -102,14 +99,14 @@ pass "no-enrollment sync preserves fast-forward/current output, selected bytes a
 # Exercise the actual default queue creation and service path owner without
 # overriding the queue, rendering/loading a service, or installing anything.
 unset FM_REMOTE_JOB_STATE_ROOT
-. "$SUBJECT/bin/fm-remote-job-lib.sh"
+. "$ROOT/bin/fm-remote-job-lib.sh"
 fm_remote_job_prepare_state "$HOME"
 fm_remote_job_launchagent_paths "$HOME"
 printf '%s\n' "state=${FM_REMOTE_JOB_STATE#"$HOME"}" \
   "jobs=${FM_REMOTE_JOB_JOBS#"$HOME"}" "claims=${FM_REMOTE_JOB_SEQ_CLAIMS#"$HOME"}" \
   "label=$FM_REMOTE_JOB_LABEL" "plist=${FM_REMOTE_JOB_LAUNCH_AGENT_PLIST#"$HOME"}" \
   "log=${FM_REMOTE_JOB_LAUNCH_AGENT_LOG#"$HOME"}" > "$TMP_ROOT/queue"
-key=$(python3 -c 'import hashlib,pathlib,sys; print(hashlib.sha256(str(pathlib.Path(sys.argv[1]).resolve()).encode()).hexdigest()[:16])' "$SUBJECT")
+key=$(python3 -c 'import hashlib,pathlib,sys; print(hashlib.sha256(str(pathlib.Path(sys.argv[1]).resolve()).encode()).hexdigest()[:16])' "$ROOT")
 cat > "$TMP_ROOT/queue.expected" <<TXT
 state=/.firstmate/remote-job-$key
 jobs=/.firstmate/remote-job-$key/jobs
