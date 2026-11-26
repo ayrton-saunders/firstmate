@@ -9,7 +9,7 @@ Start with the directory layout, then use the setting reference for the behavior
 | --- | --- |
 | Firstmate's code, private files, or project location | [FM_HOME](#fm_home) and [operational home layout](#operational-home-layout-and-state) |
 | Task windows and worker tools | [Runtime backend](#runtime-backend-configbackend--fm_backend) and [harness support](#harness-support) |
-| Worker permissions, accounts, or environment | [Claude permission mode](#claude-permission-mode-configclaude-permission-mode), [Codex permission mode](#codex-permission-mode-configcodex-permission-mode), [persistent managed-policy failover](#persistent-managed-policy-failover), [worker account pin](#worker-account-pin-configclaude-account-configpi-account), [several Claude accounts](#several-claude-accounts-configclaude-accounts), [worker tool exclusions](#worker-tool-exclusions-configcrew-exclude-tools), [worker launch environment](#worker-launch-environment-configlaunch-env-allowlist), and its [Orca environment source](#orca-environment-source-configlaunch-env-tmux-session) |
+| Worker permissions, accounts, or environment | [Codex approval review](#codex-automatic-approval-review), [Claude permission mode](#claude-permission-mode-configclaude-permission-mode), [Codex permission mode](#codex-permission-mode-configcodex-permission-mode), [persistent managed-policy failover](#persistent-managed-policy-failover), [worker account pin](#worker-account-pin-configclaude-account-configpi-account), [several Claude accounts](#several-claude-accounts-configclaude-accounts), [worker tool exclusions](#worker-tool-exclusions-configcrew-exclude-tools), [worker launch environment](#worker-launch-environment-configlaunch-env-allowlist), and its [Orca environment source](#orca-environment-source-configlaunch-env-tmux-session) |
 | Backlog, preferences, and memory | [Backlog backend](#backlog-backend-taskstoml--configbacklog-backend), [captain preferences](#captain-preferences-datacaptainmd--datacaptain-sharedmd), [external memory tiers](#external-memory-tiers-memory-layering-section), [record export](#record-export-configrecord-export-root), [startup memory budget](#startup-memory-budget-configstartup-memory-budget), and [stow guard](#stow-guard-configstow-guard) |
 | Supervision and presentation | [Pi supervision branch](#pi-supervision-branch), [supervision host](#supervision-host-configsupervision-host), [Codex native Stop park](#codex-native-stop-park-configcodex-stop-park), [warm-cache compaction](#warm-cache-compaction-configwarm-compact), and [Calm preference](#calm-preference-configcalm) |
 | Persistent secondmates | [Secondmate routes](#secondmate-routes-datasecondmatesmd) |
@@ -1554,6 +1554,19 @@ Hook entries merge across settings files rather than replacing each other, so th
 The CLI reference documents the one file-or-JSON flag, the settings page documents session precedence, and the hooks page documents the hooks merge: <https://code.claude.com/docs/en/cli-reference>, <https://code.claude.com/docs/en/settings>, <https://code.claude.com/docs/en/hooks>.
 [`fm-spawn.sh`](../bin/fm-spawn.sh) owns the file and the flag.
 
+### Codex automatic approval review
+
+Firstmate-built, pane-backed Codex crewmate, scout, and secondmate commands default to `--dangerously-bypass-approvals-and-sandbox`.
+The local, gitignored `config/codex-approval-mode` accepts one whitespace-trimmed token: absent or `bypass` retains that default; `approve-for-me` selects `--approve-for-me` unless [restricted mode](#codex-permission-mode-configcodex-permission-mode) takes precedence.
+`fm-spawn.sh` validates the file even when launching a different harness.
+Malformed values and unreadable files refuse before spawn mutation, and the setting applies to relaunches and is inherited into secondmate homes.
+For T3 Code, see [provider launch limits](t3code-backend.md#active-limits).
+The fallback uses a model reviewer in the workspace-write sandbox, which starts with network access disabled and reviews writes outside the working directory.
+It remedies a managed policy that leaves bypass launches with user-reviewed approvals even when its sandbox bypass applies.
+Firstmate targets current CLIs rather than detecting versions or emulating older approval flags.
+Approval mode does not change [Codex hook and notification wiring](../.agents/skills/harness-adapters/references/harness/codex.md#hook-trust).
+See the [current verification and limits](verification/runtime-backends.md#codex-automatic-approval-review) for observed task-channel and network access.
+
 ## Claude permission mode (config/claude-permission-mode)
 
 The optional local, gitignored `config/claude-permission-mode` selects the permission flag for Firstmate-built Claude command lines: crewmates, scouts, Claude secondmates, and control-plane relaunches.
@@ -1584,7 +1597,7 @@ The diagnostic names the accepted values; Firstmate never falls back to a permis
 ### When changes apply and inheritance
 
 `bin/fm-spawn.sh` reads the file on every spawn and relaunch, so a change takes effect at the next launch without a restart.
-The file follows the primary-authoritative [`secondmate-provisioning`](../.agents/skills/secondmate-provisioning/SKILL.md) inherited-local-material contract.
+Both approval-mode files follow the primary-authoritative [`secondmate-provisioning`](../.agents/skills/secondmate-provisioning/SKILL.md) inherited-local-material contract.
 T3 Code owns its provider command and always uses `full-access`, so `backend=t3code` accepts the default `bypass` posture and refuses `auto` before mutation; [`t3code-backend.md`](t3code-backend.md#active-limits) owns that backend limit.
 
 The [Claude adapter reference](../.agents/skills/harness-adapters/references/harness/claude.md) records the permission-mode observations and the distinct startup dialogs.
@@ -1595,13 +1608,12 @@ The optional local, gitignored `config/codex-permission-mode` selects the permis
 
 | File content | Launch permission flags |
 | --- | --- |
-| Absent or `bypass` | `--dangerously-bypass-approvals-and-sandbox` |
+| Absent or `bypass` | Uses the flag selected by [Codex approval mode](#codex-automatic-approval-review) |
 | `restricted` | `--sandbox workspace-write --ask-for-approval on-request` |
 
 Create the file containing exactly one of the two tokens, optionally followed by a newline.
-A managed Codex policy can still require user-reviewed approvals when sandbox bypass is active.
 Restricted mode changes only the permission flags; model, effort, and hook wiring stay the same.
-The task record reports `restricted`.
+The task record reports `restricted`, so managed approval failover never treats a restricted launch as bypass.
 It grants no additional writable directories, including the shared Firstmate state directory.
 Writes outside the worker's worktree, including status reports and steering-inbox acknowledgements, remain subject to operator approval.
 Codex `--sandbox workspace-write` also disables network access and does not permit writes to shared Git metadata by default, so `git commit`, `git push`, `gh`, and no-mistakes pipeline steps from a restricted worker likewise stop at an approval prompt.
@@ -1615,16 +1627,16 @@ The file is not inherited into secondmate homes; configure it separately in each
 
 ## Persistent managed-policy failover
 
-After firstmate observes a Claude managed-policy refusal of a bypass session, it asks the captain for explicit approval to save a lasting worker permission setting and relaunch the worker.
+After firstmate observes a Codex command-approval prompt under its bypass flag or a Claude managed-policy refusal of a bypass session, it asks the captain for explicit approval to save a lasting worker permission setting and relaunch the worker.
 Only after that approval does firstmate invoke `bin/fm-approval-failover.sh`; the script's header and help own the command and recovery mechanics.
 There is no automatic detection, polling, startup window, or approval-prompt answering.
-The command saves Claude's `auto` in the owning home's absent mode file, so later launches use the model-reviewed remedy without retrying bypass.
+The command saves Codex's `approve-for-me` or Claude's `auto` in the owning home's absent mode file, so later launches use the model-reviewed remedy without retrying bypass.
 Existing explicit settings are never overwritten, including invalid or empty files, directories and dangling symlinks; a concurrent setting wins too.
 To retain a secondmate's remedy across convergence, select it in the primary home under the [inherited-local-material contract](../.agents/skills/secondmate-provisioning/SKILL.md).
 Recovery uses the existing [lifecycle control plane](agent-control.md), respecting its leases and supported-runtime limits; incomplete recovery is reported with the saved setting and work preserved.
-A `backend=t3code` task refuses before any change, because T3 already runs it at `full-access` and its spawns refuse `auto`; approve the pending request in T3 Code itself or choose another backend.
+A `backend=t3code` task refuses before any change, because T3 already runs it at `full-access` and its spawns refuse both fallbacks; approve the pending request in T3 Code itself or choose another backend.
 Generic login failures do not establish a defeated bypass, and managed hook review remains a separate operator decision.
-The fallback is not unrestricted execution, and Firstmate does not change vendor or security-agent settings.
+Neither fallback is unrestricted execution, and Firstmate does not change vendor or security-agent settings.
 
 ## Worker tool exclusions (config/crew-exclude-tools)
 

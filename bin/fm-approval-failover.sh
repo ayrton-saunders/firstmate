@@ -1,13 +1,14 @@
 #!/usr/bin/env bash
-# Firstmate-invoked managed-approval failover for a recorded local Claude worker.
+# Firstmate-invoked managed-approval failover for a recorded local worker.
 # Usage: FM_HOME=<owning-home> fm-approval-failover.sh apply <task-id>
-# Firstmate must first observe a Claude policy refusal of a bypass session.
+# Firstmate must first observe a defeated bypass: a Codex command-approval
+# prompt under its bypass launch, or a Claude policy refusal of a bypass session.
 # Obtain the captain's explicit approval before running apply; observing the
 # failure alone does not authorize a lasting permission change or relaunch.
 # This command does not detect, poll, capture a screen, or answer an approval.
-# It saves Claude's model-reviewed auto mode only when the owning home's mode
-# file is absent, then uses fm-control interrupt/relaunch to preserve and
-# resume the assigned work.
+# It saves approve-for-me (Codex) or auto (Claude) only when the owning home's
+# mode file is absent, then uses fm-control interrupt/relaunch to preserve and
+# resume the assigned work. Both fallbacks use a model reviewer.
 # Explicit settings, including invalid files, directories and dangling links,
 # are never overwritten. Publication uses an exact-destination atomic link;
 # a concurrent setting wins. Remote endpoints, non-bypass launches and T3 Code
@@ -20,8 +21,8 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 case "${1:-}" in
   --help|-h)
     printf '%s\n' 'Usage: FM_HOME=<owning-home> fm-approval-failover.sh apply <task-id>' \
-      "Run only after observing a Claude bypass policy refusal and obtaining the captain's explicit approval." \
-      'Saves Claude auto mode once and relaunches through fm-control.'
+      "Run only after observing a defeated bypass and obtaining the captain's explicit approval." \
+      'Saves the runtime fallback once and relaunches through fm-control.'
     exit 0
     ;;
   apply) [ "$#" -eq 2 ] || { echo 'error: apply requires one task id' >&2; exit 2; } ;;
@@ -58,9 +59,11 @@ fi
   echo 'error: invoke failover in the remote worker owning home' >&2
   exit 1
 }
-[ "$HARNESS" = claude ] || { echo 'error: managed approval failover supports only Claude' >&2; exit 1; }
-SETTING=claude-permission-mode
-FALLBACK=auto
+case "$HARNESS" in
+  codex) SETTING=codex-approval-mode; FALLBACK=approve-for-me ;;
+  claude) SETTING=claude-permission-mode; FALLBACK=auto ;;
+  *) echo 'error: managed approval failover supports only Codex and Claude' >&2; exit 1 ;;
+esac
 [ "$(fm_backend_of_meta "$META")" != t3code ] || {
   echo "error: backend=t3code already runs $HARNESS at T3's full-access runtime mode and cannot honor config/$SETTING=$FALLBACK; approve the pending request in T3 Code itself or choose another backend; nothing changed" >&2
   exit 1

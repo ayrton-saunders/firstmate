@@ -1,19 +1,18 @@
 #!/usr/bin/env bash
-# Freeze the no-enrollment teardown -> orphan-cleanup integration using only
-# a recorded reaper stub and fake backend, never a real sweep/backend/pool call.
+# Exercise the teardown -> orphan-cleanup integration using only a recorded
+# reaper stub and fake backend, never a real sweep/backend/pool call.
 set -eu
 # shellcheck source=tests/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 unset FM_PUBLIC_FOLLOWUP_PRIMARY_HOME
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
-SUBJECT=${FM_CHARACTERIZATION_ROOT:-$ROOT}
 TMP_ROOT=$(fm_test_tmproot fm-remote-legacy-cleanup)
 mkdir -p "$TMP_ROOT/code" "$TMP_ROOT/home/state" "$TMP_ROOT/home/data/legacy" \
   "$TMP_ROOT/home/config" "$TMP_ROOT/tools"
 trap fm_test_cleanup EXIT
 # Copy implementation bytes into a fixture directory, not another Git checkout.
 # The fixture has no .git and never creates, adopts or removes a pool slot.
-cp -R "$SUBJECT/bin" "$TMP_ROOT/code/bin"
+cp -R "$ROOT/bin" "$TMP_ROOT/code/bin"
 cat > "$TMP_ROOT/code/bin/fm-remote-job-reap-orphans.sh" <<'SH'
 #!/usr/bin/env bash
 printf 'orphan-reap\n' >> "$CLEANUP_EFFECTS"

@@ -45,6 +45,7 @@ capture_codex_launch() {
   id="codex-hook-layer-$name"
   fakebin=$(fm_test_make_spawn_fakebin "$case_dir/fake")
   fm_test_spawn_home "$home" codex
+  printf 'approve-for-me\n' > "$home/config/codex-approval-mode"
   fm_test_spawn_brief "$home" "$id"
   fm_git_worktree "$proj" "$wt" "wt-$name"
   : > "$launchlog"
@@ -68,8 +69,13 @@ test_installed_codex_accepts_requested_hook_disablement_for_the_captured_crewmat
   launch=$(capture_codex_launch ship --mode no-mistakes --yolo off)
   flags=$(codex_global_flags "$launch")
   case " $flags " in
-    *' --dangerously-bypass-approvals-and-sandbox '*) ;;
-    *) fail "codex $CODEX_VERSION captured launch omitted the default bypass flag" ;;
+    *' --approve-for-me '*) ;;
+    *) fail "codex $CODEX_VERSION captured launch omitted --approve-for-me" ;;
+  esac
+  case " $flags " in
+    *' --dangerously-bypass-approvals-and-sandbox '*)
+      fail "codex $CODEX_VERSION captured launch retained the complete-bypass posture"
+      ;;
   esac
 
   # The captured flags must remain accepted by the real Codex CLI. A managed
@@ -107,6 +113,7 @@ from pathlib import Path
 import queue
 import shlex
 import shutil
+import signal
 import subprocess
 import sys
 import threading
@@ -216,7 +223,8 @@ enabled=false
     before = Responses.requests
     with (case / 'stderr').open('w') as stderr:
         process = subprocess.Popen(['codex', 'app-server', '--stdio'], cwd=case, env=env,
-                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr, text=True)
+                                   stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=stderr, text=True,
+                                   start_new_session=True)
         def read_lines():
             for line in process.stdout:
                 messages.put(json.loads(line))
@@ -265,11 +273,19 @@ enabled=false
             if mode == 'wrapper-block':
                 assert any('TURN WOULD END BLIND' in entry['text'] for entry in runs[0]['entries']), runs
         finally:
-            process.terminate()
+            # Hook shells can outlive app-server and keep the fixture cwd.
+            # Stop the whole private group before the scratch ownership check.
+            try:
+                os.killpg(process.pid, signal.SIGTERM)
+            except ProcessLookupError:
+                pass
             try:
                 process.wait(timeout=3)
-            except subprocess.TimeoutExpired:
-                process.kill()
+            finally:
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
                 process.wait()
             reader.join(timeout=1)
 

@@ -55,5 +55,26 @@ test_direct_invocation_still_works() {
   pass "fm-remote-entrypoint.sh invoked directly still resolves SCRIPT_DIR correctly"
 }
 
+test_protocol_mismatch_refuses_before_dispatch() {
+  local command payload rc
+  mkdir -p "$TMP_ROOT/account" "$TMP_ROOT/staging"
+  for command in fm-on.sh fm-unclassified-audit.sh; do
+    payload=$(printf '%s\0' "$command" "$TMP_ROOT/must-not-run" | base64 | tr -d '\n')
+    HOME="$TMP_ROOT/account" TMPDIR="$TMP_ROOT/staging" \
+      bash "$ROOT/bin/fm-remote-entrypoint.sh" 2 unused-root unused-home "$payload" \
+      > "$TMP_ROOT/ingress.out" 2> "$TMP_ROOT/ingress.err"
+    rc=$?
+    expect_code 64 "$rc" "protocol mismatch exit code"
+    assert_grep 'incompatible remote protocol: local=2 remote=1' "$TMP_ROOT/ingress.err" \
+      "ingress did not reject the protocol before interpreting its payload"
+    [ ! -s "$TMP_ROOT/ingress.out" ] || fail "refused ingress produced command output"
+    [ -z "$(find "$TMP_ROOT/account" "$TMP_ROOT/staging" -mindepth 1 -print)" ] \
+      || fail "refused request created account or queue state"
+    assert_absent "$TMP_ROOT/must-not-run" "refused payload ran"
+  done
+  pass "protocol mismatch refuses known and unknown payloads before dispatch or state creation"
+}
+
 test_symlink_invocation_resolves_sibling_lib
 test_direct_invocation_still_works
+test_protocol_mismatch_refuses_before_dispatch
